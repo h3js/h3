@@ -4,6 +4,7 @@
   "description": "Minimal H(TTP) framework built for high performance and portability.",
   "repository": "unjs/h3",
   "license": "MIT",
+  "type": "module",
   "sideEffects": false,
   "exports": {
     "./package.json": "./package.json",
