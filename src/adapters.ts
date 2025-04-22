@@ -18,6 +18,9 @@ export type NodeMiddleware = (
   next: (error?: Error) => void,
 ) => unknown | Promise<unknown>;
 
+/**
+ * @deprecated Since h3 v2 you can directly use `app.fetch(request, init?, context?)`
+ */
 export function toWebHandler(
   app: H3,
 ): (request: Request, context?: H3Event) => Promise<Response> {
