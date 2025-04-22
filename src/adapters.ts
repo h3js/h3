@@ -62,11 +62,11 @@ export function fromNodeHandler(
   };
 }
 
-export function defineNodeHandler(handler: NodeHandler) {
+export function defineNodeHandler(handler: NodeHandler): NodeHandler {
   return handler;
 }
 
-export function defineNodeMiddleware(handler: NodeMiddleware) {
+export function defineNodeMiddleware(handler: NodeMiddleware): NodeMiddleware {
   return handler;
 }
 

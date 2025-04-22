@@ -51,7 +51,7 @@ export const algorithms = /* @__PURE__ */ Object.freeze({
     ivBits: 128,
     name: "SHA-256",
   }),
-});
+}) as Record<string, { keyBits: number; ivBits: number; name: string }>;
 
 /** MAC normalization format version. */
 export const macFormatVersion = "2";

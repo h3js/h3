@@ -31,7 +31,10 @@ export class H3Error<DataT = unknown> extends Error {
     }
   }
 
-  toJSON() {
+  toJSON(): Pick<
+    H3Error<DataT>,
+    "message" | "statusCode" | "statusMessage" | "data"
+  > {
     const obj: Pick<
       H3Error<DataT>,
       "message" | "statusCode" | "statusMessage" | "data"
@@ -82,13 +85,9 @@ export function createError<DataT = unknown>(
   input:
     | string
     | (Partial<H3Error<DataT>> & { status?: number; statusText?: string }),
-) {
+): H3Error<DataT> {
   if (typeof input === "string") {
     return new H3Error<DataT>(input);
-  }
-
-  if (isError<DataT>(input)) {
-    return input;
   }
 
   // Inherit H3Error properties from cause as fallback

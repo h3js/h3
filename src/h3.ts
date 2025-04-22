@@ -1,11 +1,12 @@
 import { createRouter, addRoute, findAllRoutes, findRoute } from "rou3";
-import { serve as srvxServe, type ServerOptions } from "srvx";
+import { serve as srvxServe } from "srvx";
 import { getPathname, joinURL } from "./utils/internal/path.ts";
 import { _H3Event } from "./event.ts";
 import { kNotFound, handleResponse } from "./response.ts";
 
+import type { ServerOptions, Server } from "srvx";
 import type { RouterContext } from "rou3";
-import type { H3Route, HTTPMethod } from "./types/h3.ts";
+import type { H3Route, HTTPMethod, WebSocketOptions } from "./types/h3.ts";
 import type { ResolvedEventHandler } from "./types/handler.ts";
 import type { H3Config } from "./types/h3.ts";
 import type { H3Event, H3EventContext } from "./types/event.ts";
@@ -14,7 +15,7 @@ import type { EventHandler, EventHandlerRequest } from "./types/handler.ts";
 /**
  * Serve the h3 app, automatically handles current runtime behavior.
  */
-export function serve(app: H3, options?: Omit<ServerOptions, "fetch">) {
+export function serve(app: H3, options?: Omit<ServerOptions, "fetch">): Server {
   return srvxServe({ fetch: app.fetch, ...options });
 }
 
@@ -54,7 +55,7 @@ export class H3 {
   /**
    * Websocket hooks compatible with [🔌 crossws](https://crossws.unjs.io/).
    */
-  get websocket() {
+  get websocket(): WebSocketOptions {
     return {
       ...this.config.websocket,
       resolve: async (info: { url: string; method?: string }) => {

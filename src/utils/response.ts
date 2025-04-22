@@ -51,7 +51,11 @@ export function noContent(event: H3Event, code?: number): "" {
  *   return redirect(event, "https://example.com", 301); // Permanent redirect
  * });
  */
-export function redirect(event: H3Event, location: string, code: number = 302) {
+export function redirect(
+  event: H3Event,
+  location: string,
+  code: number = 302,
+): string {
   event.res.status = sanitizeStatusCode(code, event.res.status);
   event.res.headers.set("location", location);
   const encodedLoc = location.replace(/"/g, "%22");

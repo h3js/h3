@@ -31,7 +31,7 @@ export async function proxyRequest(
   event: H3Event,
   target: string,
   opts: ProxyOptions = {},
-) {
+): Promise<BodyInit | undefined | null> {
   // Request Body
   let body;
   let duplex: "half" | "full" | undefined;
@@ -150,7 +150,7 @@ export async function proxy(
 export function getProxyRequestHeaders(
   event: H3Event,
   opts?: { host?: boolean },
-) {
+): Record<string, string> {
   const headers = new EmptyObject();
   for (const [name, value] of event.req.headers.entries()) {
     if (!ignoredHeaders.has(name) || (name === "host" && opts?.host)) {

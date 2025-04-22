@@ -5,19 +5,24 @@ import {
   toNodeHandler,
 } from "./adapters.ts";
 import { defineEventHandler, defineLazyEventHandler } from "./handler.ts";
-import { proxy } from "./utils/proxy.ts";
+import { proxy, type ProxyOptions } from "./utils/proxy.ts";
 import { H3 } from "./h3.ts";
 import { withBase } from "./utils/base.ts";
 import { sanitizeStatusCode, sanitizeStatusMessage } from "./utils/sanitize.ts";
 
+import type { NodeHandler, NodeMiddleware } from "./adapters.ts";
 import type { H3Event } from "./types/event.ts";
 import type { EventHandler } from "./types/handler.ts";
 import type { H3Config } from "./types/h3.ts";
+import type {
+  IterationSource,
+  IteratorSerializer,
+} from "./utils/internal/iterable.ts";
 
 // --- Request ---
 
 /** @deprecated Please use `event.url` */
-export const getRequestPath = (event: H3Event) => event.path;
+export const getRequestPath = (event: H3Event): string => event.path;
 
 /** @deprecated Please use `event.req.headers.get(name)` */
 export function getRequestHeader(
@@ -28,7 +33,8 @@ export function getRequestHeader(
 }
 
 /** @deprecated Please use `event.req.headers.get(name)` */
-export const getHeader = getRequestHeader;
+export const getHeader: (event: H3Event, name: string) => string | undefined =
+  getRequestHeader;
 
 /** @deprecated Please use `Object.fromEntries(event.req.headers.entries())` */
 export function getRequestHeaders(event: H3Event): Record<string, string> {
@@ -36,10 +42,11 @@ export function getRequestHeaders(event: H3Event): Record<string, string> {
 }
 
 /** @deprecated Please use `Object.fromEntries(event.req.headers.entries())` */
-export const getHeaders = getRequestHeaders;
+export const getHeaders: (event: H3Event) => Record<string, string> =
+  getRequestHeaders;
 
 /** @deprecated Please use `event.req.method` */
-export function getMethod(event: H3Event, defaultMethod = "GET") {
+export function getMethod(event: H3Event, defaultMethod = "GET"): string {
   return (event.req.method || defaultMethod).toUpperCase();
 }
 
@@ -63,7 +70,8 @@ export async function readFormDataBody(event: H3Event): Promise<FormData> {
 }
 
 /** @deprecated Please use `event.req.formData()` */
-export const readFormData = readFormDataBody;
+export const readFormData: (event: H3Event) => Promise<FormData> =
+  readFormDataBody;
 
 /** @deprecated Please use `event.req.body` */
 export function getBodyStream(
@@ -73,7 +81,9 @@ export function getBodyStream(
 }
 
 /** @deprecated Please use `event.req.body` */
-export const getRequestWebStream = getBodyStream;
+export const getRequestWebStream: (
+  event: H3Event,
+) => ReadableStream | undefined = getBodyStream;
 
 // --- Response ---
 
@@ -86,19 +96,35 @@ export function sendStream(
 }
 
 /** @deprecated Please use `return noContent(event)` */
-export const sendNoContent = noContent;
+export const sendNoContent: (event: H3Event, code?: number) => "" = noContent;
 
 /** @deprecated Please use `return redirect(event, code)` */
-export const sendRedirect = redirect;
+export const sendRedirect: (
+  event: H3Event,
+  location: string,
+  code: number,
+) => string = redirect;
 
 /** @deprecated Please directly return response */
-export const sendWebResponse = (response: Response) => response;
+export const sendWebResponse: (response: Response) => Response = (
+  response: Response,
+) => response;
 
 /** @deprecated Please use `return proxy(event)` */
-export const sendProxy = proxy;
+export const sendProxy: (
+  event: H3Event,
+  target: string,
+  opts?: ProxyOptions,
+) => Promise<BodyInit | undefined | null> = proxy;
 
 /** @deprecated Please use `return iterable(event, value)` */
-export const sendIterable = iterable;
+export const sendIterable: <Value = unknown, Return = unknown>(
+  _event: H3Event,
+  iterable: IterationSource<Value, Return>,
+  options?: {
+    serializer: IteratorSerializer<Value | Return>;
+  },
+) => ReadableStream = iterable;
 
 /** @deprecated Please use `event.res.statusText` */
 export function getResponseStatusText(event: H3Event): string {
@@ -121,7 +147,11 @@ export function appendResponseHeader(
 }
 
 /** @deprecated Please use `event.res.headers.append(name, value)` */
-export const appendHeader = appendResponseHeader;
+export const appendHeader: (
+  event: H3Event,
+  name: string,
+  value: string | string[],
+) => void = appendResponseHeader;
 
 /** @deprecated Please use `event.res.headers.set(name, value)` */
 export function setResponseHeader(
@@ -140,7 +170,11 @@ export function setResponseHeader(
 }
 
 /** @deprecated Please use `event.res.headers.set(name, value)` */
-export const setHeader = setResponseHeader;
+export const setHeader: (
+  event: H3Event,
+  name: string,
+  value: string | string[],
+) => void = setResponseHeader;
 
 /** @deprecated Please use `event.res.headers.set(name, value)` */
 export function setResponseHeaders(
@@ -153,7 +187,10 @@ export function setResponseHeaders(
 }
 
 /** @deprecated Please use `event.res.headers.set(name, value)` */
-export const setHeaders = setResponseHeaders;
+export const setHeaders: (
+  event: H3Event,
+  headers: Record<string, string>,
+) => void = setResponseHeaders;
 
 /** @deprecated Please use `event.res.status` */
 export function getResponseStatus(event: H3Event): number {
@@ -175,7 +212,7 @@ export function setResponseStatus(
 }
 
 /** @deprecated Please use `event.res.headers.set("content-type", type)` */
-export function defaultContentType(event: H3Event, type?: string) {
+export function defaultContentType(event: H3Event, type?: string): void {
   if (
     type &&
     event.res.status !== 304 /* unjs/h3#603 */ &&
@@ -211,7 +248,8 @@ export function appendResponseHeaders(event: H3Event, headers: string): void {
 }
 
 /** @deprecated Please use `event.res.headers.append(name, value)` */
-export const appendHeaders = appendResponseHeaders;
+export const appendHeaders: (event: H3Event, headers: string) => void =
+  appendResponseHeaders;
 
 /** @deprecated Please use `event.res.headers.delete` */
 export function clearResponseHeaders(
@@ -232,19 +270,25 @@ export function clearResponseHeaders(
 // -- Event handler --
 
 /** Please use `defineEventHandler`  */
-export const eventHandler = defineEventHandler;
+export const eventHandler: (handler: EventHandler) => EventHandler =
+  defineEventHandler;
 
 /** Please use `defineLazyEventHandler` */
-export const lazyEventHandler = defineLazyEventHandler;
+export const lazyEventHandler: (
+  load: () => Promise<EventHandler> | EventHandler,
+) => EventHandler = defineLazyEventHandler;
 
 /** @deprecated Please use `defineNodeHandler` */
-export const defineNodeListener = defineNodeHandler;
+export const defineNodeListener: (handler: NodeHandler) => NodeHandler =
+  defineNodeHandler;
 
 /** @deprecated Please use `defineNodeHandler` */
-export const fromNodeMiddleware = fromNodeHandler;
+export const fromNodeMiddleware: (
+  handler: NodeHandler | NodeMiddleware,
+) => EventHandler = fromNodeHandler;
 
 /** @deprecated Please use `toNodeHandler` */
-export const toNodeListener = toNodeHandler;
+export const toNodeListener: (app: H3) => NodeHandler = toNodeHandler;
 
 /** @deprecated */
 export function toEventHandler(
@@ -258,10 +302,11 @@ export function toEventHandler(
 // -- App/Router --
 
 /** @deprecated Please use `new H3()` */
-export const createApp = (config?: H3Config) => new H3(config);
+export const createApp = (config?: H3Config): H3 => new H3(config);
 
 /** @deprecated Please use `new H3()` */
-export const createRouter = (config?: H3Config) => new H3(config);
+export const createRouter = (config?: H3Config): H3 => new H3(config);
 
 /** @deprecated Please use `withBase()` */
-export const useBase = withBase;
+export const useBase: (base: string, input: EventHandler | H3) => EventHandler =
+  withBase;

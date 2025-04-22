@@ -1,7 +1,7 @@
 import { rm } from "node:fs/promises";
-import { defineBuildConfig } from "unbuild";
+import type { BuildConfig } from "unbuild";
 
-export default defineBuildConfig({
+const config: BuildConfig = {
   declaration: true,
   rollup: {
     esbuild: {
@@ -18,4 +18,6 @@ export default defineBuildConfig({
       await rm("dist/index.d.ts");
     },
   },
-});
+};
+
+export default config;

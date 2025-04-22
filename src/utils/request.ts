@@ -155,7 +155,7 @@ export function isMethod(
   event: H3Event,
   expected: HTTPMethod | HTTPMethod[],
   allowHead?: boolean,
-) {
+): boolean {
   if (allowHead && event.req.method === "HEAD") {
     return true;
   }
@@ -188,7 +188,7 @@ export function assertMethod(
   event: H3Event,
   expected: HTTPMethod | HTTPMethod[],
   allowHead?: boolean,
-) {
+): void {
   if (!isMethod(event, expected, allowHead)) {
     throw createError({
       statusCode: 405,
@@ -212,7 +212,7 @@ export function assertMethod(
 export function getRequestHost(
   event: H3Event,
   opts: { xForwardedHost?: boolean } = {},
-) {
+): string {
   if (opts.xForwardedHost) {
     const _header = event.req.headers.get("x-forwarded-host");
     const xForwardedHost = (_header || "").split(",").shift()?.trim();
@@ -238,7 +238,7 @@ export function getRequestHost(
 export function getRequestProtocol(
   event: H3Event,
   opts: { xForwardedProto?: boolean } = {},
-) {
+): "http" | "https" | (string & {}) {
   if (opts.xForwardedProto !== false) {
     const forwardedProto = event.req.headers.get("x-forwarded-proto");
     if (forwardedProto === "https") {
@@ -266,7 +266,7 @@ export function getRequestProtocol(
 export function getRequestURL(
   event: H3Event,
   opts: { xForwardedHost?: boolean; xForwardedProto?: boolean } = {},
-) {
+): URL {
   const url = new URL(event.url);
   url.protocol = getRequestProtocol(event, opts);
   if (opts.xForwardedHost) {
