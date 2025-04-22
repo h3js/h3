@@ -1,5 +1,5 @@
 import type { CookieSerializeOptions } from "cookie-es";
-import type { SealOptions } from "../../utils/internal/iron-crypto";
+import type { JWEOptions } from "../../utils/internal/jwe";
 import type { kGetSession } from "../../utils/internal/session";
 
 type SessionDataT = Record<string, any>;
@@ -24,7 +24,12 @@ export interface SessionConfig {
   cookie?: false | CookieSerializeOptions;
   /** Default is x-h3-session / x-{name}-session */
   sessionHeader?: false | string;
-  seal?: SealOptions;
+  /** JWE options for encryption/decryption */
+  jwe?: Partial<JWEOptions>;
+  /** Time skew tolerance in seconds */
+  timestampSkewSec?: number;
+  /** Local time offset in milliseconds */
+  localtimeOffsetMsec?: number;
   crypto?: Crypto;
   /** Default is Crypto.randomUUID */
   generateId?: () => string;

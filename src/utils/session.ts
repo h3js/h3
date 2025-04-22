@@ -1,5 +1,5 @@
 import type { H3Event, Session, SessionConfig, SessionData } from "../types";
-import { seal, unseal, defaults as sealDefaults } from "./internal/iron-crypto";
+import { seal, unseal } from "./internal/jwe";
 import { getCookie, setCookie } from "./cookie";
 import {
   DEFAULT_SESSION_NAME,
@@ -7,6 +7,12 @@ import {
   kGetSession,
 } from "./internal/session";
 import { EmptyObject } from "./internal/obj";
+
+// Session defaults for time-related options
+const SESSION_DEFAULTS = {
+  timestampSkewSec: 60,
+  localtimeOffsetMsec: 0,
+};
 
 /**
  * Create a session manager for the current request.
@@ -162,10 +168,22 @@ export async function sealSession<T extends SessionData = SessionData>(
     (event.context.sessions?.[sessionName] as Session<T>) ||
     (await getSession<T>(event, config));
 
-  const sealed = await seal(session, config.password, {
-    ...sealDefaults,
-    ttl: config.maxAge ? config.maxAge * 1000 : 0,
-    ...config.seal,
+  // Add timestamp metadata
+  const now =
+    Date.now() +
+    (config.localtimeOffsetMsec || SESSION_DEFAULTS.localtimeOffsetMsec);
+  const payload = {
+    session,
+    iat: now,
+    ...(config.maxAge ? { exp: now + config.maxAge * 1000 } : {}),
+  };
+
+  const sealed = await seal(JSON.stringify(payload), config.password, {
+    ...config.jwe,
+    protectedHeader: {
+      ...config.jwe?.protectedHeader,
+      cty: 'application/json',
+    }
   });
 
   return sealed;
@@ -176,21 +194,34 @@ export async function sealSession<T extends SessionData = SessionData>(
  */
 export async function unsealSession(
   _event: H3Event,
-  config: SessionConfig,
+  config: Omit<SessionConfig, 'jwe'>,
   sealed: string,
 ) {
-  const unsealed = (await unseal(sealed, config.password, {
-    ...sealDefaults,
-    ttl: config.maxAge ? config.maxAge * 1000 : 0,
-    ...config.seal,
-  })) as Partial<Session>;
-  if (config.maxAge) {
-    const age = Date.now() - (unsealed.createdAt || Number.NEGATIVE_INFINITY);
-    if (age > config.maxAge * 1000) {
-      throw new Error("Session expired!");
-    }
+  const now =
+    Date.now() +
+    (config.localtimeOffsetMsec || SESSION_DEFAULTS.localtimeOffsetMsec);
+  const timestampSkewSec =
+    config.timestampSkewSec || SESSION_DEFAULTS.timestampSkewSec;
+
+  // Decrypt the payload
+  const _payload = await unseal(sealed, config.password);
+  const payload = JSON.parse(_payload);
+
+  // Type check for expected format
+  if (!payload || typeof payload !== "object" || !payload.session) {
+    throw new Error("Invalid session format");
   }
-  return unsealed;
+
+  // Verify expiration
+  if (
+    payload.exp &&
+    typeof payload.exp === "number" &&
+    payload.exp <= now - timestampSkewSec * 1000
+  ) {
+    throw new Error("Session expired");
+  }
+
+  return payload.session;
 }
 
 /**
@@ -198,7 +229,7 @@ export async function unsealSession(
  */
 export function clearSession(
   event: H3Event,
-  config: Partial<SessionConfig>,
+  config: Partial<Omit<SessionConfig, 'jwe'>>,
 ): Promise<void> {
   const sessionName = config.name || DEFAULT_SESSION_NAME;
   if (event.context.sessions?.[sessionName]) {
