@@ -41,7 +41,7 @@ This will initialize a session and return an header `Set-Cookie` with a cookie n
 If the request contains a cookie named `h3` or a header named `x-h3-session`, the session will be initialized with the content of the cookie or the header.
 
 > [!NOTE]
-> The header take precedence over the cookie.
+> The header takes precedence over the cookie.
 
 ## Get Data from a Session
 
@@ -89,6 +89,8 @@ What is happening here?
 We try to get a session from the request. If there is no session, a new one will be created. Then, we increment the `count` property of the session and we update the session with the new value. Finally, we return a message with the number of times the user visited the page.
 
 Try to visit the page multiple times and you will see the number of times you visited the page.
+
+If a `maxAge` is configured, the expiration date of the session will not be updated with a call to `update` on the session object, nor with a call using the `updateSession` utility.
 
 > [!NOTE]
 > If you use a CLI tool like `curl` to test this example, you will not see the number of times you visited the page because the CLI tool does not save cookies. You must get the cookie from the response and send it back to the server.
