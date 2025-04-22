@@ -1,5 +1,5 @@
 import { bench, compact, summary, group, run, do_not_optimize } from "mitata";
-import { FastURL } from "../../src/url";
+import { FastURL } from "../../src/url.ts";
 
 const input = "https://user:password@example.com/path/to/resource?query=string";
 

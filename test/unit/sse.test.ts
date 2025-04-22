@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   formatEventStreamMessage,
   formatEventStreamMessages,
-} from "../../src/utils/internal/event-stream";
+} from "../../src/utils/internal/event-stream.ts";
 
 describe("sse (unit)", () => {
   it("properly formats sse messages", () => {

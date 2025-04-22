@@ -1,5 +1,5 @@
-import { getCookie, parseCookies, setCookie } from "../src/utils/cookie";
-import { describeMatrix } from "./_setup";
+import { getCookie, parseCookies, setCookie } from "../src/utils/cookie.ts";
+import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("cookies", (t, { it, expect, describe }) => {
   describe("parseCookies", () => {

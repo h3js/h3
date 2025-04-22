@@ -1,15 +1,28 @@
-import type { H3EventContext, H3Event, ProxyOptions, Duplex } from "../types";
+import type { H3EventContext, H3Event } from "../types/event.ts";
 import { splitSetCookieString } from "cookie-es";
-import { sanitizeStatusMessage, sanitizeStatusCode } from "./sanitize";
-import { createError } from "../error";
+import { sanitizeStatusMessage, sanitizeStatusCode } from "./sanitize.ts";
+import { createError } from "../error.ts";
 import {
   PayloadMethods,
   getFetch,
   ignoredHeaders,
   mergeHeaders,
   rewriteCookieProperty,
-} from "./internal/proxy";
-import { EmptyObject } from "./internal/obj";
+} from "./internal/proxy.ts";
+import { EmptyObject } from "./internal/obj.ts";
+
+export interface ProxyOptions {
+  headers?: HeadersInit;
+  fetchOptions?: RequestInit & { duplex?: "half" | "full" } & {
+    ignoreResponseError?: boolean;
+  };
+  fetch?: typeof fetch;
+  sendStream?: boolean;
+  streamRequest?: boolean;
+  cookieDomainRewrite?: string | Record<string, string>;
+  cookiePathRewrite?: string | Record<string, string>;
+  onResponse?: (event: H3Event, response: Response) => void;
+}
 
 /**
  * Proxy the incoming request to a target URL.
@@ -21,7 +34,7 @@ export async function proxyRequest(
 ) {
   // Request Body
   let body;
-  let duplex: Duplex | undefined;
+  let duplex: "half" | "full" | undefined;
   if (PayloadMethods.has(event.req.method)) {
     if (opts.streamRequest) {
       body = event.req.body;

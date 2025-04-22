@@ -1,7 +1,7 @@
-import type { SessionConfig } from "../src/types";
+import type { SessionConfig } from "../src/utils/session.ts";
 import { beforeEach } from "vitest";
-import { useSession, readBody, H3 } from "../src";
-import { describeMatrix } from "./_setup";
+import { useSession, readBody, H3 } from "../src/index.ts";
+import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("session", (t, { it, expect }) => {
   let router: H3;

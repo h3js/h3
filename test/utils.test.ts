@@ -8,8 +8,8 @@ import {
   getRequestIP,
   getRequestFingerprint,
   handleCacheHeaders,
-} from "../src";
-import { describeMatrix } from "./_setup";
+} from "../src/index.ts";
+import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("utils", (t, { it, describe, expect }) => {
   describe("redirect", () => {

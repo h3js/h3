@@ -1,35 +1,60 @@
-// Types
-export * from "./types";
-
 // H3
-export { H3, serve } from "./h3";
+
+export type {
+  H3Config,
+  WebSocketOptions,
+  H3Route,
+  HTTPMethod,
+  PreparedResponse,
+} from "./types/h3.ts";
+
+export { H3, serve } from "./h3.ts";
 
 // Event
-export { isEvent, mockEvent } from "./utils/event";
+
+export type { H3Event, H3EventContext } from "./types/event.ts";
+
+export { isEvent, mockEvent } from "./utils/event.ts";
 
 // Handler
+
+export type {
+  EventHandler,
+  DynamicEventHandler,
+  EventHandlerObject,
+  EventHandlerRequest,
+  EventHandlerResolver,
+  EventHandlerResponse,
+  InferEventInput,
+  LazyEventHandler,
+  RequestMiddleware,
+  ResponseMiddleware,
+} from "./types/handler.ts";
+
 export {
   defineEventHandler,
   defineLazyEventHandler,
   dynamicEventHandler,
   defineRequestMiddleware,
   defineResponseMiddleware,
-} from "./handler";
+} from "./handler.ts";
 
 // Error
-export { createError, isError } from "./error";
 
-// ---- Adapters  ----
+export { type H3Error, createError, isError } from "./error.ts";
 
-// Node
+// Adapters
+
 export {
+  type NodeHandler,
+  type NodeMiddleware,
   fromWebHandler,
   toWebHandler,
   fromNodeHandler,
   toNodeHandler,
   defineNodeHandler,
   defineNodeMiddleware,
-} from "./adapters";
+} from "./adapters.ts";
 
 // ------ Utils ------
 
@@ -46,7 +71,7 @@ export {
   getRouterParam,
   getRouterParams,
   getValidatedRouterParams,
-} from "./utils/request";
+} from "./utils/request.ts";
 
 // Response
 export {
@@ -54,18 +79,19 @@ export {
   redirect,
   iterable,
   noContent,
-} from "./utils/response";
+} from "./utils/response.ts";
 
 // Proxy
 export {
+  type ProxyOptions,
   proxy,
   getProxyRequestHeaders,
   proxyRequest,
   fetchWithEvent,
-} from "./utils/proxy";
+} from "./utils/proxy.ts";
 
 // Body
-export { readBody, readValidatedBody } from "./utils/body";
+export { readBody, readValidatedBody } from "./utils/body.ts";
 
 // Cookie
 export {
@@ -73,48 +99,63 @@ export {
   deleteCookie,
   parseCookies,
   setCookie,
-} from "./utils/cookie";
+} from "./utils/cookie.ts";
 
 // SSE
-export { createEventStream } from "./utils/event-stream";
+export {
+  type EventStreamMessage,
+  type EventStreamOptions,
+  createEventStream,
+} from "./utils/event-stream.ts";
 
 // Sanitize
-export { sanitizeStatusCode, sanitizeStatusMessage } from "./utils/sanitize";
+export { sanitizeStatusCode, sanitizeStatusMessage } from "./utils/sanitize.ts";
 
 // Cache
-export { handleCacheHeaders } from "./utils/cache";
+export { type CacheConditions, handleCacheHeaders } from "./utils/cache.ts";
 
 // Static
-export { serveStatic } from "./utils/static";
+export {
+  type ServeStaticOptions,
+  type StaticAssetMeta,
+  serveStatic,
+} from "./utils/static.ts";
 
 // Base
-export { withBase } from "./utils/base";
+export { withBase } from "./utils/base.ts";
 
 // Session
 export {
+  type Session,
+  type SessionConfig,
+  type SessionData,
   clearSession,
   getSession,
   sealSession,
   unsealSession,
   updateSession,
   useSession,
-} from "./utils/session";
+} from "./utils/session.ts";
 
 // Cors
 export {
+  type CorsOptions,
+  handleCors,
   appendCorsHeaders,
   appendCorsPreflightHeaders,
-  handleCors,
   isCorsOriginAllowed,
   isPreflightRequest,
-} from "./utils/cors";
+} from "./utils/cors.ts";
 
 // Fingerprint
-export { getRequestFingerprint } from "./utils/fingerprint";
+export {
+  type RequestFingerprintOptions,
+  getRequestFingerprint,
+} from "./utils/fingerprint.ts";
 
 // WebSocket
-export { defineWebSocketHandler, defineWebSocket } from "./utils/ws";
+export { defineWebSocketHandler, defineWebSocket } from "./utils/ws.ts";
 
 // ---- Deprecated ----
 
-export * from "./_deprecated";
+export * from "./_deprecated.ts";

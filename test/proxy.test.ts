@@ -1,8 +1,8 @@
 import { readFile } from "node:fs/promises";
 import { vi, beforeEach } from "vitest";
-import { setCookie } from "../src";
-import { proxy, proxyRequest } from "../src/utils/proxy";
-import { describeMatrix } from "./_setup";
+import { setCookie } from "../src/index.ts";
+import { proxy, proxyRequest } from "../src/utils/proxy.ts";
+import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("proxy", (t, { it, expect, describe }) => {
   const spy = vi.spyOn(console, "error");

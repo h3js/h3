@@ -1,5 +1,5 @@
 import type { Mock } from "vitest";
-import type { H3Config, H3Error, H3Event, NodeHandler } from "../src/types";
+import type { H3Config, H3Error, H3Event, NodeHandler } from "../src/index.ts";
 import { Server as NodeServer } from "node:http";
 import { getRandomPort } from "get-port-please";
 import {
@@ -12,7 +12,7 @@ import {
   beforeAll,
   afterAll,
 } from "vitest";
-import { H3, toNodeHandler } from "../src";
+import { H3, toNodeHandler } from "../src/index.ts";
 
 // Matrix
 export function describeMatrix(

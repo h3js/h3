@@ -1,7 +1,7 @@
-import type { H3Event } from "./event";
+import type { H3Event } from "./event.ts";
 import type { Hooks as WSHooks } from "crossws";
-import type { HTTPMethod } from "./http";
-import type { H3, WebSocketOptions } from "./h3";
+import type { HTTPMethod, WebSocketOptions } from "./h3.ts";
+import type { H3 } from "../h3.ts";
 
 export type EventHandlerResponse<T = unknown> = T | Promise<T>;
 

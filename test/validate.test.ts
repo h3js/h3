@@ -1,8 +1,8 @@
-import type { ValidateFunction } from "../src/types";
+import type { ValidateFunction } from "../src/utils/internal/validate.ts";
 import { beforeEach } from "vitest";
 import { z, ZodError } from "zod";
-import { readValidatedBody, getValidatedQuery, isError } from "../src";
-import { describeMatrix } from "./_setup";
+import { readValidatedBody, getValidatedQuery, isError } from "../src/index.ts";
+import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("validate", (t, { it, describe, expect }) => {
   // Custom validator

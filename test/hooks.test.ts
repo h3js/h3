@@ -1,6 +1,6 @@
 import { vi } from "vitest";
-import { createError } from "../src";
-import { describeMatrix } from "./_setup";
+import { createError } from "../src/index.ts";
+import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("hooks", (t, { it, expect }) => {
   it("calls onRequest and onResponse", async () => {

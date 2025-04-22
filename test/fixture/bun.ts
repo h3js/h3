@@ -1,5 +1,5 @@
-import { toWebHandler } from "../../src";
-import { app } from "./app";
+import { toWebHandler } from "../../src/index.ts";
+import { app } from "./app.ts";
 
 export default {
   fetch: toWebHandler(app),

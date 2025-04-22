@@ -1,5 +1,5 @@
-import { hasProp } from "./utils/internal/object";
-import { sanitizeStatusMessage, sanitizeStatusCode } from "./utils/sanitize";
+import { hasProp } from "./utils/internal/object.ts";
+import { sanitizeStatusMessage, sanitizeStatusCode } from "./utils/sanitize.ts";
 
 /**
  * H3 Runtime Error

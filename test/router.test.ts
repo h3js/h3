@@ -1,6 +1,6 @@
 import { beforeEach } from "vitest";
-import { getRouterParams, getRouterParam, H3 } from "../src";
-import { describeMatrix } from "./_setup";
+import { getRouterParams, getRouterParam, H3 } from "../src/index.ts";
+import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("router", (t, { it, expect, describe }) => {
   beforeEach(() => {

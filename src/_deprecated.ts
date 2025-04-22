@@ -1,22 +1,18 @@
-import type {
-  EventHandler,
-  H3Event,
-  NodeHandler,
-  RequestHeaderName,
-  RequestMiddleware,
-  ResponseHeaderName,
-  ResponseHeaders,
-  ResponseMiddleware,
-  RequestHeaders,
-  H3Config,
-} from "./types";
-import { iterable, noContent, redirect } from "./utils/response";
-import { defineNodeHandler, fromNodeHandler, toNodeHandler } from "./adapters";
-import { defineEventHandler, defineLazyEventHandler } from "./handler";
-import { proxy } from "./utils/proxy";
-import { H3 } from "./h3";
-import { withBase } from "./utils/base";
-import { sanitizeStatusCode, sanitizeStatusMessage } from "./utils/sanitize";
+import { iterable, noContent, redirect } from "./utils/response.ts";
+import {
+  defineNodeHandler,
+  fromNodeHandler,
+  toNodeHandler,
+} from "./adapters.ts";
+import { defineEventHandler, defineLazyEventHandler } from "./handler.ts";
+import { proxy } from "./utils/proxy.ts";
+import { H3 } from "./h3.ts";
+import { withBase } from "./utils/base.ts";
+import { sanitizeStatusCode, sanitizeStatusMessage } from "./utils/sanitize.ts";
+
+import type { H3Event } from "./types/event.ts";
+import type { EventHandler } from "./types/handler.ts";
+import type { H3Config } from "./types/h3.ts";
 
 // --- Request ---
 
@@ -149,7 +145,7 @@ export const setHeader = setResponseHeader;
 /** @deprecated Please use `event.res.headers.set(name, value)` */
 export function setResponseHeaders(
   event: H3Event,
-  headers: ResponseHeaders,
+  headers: Record<string, string>,
 ): void {
   for (const [name, value] of Object.entries(headers)) {
     event.res.headers.set(name, value!);
@@ -203,18 +199,12 @@ export function getResponseHeader(
 }
 
 /** @deprecated Please use `event.res.headers.delete(name)` instead. */
-export function removeResponseHeader(
-  event: H3Event,
-  name: ResponseHeaderName,
-): void {
+export function removeResponseHeader(event: H3Event, name: string): void {
   return event.res.headers.delete(name);
 }
 
 /** @deprecated Please use `event.res.headers.append(name, value)` */
-export function appendResponseHeaders(
-  event: H3Event,
-  headers: ResponseHeaders,
-): void {
+export function appendResponseHeaders(event: H3Event, headers: string): void {
   for (const [name, value] of Object.entries(headers)) {
     appendResponseHeader(event, name, value!);
   }
@@ -226,7 +216,7 @@ export const appendHeaders = appendResponseHeaders;
 /** @deprecated Please use `event.res.headers.delete` */
 export function clearResponseHeaders(
   event: H3Event,
-  headerNames?: ResponseHeaderName[],
+  headerNames?: string[],
 ): void {
   if (headerNames && headerNames.length > 0) {
     for (const name of headerNames) {
@@ -275,20 +265,3 @@ export const createRouter = (config?: H3Config) => new H3(config);
 
 /** @deprecated Please use `withBase()` */
 export const useBase = withBase;
-
-// --- Types ---
-
-/** @deprecated Please use `RequestMiddleware` */
-export type _RequestMiddleware = RequestMiddleware;
-
-/** @deprecated Please use `ResponseMiddleware`  */
-export type _ResponseMiddleware = ResponseMiddleware;
-
-/** @deprecated Please use `NodeHandler` */
-export type NodeListener = NodeHandler;
-
-/** @deprecated Please use `RequestHeaders` or  `ResponseHeaders` */
-export type TypedHeaders = RequestHeaders & ResponseHeaders;
-
-/** @deprecated Please use `RequestHeaderName` or `ResponseHeaderName` */
-export type HTTPHeaderName = RequestHeaderName | ResponseHeaderName;

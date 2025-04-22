@@ -1,5 +1,5 @@
-import { _H3Event } from "../event";
-import type { H3EventContext, H3Event } from "../types";
+import { _H3Event } from "../event.ts";
+import type { H3EventContext, H3Event } from "../types/event.ts";
 
 /**
  * Checks if the input is an H3Event object.

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 // @ts-ignore
-import { requests } from "./input.mjs";
-import { createInstances } from "./bench.impl.js";
+import { requests } from "./input.mjs.ts";
+import { createInstances } from "./bench.impl.ts";
 
 describe("benchmark", async () => {
   const instances = await createInstances();

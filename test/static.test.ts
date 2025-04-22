@@ -1,6 +1,6 @@
 import { beforeEach, vi } from "vitest";
-import { serveStatic, type ServeStaticOptions } from "../src";
-import { describeMatrix } from "./_setup";
+import { serveStatic, type ServeStaticOptions } from "../src/index.ts";
+import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("serve static", (t, { it, expect }) => {
   beforeEach(() => {

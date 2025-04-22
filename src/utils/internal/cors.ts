@@ -1,22 +1,25 @@
-import type { H3Event } from "../../types";
-import type {
-  H3CorsOptions,
-  H3ResolvedCorsOptions,
-  H3AccessControlAllowOriginHeader,
-  H3AccessControlAllowMethodsHeader,
-  H3AccessControlAllowCredentialsHeader,
-  H3AccessControlAllowHeadersHeader,
-  H3AccessControlExposeHeadersHeader,
-  H3AccessControlMaxAgeHeader,
-} from "../../types/utils/cors";
+import type { H3Event } from "../../types/event.ts";
+import type { CorsOptions } from "../cors.ts";
+
+interface ResolvedCorsOptions {
+  origin: "*" | "null" | (string | RegExp)[] | ((origin: string) => boolean);
+  methods: "*" | string[];
+  allowHeaders: "*" | string[];
+  exposeHeaders: "*" | string[];
+  credentials: boolean;
+  maxAge: string | false;
+  preflight: {
+    statusCode: number;
+  };
+}
 
 /**
  * Resolve CORS options.
  */
 export function resolveCorsOptions(
-  options: H3CorsOptions = {},
-): H3ResolvedCorsOptions {
-  const defaultOptions: H3ResolvedCorsOptions = {
+  options: CorsOptions = {},
+): ResolvedCorsOptions {
+  const defaultOptions: ResolvedCorsOptions = {
     origin: "*",
     methods: "*",
     allowHeaders: "*",
@@ -43,7 +46,7 @@ export function resolveCorsOptions(
  */
 export function isCorsOriginAllowed(
   origin: string | undefined,
-  options: H3CorsOptions,
+  options: CorsOptions,
 ): boolean {
   const { origin: originOption } = options;
 
@@ -74,8 +77,8 @@ export function isCorsOriginAllowed(
  */
 export function createOriginHeaders(
   event: H3Event,
-  options: H3CorsOptions,
-): H3AccessControlAllowOriginHeader {
+  options: CorsOptions,
+): Record<string, string> {
   const { origin: originOption } = options;
   const origin = event.req.headers.get("origin");
 
@@ -96,8 +99,8 @@ export function createOriginHeaders(
  * Create the `access-control-allow-methods` header.
  */
 export function createMethodsHeaders(
-  options: H3CorsOptions,
-): H3AccessControlAllowMethodsHeader {
+  options: CorsOptions,
+): Record<string, string> {
   const { methods } = options;
 
   if (!methods) {
@@ -117,8 +120,8 @@ export function createMethodsHeaders(
  * Create the `access-control-allow-credentials` header.
  */
 export function createCredentialsHeaders(
-  options: H3CorsOptions,
-): H3AccessControlAllowCredentialsHeader {
+  options: CorsOptions,
+): Record<string, string> {
   const { credentials } = options;
 
   if (credentials) {
@@ -133,8 +136,8 @@ export function createCredentialsHeaders(
  */
 export function createAllowHeaderHeaders(
   event: H3Event,
-  options: H3CorsOptions,
-): H3AccessControlAllowHeadersHeader {
+  options: CorsOptions,
+): Record<string, string> {
   const { allowHeaders } = options;
 
   if (!allowHeaders || allowHeaders === "*" || allowHeaders.length === 0) {
@@ -158,8 +161,8 @@ export function createAllowHeaderHeaders(
  * Create the `access-control-expose-headers` header.
  */
 export function createExposeHeaders(
-  options: H3CorsOptions,
-): H3AccessControlExposeHeadersHeader {
+  options: CorsOptions,
+): Record<string, string> {
   const { exposeHeaders } = options;
 
   if (!exposeHeaders) {
@@ -177,8 +180,8 @@ export function createExposeHeaders(
  * Create the `access-control-max-age` header.
  */
 export function createMaxAgeHeader(
-  options: H3CorsOptions,
-): H3AccessControlMaxAgeHeader {
+  options: CorsOptions,
+): Record<string, string> {
   const { maxAge } = options;
 
   if (maxAge) {

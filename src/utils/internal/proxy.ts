@@ -1,5 +1,3 @@
-import type { RequestHeaders } from "../../types";
-
 export const PayloadMethods = new Set(["PATCH", "POST", "PUT", "DELETE"]);
 
 export const ignoredHeaders = new Set([
@@ -48,7 +46,7 @@ export function rewriteCookieProperty(
 
 export function mergeHeaders(
   defaults: HeadersInit,
-  ...inputs: (HeadersInit | RequestHeaders | undefined)[]
+  ...inputs: (HeadersInit | undefined)[]
 ) {
   const _inputs = inputs.filter(Boolean) as HeadersInit[];
   if (_inputs.length === 0) {

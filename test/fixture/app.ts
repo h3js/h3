@@ -1,4 +1,4 @@
-import { H3, getQuery } from "../../src";
+import { H3, getQuery } from "../../src/index.ts";
 
 export const app = new H3();
 

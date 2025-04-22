@@ -1,17 +1,15 @@
-import type { RouterContext } from "rou3";
-import type { H3Route } from "./types/h3";
-import type { ResolvedEventHandler } from "./types/handler";
-import type { H3Config } from "./types/h3";
-import type { HTTPMethod } from "./types/http";
-import type { H3Event } from "./types/event";
-import type { H3EventContext } from "./types/context";
-import type { EventHandler, EventHandlerRequest } from "./types/handler";
-
 import { createRouter, addRoute, findAllRoutes, findRoute } from "rou3";
 import { serve as srvxServe, type ServerOptions } from "srvx";
-import { getPathname, joinURL } from "./utils/internal/path";
-import { _H3Event } from "./event";
-import { kNotFound, handleResponse } from "./response";
+import { getPathname, joinURL } from "./utils/internal/path.ts";
+import { _H3Event } from "./event.ts";
+import { kNotFound, handleResponse } from "./response.ts";
+
+import type { RouterContext } from "rou3";
+import type { H3Route, HTTPMethod } from "./types/h3.ts";
+import type { ResolvedEventHandler } from "./types/handler.ts";
+import type { H3Config } from "./types/h3.ts";
+import type { H3Event, H3EventContext } from "./types/event.ts";
+import type { EventHandler, EventHandlerRequest } from "./types/handler.ts";
 
 /**
  * Serve the h3 app, automatically handles current runtime behavior.

@@ -1,7 +1,8 @@
-import type { InferEventInput, ValidateFunction, H3Event } from "../types";
-import { createError } from "../error";
-import { validateData } from "./internal/validate";
-import { parseURLEncodedBody } from "./internal/body";
+import type { H3Event } from "../types/event.ts";
+import type { InferEventInput } from "../types/handler.ts";
+import { createError } from "../error.ts";
+import { validateData, type ValidateFunction } from "./internal/validate.ts";
+import { parseURLEncodedBody } from "./internal/body.ts";
 
 /**
  * Reads request body and tries to parse using JSON.parse or URLSearchParams.

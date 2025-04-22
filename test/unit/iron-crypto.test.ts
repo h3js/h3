@@ -6,8 +6,8 @@ https://github.com/brc-dd/iron-webcrypto/blob/v1.2.1/LICENSE.md
 
 import { describe, it, assert, expect, vi } from "vitest";
 import { createHmac } from "node:crypto";
-import * as Iron from "../../src/utils/internal/iron-crypto";
-import { base64Encode } from "../../src/utils/internal/encoding";
+import * as Iron from "../../src/utils/internal/iron-crypto.ts";
+import { base64Encode } from "../../src/utils/internal/encoding.ts";
 
 async function rejects(
   promise: Promise<unknown>,

@@ -1,12 +1,10 @@
-import { createError } from "../error";
-import type {
-  HTTPMethod,
-  InferEventInput,
-  ValidateFunction,
-  H3Event,
-} from "../types";
-import { parseQuery } from "./internal/query";
-import { validateData } from "./internal/validate";
+import { createError } from "../error.ts";
+import { parseQuery } from "./internal/query.ts";
+import { validateData, type ValidateFunction } from "./internal/validate.ts";
+
+import type { H3Event } from "../types/event.ts";
+import type { InferEventInput } from "../types/handler.ts";
+import type { HTTPMethod } from "../types/h3.ts";
 
 /**
  * Get parsed query string object from the request URL.

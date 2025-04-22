@@ -1,8 +1,8 @@
-import type { H3Event } from "../../types";
+import type { H3Event } from "../../types/event.ts";
 import type {
   EventStreamMessage,
   EventStreamOptions,
-} from "../../types/utils/sse";
+} from "../event-stream.ts";
 
 /**
  * A helper class for [server sent events](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events#event_stream_format)

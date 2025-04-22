@@ -1,6 +1,6 @@
 import { vi } from "vitest";
-import { defineLazyEventHandler } from "../src";
-import { describeMatrix } from "./_setup";
+import { defineLazyEventHandler } from "../src/index.ts";
+import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("lazy", (t, { it, expect }) => {
   (globalThis.console.error as any) = vi.fn();

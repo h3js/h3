@@ -1,7 +1,7 @@
 import { ReadableStream } from "node:stream/web";
 import { vi } from "vitest";
-import { iterable } from "../src";
-import { describeMatrix } from "./_setup";
+import { iterable } from "../src/index.ts";
+import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("iterable", (t, { it, expect, describe }) => {
   describe("iterable", () => {

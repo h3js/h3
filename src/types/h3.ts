@@ -1,14 +1,13 @@
 import type * as crossws from "crossws";
-import type { H3Event } from "./event";
-import type { EventHandler } from "./handler";
-import type { H3Error } from "../error";
-import type { HTTPMethod } from "./http";
+import type { H3Event } from "./event.ts";
+import type { EventHandler } from "./handler.ts";
+import type { H3Error } from "../error.ts";
 
-export type { H3Error } from "../error";
+// https://www.rfc-editor.org/rfc/rfc7231#section-4.1
+// prettier-ignore
+export type HTTPMethod =  "GET" | "HEAD" | "PATCH" | "POST" | "PUT" | "DELETE" | "CONNECT" | "OPTIONS" | "TRACE";
 
-export type { H3 } from "../h3";
-
-export type MaybePromise<T = unknown> = T | Promise<T>;
+type MaybePromise<T = unknown> = T | Promise<T>;
 
 export interface H3Config {
   debug?: boolean;

@@ -6,7 +6,7 @@ https://github.com/anonrig/fast-querystring/blob/main/LICENSE
 
 import { assert, describe, test } from "vitest";
 import vm from "node:vm";
-import { parseQuery } from "../../src/utils/internal/query";
+import { parseQuery } from "../../src/utils/internal/query.ts";
 
 function extendedFunction() {}
 extendedFunction.prototype = { a: "b" };

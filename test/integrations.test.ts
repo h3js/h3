@@ -8,8 +8,8 @@ import {
   withBase,
   fromNodeHandler,
   defineNodeHandler,
-} from "../src";
-import { describeMatrix } from "./_setup";
+} from "../src/index.ts";
+import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("integrations", (t, { it, expect, describe }) => {
   describe("react", () => {

@@ -5,12 +5,10 @@
   "repository": "unjs/h3",
   "license": "MIT",
   "sideEffects": false,
+  "type": "module",
   "exports": {
     "./package.json": "./package.json",
-    ".": {
-      "types": "./dist/index.d.mts",
-      "default": "./dist/index.mjs"
-    }
+    ".": "./dist/index.mjs"
   },
   "types": "./dist/index.d.mts",
   "files": [
@@ -20,6 +18,7 @@
     "bench:bun": "bun run ./test/bench/h3.mjs",
     "bench:node": "node --expose-gc --allow-natives-syntax ./test/bench/h3.mjs",
     "bench:url:bun": "bun run ./test/bench/url.ts",
+    "bench:url:deno": "deno run --unstable-sloppy-imports -A ./test/bench/url.ts",
     "bench:url:node": "node --expose-gc --allow-natives-syntax --import jiti/register ./test/bench/url.ts",
     "build": "unbuild",
     "dev": "vitest",

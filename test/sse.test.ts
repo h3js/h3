@@ -1,7 +1,7 @@
 import { beforeEach } from "vitest";
-import { createEventStream } from "../src";
+import { createEventStream } from "../src/index.ts";
 
-import { describeMatrix } from "./_setup";
+import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("sse", (t, { it, expect }) => {
   beforeEach(() => {

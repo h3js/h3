@@ -1,4 +1,4 @@
-import { EmptyObject } from "./obj";
+import { EmptyObject } from "./obj.ts";
 
 /**
  * Checks if a certain input has a given property.

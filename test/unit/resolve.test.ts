@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { H3, defineLazyEventHandler } from "../../src";
-import { withBase } from "../../src/utils/base";
+import { H3, defineLazyEventHandler } from "../../src/index.ts";
+import { withBase } from "../../src/utils/base.ts";
 
 describe("event handler resolver (unit)", async () => {
   const _handlers = Object.create(null);

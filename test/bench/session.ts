@@ -1,5 +1,5 @@
 import { bench, run, summary } from "mitata";
-import * as h3 from "../../src";
+import * as h3 from "../../src/index.ts";
 // import * as h3Nightly from "h3-nightly";
 
 // Create a random string

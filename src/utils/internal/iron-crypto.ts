@@ -13,7 +13,7 @@ import {
   base64Encode,
   textDecoder,
   textEncoder,
-} from "./encoding";
+} from "./encoding.ts";
 
 /** The default encryption and integrity settings. */
 export const defaults: Readonly<SealOptions> = /* @__PURE__ */ Object.freeze({

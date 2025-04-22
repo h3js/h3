@@ -1,6 +1,24 @@
-import type { H3Event } from "../types";
-import type { EventStreamOptions } from "../types/utils/sse";
-import { EventStream } from "./internal/event-stream";
+import type { H3Event } from "../types/event.ts";
+import { EventStream } from "./internal/event-stream.ts";
+
+export interface EventStreamOptions {
+  /**
+   * Automatically close the writable stream when the request is closed
+   *
+   * Default is `true`
+   */
+  autoclose?: boolean;
+}
+
+/**
+ * See https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events#fields
+ */
+export interface EventStreamMessage {
+  id?: string;
+  event?: string;
+  retry?: number;
+  data: string;
+}
 
 /**
  * Initialize an EventStream instance for creating [server sent events](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events)

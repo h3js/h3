@@ -1,6 +1,6 @@
 import type { Hooks as WSHooks } from "crossws";
-import { createError } from "../error";
-import { defineEventHandler } from "../handler";
+import { createError } from "../error.ts";
+import { defineEventHandler } from "../handler.ts";
 
 /**
  * Define WebSocket hooks.

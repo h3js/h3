@@ -1,8 +1,9 @@
-import type { H3Config, H3Event } from "./types";
-import type { H3Error } from "./types/h3";
 import { Response as SrvxResponse } from "srvx";
-import { createError } from "./error";
-import { isJSONSerializable } from "./utils/internal/object";
+import { createError, type H3Error } from "./error.ts";
+import { isJSONSerializable } from "./utils/internal/object.ts";
+
+import type { H3Config } from "./types/h3.ts";
+import type { H3Event } from "./types/event.ts";
 
 export const kNotFound = /* @__PURE__ */ Symbol.for("h3.notFound");
 export const kHandled = /* @__PURE__ */ Symbol.for("h3.handled");

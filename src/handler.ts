@@ -1,15 +1,14 @@
-import type {
-  DynamicEventHandler,
-  H3Event,
-  RequestMiddleware,
-  ResponseMiddleware,
-} from "./types";
+import type { H3Event } from "./types/event.ts";
+
 import type {
   EventHandler,
   EventHandlerRequest,
   EventHandlerResponse,
   EventHandlerObject,
-} from "./types";
+  DynamicEventHandler,
+  RequestMiddleware,
+  ResponseMiddleware,
+} from "./types/handler.ts";
 
 type _EventHandlerHooks<
   Request extends EventHandlerRequest = EventHandlerRequest,

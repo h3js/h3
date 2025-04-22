@@ -1,5 +1,6 @@
-import type { H3, EventHandler } from "../types";
-import { withoutBase, withoutTrailingSlash } from "./internal/path";
+import type { H3 } from "../h3.ts";
+import type { EventHandler } from "../types/handler.ts";
+import { withoutBase, withoutTrailingSlash } from "./internal/path.ts";
 
 /**
  * Returns a new event handler that removes the base url of the event before calling the original handler.

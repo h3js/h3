@@ -1,6 +1,6 @@
 import { Readable } from "node:stream";
-import { createError, fromNodeHandler } from "../src";
-import { describeMatrix } from "./_setup";
+import { createError, fromNodeHandler } from "../src/index.ts";
+import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("app", (t, { it, expect }) => {
   it("can return JSON directly", async () => {

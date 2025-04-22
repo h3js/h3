@@ -1,7 +1,8 @@
 import { bench, compact, summary, run } from "mitata";
-import { requests } from "./input.mjs";
+import { requests } from "./input.ts";
 
-import * as _dist from "../../dist/index.mjs";
+import * as _src from "../../src/index.ts";
+// import * as _dist from "../../dist/index.mjs";
 // import * as _nightly from "h3-nightly";
 
 const preparedRequests = requests.map((request) => {
@@ -14,7 +15,8 @@ const preparedRequests = requests.map((request) => {
 summary(() => {
   compact(() => {
     for (const [name, { H3, getQuery }] of Object.entries({
-      _dist,
+      _src,
+      // _dist,
       // _nightly,
     })) {
       bench(name, function* () {
@@ -22,7 +24,7 @@ summary(() => {
           .get("/", () => "Hi")
           .get("/id/:id", (event) => {
             event.res.headers.set("x-powered-by", "benchmark");
-            return `${event.context.params.id} ${getQuery(event).name}`;
+            return `${event.context.params?.id} ${getQuery(event).name}`;
           })
           .post("/json", (event) => event.req.json());
 
