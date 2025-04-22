@@ -18,7 +18,9 @@ function createWithNoPrototype(properties: any) {
   }
   return noProto;
 }
-export const foreignObject = vm.runInNewContext('({"foo": ["bar", "baz"]})');
+export const foreignObject: any = vm.runInNewContext(
+  '({"foo": ["bar", "baz"]})',
+);
 
 const qsNoMungeTestCases = [
   ["", {}],

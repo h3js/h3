@@ -6,7 +6,7 @@ import { EmptyObject } from "./obj.ts";
  * @param prop - The property to check for.
  * @returns A boolean indicating whether the input is an object and has the property.
  */
-export function hasProp(obj: any, prop: string | symbol) {
+export function hasProp(obj: any, prop: string | symbol): boolean {
   try {
     return prop in obj;
   } catch {

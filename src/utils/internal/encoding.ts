@@ -4,8 +4,8 @@ Copyright 2018-2024 the Deno authors. All rights reserved. MIT license.
 https://github.com/denoland/std/blob/main/LICENSE
  */
 
-export const textEncoder = /* @__PURE__ */ new TextEncoder();
-export const textDecoder = /* @__PURE__ */ new TextDecoder();
+export const textEncoder: TextEncoder = /* @__PURE__ */ new TextEncoder();
+export const textDecoder: TextDecoder = /* @__PURE__ */ new TextDecoder();
 
 // ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_
 const base64Code = /* @__PURE__ */ [

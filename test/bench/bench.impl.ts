@@ -3,7 +3,9 @@ import * as _h3v1 from "h3-v1";
 // import * as _h3nightly from "h3-nightly";
 import { EmptyObject } from "../../src/utils/internal/obj.ts";
 
-export function createInstances() {
+type AppFetch = (req: Request) => Response | Promise<Response>;
+
+export function createInstances(): Array<[string, AppFetch]> {
   return [
     // ["h3", h3(_h3src)],
     // ["h3-nightly", h3(_h3nightly as any)],
@@ -16,7 +18,7 @@ export function createInstances() {
   ] as const;
 }
 
-export function h3(lib: typeof _h3src, useRes?: boolean) {
+export function h3(lib: typeof _h3src, useRes?: boolean): AppFetch {
   const app = new lib.H3();
 
   if (useRes) {
@@ -78,7 +80,7 @@ export function h3(lib: typeof _h3src, useRes?: boolean) {
   return app.fetch;
 }
 
-export function h3Middleware(lib: typeof _h3src) {
+export function h3Middleware(lib: typeof _h3src): AppFetch {
   const app = new lib.H3();
 
   // Global middleware
@@ -106,7 +108,7 @@ export function h3Middleware(lib: typeof _h3src) {
   return app.fetch;
 }
 
-export function h3v1() {
+export function h3v1(): AppFetch {
   const router = _h3v1.createRouter();
   const app = _h3v1.createApp();
   app.use(router);
@@ -166,7 +168,7 @@ export function std() {
   };
 }
 
-export function fastest() {
+export function fastest(): AppFetch {
   return (request: Request) => {
     const [pathname, query] = parseUrl(request.url);
     switch (request.method) {

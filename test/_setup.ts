@@ -19,7 +19,7 @@ export function describeMatrix(
   title: string,
   fn: (ctx: TestContext, testUtils: TestUtils) => void | Promise<void>,
   opts?: TestOptions,
-) {
+): void {
   const run = (ctx: TestContext) => {
     const utils: TestUtils = {
       expect,

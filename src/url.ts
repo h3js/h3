@@ -1,4 +1,4 @@
-export const FastURL = /* @__PURE__ */ (() => {
+export const FastURL: { new (url: string): URL } = /* @__PURE__ */ (() => {
   const FastURL = class URL implements globalThis.URL {
     #originalURL: string;
     #parsedURL: globalThis.URL | undefined;
@@ -113,5 +113,5 @@ export const FastURL = /* @__PURE__ */ (() => {
 
   Object.setPrototypeOf(FastURL, globalThis.URL);
 
-  return FastURL;
+  return FastURL as unknown as { new (url: string): URL };
 })();

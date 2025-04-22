@@ -1,6 +1,11 @@
-export const PayloadMethods = new Set(["PATCH", "POST", "PUT", "DELETE"]);
+export const PayloadMethods: Set<string> = new Set([
+  "PATCH",
+  "POST",
+  "PUT",
+  "DELETE",
+]);
 
-export const ignoredHeaders = new Set([
+export const ignoredHeaders: Set<string> = new Set([
   "transfer-encoding",
   "connection",
   "keep-alive",
@@ -10,12 +15,12 @@ export const ignoredHeaders = new Set([
   "accept",
 ]);
 
-export function getFetch<T = typeof fetch>(_fetch?: T) {
+export function getFetch<T = typeof fetch>(_fetch?: T): T {
   if (_fetch) {
     return _fetch;
   }
   if (globalThis.fetch) {
-    return globalThis.fetch;
+    return globalThis.fetch as T;
   }
   throw new Error(
     "fetch is not available. Try importing `node-fetch-native/polyfill` for Node.js.",
@@ -26,7 +31,7 @@ export function rewriteCookieProperty(
   header: string,
   map: string | Record<string, string>,
   property: string,
-) {
+): string {
   const _map = typeof map === "string" ? { "*": map } : map;
   return header.replace(
     new RegExp(`(;\\s*${property}=)([^;]+)`, "gi"),
@@ -47,7 +52,7 @@ export function rewriteCookieProperty(
 export function mergeHeaders(
   defaults: HeadersInit,
   ...inputs: (HeadersInit | undefined)[]
-) {
+): HeadersInit {
   const _inputs = inputs.filter(Boolean) as HeadersInit[];
   if (_inputs.length === 0) {
     return defaults;

@@ -5,8 +5,8 @@ import { isJSONSerializable } from "./utils/internal/object.ts";
 import type { H3Config } from "./types/h3.ts";
 import type { H3Event } from "./types/event.ts";
 
-export const kNotFound = /* @__PURE__ */ Symbol.for("h3.notFound");
-export const kHandled = /* @__PURE__ */ Symbol.for("h3.handled");
+export const kNotFound: symbol = /* @__PURE__ */ Symbol.for("h3.notFound");
+export const kHandled: symbol = /* @__PURE__ */ Symbol.for("h3.handled");
 
 export function handleResponse(
   val: unknown,
