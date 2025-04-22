@@ -259,7 +259,9 @@ function mergeHeaders(
   }
   const merged = new Headers(defaults);
   for (const input of _inputs) {
-    for (const [key, value] of Object.entries(input!)) {
+    const entries =
+      input instanceof Headers ? input.entries() : Object.entries(input);
+    for (const [key, value] of entries) {
       if (value !== undefined) {
         merged.set(key, value);
       }
