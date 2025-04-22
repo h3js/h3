@@ -75,9 +75,6 @@ importers:
       h3-v1:
         specifier: npm:h3@^1.15.1
         version: h3@1.15.1
-      jiti:
-        specifier: ^2.4.2
-        version: 2.4.2
       mitata:
         specifier: ^1.0.34
         version: 1.0.34
