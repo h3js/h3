@@ -3,7 +3,7 @@
   "version": "2.0.0-beta.0",
   "description": "Minimal H(TTP) framework built for high performance and portability.",
   "repository": "h3js/h3",
-  "homepage": "https://h3.dev"
+  "homepage": "https://h3.dev",
   "license": "MIT",
   "type": "module",
   "sideEffects": false,
