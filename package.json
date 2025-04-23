@@ -5,7 +5,6 @@
   "repository": "h3js/h3",
   "homepage": "https://h3.dev",
   "license": "MIT",
-  "type": "module",
   "sideEffects": false,
   "type": "module",
   "exports": {
