@@ -260,10 +260,12 @@ function mergeHeaders(
   const merged = new Headers(defaults);
   for (const input of _inputs) {
     const entries =
-      input instanceof Headers ? input.entries() : Object.entries(input);
+      typeof input.entries === "function"
+        ? input.entries()
+        : Object.entries(input);
     for (const [key, value] of entries) {
       if (value !== undefined) {
-        merged.set(key, value);
+        merged.set(key.toString(), value);
       }
     }
   }
