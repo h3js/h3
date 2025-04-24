@@ -86,7 +86,7 @@ function callNodeHandler(
   return new Promise((resolve, reject) => {
     res.once("close", () => resolve(kHandled));
     res.once("finish", () => resolve(kHandled));
-    res.once("pipe", () => resolve(kHandled));
+    res.once("pipe", (stream) => resolve(stream));
     res.once("error", (error) => reject(error));
     try {
       if (isMiddleware) {
