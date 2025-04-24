@@ -266,7 +266,7 @@ function mergeHeaders(
         : Object.entries(input);
     for (const [key, value] of entries) {
       if (value !== undefined) {
-        merged.set(key.toString(), value);
+        merged.set(key, value);
       }
     }
   }
