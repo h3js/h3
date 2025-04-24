@@ -12,7 +12,8 @@ export default unjs(
       "unicorn/no-null": "off",
       "unicorn/number-literal-case": "off",
       "@typescript-eslint/no-non-null-assertion": "off",
-      "unicorn/expiring-todo-comments": "off"
+      "unicorn/expiring-todo-comments": "off",
+      "unicorn/no-nested-ternary": "off",
     }
   }
 );
