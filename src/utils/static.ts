@@ -110,10 +110,7 @@ export async function serveStatic(
 
   if (!meta) {
     if (!options.fallthrough) {
-      throw createError({
-        statusMessage: "Cannot find static asset " + id,
-        statusCode: 404,
-      });
+      throw createError({ statusCode: 404 });
     }
     return false;
   }
