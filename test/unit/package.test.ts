@@ -108,6 +108,7 @@ describe("h3 package", () => {
         "useBase",
         "useSession",
         "withBase",
+        "withBasicAuth",
         "writeEarlyHints",
       ]
     `);
