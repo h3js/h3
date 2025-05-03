@@ -414,6 +414,19 @@ export function sendStream(
     hasProp(stream, "pipeTo") &&
     typeof (stream as ReadableStream).pipeTo === "function"
   ) {
+    // instantiate a new AbortController to handle request aborts
+    const abortController = new AbortController();
+
+    // shared function to handle aborts
+    const doAbort = () => {
+      abortController.abort("Client closed or lost connection.");
+    }
+
+    // Handle request aborts
+    event.node.res.on("close", doAbort);
+    event.node.res.on("finish", doAbort);
+    event.node.res.on("error", doAbort);
+
     return (stream as ReadableStream)
       .pipeTo(
         new WritableStream({
@@ -421,6 +434,9 @@ export function sendStream(
             event.node.res.write(chunk);
           },
         }),
+        {
+          signal: abortController.signal
+        },
       )
       .then(() => {
         event.node.res.end();
