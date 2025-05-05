@@ -420,7 +420,7 @@ export function sendStream(
     // shared function to handle aborts
     const doAbort = () => {
       abortController.abort("Client closed or lost connection.");
-    }
+    };
 
     // Handle request aborts
     event.node.res.on("close", doAbort);
@@ -435,7 +435,7 @@ export function sendStream(
           },
         }),
         {
-          signal: abortController.signal
+          signal: abortController.signal,
         },
       )
       .then(() => {
