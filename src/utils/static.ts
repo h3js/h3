@@ -27,6 +27,11 @@ export interface ServeStaticOptions {
   ) => BodyInit | null | undefined | Promise<BodyInit | null | undefined>;
 
   /**
+   * Headers to set on the response
+   */
+  headers?: HeadersInit;
+
+  /**
    * Map of supported encodings (compressions) and their file extensions.
    *
    * Each extension will be appended to the asset path to find the compressed version of the asset.
@@ -55,6 +60,17 @@ export async function serveStatic(
   event: H3Event,
   options: ServeStaticOptions,
 ): Promise<false | undefined | null | BodyInit> {
+  if (options.headers) {
+    const entries = Array.isArray(options.headers)
+      ? options.headers
+      : typeof options.headers.entries === "function"
+        ? options.headers.entries()
+        : Object.entries(options.headers);
+    for (const [key, value] of entries) {
+      event.res.headers.set(key, value);
+    }
+  }
+
   if (event.req.method !== "GET" && event.req.method !== "HEAD") {
     if (options.fallthrough) {
       return;
