@@ -176,11 +176,11 @@ export function fetchWithEvent<
   return getFetch(options?.fetch)(req, <RequestInit>{
     ...init,
     context: init?.context || event.context,
-    headers: {
-      ...getProxyRequestHeaders(event, {
+    headers: mergeHeaders(
+      getProxyRequestHeaders(event, {
         host: typeof req === "string" && req.startsWith("/"),
       }),
-      ...init?.headers,
-    },
+      init?.headers,
+    ),
   });
 }
