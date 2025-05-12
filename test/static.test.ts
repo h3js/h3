@@ -4,7 +4,7 @@ import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("serve static", (t, { it, expect }) => {
   beforeEach(() => {
-    const serveStaticOptions = {
+    const serveStaticOptions: ServeStaticOptions = {
       getContents: vi.fn((id) =>
         id.includes("404") ? undefined : `asset:${id}`,
       ),
@@ -22,6 +22,9 @@ describeMatrix("serve static", (t, { it, expect }) => {
       ),
       indexNames: ["/index.html"],
       encodings: { gzip: ".gz", br: ".br" },
+      headers: {
+        "cache-control": "public, max-age=86400",
+      },
     };
 
     t.app.all("/**", (event) => {
@@ -35,6 +38,7 @@ describeMatrix("serve static", (t, { it, expect }) => {
     "content-encoding": "utf8",
     "last-modified": new Date(1_700_000_000_000).toUTCString(),
     vary: "accept-encoding",
+    "cache-control": "public, max-age=86400",
   };
 
   it("Can serve asset (GET)", async () => {
