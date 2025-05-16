@@ -18,6 +18,13 @@ export interface Session<T extends SessionDataT = SessionDataT> {
   [getSessionPromise]?: Promise<Session<T>>;
 }
 
+export interface SessionManager<T extends SessionDataT = SessionDataT> {
+  readonly id: string | undefined;
+  readonly data: SessionData<T>;
+  update: (update: SessionUpdate<T>) => Promise<SessionManager<T>>;
+  clear: () => Promise<SessionManager<T>>;
+}
+
 export interface SessionConfig {
   /** Private key used to encrypt session tokens */
   password: string;
@@ -53,7 +60,7 @@ type CompatEvent =
 export async function useSession<T extends SessionDataT = SessionDataT>(
   event: H3Event | CompatEvent,
   config: SessionConfig,
-) {
+): Promise<SessionManager<T>> {
   // Create a synced wrapper around the session
   const sessionName = config.name || DEFAULT_NAME;
   await getSession(event, config); // Force init
