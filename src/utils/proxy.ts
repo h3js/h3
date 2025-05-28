@@ -173,7 +173,7 @@ export function fetchWithEvent<
   init?: RequestInit & { context?: H3EventContext },
   options?: { fetch: F },
 ): unknown extends T ? ReturnType<F> : T {
-  return getFetch(options?.fetch)(req, <RequestInit>{
+  return getFetch(options?.fetch)(req, {
     ...init,
     context: init?.context || event.context,
     headers: {
@@ -182,5 +182,7 @@ export function fetchWithEvent<
       }),
       ...init?.headers,
     },
+  } satisfies RequestInit & {
+    context?: H3EventContext;
   });
 }

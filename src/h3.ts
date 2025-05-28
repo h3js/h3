@@ -44,12 +44,10 @@ export class H3 {
 
     this.fetch = this.fetch.bind(this);
 
-    this.handler = Object.assign((event: H3Event) => this.#handler(event), <
-      Partial<EventHandler>
-    >{
+    this.handler = Object.assign((event: H3Event) => this.#handler(event), {
       resolve: (method: HTTPMethod, path: string) => this.resolve(method, path),
       websocket: this.config.websocket,
-    });
+    } satisfies Partial<EventHandler>);
   }
 
   /**
@@ -283,11 +281,11 @@ export class H3 {
     }
     const _method = (method || "").toUpperCase();
     const _handler = (handler as H3)?.handler || handler;
-    addRoute(this.#router, _method, route, <H3Route>{
-      method: _method,
+    addRoute(this.#router, _method, route, {
+      method: _method as HTTPMethod,
       route,
       handler: _handler,
-    });
+    } satisfies H3Route);
     return this;
   }
 

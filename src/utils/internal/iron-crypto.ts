@@ -236,11 +236,11 @@ export async function generateKey(
     throw new Error("Missing IV");
   }
 
-  return <Key>{
+  return {
     key: resultKey,
     salt: resultSalt,
     iv: resultIV,
-  };
+  } satisfies Key;
 }
 
 /** Provides an asynchronous Password-Based Key Derivation Function 2 (PBKDF2) implementation. */
