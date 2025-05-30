@@ -23,7 +23,6 @@ export type {
   DynamicEventHandler,
   EventHandlerObject,
   EventHandlerRequest,
-  EventHandlerResolver,
   EventHandlerResponse,
   InferEventInput,
   LazyEventHandler,

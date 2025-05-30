@@ -60,8 +60,6 @@ export function defineEventHandler<
   const _handler: EventHandler<Request, any> = (event) => {
     return _callHandler(event, handler.handler, _hooks);
   };
-  _handler.resolve = handler.handler.resolve;
-  _handler.websocket = { hooks: handler.websocket };
   return _handler as EventHandler<Request, Response>;
 }
 
@@ -151,13 +149,6 @@ export function defineLazyEventHandler(
     }
     return resolveHandler().then((r) => r.handler(event));
   };
-
-  handler.resolve = (method, path) =>
-    Promise.resolve(
-      resolveHandler().then(({ handler }) =>
-        handler.resolve ? handler.resolve(method, path) : { handler },
-      ),
-    );
 
   return handler;
 }

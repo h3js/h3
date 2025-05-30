@@ -27,12 +27,5 @@ export function withBase(base: string, input: EventHandler | H3): EventHandler {
     });
   };
 
-  _handler.websocket = _originalHandler.websocket;
-  _handler.resolve = _originalHandler.resolve
-    ? (method, path) => {
-        return _originalHandler.resolve!(method, withoutBase(path, base));
-      }
-    : undefined;
-
   return _handler;
 }
