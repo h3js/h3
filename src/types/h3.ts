@@ -11,7 +11,6 @@ type MaybePromise<T = unknown> = T | Promise<T>;
 
 export interface H3Config {
   debug?: boolean;
-  websocket?: WebSocketOptions;
 
   onError?: (error: H3Error, event: H3Event) => MaybePromise<void | unknown>;
   onRequest?: (event: H3Event) => MaybePromise<void>;
@@ -22,12 +21,6 @@ export interface H3Config {
 }
 
 export type PreparedResponse = ResponseInit & { body?: BodyInit | null };
-
-export interface WebSocketOptions {
-  resolve?: crossws.ResolveHooks;
-  hooks?: Partial<crossws.Hooks>;
-  adapterHooks?: Partial<crossws.AdapterHooks>;
-}
 
 export interface H3Route {
   route?: string;

@@ -2,7 +2,6 @@
 
 export type {
   H3Config,
-  WebSocketOptions,
   H3Route,
   HTTPMethod,
   PreparedResponse,
