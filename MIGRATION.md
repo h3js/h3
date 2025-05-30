@@ -54,14 +54,12 @@ Router functionality is now integrated into the h3 app core. Instead of `createA
 
 New methods:
 
-- `app.use(handler)`: Adds a global middleware.
-- `app.use(route, handler)`: Adds a routed middleware.
+- `app.use(middleware, opts?: { route?: string, method?: string })`: Adds a global middleware.
 - `app.on(method, handler)` / `app.all(handler)` / `app.[METHOD](handler)`: Adds a route handler.
 
 Handlers will run in this order:
 
-- All global middleware in the same order were registered
-- All routed middleware from least specific to most specific paths (auto-sorted)
+- Global middleware in the same order were registered
 - Matched route handler
 
 Any handler can return a response. If middleware don't return a response, next handlers will be tried and finally make a 404 if neither responses. Router handlers can return or not return any response, in this case, h3 will send a simple 200 with empty content.
