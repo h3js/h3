@@ -25,8 +25,6 @@ describe("h3 package", () => {
         "defineNodeHandler",
         "defineNodeListener",
         "defineNodeMiddleware",
-        "defineRequestMiddleware",
-        "defineResponseMiddleware",
         "defineWebSocket",
         "defineWebSocketHandler",
         "deleteCookie",

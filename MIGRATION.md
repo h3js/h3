@@ -115,6 +115,7 @@ h3 v2 deprecated some legacy and aliased utilities.
 - `toEventHandler`: Remove wrapper.
 - `isEventHandler`: (removed) Any function can be an event handler.
 - `useBase`: Migrate to `withbase`.
+- `defineRequestMiddleware` and `defineResponseMiddleware` removed.
 
 **Request:**
 
