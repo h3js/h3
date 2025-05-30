@@ -74,7 +74,7 @@ h3 migrated to a brand new route-matching engine [rou3](https://rou3.h3.dev/). Y
 - `router.use(path, handler)` is deprecated. Use `router.all(path, handler)` instead.
 - `app.use(() => handler, { lazy: true })` is no supported anymore. Instead you can use `app.use(defineLazyEventHandler(() => handler), { lazy: true })`.
 - `app.use(["/path1", "/path2"], ...)` and `app.use("/path", [handler1, handler2])` are not supported anymore. Instead, use multiple `app.use()` calls.
-- `app.resolve(path) => { route, handler }` changed to `app.resolve(method, path) => { method, route, handler }`.
+- `app.resolve(path)` removed.
 
 ## Body utils
 
