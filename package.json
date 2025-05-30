@@ -36,7 +36,7 @@
   },
   "dependencies": {
     "cookie-es": "^2.0.0",
-    "rou3": "^0.6.1",
+    "rou3": "^0.6.2",
     "srvx": "^0.7.2"
   },
   "devDependencies": {

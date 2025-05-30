@@ -1,13 +1,14 @@
-import { createRouter, addRoute, findAllRoutes, findRoute } from "rou3";
+import { createRouter, addRoute, findRoute } from "rou3";
 import { serve as srvxServe } from "srvx";
 import { getPathname, joinURL } from "./utils/internal/path.ts";
 import { _H3Event } from "./event.ts";
-import { kNotFound, handleResponse } from "./response.ts";
+import { handleResponse, kNotFound } from "./response.ts";
+import { callMiddleware, defineMiddleware } from "./middleware.ts";
 
 import type { ServerOptions, Server } from "srvx";
 import type { RouterContext } from "rou3";
 import type { H3Route, HTTPMethod, WebSocketOptions } from "./types/h3.ts";
-import type { ResolvedEventHandler } from "./types/handler.ts";
+import type { ResolvedEventHandler, Middleware } from "./types/handler.ts";
 import type { H3Config } from "./types/h3.ts";
 import type { H3Event, H3EventContext } from "./types/event.ts";
 import type { EventHandler, EventHandlerRequest } from "./types/handler.ts";
@@ -20,8 +21,8 @@ export function serve(app: H3, options?: Omit<ServerOptions, "fetch">): Server {
 }
 
 export class H3 {
-  #middleware?: H3Route[];
-  #mRouter?: RouterContext<H3Route>;
+  #middleware: Middleware[];
+
   #router?: RouterContext<H3Route>;
 
   /**
@@ -40,6 +41,7 @@ export class H3 {
    * @param config - h3 config
    */
   constructor(config: H3Config = {}) {
+    this.#middleware = [];
     this.config = config;
 
     this.fetch = this.fetch.bind(this);
@@ -102,7 +104,15 @@ export class H3 {
     // Execute the handler
     let handlerRes: unknown | Promise<unknown>;
     try {
-      handlerRes = this.#handler(event);
+      if (this.config.onRequest) {
+        const hookRes = this.config.onRequest(event);
+        handlerRes =
+          hookRes instanceof Promise
+            ? hookRes.then(() => this.#handler(event))
+            : this.#handler(event);
+      } else {
+        handlerRes = this.#handler(event);
+      }
     } catch (error: any) {
       handlerRes = Promise.reject(error);
     }
@@ -112,78 +122,16 @@ export class H3 {
   }
 
   #handler(event: H3Event) {
-    const pathname = event.url.pathname;
-
-    let _chain: Promise<unknown> | undefined;
-
-    // 1. Hooks
-    if (this.config.onRequest) {
-      _chain = Promise.resolve(this.config.onRequest(event));
+    const route = this.#router
+      ? findRoute(this.#router, event.req.method, event.url.pathname)
+      : undefined;
+    if (route) {
+      event.context.params = route.params;
+      event.context.matchedRoute = route.data;
     }
-
-    // 2. Global middleware
-    const _middleware = this.#middleware;
-    if (_middleware) {
-      _chain = _chain || Promise.resolve();
-      for (const m of _middleware) {
-        _chain = _chain.then((_previous) => {
-          if (_previous !== undefined && _previous !== kNotFound) {
-            return _previous;
-          }
-          if (m.method && m.method !== event.req.method) {
-            return;
-          }
-          return m.handler(event);
-        });
-      }
-    }
-
-    // 3. Middleware router
-    const _mRouter = this.#mRouter;
-    if (_mRouter) {
-      const matches = findAllRoutes(_mRouter, event.req.method, pathname);
-      if (matches.length > 0) {
-        _chain = _chain || Promise.resolve();
-        for (const match of matches) {
-          _chain = _chain.then((_previous) => {
-            if (_previous !== undefined && _previous !== kNotFound) {
-              return _previous;
-            }
-            event.context.params = match.params;
-            event.context.matchedRoute = match.data;
-            return match.data.handler(event);
-          });
-        }
-      }
-    }
-
-    // 4. Route handler
-    if (this.#router) {
-      const match = findRoute(this.#router, event.req.method, pathname);
-      if (match) {
-        if (_chain) {
-          return _chain.then((_previous) => {
-            if (_previous !== undefined && _previous !== kNotFound) {
-              return _previous;
-            }
-            event.context.params = match.params;
-            event.context.matchedRoute = match.data;
-            return match.data.handler(event);
-          });
-        } else {
-          event.context.params = match.params;
-          event.context.matchedRoute = match.data;
-          return match.data.handler(event);
-        }
-      }
-    }
-
-    // 5. 404
-    return _chain
-      ? _chain.then((_previous) =>
-          _previous === undefined ? kNotFound : _previous,
-        )
-      : kNotFound;
+    return callMiddleware(event, this.#middleware, () => {
+      return route ? route.data.handler(event) : kNotFound;
+    });
   }
 
   /**
@@ -193,9 +141,7 @@ export class H3 {
     method: HTTPMethod,
     path: string,
   ): Promise<ResolvedEventHandler | undefined> {
-    const match =
-      (this.#mRouter && findRoute(this.#mRouter, method, path)) ||
-      (this.#router && findRoute(this.#router, method, path));
+    const match = this.#router && findRoute(this.#router, method, path);
 
     if (!match) {
       return undefined;
@@ -291,52 +237,12 @@ export class H3 {
 
   /**
    * Register a global middleware
-   *
-   * Global middleware will be called before all routes on each request.
-   *
-   * If the first argument is a string, it will be used as the route.
    */
   use(
-    arg1: string | EventHandler | H3 | H3Route,
-    arg2?: EventHandler | H3 | Partial<H3Route>,
-    arg3?: Partial<H3Route>,
+    input: Middleware | H3,
+    opts?: { route?: string; method?: string },
   ): this {
-    const arg1T = typeof arg1;
-    const entry = {} as H3Route;
-    let _handler: EventHandler | H3;
-    if (arg1T === "string") {
-      // (route, handler, details)
-      entry.route = (arg1 as string) || arg3?.route;
-      entry.method = arg3?.method as HTTPMethod;
-      _handler = (arg2 as EventHandler | H3) || arg3?.handler;
-    } else if (arg1T === "function") {
-      // (handler, details)
-      entry.route = (arg2 as H3Route)?.route;
-      entry.method = (arg2 as H3Route)?.method;
-      _handler = (arg1 as EventHandler | H3) || (arg2 as H3Route)?.handler;
-    } else {
-      // (details)
-      entry.route = (arg1 as H3Route).route;
-      entry.method = (arg1 as H3Route).method;
-      _handler = (arg1 as H3Route).handler;
-    }
-
-    entry.handler = (_handler as H3)?.handler || _handler;
-    entry.method = (entry.method || "").toUpperCase() as HTTPMethod;
-
-    if (entry.route) {
-      // Routed middleware/handler
-      if (!this.#mRouter) {
-        this.#mRouter = createRouter();
-      }
-      addRoute(this.#mRouter, entry.method, entry.route, entry);
-    } else {
-      // Global middleware
-      if (!this.#middleware) {
-        this.#middleware = [];
-      }
-      this.#middleware.push(entry);
-    }
+    this.#middleware.push(defineMiddleware(input, opts));
     return this;
   }
 }

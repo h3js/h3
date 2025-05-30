@@ -88,21 +88,26 @@ export function h3Middleware(lib: typeof _h3src): AppFetch {
   app.use(() => Promise.resolve());
 
   // [GET] /
-  app.use("/", () => "Hi");
+  app.use(() => "Hi", { route: "/" });
 
   // [GET] /id/:id
-  app.use("/id/:id", (event) => {
-    event.res.headers.set("x-powered-by", "benchmark");
-    const name = lib.getQuery(event).name;
-    return `${event.context.params!.id} ${name}`;
-  });
+  app.use(
+    (event) => {
+      event.res.headers.set("x-powered-by", "benchmark");
+      const name = lib.getQuery(event).name;
+      return `${event.context.params!.id} ${name}`;
+    },
+    { route: "/id/:id" },
+  );
 
   // [POST] /json
-  app.use("/json", (event) =>
-    (
-      event.req ||
-      (event as unknown as { request: Request }) /* nightly */.request
-    ).json(),
+  app.use(
+    (event) =>
+      (
+        event.req ||
+        (event as unknown as { request: Request }) /* nightly */.request
+      ).json(),
+    { route: "/json" },
   );
 
   return app.fetch;

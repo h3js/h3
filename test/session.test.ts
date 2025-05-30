@@ -4,7 +4,7 @@ import { useSession, readBody, H3 } from "../src/index.ts";
 import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("session", (t, { it, expect }) => {
-  let router: H3;
+  let app: H3;
 
   let cookie = "";
 
@@ -16,15 +16,15 @@ describeMatrix("session", (t, { it, expect }) => {
   };
 
   beforeEach(() => {
-    router = new H3({});
-    router.use("/", async (event) => {
+    app = new H3({});
+    t.app.all("/", async (event) => {
       const session = await useSession(event, sessionConfig);
       if (event.req.method === "POST") {
         await session.update((await readBody(event)) as any);
       }
       return { session };
     });
-    t.app.use(router);
+    t.app.use(app);
   });
 
   it("initiates session", async () => {
@@ -61,7 +61,7 @@ describeMatrix("session", (t, { it, expect }) => {
   });
 
   it("gets same session back (concurrent)", async () => {
-    router.use("/concurrent", async (event) => {
+    app.get("/concurrent", async (event) => {
       const sessions = await Promise.all(
         [1, 2, 3].map(() =>
           useSession(event, sessionConfig).then((s) => ({

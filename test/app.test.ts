@@ -36,7 +36,6 @@ describeMatrix("app", (t, { it, expect }) => {
 
   it("can return Response directly", async () => {
     t.app.use(
-      "/",
       () =>
         new Response("Hello World!", {
           status: 201,
@@ -60,7 +59,7 @@ describeMatrix("app", (t, { it, expect }) => {
   it("can return primitive values", async () => {
     const values = [true, false, 42, 0, 1];
     for (const value of values) {
-      t.app.use(`/${value}`, () => value);
+      t.app.get(`/${value}`, () => value);
       expect(await (await t.fetch(`/${value}`)).json()).toEqual(value);
     }
   });
@@ -203,7 +202,7 @@ describeMatrix("app", (t, { it, expect }) => {
   });
 
   it("can chain .use calls", async () => {
-    t.app.get("/1", () => "prefix1").use("/2", () => "prefix2");
+    t.app.get("/1", () => "prefix1").use(() => "prefix2", { route: "/2" });
     const res = await t.fetch("/2");
 
     expect(await res.text()).toBe("prefix2");
@@ -219,24 +218,12 @@ describeMatrix("app", (t, { it, expect }) => {
     expect(await res.text()).toBe("42");
   });
 
-  // TODO
-  it("prohibits use of next() in non-promisified handlers", () => {
-    t.app.get("/", () => {});
-  });
-
   it("handles next() call with no routes matching", async () => {
-    t.app.use("/", () => {});
-    t.app.use("/", () => {});
+    t.app.use(() => {});
+    t.app.use(() => {});
 
     const response = await t.fetch("/");
     expect(response.status).toEqual(404);
-  });
-
-  it("can take an object", async () => {
-    t.app.use({ route: "/", handler: () => "valid" });
-
-    const response = await t.fetch("/");
-    expect(await response.text()).toEqual("valid");
   });
 
   it("can short-circuit route matching", async () => {
@@ -258,7 +245,6 @@ describeMatrix("app", (t, { it, expect }) => {
     "wait for node middleware (req, res, next)",
     async () => {
       t.app.use(
-        "/",
         fromNodeHandler((_req, res, next) => {
           setTimeout(() => {
             res.setHeader("content-type", "application/json");

@@ -17,7 +17,7 @@ describeMatrix("lazy", (t, { it, expect }) => {
   for (const [type, handler] of handlers) {
     for (const [kind, resolution] of kinds) {
       it(`can load ${type} handlers lazily from a ${kind}`, async () => {
-        t.app.use(
+        t.app.all(
           "/big",
           defineLazyEventHandler(() => Promise.resolve(resolution(handler))),
         );
@@ -27,7 +27,7 @@ describeMatrix("lazy", (t, { it, expect }) => {
       });
 
       it(`can handle ${type} functions that don't return promises from a ${kind}`, async () => {
-        t.app.use(
+        t.app.all(
           "/big",
           defineLazyEventHandler(() => resolution(handler)),
         );
