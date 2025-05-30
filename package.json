@@ -50,6 +50,7 @@
     "automd": "^0.4.0",
     "changelogen": "^0.6.1",
     "connect": "^3.7.0",
+    "crossws": "^0.4.1",
     "esbuild": "^0.25.5",
     "eslint": "^9.27.0",
     "eslint-config-unjs": "^0.4.2",
