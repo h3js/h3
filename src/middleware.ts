@@ -10,10 +10,9 @@ export function defineMiddleware(
   opts: { route?: string; method?: string } = {},
 ): Middleware {
   const fn: Middleware = normalizeMiddleware(input);
-  if (opts?.method || opts?.route) {
+  if (!opts?.method && !opts?.route) {
     return fn;
   }
-  // Wrap middleware with route/method matching
   const routeMatcher = opts?.route ? routeToRegExp(opts.route) : undefined;
   const method = opts?.method?.toUpperCase();
   const match: (event: H3Event) => boolean = (event) => {
@@ -22,9 +21,7 @@ export function defineMiddleware(
     }
     return routeMatcher ? routeMatcher.test(event.url.pathname) : true;
   };
-  return fn.length > 1
-    ? (event, next) => (match(event) ? fn(event, next) : undefined)
-    : (event) => (match(event) ? (fn as any)(event) : undefined);
+  return (event, next) => (match(event) ? fn(event, next) : undefined);
 }
 
 function normalizeMiddleware(input: Middleware | H3): Middleware {
@@ -34,15 +31,10 @@ function normalizeMiddleware(input: Middleware | H3): Middleware {
     }
     return (event, next) => {
       const res = input(event, next);
-      if (res !== undefined) {
-        return res;
-      }
-      console.warn("Middleware should return next() or a value.");
-      return next();
+      return res === undefined ? next() : res;
     };
   }
   if (typeof (input as H3).handler === "function") {
-    // Wrap H3 handler as a middleware
     return (event, next) => {
       const res = (input as H3).handler(event);
       if (res === kNotFound) {
