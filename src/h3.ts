@@ -8,11 +8,15 @@ import { callMiddleware, defineMiddleware } from "./middleware.ts";
 import type { ServerOptions, Server } from "srvx";
 import type { RouterContext } from "rou3";
 import type { H3Route, HTTPMethod, WebSocketOptions } from "./types/h3.ts";
-import type { ResolvedEventHandler, Middleware } from "./types/handler.ts";
 import type { H3Config } from "./types/h3.ts";
 import type { H3Event, H3EventContext } from "./types/event.ts";
-import type { EventHandler, EventHandlerRequest } from "./types/handler.ts";
-
+import type {
+  EventHandler,
+  EventHandlerRequest,
+  ResolvedEventHandler,
+  Middleware,
+  MiddlewareOptions,
+} from "./types/handler.ts";
 /**
  * Serve the h3 app, automatically handles current runtime behavior.
  */
@@ -238,10 +242,7 @@ export class H3 {
   /**
    * Register a global middleware
    */
-  use(
-    input: Middleware | H3,
-    opts?: { route?: string; method?: string },
-  ): this {
+  use(input: Middleware | H3, opts?: MiddlewareOptions): this {
     this.#middleware.push(defineMiddleware(input, opts));
     return this;
   }

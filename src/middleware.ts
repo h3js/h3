@@ -3,11 +3,15 @@ import { kNotFound } from "./response.ts";
 
 import type { H3 } from "./h3.ts";
 import type { H3Event } from "./types/event.ts";
-import type { EventHandler, Middleware } from "./types/handler.ts";
+import type {
+  EventHandler,
+  Middleware,
+  MiddlewareOptions,
+} from "./types/handler.ts";
 
 export function defineMiddleware(
   input: Middleware | H3,
-  opts: { route?: string; method?: string } = {},
+  opts: MiddlewareOptions = {},
 ): Middleware {
   const fn: Middleware = normalizeMiddleware(input);
   if (!opts?.method && !opts?.route) {
@@ -19,9 +23,12 @@ export function defineMiddleware(
     if (method && event.req.method !== method) {
       return false;
     }
+    if (opts?.match && !opts.match(event)) {
+      return false;
+    }
     return routeMatcher ? routeMatcher.test(event.url.pathname) : true;
   };
-  return (event, next) => (match(event) ? fn(event, next) : undefined);
+  return Object.assign(fn, { match });
 }
 
 function normalizeMiddleware(input: Middleware | H3): Middleware {
@@ -60,6 +67,9 @@ export function callMiddleware(
     return handler(event);
   }
   const fn = middleware[index];
+  if (fn.match && !fn.match(event)) {
+    return callMiddleware(event, middleware, handler, index + 1);
+  }
   const next = () => callMiddleware(event, middleware, handler, index + 1);
   const ret = fn(event, next);
   return ret === undefined

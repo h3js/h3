@@ -39,10 +39,19 @@ export interface EventHandler<
   websocket?: WebSocketOptions;
 }
 
-export type Middleware = (
-  event: H3Event,
-  next: () => MaybePromise<unknown | undefined>,
-) => MaybePromise<unknown | undefined>;
+export interface MiddlewareOptions {
+  route?: string;
+  method?: string;
+  match?: (event: H3Event) => boolean;
+}
+
+export interface Middleware {
+  (
+    event: H3Event,
+    next: () => MaybePromise<unknown | undefined>,
+  ): MaybePromise<unknown | undefined>;
+  match?: (event: H3Event) => boolean;
+}
 
 export type RequestMiddleware<
   Request extends EventHandlerRequest = EventHandlerRequest,

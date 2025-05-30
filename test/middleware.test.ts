@@ -29,7 +29,7 @@ describeMatrix("middleware", (t, { it, expect }) => {
     });
 
     t.app.use(
-      new H3().get("/test", (event) =>
+      new H3().all("/test", (event) =>
         event.req.headers.has("x-async")
           ? Promise.resolve("Hello World!")
           : "Hello World!",
@@ -37,6 +37,7 @@ describeMatrix("middleware", (t, { it, expect }) => {
       {
         method: "GET",
         route: "/test/**",
+        match: (event) => !event.req.headers.has("x-skip"),
       },
     );
 
@@ -75,11 +76,22 @@ describeMatrix("middleware", (t, { it, expect }) => {
     expect(await response2.text()).toBe("Hello World!");
   });
 
-  it("routed middleware (method matching)", async () => {
-    const response = await t.app.fetch("/test", {
-      method: "POST",
-    });
-    expect(response.status).toBe(404);
+  it("middleware filters", async () => {
+    expect(
+      (
+        await t.app.fetch("/test", {
+          method: "POST",
+        })
+      ).status,
+    ).toBe(404);
+
+    expect(
+      await (
+        await t.app.fetch("/test", {
+          headers: { "x-skip": "1" },
+        })
+      ).text(),
+    ).not.toBe("Hello World!");
   });
 
   it("routed middleware (fallback to main)", async () => {
