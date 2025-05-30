@@ -20,21 +20,18 @@ export { isEvent, mockEvent } from "./utils/event.ts";
 export type {
   EventHandler,
   DynamicEventHandler,
-  EventHandlerObject,
   EventHandlerRequest,
   EventHandlerResponse,
   InferEventInput,
   LazyEventHandler,
-  RequestMiddleware,
-  ResponseMiddleware,
+  Middleware,
+  MiddlewareOptions,
 } from "./types/handler.ts";
 
 export {
   defineEventHandler,
   defineLazyEventHandler,
   dynamicEventHandler,
-  defineRequestMiddleware,
-  defineResponseMiddleware,
 } from "./handler.ts";
 
 // Error

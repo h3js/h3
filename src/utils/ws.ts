@@ -18,16 +18,14 @@ export function defineWebSocket(hooks: Partial<WSHooks>): Partial<WSHooks> {
  * @see https://h3.dev/guide/websocket
  */
 export function defineWebSocketHandler(hooks: Partial<WSHooks>): EventHandler {
-  return defineEventHandler({
-    handler() {
-      return Object.assign(
-        new Response("WebSocket upgrade is required.", {
-          status: 426,
-        }),
-        {
-          crossws: hooks,
-        },
-      );
-    },
+  return defineEventHandler(() => {
+    return Object.assign(
+      new Response("WebSocket upgrade is required.", {
+        status: 426,
+      }),
+      {
+        crossws: hooks,
+      },
+    );
   });
 }

@@ -1,14 +1,13 @@
 import type { H3Event } from "./event.ts";
-import type { Hooks as WSHooks } from "crossws";
 import type { H3 } from "../h3.ts";
-
-export type EventHandlerResponse<T = unknown> = T | Promise<T>;
 
 export interface EventHandlerRequest {
   body?: unknown;
   query?: Record<string, string>;
   routerParams?: Record<string, string>;
 }
+
+export type EventHandlerResponse<T = unknown> = T | Promise<T>;
 
 export type InferEventInput<
   Key extends keyof EventHandlerRequest,
@@ -25,11 +24,7 @@ export interface EventHandler<
   (event: H3Event<Request>): Response;
 }
 
-export interface MiddlewareOptions {
-  route?: string;
-  method?: string;
-  match?: (event: H3Event) => boolean;
-}
+//  --- middleware ---
 
 export interface Middleware {
   (
@@ -39,30 +34,13 @@ export interface Middleware {
   match?: (event: H3Event) => boolean;
 }
 
-export type RequestMiddleware<
-  Request extends EventHandlerRequest = EventHandlerRequest,
-> = (event: H3Event<Request>) => void | Promise<void>;
+export interface MiddlewareOptions {
+  route?: string;
+  method?: string;
+  match?: (event: H3Event) => boolean;
+}
 
-export type ResponseMiddleware<
-  Request extends EventHandlerRequest = EventHandlerRequest,
-  Response extends EventHandlerResponse = EventHandlerResponse,
-> = (
-  event: H3Event<Request>,
-  response: { body?: Awaited<Response> },
-) => void | Promise<void>;
-
-export type EventHandlerObject<
-  Request extends EventHandlerRequest = EventHandlerRequest,
-  Response extends EventHandlerResponse = EventHandlerResponse,
-> = {
-  onRequest?: RequestMiddleware<Request> | RequestMiddleware<Request>[];
-  onBeforeResponse?:
-    | ResponseMiddleware<Request, Response>
-    | ResponseMiddleware<Request, Response>[];
-  /** @experimental */
-  websocket?: Partial<WSHooks>;
-  handler: EventHandler<Request, Response>;
-};
+// --- lazy event handler ---
 
 export type LazyEventHandler = () => EventHandler | Promise<EventHandler>;
 
