@@ -14,6 +14,7 @@ import type {
   Middleware,
   MiddlewareOptions,
 } from "./types/handler.ts";
+import { createError } from "./error.ts";
 
 /**
  * Serve the h3 app, automatically handles current runtime behavior.
@@ -110,9 +111,30 @@ export class H3 {
       event.context.params = route.params;
       event.context.matchedRoute = route.data;
     }
-    return callMiddleware(event, this.#middleware, () => {
-      return route ? route.data.handler(event) : kNotFound;
-    });
+
+    let result: unknown | Promise<unknown>;
+    try {
+      result = callMiddleware(event, this.#middleware, () => {
+        return route ? route.data.handler(event) : kNotFound;
+      });
+    } catch (error) {
+      result = Promise.reject(error);
+    }
+
+    if (result instanceof Promise) {
+      result = result.catch((error) => {
+        if (this.config.onError && error instanceof Error) {
+          return (
+            this.config.onError(createError(error), event) ??
+            Promise.reject(error)
+          );
+        }
+
+        throw error;
+      });
+    }
+
+    return result;
   }
 
   all(route: string, handler: EventHandler | H3): this {

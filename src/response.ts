@@ -49,12 +49,7 @@ function prepareResponse(
 
   if (val && val instanceof Error) {
     const error = createError(val); // todo: flag unhandled
-    const { onError } = config;
-    return onError && !nested
-      ? Promise.resolve(onError(error, event))
-          .catch((error) => error)
-          .then((newVal) => prepareResponse(newVal ?? val, event, config, true))
-      : errorResponse(error, config.debug);
+    return errorResponse(error, config.debug);
   }
 
   // Only set if event.res.headers is accessed
