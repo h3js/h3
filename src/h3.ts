@@ -1,14 +1,14 @@
 import { createRouter, addRoute, findRoute } from "rou3";
 import { serve as srvxServe } from "srvx";
-import { _H3Event } from "./event.ts";
+import { H3Event } from "./event.ts";
 import { handleResponse, kNotFound } from "./response.ts";
 import { callMiddleware, defineMiddleware } from "./middleware.ts";
 
 import type { ServerOptions, Server } from "srvx";
 import type { RouterContext } from "rou3";
-import type { H3Route, HTTPMethod } from "./types/h3.ts";
+import type { H3Route, HTTPMethod, H3 as H3T } from "./types/h3.ts";
 import type { H3Config } from "./types/h3.ts";
-import type { H3Event, H3EventContext } from "./types/event.ts";
+import type { H3EventContext } from "./types/event.ts";
 import type {
   EventHandler,
   Middleware,
@@ -18,169 +18,135 @@ import type {
 /**
  * Serve the h3 app, automatically handles current runtime behavior.
  */
-export function serve(app: H3, options?: Omit<ServerOptions, "fetch">): Server {
+export function serve(
+  app: H3T,
+  options?: Omit<ServerOptions, "fetch">,
+): Server {
   return srvxServe({ fetch: app.fetch, ...options });
 }
 
-export class H3 {
-  #middleware: Middleware[];
+export type H3 = H3T;
 
-  #router?: RouterContext<H3Route>;
+export const H3 = /* @__PURE__ */ (() => {
+  // prettier-ignore
+  const HTTPMethods = ["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS", "CONNECT", "TRACE" ] as const;
 
-  /**
-   * Global h3 instance config.
-   */
-  readonly config: H3Config;
+  class H3 implements Omit<H3T, Lowercase<(typeof HTTPMethods)[number]>> {
+    #middleware: Middleware[];
+    #router?: RouterContext<H3Route>;
+    readonly config: H3Config;
 
-  /**
-   * Create a new h3 app instance
-   *
-   * @param config - h3 config
-   */
-  constructor(config: H3Config = {}) {
-    this.#middleware = [];
-    this.config = config;
-
-    this.fetch = this.fetch.bind(this);
-    this.handler = this.handler.bind(this);
-  }
-
-  /**
-   * A [fetch](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API)-like API allowing to fetch app routes.
-   *
-   * Input can be a URL, relative path or standard [Request](https://developer.mozilla.org/en-US/docs/Web/API/Request) object.
-   *
-   * Returned value is a standard [Response](https://developer.mozilla.org/en-US/docs/Web/API/Response) or a promise resolving to a Response.
-   */
-  fetch(
-    _request: Request | URL | string,
-    options?: RequestInit,
-    context?: H3EventContext,
-  ): Response | Promise<Response> {
-    // Normalize request
-    let request: Request;
-    if (typeof _request === "string") {
-      let url = _request;
-      if (url[0] === "/") {
-        const host = getHeader("Host", options?.headers) || ".";
-        const proto =
-          getHeader("X-Forwarded-Proto", options?.headers) === "https"
-            ? "https"
-            : "http";
-        url = `${proto}://${host}${url}`;
-      }
-      request = new Request(url, options);
-    } else if (options || _request instanceof URL) {
-      request = new Request(_request, options);
-    } else {
-      request = _request;
+    constructor(config: H3Config = {}) {
+      this.#middleware = [];
+      this.config = config;
+      this.fetch = this.fetch.bind(this);
+      this.handler = this.handler.bind(this);
     }
 
-    // Create a new event instance
-    const event = new _H3Event(request, context);
-
-    // Execute the handler
-    let handlerRes: unknown | Promise<unknown>;
-    try {
-      if (this.config.onRequest) {
-        const hookRes = this.config.onRequest(event);
-        handlerRes =
-          hookRes instanceof Promise
-            ? hookRes.then(() => this.handler(event))
-            : this.handler(event);
+    fetch(
+      _request: Request | URL | string,
+      options?: RequestInit,
+      context?: H3EventContext,
+    ): Response | Promise<Response> {
+      // Normalize request
+      let request: Request;
+      if (typeof _request === "string") {
+        let url = _request;
+        if (url[0] === "/") {
+          const host = getHeader("Host", options?.headers) || ".";
+          const proto =
+            getHeader("X-Forwarded-Proto", options?.headers) === "https"
+              ? "https"
+              : "http";
+          url = `${proto}://${host}${url}`;
+        }
+        request = new Request(url, options);
+      } else if (options || _request instanceof URL) {
+        request = new Request(_request, options);
       } else {
-        handlerRes = this.handler(event);
+        request = _request;
       }
-    } catch (error: any) {
-      handlerRes = Promise.reject(error);
+
+      // Create a new event instance
+      const event = new H3Event(request, context);
+
+      // Execute the handler
+      let handlerRes: unknown | Promise<unknown>;
+      try {
+        if (this.config.onRequest) {
+          const hookRes = this.config.onRequest(event);
+          handlerRes =
+            hookRes instanceof Promise
+              ? hookRes.then(() => this.handler(event))
+              : this.handler(event);
+        } else {
+          handlerRes = this.handler(event);
+        }
+      } catch (error: any) {
+        handlerRes = Promise.reject(error);
+      }
+
+      // Prepare response
+      return handleResponse(handlerRes, event, this.config);
     }
 
-    // Prepare response
-    return handleResponse(handlerRes, event, this.config);
-  }
-
-  /**
-   * An h3 compatible event handler useful to compose multiple h3 app instances.
-   */
-  handler(event: H3Event): unknown | Promise<unknown> {
-    const route = this.#router
-      ? findRoute(this.#router, event.req.method, event.url.pathname)
-      : undefined;
-    if (route) {
-      event.context.params = route.params;
-      event.context.matchedRoute = route.data;
+    handler(event: H3Event): unknown | Promise<unknown> {
+      const route = this.#router
+        ? findRoute(this.#router, event.req.method, event.url.pathname)
+        : undefined;
+      if (route) {
+        event.context.params = route.params;
+        event.context.matchedRoute = route.data;
+      }
+      return callMiddleware(event, this.#middleware, () => {
+        return route ? route.data.handler(event) : kNotFound;
+      });
     }
-    return callMiddleware(event, this.#middleware, () => {
-      return route ? route.data.handler(event) : kNotFound;
-    });
-  }
 
-  all(route: string, handler: EventHandler | H3): this {
-    return this.on("", route, handler);
-  }
-
-  get(route: string, handler: EventHandler | H3): this {
-    return this.on("GET", route, handler);
-  }
-
-  post(route: string, handler: EventHandler | H3): this {
-    return this.on("POST", route, handler);
-  }
-
-  put(route: string, handler: EventHandler | H3): this {
-    return this.on("PUT", route, handler);
-  }
-
-  delete(route: string, handler: EventHandler | H3): this {
-    return this.on("DELETE", route, handler);
-  }
-
-  patch(route: string, handler: EventHandler | H3): this {
-    return this.on("PATCH", route, handler);
-  }
-
-  head(route: string, handler: EventHandler | H3): this {
-    return this.on("HEAD", route, handler);
-  }
-
-  options(route: string, handler: EventHandler | H3): this {
-    return this.on("OPTIONS", route, handler);
-  }
-
-  connect(route: string, handler: EventHandler | H3): this {
-    return this.on("CONNECT", route, handler);
-  }
-
-  trace(route: string, handler: EventHandler | H3): this {
-    return this.on("TRACE", route, handler);
-  }
-
-  on(
-    method: HTTPMethod | Lowercase<HTTPMethod> | "",
-    route: string,
-    handler: EventHandler | H3,
-  ): this {
-    if (!this.#router) {
-      this.#router = createRouter();
+    all(route: string, handler: EventHandler | H3T): H3T {
+      return this.on("", route, handler);
     }
-    const _method = (method || "").toUpperCase();
-    const _handler = (handler as H3)?.handler || handler;
-    addRoute(this.#router, _method, route, {
-      method: _method as HTTPMethod,
-      route,
-      handler: _handler,
-    } satisfies H3Route);
-    return this;
+
+    get(route: string, handler: EventHandler | H3T): H3T {
+      return this.on("GET", route, handler);
+    }
+
+    on(
+      method: HTTPMethod | Lowercase<HTTPMethod> | "",
+      route: string,
+      handler: EventHandler | H3T,
+    ): H3T {
+      if (!this.#router) {
+        this.#router = createRouter();
+      }
+      const _method = (method || "").toUpperCase();
+      const _handler = (handler as H3T)?.handler || handler;
+      addRoute(this.#router, _method, route, {
+        method: _method as HTTPMethod,
+        route,
+        handler: _handler,
+      } satisfies H3Route);
+      return this as unknown as H3T;
+    }
+
+    use(input: Middleware | H3T, opts?: MiddlewareOptions): H3T {
+      this.#middleware.push(defineMiddleware(input, opts));
+      return this as unknown as H3T;
+    }
   }
 
-  /**
-   * Register a global middleware
-   */
-  use(input: Middleware | H3, opts?: MiddlewareOptions): this {
-    this.#middleware.push(defineMiddleware(input, opts));
-    return this;
+  for (const method of HTTPMethods) {
+    (H3 as any).prototype[method.toLowerCase()] = function (
+      this: H3T,
+      route: string,
+      handler: EventHandler | H3T,
+    ) {
+      return this.on(method, route, handler);
+    };
   }
-}
+
+  return H3;
+})() as unknown as typeof H3T;
 
 function getHeader(name: string, headers: HeadersInit | undefined) {
   if (!headers) {

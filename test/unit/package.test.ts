@@ -22,6 +22,7 @@ describe("h3 package", () => {
         "defaultContentType",
         "defineEventHandler",
         "defineLazyEventHandler",
+        "defineMiddleware",
         "defineNodeHandler",
         "defineNodeListener",
         "defineNodeMiddleware",
