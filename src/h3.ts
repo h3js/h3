@@ -6,7 +6,7 @@ import { callMiddleware, defineMiddleware } from "./middleware.ts";
 
 import type { ServerOptions, Server } from "srvx";
 import type { RouterContext } from "rou3";
-import type { H3Route, HTTPMethod, H3 as H3T } from "./types/h3.ts";
+import type { H3Route, HTTPMethod, H3 as H3Type } from "./types/h3.ts";
 import type { H3Config } from "./types/h3.ts";
 import type { H3EventContext } from "./types/event.ts";
 import type {
@@ -15,23 +15,20 @@ import type {
   MiddlewareOptions,
 } from "./types/handler.ts";
 
+export type H3 = H3Type;
+
 /**
  * Serve the h3 app, automatically handles current runtime behavior.
  */
-export function serve(
-  app: H3T,
-  options?: Omit<ServerOptions, "fetch">,
-): Server {
+export function serve(app: H3, options?: Omit<ServerOptions, "fetch">): Server {
   return srvxServe({ fetch: app.fetch, ...options });
 }
-
-export type H3 = H3T;
 
 export const H3 = /* @__PURE__ */ (() => {
   // prettier-ignore
   const HTTPMethods = ["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS", "CONNECT", "TRACE" ] as const;
 
-  class H3 implements Omit<H3T, Lowercase<(typeof HTTPMethods)[number]>> {
+  class H3 implements Omit<H3Type, Lowercase<(typeof HTTPMethods)[number]>> {
     #middleware: Middleware[];
     #router?: RouterContext<H3Route>;
     readonly config: H3Config;
@@ -103,50 +100,50 @@ export const H3 = /* @__PURE__ */ (() => {
       });
     }
 
-    all(route: string, handler: EventHandler | H3T): H3T {
+    all(route: string, handler: EventHandler | H3Type): H3Type {
       return this.on("", route, handler);
     }
 
-    get(route: string, handler: EventHandler | H3T): H3T {
+    get(route: string, handler: EventHandler | H3Type): H3Type {
       return this.on("GET", route, handler);
     }
 
     on(
       method: HTTPMethod | Lowercase<HTTPMethod> | "",
       route: string,
-      handler: EventHandler | H3T,
-    ): H3T {
+      handler: EventHandler | H3Type,
+    ): H3Type {
       if (!this.#router) {
         this.#router = createRouter();
       }
       const _method = (method || "").toUpperCase();
-      const _handler = (handler as H3T)?.handler || handler;
+      const _handler = (handler as H3Type)?.handler || handler;
       addRoute(this.#router, _method, route, {
         method: _method as HTTPMethod,
         route,
         handler: _handler,
       } satisfies H3Route);
-      return this as unknown as H3T;
+      return this as unknown as H3Type;
     }
 
-    use(input: Middleware | H3T, opts?: MiddlewareOptions): H3T {
+    use(input: Middleware | H3Type, opts?: MiddlewareOptions): H3Type {
       this.#middleware.push(defineMiddleware(input, opts));
-      return this as unknown as H3T;
+      return this as unknown as H3Type;
     }
   }
 
   for (const method of HTTPMethods) {
     (H3 as any).prototype[method.toLowerCase()] = function (
-      this: H3T,
+      this: H3Type,
       route: string,
-      handler: EventHandler | H3T,
+      handler: EventHandler | H3Type,
     ) {
       return this.on(method, route, handler);
     };
   }
 
   return H3;
-})() as unknown as typeof H3T;
+})() as unknown as typeof H3Type;
 
 function getHeader(name: string, headers: HeadersInit | undefined) {
   if (!headers) {
