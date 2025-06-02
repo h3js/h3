@@ -10,9 +10,9 @@
 H3 (pronounced as /eɪtʃθriː/, like h-3) is a minimal h(ttp) framework built for high performance and portability.
 
 > [!NOTE]
-> You are on the v2 development branch. Check out [v1 branch](https://github.com/unjs/h3/tree/v1) for v1.
+> You are on the v2 development branch. Check out [v1 branch](https://github.com/h3js/h3/tree/v1) and [v1 documentation](https://v1.h3.dev/) for current v1.
 
-👉 [Documentation](https://h3.unjs.io)
+👉 [Documentation](https://h3.dev)
 
 ## Contribution
 
@@ -33,11 +33,11 @@ H3 (pronounced as /eɪtʃθriː/, like h-3) is a minimal h(ttp) framework built 
 
 <!-- automd:contributors license=MIT author="pi0" -->
 
-Published under the [MIT](https://github.com/unjs/h3/blob/main/LICENSE) license.
-Made by [@pi0](https://github.com/pi0) and [community](https://github.com/unjs/h3/graphs/contributors) 💛
+Published under the [MIT](https://github.com/h3js/h3/blob/main/LICENSE) license.
+Made by [@pi0](https://github.com/pi0) and [community](https://github.com/h3js/h3/graphs/contributors) 💛
 <br><br>
-<a href="https://github.com/unjs/h3/graphs/contributors">
-<img src="https://contrib.rocks/image?repo=unjs/h3" />
+<a href="https://github.com/h3js/h3/graphs/contributors">
+<img src="https://contrib.rocks/image?repo=h3js/h3" />
 </a>
 
 <!-- /automd -->

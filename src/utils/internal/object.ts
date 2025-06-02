@@ -1,4 +1,4 @@
-import { EmptyObject } from "./obj";
+import { EmptyObject } from "./obj.ts";
 
 /**
  * Checks if a certain input has a given property.
@@ -6,7 +6,7 @@ import { EmptyObject } from "./obj";
  * @param prop - The property to check for.
  * @returns A boolean indicating whether the input is an object and has the property.
  */
-export function hasProp(obj: any, prop: string | symbol) {
+export function hasProp(obj: any, prop: string | symbol): boolean {
   try {
     return prop in obj;
   } catch {

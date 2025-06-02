@@ -1,22 +1,22 @@
-import type { H3Event, StatusCode } from "../types";
-import { sanitizeStatusCode } from "./sanitize";
+import type { H3Event } from "../types/event.ts";
+import { sanitizeStatusCode } from "./sanitize.ts";
 import {
   serializeIterableValue,
   coerceIterable,
   type IterationSource,
   type IteratorSerializer,
-} from "./internal/iterable";
+} from "./internal/iterable.ts";
 
 /**
  * Respond with an empty payload.<br>
  *
  * @example
- * app.use("/", () => noContent());
+ * app.get("/", () => noContent());
  *
  * @param event H3 event
  * @param code status code to be send. By default, it is `204 No Content`.
  */
-export function noContent(event: H3Event, code?: StatusCode): "" {
+export function noContent(event: H3Event, code?: number): "" {
   const currentStatus = event.res.status;
 
   if (!code && currentStatus && currentStatus !== 200) {
@@ -42,20 +42,20 @@ export function noContent(event: H3Event, code?: StatusCode): "" {
  * In the body, it sends a simple HTML page with a meta refresh tag to redirect the client in case the headers are ignored.
  *
  * @example
- * app.use("/", (event) => {
+ * app.get("/", (event) => {
  *   return redirect(event, "https://example.com");
  * });
  *
  * @example
- * app.use("/", (event) => {
+ * app.get("/", (event) => {
  *   return redirect(event, "https://example.com", 301); // Permanent redirect
  * });
  */
 export function redirect(
   event: H3Event,
   location: string,
-  code: StatusCode = 302,
-) {
+  code: number = 302,
+): string {
   event.res.status = sanitizeStatusCode(code, event.res.status);
   event.res.headers.set("location", location);
   const encodedLoc = location.replace(/"/g, "%22");
@@ -73,11 +73,11 @@ export function writeEarlyHints(
   event: H3Event,
   hints: Record<string, string>,
 ): void | Promise<void> {
-  if (!event.node?.res?.writeEarlyHints) {
+  if (!event.runtime?.node?.res?.writeEarlyHints) {
     return;
   }
   return new Promise((resolve) => {
-    event.node?.res.writeEarlyHints(hints, () => resolve());
+    event.runtime?.node?.res?.writeEarlyHints(hints, () => resolve());
   });
 }
 

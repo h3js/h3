@@ -1,7 +1,7 @@
 import { createReadStream } from "node:fs";
 import { readFile } from "node:fs/promises";
-import { readBody } from "../src";
-import { describeMatrix } from "./_setup";
+import { readBody } from "../src/index.ts";
+import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("body", (t, { it, expect, describe }) => {
   it("can read simple string", async () => {

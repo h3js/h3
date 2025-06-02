@@ -1,322 +1,163 @@
+import { createRouter, addRoute, findRoute } from "rou3";
+import { serve as srvxServe } from "srvx";
+import { H3Event } from "./event.ts";
+import { handleResponse, kNotFound } from "./response.ts";
+import { callMiddleware, defineMiddleware } from "./middleware.ts";
+
+import type { ServerOptions, Server } from "srvx";
+import type { RouterContext } from "rou3";
+import type { H3Route, HTTPMethod, H3 as H3Type } from "./types/h3.ts";
+import type { H3Config } from "./types/h3.ts";
+import type { H3EventContext } from "./types/event.ts";
 import type {
-  H3,
-  H3Config,
   EventHandler,
-  HTTPMethod,
-  H3Event,
-  H3EventContext,
-  EventHandlerRequest,
-} from "./types";
-import type { H3Route } from "./types/h3";
-import type { ResolvedEventHandler } from "./types/handler";
-import {
-  createRouter,
-  addRoute,
-  findAllRoutes,
-  findRoute,
-  type RouterContext,
-} from "rou3";
-import { serve as srvxServe, type ServerOptions } from "srvx";
-import { getPathname, joinURL } from "./utils/internal/path";
-import { _H3Event } from "./event";
-import { kNotFound, handleResponse } from "./response";
+  Middleware,
+  MiddlewareOptions,
+} from "./types/handler.ts";
+
+export type H3 = H3Type;
 
 /**
  * Serve the h3 app, automatically handles current runtime behavior.
  */
-export function serve(app: H3, options?: Omit<ServerOptions, "fetch">) {
+export function serve(app: H3, options?: Omit<ServerOptions, "fetch">): Server {
   return srvxServe({ fetch: app.fetch, ...options });
 }
 
-/**
- * Create a new h3 instance.
- */
-export function createH3(config: H3Config = {}): H3 {
-  return new _H3(config);
-}
+export const H3 = /* @__PURE__ */ (() => {
+  // prettier-ignore
+  const HTTPMethods = ["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS", "CONNECT", "TRACE" ] as const;
 
-class _H3 implements H3 {
-  config: H3Config;
+  class H3 implements Omit<H3Type, Lowercase<(typeof HTTPMethods)[number]>> {
+    #middleware: Middleware[];
+    #router?: RouterContext<H3Route>;
+    readonly config: H3Config;
 
-  _middleware?: H3Route[];
-  _mRouter?: RouterContext<H3Route>;
-  _router?: RouterContext<H3Route>;
-
-  handler: EventHandler<EventHandlerRequest, unknown | Promise<unknown>>;
-
-  constructor(config: H3Config) {
-    this.config = config;
-
-    this.fetch = this.fetch.bind(this);
-
-    this.handler = Object.assign((event: H3Event) => this._handler(event), <
-      Partial<EventHandler>
-    >{
-      resolve: (method, path) => this.resolve(method, path),
-      websocket: this.config.websocket,
-    });
-  }
-
-  get websocket() {
-    return {
-      ...this.config.websocket,
-      resolve: async (info: { url: string; method?: string }) => {
-        const pathname = getPathname(info.url || "/");
-        const method = (info.method || "GET") as HTTPMethod;
-        const resolved = await this.resolve(method, pathname);
-        return resolved?.handler?.websocket?.hooks || {};
-      },
-    };
-  }
-
-  fetch(
-    _request: Request | URL | string,
-    options?: RequestInit,
-    context?: H3EventContext,
-  ): Response | Promise<Response> {
-    // Normalize request
-    let request: Request;
-    if (typeof _request === "string") {
-      let url = _request;
-      if (url[0] === "/") {
-        const host = getHeader("Host", options?.headers) || ".";
-        const proto =
-          getHeader("X-Forwarded-Proto", options?.headers) === "https"
-            ? "https"
-            : "http";
-        url = `${proto}://${host}${url}`;
-      }
-      request = new Request(url, options);
-    } else if (options || _request instanceof URL) {
-      request = new Request(_request, options);
-    } else {
-      request = _request;
+    constructor(config: H3Config = {}) {
+      this.#middleware = [];
+      this.config = config;
+      this.fetch = this.fetch.bind(this);
+      this.handler = this.handler.bind(this);
     }
 
-    // Create a new event instance
-    const event = new _H3Event(request, context);
-
-    // Execute the handler
-    let handlerRes: unknown | Promise<unknown>;
-    try {
-      handlerRes = this._handler(event);
-    } catch (error: any) {
-      handlerRes = Promise.reject(error);
-    }
-
-    // Prepare response
-    return handleResponse(handlerRes, event, this.config);
-  }
-
-  _handler(event: H3Event) {
-    const pathname = event.url.pathname;
-
-    let _chain: Promise<unknown> | undefined;
-
-    // 1. Hooks
-    if (this.config.onRequest) {
-      _chain = Promise.resolve(this.config.onRequest(event));
-    }
-
-    // 2. Global middleware
-    const _middleware = this._middleware;
-    if (_middleware) {
-      _chain = _chain || Promise.resolve();
-      for (const m of _middleware) {
-        _chain = _chain.then((_previous) => {
-          if (_previous !== undefined && _previous !== kNotFound) {
-            return _previous;
-          }
-          if (m.method && m.method !== event.req.method) {
-            return;
-          }
-          return m.handler(event);
-        });
-      }
-    }
-
-    // 3. Middleware router
-    const _mRouter = this._mRouter;
-    if (_mRouter) {
-      const matches = findAllRoutes(_mRouter, event.req.method, pathname);
-      if (matches.length > 0) {
-        _chain = _chain || Promise.resolve();
-        for (const match of matches) {
-          _chain = _chain.then((_previous) => {
-            if (_previous !== undefined && _previous !== kNotFound) {
-              return _previous;
-            }
-            event.context.params = match.params;
-            event.context.matchedRoute = match.data;
-            return match.data.handler(event);
-          });
+    fetch(
+      _request: Request | URL | string,
+      options?: RequestInit,
+      context?: H3EventContext,
+    ): Response | Promise<Response> {
+      // Normalize request
+      let request: Request;
+      if (typeof _request === "string") {
+        let url = _request;
+        if (url[0] === "/") {
+          const host = getHeader("Host", options?.headers) || ".";
+          const proto =
+            getHeader("X-Forwarded-Proto", options?.headers) === "https"
+              ? "https"
+              : "http";
+          url = `${proto}://${host}${url}`;
         }
+        request = new Request(url, options);
+      } else if (options || _request instanceof URL) {
+        request = new Request(_request, options);
+      } else {
+        request = _request;
       }
-    }
 
-    // 4. Route handler
-    if (this._router) {
-      const match = findRoute(this._router, event.req.method, pathname);
-      if (match) {
-        if (_chain) {
-          return _chain.then((_previous) => {
-            if (_previous !== undefined && _previous !== kNotFound) {
-              return _previous;
-            }
-            event.context.params = match.params;
-            event.context.matchedRoute = match.data;
-            return match.data.handler(event);
-          });
+      // Create a new event instance
+      const event = new H3Event(request, context);
+
+      // Execute the handler
+      let handlerRes: unknown | Promise<unknown>;
+      try {
+        if (this.config.onRequest) {
+          const hookRes = this.config.onRequest(event);
+          handlerRes =
+            hookRes instanceof Promise
+              ? hookRes.then(() => this.handler(event))
+              : this.handler(event);
         } else {
-          event.context.params = match.params;
-          event.context.matchedRoute = match.data;
-          return match.data.handler(event);
+          handlerRes = this.handler(event);
         }
+      } catch (error: any) {
+        handlerRes = Promise.reject(error);
       }
+
+      // Prepare response
+      return handleResponse(handlerRes, event, this.config);
     }
 
-    // 5. 404
-    return _chain
-      ? _chain.then((_previous) =>
-          _previous === undefined ? kNotFound : _previous,
-        )
-      : kNotFound;
+    handler(event: H3Event): unknown | Promise<unknown> {
+      const route = this.#router
+        ? findRoute(this.#router, event.req.method, event.url.pathname)
+        : undefined;
+      if (route) {
+        event.context.params = route.params;
+        event.context.matchedRoute = route.data;
+      }
+      const middleware = route?.data.middleware
+        ? [...this.#middleware, ...route.data.middleware]
+        : this.#middleware;
+      return callMiddleware(event, middleware, () => {
+        return route ? route.data.handler(event) : kNotFound;
+      });
+    }
+
+    all(
+      route: string,
+      handler: EventHandler | H3Type,
+      middleware?: Middleware[],
+    ): H3Type {
+      return this.on("", route, handler, middleware);
+    }
+
+    on(
+      method: HTTPMethod | Lowercase<HTTPMethod> | "",
+      route: string,
+      handler: EventHandler | H3Type,
+      middleware?: Middleware[],
+    ): H3Type {
+      if (!this.#router) {
+        this.#router = createRouter();
+      }
+      const _method = (method || "").toUpperCase();
+      const _handler = (handler as H3Type)?.handler || handler;
+      const _handleMiddleware = _handler as EventHandler;
+      const routeMiddleware =
+        middleware?.length || _handleMiddleware.middleware?.length
+          ? [
+              ...(middleware || []),
+              ...(_handleMiddleware.middleware || []),
+            ].filter(Boolean)
+          : undefined;
+      addRoute(this.#router, _method, route, {
+        method: _method as HTTPMethod,
+        route,
+        handler: _handler,
+        middleware: routeMiddleware,
+      } satisfies H3Route);
+      return this as unknown as H3Type;
+    }
+
+    use(input: Middleware | H3Type, opts?: MiddlewareOptions): H3Type {
+      this.#middleware.push(defineMiddleware(input, opts));
+      return this as unknown as H3Type;
+    }
   }
 
-  async resolve(
-    method: HTTPMethod,
-    path: string,
-  ): Promise<ResolvedEventHandler | undefined> {
-    const match =
-      (this._mRouter && findRoute(this._mRouter, method, path)) ||
-      (this._router && findRoute(this._router, method, path));
-
-    if (!match) {
-      return undefined;
-    }
-
-    const resolved = {
-      route: match.data.route,
-      handler: match.data.handler,
-      params: match.params,
+  for (const method of HTTPMethods) {
+    (H3 as any).prototype[method.toLowerCase()] = function (
+      this: H3Type,
+      route: string,
+      handler: EventHandler | H3Type,
+      middleware?: Middleware[],
+    ) {
+      return this.on(method, route, handler, middleware);
     };
-
-    while (resolved.handler?.resolve) {
-      const _resolved = await resolved.handler.resolve(method, path);
-      if (!_resolved) {
-        break;
-      }
-      if (_resolved.route) {
-        let base = resolved.route || "";
-        if (base.endsWith("/**")) {
-          base = base.slice(0, -3);
-        }
-        resolved.route = joinURL(base, _resolved.route);
-      }
-      if (_resolved.params) {
-        resolved.params = { ...resolved.params, ..._resolved.params };
-      }
-      if (!_resolved.handler || _resolved.handler === resolved.handler) {
-        break;
-      }
-      resolved.handler = _resolved.handler;
-    }
-
-    return resolved;
   }
 
-  all(route: string, handler: EventHandler | H3) {
-    return this.on("", route, handler);
-  }
-  get(route: string, handler: EventHandler | H3) {
-    return this.on("GET", route, handler);
-  }
-  post(route: string, handler: EventHandler | H3) {
-    return this.on("POST", route, handler);
-  }
-  put(route: string, handler: EventHandler | H3) {
-    return this.on("PUT", route, handler);
-  }
-  delete(route: string, handler: EventHandler | H3) {
-    return this.on("DELETE", route, handler);
-  }
-  patch(route: string, handler: EventHandler | H3) {
-    return this.on("PATCH", route, handler);
-  }
-  head(route: string, handler: EventHandler | H3) {
-    return this.on("HEAD", route, handler);
-  }
-  options(route: string, handler: EventHandler | H3) {
-    return this.on("OPTIONS", route, handler);
-  }
-  connect(route: string, handler: EventHandler | H3) {
-    return this.on("CONNECT", route, handler);
-  }
-  trace(route: string, handler: EventHandler | H3) {
-    return this.on("TRACE", route, handler);
-  }
-  on(
-    method: HTTPMethod | Lowercase<HTTPMethod> | "",
-    route: string,
-    handler: EventHandler | H3,
-  ): this {
-    if (!this._router) {
-      this._router = createRouter();
-    }
-    const _method = (method || "").toUpperCase();
-    const _handler = (handler as H3)?.handler || handler;
-    addRoute(this._router, _method, route, <H3Route>{
-      method: _method,
-      route,
-      handler: _handler,
-    });
-    return this;
-  }
-
-  use(
-    arg1: string | EventHandler | H3 | H3Route,
-    arg2?: EventHandler | H3 | Partial<H3Route>,
-    arg3?: Partial<H3Route>,
-  ) {
-    const arg1T = typeof arg1;
-    const entry = {} as H3Route;
-    let _handler: EventHandler | H3;
-    if (arg1T === "string") {
-      // (route, handler, details)
-      entry.route = (arg1 as string) || arg3?.route;
-      entry.method = arg3?.method as HTTPMethod;
-      _handler = (arg2 as EventHandler | H3) || arg3?.handler;
-    } else if (arg1T === "function") {
-      // (handler, details)
-      entry.route = (arg2 as H3Route)?.route;
-      entry.method = (arg2 as H3Route)?.method;
-      _handler = (arg1 as EventHandler | H3) || (arg2 as H3Route)?.handler;
-    } else {
-      // (details)
-      entry.route = (arg1 as H3Route).route;
-      entry.method = (arg1 as H3Route).method;
-      _handler = (arg1 as H3Route).handler;
-    }
-
-    entry.handler = (_handler as H3)?.handler || _handler;
-    entry.method = (entry.method || "").toUpperCase() as HTTPMethod;
-
-    if (entry.route) {
-      // Routed middleware/handler
-      if (!this._mRouter) {
-        this._mRouter = createRouter();
-      }
-      addRoute(this._mRouter, entry.method, entry.route, entry);
-    } else {
-      // Global middleware
-      if (!this._middleware) {
-        this._middleware = [];
-      }
-      this._middleware.push(entry);
-    }
-    return this;
-  }
-}
+  return H3;
+})() as unknown as typeof H3Type;
 
 function getHeader(name: string, headers: HeadersInit | undefined) {
   if (!headers) {

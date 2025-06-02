@@ -1,8 +1,8 @@
 import { readFile } from "node:fs/promises";
 import { vi, beforeEach } from "vitest";
-import { setCookie } from "../src";
-import { proxy, proxyRequest } from "../src/utils/proxy";
-import { describeMatrix } from "./_setup";
+import { setCookie } from "../src/index.ts";
+import { proxy, proxyRequest } from "../src/utils/proxy.ts";
+import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("proxy", (t, { it, expect, describe }) => {
   const spy = vi.spyOn(console, "error");
@@ -36,9 +36,9 @@ describeMatrix("proxy", (t, { it, expect, describe }) => {
         t.app.all("/", (event) => {
           return proxyRequest(event, t.url + "/debug", {
             fetch,
-            headers: { "x-custom1": "overridden" },
+            headers: [["x-custom1", "overridden"]],
             fetchOptions: {
-              headers: { "x-custom2": "overridden" },
+              headers: new Headers({ "x-custom2": "overridden" }),
             },
           });
         });

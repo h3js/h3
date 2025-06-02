@@ -1,5 +1,25 @@
-import type { H3Event, RequestFingerprintOptions } from "../types";
-import { getRequestIP } from "./request";
+import type { H3Event } from "../types/event.ts";
+import { getRequestIP } from "./request.ts";
+
+export interface RequestFingerprintOptions {
+  /** @default SHA-1 */
+  hash?: false | "SHA-1";
+
+  /** @default `true` */
+  ip?: boolean;
+
+  /** @default `false` */
+  xForwardedFor?: boolean;
+
+  /** @default `false` */
+  method?: boolean;
+
+  /** @default `false` */
+  url?: boolean;
+
+  /** @default `false` */
+  userAgent?: boolean;
+}
 
 /**
  *

@@ -1,15 +1,28 @@
-import type { H3EventContext, H3Event, ProxyOptions, Duplex } from "../types";
+import type { H3EventContext, H3Event } from "../types/event.ts";
 import { splitSetCookieString } from "cookie-es";
-import { sanitizeStatusMessage, sanitizeStatusCode } from "./sanitize";
-import { createError } from "../error";
+import { sanitizeStatusMessage, sanitizeStatusCode } from "./sanitize.ts";
+import { createError } from "../error.ts";
 import {
   PayloadMethods,
   getFetch,
   ignoredHeaders,
   mergeHeaders,
   rewriteCookieProperty,
-} from "./internal/proxy";
-import { EmptyObject } from "./internal/obj";
+} from "./internal/proxy.ts";
+import { EmptyObject } from "./internal/obj.ts";
+
+export interface ProxyOptions {
+  headers?: HeadersInit;
+  fetchOptions?: RequestInit & { duplex?: "half" | "full" } & {
+    ignoreResponseError?: boolean;
+  };
+  fetch?: typeof fetch;
+  sendStream?: boolean;
+  streamRequest?: boolean;
+  cookieDomainRewrite?: string | Record<string, string>;
+  cookiePathRewrite?: string | Record<string, string>;
+  onResponse?: (event: H3Event, response: Response) => void;
+}
 
 /**
  * Proxy the incoming request to a target URL.
@@ -18,10 +31,10 @@ export async function proxyRequest(
   event: H3Event,
   target: string,
   opts: ProxyOptions = {},
-) {
+): Promise<BodyInit | undefined | null> {
   // Request Body
   let body;
-  let duplex: Duplex | undefined;
+  let duplex: "half" | "full" | undefined;
   if (PayloadMethods.has(event.req.method)) {
     if (opts.streamRequest) {
       body = event.req.body;
@@ -137,7 +150,7 @@ export async function proxy(
 export function getProxyRequestHeaders(
   event: H3Event,
   opts?: { host?: boolean },
-) {
+): Record<string, string> {
   const headers = new EmptyObject();
   for (const [name, value] of event.req.headers.entries()) {
     if (!ignoredHeaders.has(name) || (name === "host" && opts?.host)) {
@@ -160,14 +173,16 @@ export function fetchWithEvent<
   init?: RequestInit & { context?: H3EventContext },
   options?: { fetch: F },
 ): unknown extends T ? ReturnType<F> : T {
-  return getFetch(options?.fetch)(req, <RequestInit>{
+  return getFetch(options?.fetch)(req, {
     ...init,
     context: init?.context || event.context,
-    headers: {
-      ...getProxyRequestHeaders(event, {
+    headers: mergeHeaders(
+      getProxyRequestHeaders(event, {
         host: typeof req === "string" && req.startsWith("/"),
       }),
-      ...init?.headers,
-    },
+      init?.headers,
+    ),
+  } satisfies RequestInit & {
+    context?: H3EventContext;
   });
 }

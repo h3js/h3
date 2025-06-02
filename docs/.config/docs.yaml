@@ -1,71 +1,55 @@
 # yaml-language-server: $schema=https://unpkg.com/undocs/schema/config.json
 name: h3
+url: https://h3.dev
 shortDescription: The Web Framework for Modern JavaScript Era
 description:
   H(TTP) server framework built for high performance and portability running
   in any JavaScript runtime.
-github: unjs/h3
+
 themeColor: amber
-url: https://h3.unjs.io
 automd: true
-redirects: {}
+
+redirects:
+  "/guide/event-handler": "/guide/handler"
+  "/guide/router": "/guide/routing"
+  "/adapters/**": "/guide"
+
+github: h3js/h3
+
+socials:
+  discord: "https://discord.h3.dev"
+
+sponsors:
+  api: https://sponsors.pi0.io/sponsors.json
+
 landing:
   heroLinks:
     playOnline:
       label: "Play Online"
       icon: "i-simple-icons-lightning"
-      to: "https://stackblitz.com/github/unjs/h3/tree/main/playground"
+      to: "https://stackblitz.com/github/h3js/h3/tree/main/playground"
   contributors: true
   featuresTitle: "The Web Framework for Modern JavaScript Era"
   features:
     # Runtime Agnostic
     - title: "Runtime Agnostic"
-      description: "Your code will work on any JavaScript runtime including Node.js, Bun, Deno and Workers."
+      description: "Your code will seamlessly work on any JavaScript runtime including Node.js, Bun, and Deno powered by [srvx](https://srvx.h3.dev)."
       icon: "i-material-symbols-lock-open-right-outline-rounded"
-      to: ""
-      target: "_blank"
+
+    # Router
+    - title: "Fast Router"
+      description: "Fast Route matching powered by [rou3](https://github.com/h3js/rou3)."
+      icon: "i-fa-tree"
 
     # Tree-shakable
     - title: "Small and Tree-shakable"
-      description: "h3 core is super lightweight and tree-shakable, only what you use will be included in the the final bundle."
+      description: "h3 core is super lightweight and tree-shakable, Only what you use will be included in the the final bundle."
       icon: "i-material-symbols-potted-plant-outline"
-      to: ""
-      target: "_blank"
 
     # Composable
     - title: "Composable"
       description: "Expand your server and add capabilities. Your codebase will scale with your project."
       icon: "i-fa-puzzle-piece"
-      to: ""
-      target: "_blank"
-
-    # Router
-    - title: "Fast Router"
-      description: "Super fast route matching using unjs/rou3"
-      icon: "i-fa-tree"
-      to: "https://github.com/unjs/rou3"
-      target: "_blank"
-
-    # Ecosystem
-    - title: "UnJS Ecosystem"
-      description: "Built on top of powerful UnJS ecosystem powering Nitro, Nuxt and more frameworks!"
-      icon: "i-mdi-umbrella-outline"
-      to: "https://unjs.io"
-      target: "_blank"
-
-    # Made for Humans
-    - title: "Made for Humans"
-      description: "Elegant minimal API to implement HTTP handlers compatible with Web-Standards."
-      icon: "i-material-symbols-robot-2-sharp"
-      to: ""
-      target: "_blank"
-
-    # Compatibility
-    - title: "Compatible"
-      description: "Compatibility layer with node/connect/express middleware."
-      icon: "i-simple-icons-express"
-      to: ""
-      target: "_blank"
 
     # Type Friendly
     - title: "Type Friendly"

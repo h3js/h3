@@ -1,5 +1,5 @@
-import { readBody } from "../src";
-import { describeMatrix } from "./_setup";
+import { readBody } from "../src/index.ts";
+import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("event", (t, { it, expect }) => {
   it("can read the method", async () => {

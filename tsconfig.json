@@ -1,25 +1,26 @@
 {
   "compilerOptions": {
     "target": "ESNext",
-    "module": "preserve",
-    "moduleResolution": "bundler",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
     "moduleDetection": "force",
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
-    "allowJs": true,
     "resolveJsonModule": true,
     "strict": true,
     "isolatedModules": true,
     "verbatimModuleSyntax": true,
+    "erasableSyntaxOnly": true,
     // "noUncheckedIndexedAccess": true,
     "forceConsistentCasingInFileNames": true,
+    "noImplicitAny": true,
     "noImplicitOverride": true,
     "noEmit": true,
     "skipLibCheck": true,
-    "lib": [
-      "WebWorker",
-      "DOM",
-      "DOM.Iterable"
-    ],
+    "composite": true,
+    "isolatedDeclarations": true,
+    "allowImportingTsExtensions": true,
+    "lib": ["WebWorker", "DOM", "DOM.Iterable"]
   },
+  "include": ["src", "test"]
 }

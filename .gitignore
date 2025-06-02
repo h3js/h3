@@ -8,3 +8,5 @@ coverage
 .eslintcache
 tsconfig.vitest-temp.json
 .DS_Store
+tsconfig.tsbuildinfo
+*.tmp*

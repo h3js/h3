@@ -3,38 +3,37 @@ import { build } from "esbuild";
 import { fileURLToPath } from "node:url";
 import zlib from "node:zlib";
 
+const inspect = !!process.env.BUNDLE_INSPECT;
+
 describe("benchmark", () => {
   it("bundle size", async () => {
     const code = /* js */ `
-      // import { createH3 } from "../../dist/index.mjs";
-      import { createH3 } from "../../src";
-      export default createH3();
+      import { H3 } from "../../src/index.ts";
+      const app = new H3();
     `;
-
-    // Node.js
-    const nodeBundle = await getBundleSize(code, ["node"]);
-    // console.log( `Bundle size: (node) ${nodeBundle.bytes} (gzip: ${nodeBundle.gzipSize})` );
-    expect(nodeBundle.bytes).toBeLessThanOrEqual(15_000); // <15kb
-    expect(nodeBundle.gzipSize).toBeLessThanOrEqual(5100); // <5.1kb
-
-    // Deno
-    const denoBundle = await getBundleSize(code, ["deno"]);
-    // console.log(`Bundle size: (deno) ${denoBundle.bytes} (gzip: ${denoBundle.gzipSize})` );
-    expect(denoBundle.bytes).toBeLessThanOrEqual(12_000); // <12kb
-    expect(denoBundle.gzipSize).toBeLessThanOrEqual(4200); // <4.2kb
+    const bundle = await getBundleSize(code);
+    if (inspect) {
+      return;
+    }
+    if (process.env.DEBUG) {
+      console.log(`Bundle size:${bundle.bytes} (gzip: ${bundle.gzipSize})`);
+    }
+    expect(bundle.bytes).toBeLessThanOrEqual(11_000); // <11kb
+    expect(bundle.gzipSize).toBeLessThanOrEqual(4000); // <4kb
   });
 });
 
-async function getBundleSize(code: string, conditions: string[]) {
+async function getBundleSize(code: string) {
   const res = await build({
     bundle: true,
     metafile: true,
     write: false,
-    minify: true,
+    minify: inspect ? false : true,
     format: "esm",
     platform: "node",
     outfile: "index.mjs",
-    conditions,
+    treeShaking: true,
+    conditions: ["browser"],
     stdin: {
       contents: code,
       resolveDir: fileURLToPath(new URL(".", import.meta.url)),
@@ -42,6 +41,13 @@ async function getBundleSize(code: string, conditions: string[]) {
       loader: "js",
     },
   });
+
+  if (inspect) {
+    await process
+      .getBuiltinModule("node:fs/promises")
+      .writeFile("bundle.tmp.mjs", res.outputFiles[0].contents);
+  }
+
   const { bytes } = res.metafile.outputs["index.mjs"];
   const gzipSize = zlib.gzipSync(res.outputFiles[0].text).byteLength;
   return { bytes, gzipSize };

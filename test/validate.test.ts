@@ -1,8 +1,8 @@
-import type { ValidateFunction } from "../src/types";
+import type { ValidateFunction } from "../src/utils/internal/validate.ts";
 import { beforeEach } from "vitest";
-import { z, ZodError } from "zod";
-import { readValidatedBody, getValidatedQuery, isError } from "../src";
-import { describeMatrix } from "./_setup";
+import { z } from "zod";
+import { readValidatedBody, getValidatedQuery } from "../src/index.ts";
+import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("validate", (t, { it, describe, expect }) => {
   // Custom validator
@@ -22,8 +22,8 @@ describeMatrix("validate", (t, { it, describe, expect }) => {
   const zodValidate = z.object({
     default: z.string().default("default"),
     field: z.string().optional(),
-    invalid: z.never().optional() /* WTF! */,
-  }).parse;
+    invalid: z.never().optional(),
+  });
 
   describe("readValidatedBody", () => {
     beforeEach(() => {
@@ -35,16 +35,6 @@ describeMatrix("validate", (t, { it, describe, expect }) => {
       t.app.post("/zod", async (event) => {
         const data = await readValidatedBody(event, zodValidate);
         return data;
-      });
-
-      t.app.post("/zod-caught", async (event) => {
-        try {
-          await readValidatedBody(event, zodValidate);
-        } catch (error_) {
-          if (isError(error_) && error_.cause instanceof ZodError) {
-            return true;
-          }
-        }
       });
     });
 
@@ -111,11 +101,21 @@ describeMatrix("validate", (t, { it, describe, expect }) => {
       });
 
       it("Caught", async () => {
-        const res = await t.fetch("/zod-caught", {
+        const res = await t.fetch("/zod", {
           method: "POST",
           body: JSON.stringify({ invalid: true }),
         });
-        expect(await res.json()).toEqual(true);
+        expect(res.status).toEqual(400);
+        expect(await res.json()).toMatchObject({
+          data: {
+            message: "Validation failed",
+            issues: [
+              {
+                code: "invalid_type",
+              },
+            ],
+          },
+        });
       });
     });
   });

@@ -1,6 +1,6 @@
 import { vi } from "vitest";
-import { createError } from "../src";
-import { describeMatrix } from "./_setup";
+import { createError } from "../src/index.ts";
+import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("errors", (t, { it, expect }) => {
   const consoleMock = ((globalThis.console.error as any) = vi.fn());

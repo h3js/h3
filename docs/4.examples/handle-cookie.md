@@ -1,4 +1,8 @@
-# Handle Cookie
+---
+icon: ph:arrow-right
+---
+
+# Cookies
 
 > Use cookies to store data on the client.
 

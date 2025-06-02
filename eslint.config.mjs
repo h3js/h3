@@ -14,6 +14,8 @@ export default unjs(
       "unicorn/prefer-export-from": "off",
       "unicorn/prefer-string-raw": "off",
       "unicorn/prefer-code-point": "off",
+      "unicorn/no-nested-ternary": "off",
+      "unicorn/prefer-regexp-test": "off",
     },
   },
 );

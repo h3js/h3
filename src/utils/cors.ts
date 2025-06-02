@@ -1,6 +1,5 @@
-import type { H3Event } from "../types";
-import type { H3CorsOptions } from "../types/utils/cors";
-import { noContent } from "./response";
+import type { H3Event } from "../types/event.ts";
+import { noContent } from "./response.ts";
 import {
   createAllowHeaderHeaders,
   createCredentialsHeaders,
@@ -9,9 +8,21 @@ import {
   createMethodsHeaders,
   createOriginHeaders,
   resolveCorsOptions,
-} from "./internal/cors";
+} from "./internal/cors.ts";
 
-export { isCorsOriginAllowed } from "./internal/cors";
+export { isCorsOriginAllowed } from "./internal/cors.ts";
+
+export interface CorsOptions {
+  origin?: "*" | "null" | (string | RegExp)[] | ((origin: string) => boolean);
+  methods?: "*" | string[];
+  allowHeaders?: "*" | string[];
+  exposeHeaders?: "*" | string[];
+  credentials?: boolean;
+  maxAge?: string | false;
+  preflight?: {
+    statusCode?: number;
+  };
+}
 
 /**
  * Check if the incoming request is a CORS preflight request.
@@ -32,8 +43,8 @@ export function isPreflightRequest(event: H3Event): boolean {
  */
 export function appendCorsPreflightHeaders(
   event: H3Event,
-  options: H3CorsOptions,
-) {
+  options: CorsOptions,
+): void {
   const headers = {
     ...createOriginHeaders(event, options),
     ...createCredentialsHeaders(options),
@@ -49,7 +60,7 @@ export function appendCorsPreflightHeaders(
 /**
  * Append CORS headers to the response.
  */
-export function appendCorsHeaders(event: H3Event, options: H3CorsOptions) {
+export function appendCorsHeaders(event: H3Event, options: CorsOptions): void {
   const headers = {
     ...createOriginHeaders(event, options),
     ...createCredentialsHeaders(options),
@@ -68,7 +79,7 @@ export function appendCorsHeaders(event: H3Event, options: H3CorsOptions) {
  * If return value is `true`, the request is handled and no further action is needed.
  *
  * @example
- * const app = createApp();
+ * const app = new H3();
  * const router = createRouter();
  * router.use("/", async (event) => {
  *   const corsRes = handleCors(event, {
@@ -84,7 +95,7 @@ export function appendCorsHeaders(event: H3Event, options: H3CorsOptions) {
  *   // Your code here
  * });
  */
-export function handleCors(event: H3Event, options: H3CorsOptions): false | "" {
+export function handleCors(event: H3Event, options: CorsOptions): false | "" {
   const _options = resolveCorsOptions(options);
   if (isPreflightRequest(event)) {
     appendCorsPreflightHeaders(event, options);

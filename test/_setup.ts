@@ -1,5 +1,5 @@
 import type { Mock } from "vitest";
-import type { H3, H3Config, H3Error, H3Event, NodeHandler } from "../src/types";
+import type { H3Config, H3Error, H3Event, NodeHandler } from "../src/index.ts";
 import { Server as NodeServer } from "node:http";
 import { getRandomPort } from "get-port-please";
 import {
@@ -12,14 +12,14 @@ import {
   beforeAll,
   afterAll,
 } from "vitest";
-import { createH3, toNodeHandler } from "../src";
+import { H3, toNodeHandler } from "../src/index.ts";
 
 // Matrix
 export function describeMatrix(
   title: string,
   fn: (ctx: TestContext, testUtils: TestUtils) => void | Promise<void>,
   opts?: TestOptions,
-) {
+): void {
   const run = (ctx: TestContext) => {
     const utils: TestUtils = {
       expect,
@@ -145,7 +145,7 @@ function setupBaseTest(
       ctx.errors.push(error);
     });
 
-    ctx.app = createH3({
+    ctx.app = new H3({
       debug: true,
       onError: ctx.hooks.onError,
       onRequest: ctx.hooks.onRequest,

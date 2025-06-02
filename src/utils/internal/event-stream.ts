@@ -1,8 +1,8 @@
-import type { H3Event } from "../../types";
+import type { H3Event } from "../../types/event.ts";
 import type {
   EventStreamMessage,
   EventStreamOptions,
-} from "../../types/utils/sse";
+} from "../event-stream.ts";
 
 /**
  * A helper class for [server sent events](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events#event_stream_format)
@@ -26,7 +26,7 @@ export class EventStream {
       this._writerIsClosed = true;
     });
     if (opts.autoclose !== false) {
-      this._event.node?.res.once("close", () => this.close());
+      this._event.runtime?.node?.res?.once("close", () => this.close());
     }
   }
 
@@ -96,20 +96,20 @@ export class EventStream {
     await this._writer.write(this._encoder.encode(payload)).catch();
   }
 
-  pause() {
+  pause(): void {
     this._paused = true;
   }
 
-  get isPaused() {
+  get isPaused(): boolean {
     return this._paused;
   }
 
-  async resume() {
+  async resume(): Promise<void> {
     this._paused = false;
     await this.flush();
   }
 
-  async flush() {
+  async flush(): Promise<void> {
     if (this._writerIsClosed) {
       return;
     }
@@ -122,7 +122,7 @@ export class EventStream {
   /**
    * Close the stream and the connection if the stream is being sent to the client
    */
-  async close() {
+  async close(): Promise<void> {
     if (this._disposed) {
       return;
     }
@@ -140,7 +140,7 @@ export class EventStream {
    * Triggers callback when the writable stream is closed.
    * It is also triggered after calling the `close()` method.
    */
-  onClosed(cb: () => any) {
+  onClosed(cb: () => any): void {
     this._writer.closed.then(cb);
   }
 
@@ -184,7 +184,7 @@ export function formatEventStreamMessages(
   return result;
 }
 
-export function setEventStreamHeaders(event: H3Event) {
+export function setEventStreamHeaders(event: H3Event): void {
   event.res.headers.set("content-type", "text/event-stream");
   event.res.headers.set(
     "cache-control",
@@ -193,11 +193,7 @@ export function setEventStreamHeaders(event: H3Event) {
   // prevent nginx from buffering the response
   event.res.headers.set("x-accel-buffering", "no");
 
-  if (!isHttp2Request(event)) {
+  if (event.req.headers.get("connection") === "keep-alive") {
     event.res.headers.set("connection", "keep-alive");
   }
-}
-
-export function isHttp2Request(event: H3Event) {
-  return event.req.headers.has(":path") || event.req.headers.has(":method");
 }

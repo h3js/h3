@@ -1,6 +1,57 @@
-import type { H3Event, StaticAssetMeta, ServeStaticOptions } from "../types";
-import { createError } from "../error";
-import { withLeadingSlash, withoutTrailingSlash } from "./internal/path";
+import type { H3Event } from "../types/event.ts";
+import { createError } from "../error.ts";
+import { withLeadingSlash, withoutTrailingSlash } from "./internal/path.ts";
+
+export interface StaticAssetMeta {
+  type?: string;
+  etag?: string;
+  mtime?: number | string | Date;
+  path?: string;
+  size?: number;
+  encoding?: string;
+}
+
+export interface ServeStaticOptions {
+  /**
+   * This function should resolve asset meta
+   */
+  getMeta: (
+    id: string,
+  ) => StaticAssetMeta | undefined | Promise<StaticAssetMeta | undefined>;
+
+  /**
+   * This function should resolve asset content
+   */
+  getContents: (
+    id: string,
+  ) => BodyInit | null | undefined | Promise<BodyInit | null | undefined>;
+
+  /**
+   * Headers to set on the response
+   */
+  headers?: HeadersInit;
+
+  /**
+   * Map of supported encodings (compressions) and their file extensions.
+   *
+   * Each extension will be appended to the asset path to find the compressed version of the asset.
+   *
+   * @example { gzip: ".gz", br: ".br" }
+   */
+  encodings?: Record<string, string>;
+
+  /**
+   * Default index file to serve when the path is a directory
+   *
+   * @default ["/index.html"]
+   */
+  indexNames?: string[];
+
+  /**
+   * When set to true, the function will not throw 404 error when the asset meta is not found or meta validation failed
+   */
+  fallthrough?: boolean;
+}
 
 /**
  * Dynamically serve static assets based on the request path.
@@ -9,6 +60,17 @@ export async function serveStatic(
   event: H3Event,
   options: ServeStaticOptions,
 ): Promise<false | undefined | null | BodyInit> {
+  if (options.headers) {
+    const entries = Array.isArray(options.headers)
+      ? options.headers
+      : typeof options.headers.entries === "function"
+        ? options.headers.entries()
+        : Object.entries(options.headers);
+    for (const [key, value] of entries) {
+      event.res.headers.set(key, value);
+    }
+  }
+
   if (event.req.method !== "GET" && event.req.method !== "HEAD") {
     if (options.fallthrough) {
       return;
@@ -55,10 +117,7 @@ export async function serveStatic(
     if (options.fallthrough) {
       return;
     }
-    throw createError({
-      statusMessage: "Cannot find static asset " + id,
-      statusCode: 404,
-    });
+    throw createError({ statusCode: 404 });
   }
 
   if (meta.etag && !event.res.headers.has("etag")) {

@@ -14,11 +14,11 @@ h3 v2 includes some behavior and API changes that you need to consider applying 
 
 ## ESM and latest Node.js
 
-H3 v2 requires Node.js >= 2.11 with ESM support.
+H3 v2 requires Node.js >= 20.11 with ESM support.
 
 You can still `require("h3")` thanks to `require(esm)` supported in newer Node.js versions.
 
-## Web stanrdards
+## Web standards
 
 H3 v2 is rewritten based on Web standard primitives ([`URL`](https://developer.mozilla.org/en-US/docs/Web/API/URL), [`Headers`](https://developer.mozilla.org/en-US/docs/Web/API/Headers), [`Request`](https://developer.mozilla.org/en-US/docs/Web/API/Request), and [`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response)).
 
@@ -50,38 +50,35 @@ Other send utils that are renamed and need explicit `return`:
 
 ## App interface and router
 
-Router functionality is now integrated into the h3 app core. Instead of `createApp()` and `createRouter()` you can use `createH3()`.
+Router functionality is now integrated into the h3 app core. Instead of `createApp()` and `createRouter()` you can use `new H3()`.
 
 New methods:
 
-- `app.use(handler)`: Adds a global middleware.
-- `app.use(route, handler)`: Adds a routed middleware.
+- `app.use(middleware, opts?: { route?: string, method?: string })`: Adds a global middleware.
 - `app.on(method, handler)` / `app.all(handler)` / `app.[METHOD](handler)`: Adds a route handler.
 
 Handlers will run in this order:
 
-- All global middleware in the same order were registered
-- All routed middleware from least specific to most specific paths (auto-sorted)
+- Global middleware in the same order were registered
 - Matched route handler
 
 Any handler can return a response. If middleware don't return a response, next handlers will be tried and finally make a 404 if neither responses. Router handlers can return or not return any response, in this case, h3 will send a simple 200 with empty content.
 
-h3 migrated to a brand new route-matching engine [unjs/rou3](https://rou3.unjs.io/). You might experience slight (but more intuitive) behavior changes for matching patterns.
+h3 migrated to a brand new route-matching engine [rou3](https://rou3.h3.dev/). You might experience slight (but more intuitive) behavior changes for matching patterns.
 
-Other changes from v1:
+**Other changes from v1:**
 
 - Handlers registered with `app.use("/path", handler)` only match `/path` (not `/path/foo/bar`). For matching all subpaths like before, it should be updated to `app.use("/path/**", handler)`.
 - The `event.path` received in each handler will have a full path without omitting the prefixes. use `withBase(base, handler)` utility to make prefixed app. (example: `withBase("/api", app.handler)`).
+- **`router.add(path, method: Method | Method[]` signature is changed to `router.add(method: Method, path)`**
+- `router.use(path, handler)` is deprecated. Use `router.all(path, handler)` instead.
 - `app.use(() => handler, { lazy: true })` is no supported anymore. Instead you can use `app.use(defineLazyEventHandler(() => handler), { lazy: true })`.
 - `app.use(["/path1", "/path2"], ...)` and `app.use("/path", [handler1, handler2])` are not supported anymore. Instead, use multiple `app.use()` calls.
-- Custom `match` function for `app.use` is not supported anymore (middleware can skip themselves).
-- `app.resolve(path) => { route, handler }` changed to `app.resolve(method, path) => { method, route, handler }`.
-- `router.use(path, handler)` is deprecated. Use `router.all(path, handler)` instead.
-- `router.add(path, method: Method | Method[]` signature is changed to `router.add(method: Method, path)` (**important**)
+- `app.resolve(path)` removed.
 
 ## Body utils
 
-Most of request body utilities can now be replaced with `event.req` utils which is based on standard [`Request`](https://developer.mozilla.org/en-US/docs/Web/API/Response) interface + platform addons from [srvx](https://srvx.unjs.io/guide/handler#additional-properties).
+Most of request body utilities can now be replaced with `event.req` utils which is based on standard [`Request`](https://developer.mozilla.org/en-US/docs/Web/API/Response) interface + platform addons from [srvx](https://srvx.h3.dev/guide/handler#additional-properties).
 
 `readBody(event)` utility will use [`JSON.parse`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/parse) or [`URLSearchParams`](https://developer.mozilla.org/en-US/docs/Web/API/URLSearchParams) for parsing requests with `application/x-www-form-urlencoded` content-type.
 
@@ -109,14 +106,16 @@ h3 v2 deprecated some legacy and aliased utilities.
 
 **App and router:**
 
-- `createApp` / `createRouter`: Migrate to `createH3()`.
+- `createApp` / `createRouter`: Migrate to `new H3()`.
 
 **Handler:**
 
 - `eventHandler`: Migrate to `defineEventHandler` (or remove it!).
 - `lazyEventHandler`: Migrate to `defineLazyEventHandler`.
-- `toEventHandler` / `isEventHandler`: (removed) Any function can be an event handler.
-- `useBase`: Migrate to `withbase`.
+- `toEventHandler`: Remove wrapper.
+- `isEventHandler`: (removed) Any function can be an event handler.
+- `useBase`: Migrate to `withBase`.
+- `defineRequestMiddleware` and `defineResponseMiddleware` removed.
 
 **Request:**
 

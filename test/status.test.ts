@@ -1,5 +1,5 @@
-import { noContent } from "../src";
-import { describeMatrix } from "./_setup";
+import { noContent } from "../src/index.ts";
+import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("event response", (t, { it, describe, expect }) => {
   async function webResponseToPlain(res: Response) {

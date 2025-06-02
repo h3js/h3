@@ -1,13 +1,14 @@
-import type { InferEventInput, ValidateFunction, H3Event } from "../types";
-import { createError } from "../error";
-import { validateData } from "./internal/validate";
-import { parseURLEncodedBody } from "./internal/body";
+import type { H3Event } from "../types/event.ts";
+import type { InferEventInput } from "../types/handler.ts";
+import { createError } from "../error.ts";
+import { validateData, type ValidateFunction } from "./internal/validate.ts";
+import { parseURLEncodedBody } from "./internal/body.ts";
 
 /**
  * Reads request body and tries to parse using JSON.parse or URLSearchParams.
  *
  * @example
- * app.use("/", async (event) => {
+ * app.get("/", async (event) => {
  *   const body = await readBody(event);
  * });
  *
@@ -48,7 +49,7 @@ export async function readBody<
  * You can use a simple function to validate the body or use a library like `zod` to define a schema.
  *
  * @example
- * app.use("/", async (event) => {
+ * app.get("/", async (event) => {
  *   const body = await readValidatedBody(event, (body) => {
  *     return typeof body === "object" && body !== null;
  *   });
@@ -56,7 +57,7 @@ export async function readBody<
  * @example
  * import { z } from "zod";
  *
- * app.use("/", async (event) => {
+ * app.get("/", async (event) => {
  *   const objectSchema = z.object();
  *   const body = await readValidatedBody(event, objectSchema.safeParse);
  * });

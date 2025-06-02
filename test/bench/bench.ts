@@ -1,6 +1,6 @@
 import { bench, summary, run } from "mitata";
-import { requests } from "./input.mjs";
-import { createInstances } from "./bench.impl.js";
+import { requests } from "./input.ts";
+import { createInstances } from "./bench.impl.ts";
 
 const runAll = process.argv.includes("--all");
 

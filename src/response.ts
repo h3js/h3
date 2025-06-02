@@ -1,11 +1,12 @@
-import type { H3Config, H3Event } from "./types";
-import type { H3Error } from "./types/h3";
-import { Response as SrvxResponse } from "srvx";
-import { createError } from "./error";
-import { isJSONSerializable } from "./utils/internal/object";
+import { FastResponse } from "srvx";
+import { createError, type H3Error } from "./error.ts";
+import { isJSONSerializable } from "./utils/internal/object.ts";
 
-export const kNotFound = /* @__PURE__ */ Symbol.for("h3.notFound");
-export const kHandled = /* @__PURE__ */ Symbol.for("h3.handled");
+import type { H3Config } from "./types/h3.ts";
+import type { H3Event } from "./types/event.ts";
+
+export const kNotFound: symbol = /* @__PURE__ */ Symbol.for("h3.notFound");
+export const kHandled: symbol = /* @__PURE__ */ Symbol.for("h3.handled");
 
 export function handleResponse(
   val: unknown,
@@ -36,7 +37,7 @@ function prepareResponse(
   nested?: boolean,
 ): Response | Promise<Response> {
   if (val === kHandled) {
-    return new SrvxResponse(null);
+    return new FastResponse(null);
   }
 
   if (val === kNotFound) {
@@ -62,7 +63,7 @@ function prepareResponse(
   if (!(val instanceof Response)) {
     const res = prepareResponseBody(val, event, config);
     const status = event.res.status;
-    return new SrvxResponse(
+    return new FastResponse(
       nullBody(event.req.method, status) ? null : res.body,
       {
         status,
@@ -79,7 +80,7 @@ function prepareResponse(
   if (!eventHeaders) {
     return val; // Fast path: no headers to merge
   }
-  return new SrvxResponse(
+  return new FastResponse(
     nullBody(event.req.method, val.status) ? null : val.body,
     {
       status: val.status,
@@ -101,9 +102,9 @@ function mergeHeaders(base: HeadersInit, merge: Headers): Headers {
   return mergedHeaders;
 }
 
-const emptyHeaders = new Headers({ "content-length": "0" });
+const emptyHeaders = /* @__PURE__ */ new Headers({ "content-length": "0" });
 
-const jsonHeaders = new Headers({
+const jsonHeaders = /* @__PURE__ */ new Headers({
   "content-type": "application/json;charset=UTF-8",
 });
 
@@ -147,13 +148,20 @@ function prepareResponseBody(
 
   // Blob
   if (val instanceof Blob) {
-    return {
-      body: val.stream(),
-      headers: {
-        "content-type": val.type,
-        "content-length": val.size.toString(),
-      },
+    const headers: Record<string, string> = {
+      "content-type": val.type,
+      "content-length": val.size.toString(),
     };
+
+    // File
+    if ("name" in val) {
+      const filename = encodeURIComponent(val.name as string);
+      // Omit the disposition type ("inline" or "attachment") and let the client (browser) decide.
+      headers["content-disposition"] =
+        `filename="${filename}"; filename*=UTF-8''${filename}`;
+    }
+
+    return { body: val.stream(), headers };
   }
 
   // Symbol or Function
@@ -179,7 +187,7 @@ function nullBody(
 }
 
 function errorResponse(error: H3Error, debug?: boolean): Response {
-  return new SrvxResponse(
+  return new FastResponse(
     JSON.stringify(
       {
         statusCode: error.statusCode,

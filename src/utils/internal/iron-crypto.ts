@@ -13,7 +13,7 @@ import {
   base64Encode,
   textDecoder,
   textEncoder,
-} from "./encoding";
+} from "./encoding.ts";
 
 /** The default encryption and integrity settings. */
 export const defaults: Readonly<SealOptions> = /* @__PURE__ */ Object.freeze({
@@ -51,7 +51,7 @@ export const algorithms = /* @__PURE__ */ Object.freeze({
     ivBits: 128,
     name: "SHA-256",
   }),
-});
+}) as Record<string, { keyBits: number; ivBits: number; name: string }>;
 
 /** MAC normalization format version. */
 export const macFormatVersion = "2";
@@ -236,11 +236,11 @@ export async function generateKey(
     throw new Error("Missing IV");
   }
 
-  return <Key>{
+  return {
     key: resultKey,
     salt: resultSalt,
     iv: resultIV,
-  };
+  } satisfies Key;
 }
 
 /** Provides an asynchronous Password-Based Key Derivation Function 2 (PBKDF2) implementation. */

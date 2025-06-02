@@ -1,4 +1,11 @@
-import type { CacheConditions, H3Event } from "../types";
+import type { H3Event } from "../types/event.ts";
+
+export interface CacheConditions {
+  modifiedTime?: string | Date;
+  maxAge?: number;
+  etag?: string;
+  cacheControls?: string[];
+}
 
 /**
  * Check request caching headers (`If-Modified-Since`) and add caching headers (Last-Modified, Cache-Control)
@@ -20,7 +27,7 @@ export function handleCacheHeaders(
     const modifiedTime = new Date(opts.modifiedTime);
     const ifModifiedSince = event.req.headers.get("if-modified-since");
     event.res.headers.set("last-modified", modifiedTime.toUTCString());
-    if (ifModifiedSince && new Date(ifModifiedSince) >= opts.modifiedTime) {
+    if (ifModifiedSince && new Date(ifModifiedSince) >= modifiedTime) {
       cacheMatched = true;
     }
   }

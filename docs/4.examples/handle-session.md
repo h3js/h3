@@ -1,4 +1,8 @@
-# Handle Session
+---
+icon: ph:arrow-right
+---
+
+# Sessions
 
 > Remember your users using a session.
 
@@ -15,7 +19,7 @@ Most of the time, you will use `useSession` to manipulate the session.
 
 ## Initialize a Session
 
-To initialize a session, you need to use `useSession` in an [event handler](/guide/event-handler):
+To initialize a session, you need to use `useSession` in an [event handler](/guide/handler):
 
 ```js
 import { useSession } from "h3";

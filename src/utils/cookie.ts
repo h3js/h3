@@ -1,5 +1,5 @@
 import type { CookieSerializeOptions, SetCookie } from "cookie-es";
-import type { H3Event } from "../types";
+import type { H3Event } from "../types/event.ts";
 import {
   parse as parseCookie,
   serialize as serializeCookie,
@@ -46,7 +46,7 @@ export function setCookie(
   name: string,
   value: string,
   options?: CookieSerializeOptions,
-) {
+): void {
   // Serialize cookie
   const newCookie = serializeCookie(name, value, { path: "/", ...options });
 
@@ -89,20 +89,18 @@ export function deleteCookie(
   event: H3Event,
   name: string,
   serializeOptions?: CookieSerializeOptions,
-) {
+): void {
   setCookie(event, name, "", {
     ...serializeOptions,
     maxAge: 0,
   });
 }
 
+/**
+ * Cookies are unique by "cookie-name, domain-value, and path-value".
+ *
+ * @see https://httpwg.org/specs/rfc6265.html#rfc.section.4.1.2
+ */
 function _getDistinctCookieKey(name: string, options: Partial<SetCookie>) {
-  return [
-    name,
-    options.domain || "",
-    options.path || "/",
-    Boolean(options.secure),
-    Boolean(options.httpOnly),
-    Boolean(options.sameSite),
-  ].join(";");
+  return [name, options.domain || "", options.path || "/"].join(";");
 }

@@ -1,5 +1,5 @@
-import { _H3Event } from "../event";
-import type { H3EventContext, H3Event } from "../types";
+import { H3Event } from "../event.ts";
+import type { H3EventContext } from "../types/event.ts";
 
 /**
  * Checks if the input is an H3Event object.
@@ -31,5 +31,5 @@ export function mockEvent(
   } else {
     request = _request;
   }
-  return new _H3Event(request);
+  return new H3Event(request);
 }

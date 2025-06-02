@@ -1,18 +1,16 @@
-import { createError } from "../error";
-import type {
-  HTTPMethod,
-  InferEventInput,
-  ValidateFunction,
-  H3Event,
-} from "../types";
-import { parseQuery } from "./internal/query";
-import { validateData } from "./internal/validate";
+import { createError } from "../error.ts";
+import { parseQuery } from "./internal/query.ts";
+import { validateData, type ValidateFunction } from "./internal/validate.ts";
+
+import type { H3Event } from "../types/event.ts";
+import type { InferEventInput } from "../types/handler.ts";
+import type { HTTPMethod } from "../types/h3.ts";
 
 /**
  * Get parsed query string object from the request URL.
  *
  * @example
- * app.use("/", (event) => {
+ * app.get("/", (event) => {
  *   const query = getQuery(event); // { key: "value", key2: ["value1", "value2"] }
  * });
  */
@@ -30,7 +28,7 @@ export function getQuery<
  * You can use a simple function to validate the query object or a library like `zod` to define a schema.
  *
  * @example
- * app.use("/", async (event) => {
+ * app.get("/", async (event) => {
  *   const query = await getValidatedQuery(event, (data) => {
  *     return "key" in data && typeof data.key === "string";
  *   });
@@ -38,7 +36,7 @@ export function getQuery<
  * @example
  * import { z } from "zod";
  *
- * app.use("/", async (event) => {
+ * app.get("/", async (event) => {
  *   const query = await getValidatedQuery(
  *     event,
  *     z.object({
@@ -62,7 +60,7 @@ export function getValidatedQuery<
  * If `decode` option is `true`, it will decode the matched route params using `decodeURIComponent`.
  *
  * @example
- * app.use("/", (event) => {
+ * app.get("/", (event) => {
  *   const params = getRouterParams(event); // { key: "value" }
  * });
  */
@@ -89,7 +87,7 @@ export function getRouterParams(
  * You can use a simple function to validate the params object or a library like `zod` to define a schema.
  *
  * @example
- * app.use("/", async (event) => {
+ * app.get("/", async (event) => {
  *   const params = await getValidatedRouterParams(event, (data) => {
  *     return "key" in data && typeof data.key === "string";
  *   });
@@ -97,7 +95,7 @@ export function getRouterParams(
  * @example
  * import { z } from "zod";
  *
- * app.use("/", async (event) => {
+ * app.get("/", async (event) => {
  *   const params = await getValidatedRouterParams(
  *     event,
  *     z.object({
@@ -125,7 +123,7 @@ export function getValidatedRouterParams<
  * If `decode` option is `true`, it will decode the matched route param using `decodeURI`.
  *
  * @example
- * app.use("/", (event) => {
+ * app.get("/", (event) => {
  *   const param = getRouterParam(event, "key");
  * });
  */
@@ -145,7 +143,7 @@ export function getRouterParam(
  * If `allowHead` is `true`, it will allow `HEAD` requests to pass if the expected method is `GET`.
  *
  * @example
- * app.use("/", (event) => {
+ * app.get("/", (event) => {
  *   if (isMethod(event, "GET")) {
  *     // Handle GET request
  *   } else if (isMethod(event, ["POST", "PUT"])) {
@@ -157,7 +155,7 @@ export function isMethod(
   event: H3Event,
   expected: HTTPMethod | HTTPMethod[],
   allowHead?: boolean,
-) {
+): boolean {
   if (allowHead && event.req.method === "HEAD") {
     return true;
   }
@@ -181,7 +179,7 @@ export function isMethod(
  * If `allowHead` is `true`, it will allow `HEAD` requests to pass if the expected method is `GET`.
  *
  * @example
- * app.use("/", (event) => {
+ * app.get("/", (event) => {
  *   assertMethod(event, "GET");
  *   // Handle GET request, otherwise throw 405 error
  * });
@@ -190,7 +188,7 @@ export function assertMethod(
   event: H3Event,
   expected: HTTPMethod | HTTPMethod[],
   allowHead?: boolean,
-) {
+): void {
   if (!isMethod(event, expected, allowHead)) {
     throw createError({
       statusCode: 405,
@@ -207,16 +205,17 @@ export function assertMethod(
  * If no host header is found, it will default to "localhost".
  *
  * @example
- * app.use("/", (event) => {
+ * app.get("/", (event) => {
  *   const host = getRequestHost(event); // "example.com"
  * });
  */
 export function getRequestHost(
   event: H3Event,
   opts: { xForwardedHost?: boolean } = {},
-) {
+): string {
   if (opts.xForwardedHost) {
-    const xForwardedHost = event.req.headers.get("x-forwarded-host");
+    const _header = event.req.headers.get("x-forwarded-host");
+    const xForwardedHost = (_header || "").split(",").shift()?.trim();
     if (xForwardedHost) {
       return xForwardedHost;
     }
@@ -232,14 +231,14 @@ export function getRequestHost(
  * If protocol cannot be determined, it will default to "http".
  *
  * @example
- * app.use("/", (event) => {
+ * app.get("/", (event) => {
  *   const protocol = getRequestProtocol(event); // "https"
  * });
  */
 export function getRequestProtocol(
   event: H3Event,
   opts: { xForwardedProto?: boolean } = {},
-) {
+): "http" | "https" | (string & {}) {
   if (opts.xForwardedProto !== false) {
     const forwardedProto = event.req.headers.get("x-forwarded-proto");
     if (forwardedProto === "https") {
@@ -260,14 +259,14 @@ export function getRequestProtocol(
  * If `xForwardedProto` is `false`, it will not use the `x-forwarded-proto` header.
  *
  * @example
- * app.use("/", (event) => {
+ * app.get("/", (event) => {
  *   const url = getRequestURL(event); // "https://example.com/path"
  * });
  */
 export function getRequestURL(
   event: H3Event,
   opts: { xForwardedHost?: boolean; xForwardedProto?: boolean } = {},
-) {
+): URL {
   const url = new URL(event.url);
   url.protocol = getRequestProtocol(event, opts);
   if (opts.xForwardedHost) {
@@ -290,7 +289,7 @@ export function getRequestURL(
  * If IP cannot be determined, it will default to `undefined`.
  *
  * @example
- * app.use("/", (event) => {
+ * app.get("/", (event) => {
  *   const ip = getRequestIP(event); // "192.0.2.0"
  * });
  */
@@ -314,5 +313,5 @@ export function getRequestIP(
     }
   }
 
-  return event.context.clientAddress || event.req.remoteAddress || undefined;
+  return event.context.clientAddress || event.req.ip || undefined;
 }

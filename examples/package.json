@@ -1,12 +1,7 @@
 {
   "name": "h3-examples",
   "private": true,
-  "scripts": {
-    "dev": "node ./index.mjs"
-  },
   "dependencies": {
-    "h3": "latest",
-    "listhen": "latest",
-    "consola": "latest"
+    "h3": "latest"
   }
 }

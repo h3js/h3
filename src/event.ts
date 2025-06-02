@@ -1,10 +1,10 @@
-import type { ServerRequest } from "srvx/types";
-import type { H3Event, H3EventContext } from "./types";
+import type { ServerRequest, ServerRuntimeContext } from "srvx";
+import type { H3Event as H3EventT, H3EventContext } from "./types/event.ts";
 
-import { EmptyObject } from "./utils/internal/obj";
-import { FastURL } from "./url";
+import { EmptyObject } from "./utils/internal/obj.ts";
+import { FastURL } from "srvx";
 
-export class _H3Event implements H3Event {
+export class H3Event implements H3EventT {
   static __is_event__ = true;
 
   req: ServerRequest;
@@ -20,27 +20,31 @@ export class _H3Event implements H3Event {
     this.url = _url && _url instanceof URL ? _url : new FastURL(req.url);
   }
 
-  get res() {
+  get res(): H3EventResponse {
     if (!this._res) {
       this._res = new H3EventResponse();
     }
     return this._res;
   }
 
-  get path() {
+  get path(): string {
     return this.url.pathname + this.url.search;
   }
 
-  get method() {
+  get method(): string {
     return this.req.method;
   }
 
-  get headers() {
+  get headers(): Headers {
     return this.req.headers;
   }
 
-  get node() {
-    return this.req.node;
+  get runtime(): ServerRuntimeContext | undefined {
+    return this.req.runtime;
+  }
+
+  get node(): ServerRuntimeContext["node"] | undefined {
+    return this.req.runtime?.node;
   }
 
   toString(): string {
@@ -56,7 +60,7 @@ class H3EventResponse {
   status?: number;
   // statusText?: string;
   _headers?: Headers;
-  get headers() {
+  get headers(): Headers {
     if (!this._headers) {
       this._headers = new Headers();
     }
