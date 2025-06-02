@@ -130,6 +130,7 @@ export const H3 = /* @__PURE__ */ (() => {
               ...(_handleMiddleware.middleware || []),
             ].filter(Boolean)
           : undefined;
+      route = new URL(route, "h://_").pathname;
       addRoute(this.#router, _method, route, {
         method: _method as HTTPMethod,
         route,

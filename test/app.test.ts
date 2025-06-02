@@ -241,6 +241,13 @@ describeMatrix("app", (t, { it, expect }) => {
     expect(await res.text()).toBe("valid");
   });
 
+  it("can add arabic routes", async () => {
+    t.app.get("/عربي", () => "valid");
+
+    const res = await t.fetch("/عربي");
+    expect(res.status).toBe(200);
+  });
+
   it.skipIf(t.target !== "node")(
     "wait for node middleware (req, res, next)",
     async () => {
