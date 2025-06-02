@@ -16,10 +16,7 @@ type _BasicAuthOptions = {
   /**
    * Custom validation function for basic auth.
    */
-  validate: (auth: {
-    username: string;
-    password: string;
-  }) => boolean | Promise<boolean>;
+  validate: (username: string, password: string) => boolean | Promise<boolean>;
 
   /**
    * Realm for the basic auth challenge.
@@ -36,16 +33,12 @@ export type BasicAuthOptions = Partial<_BasicAuthOptions> &
   );
 
 /**
- * Check for basic authentication in the request.
+ * Apply basic authentication for current request.
  *
- * Example:
- *
- * ```ts
- * import { requireBasicAuth } from "h3";
- * import { defineEventHandler } from "h3";
- *
+ * @example
+ * import { defineEventHandler, requireBasicAuth } from "h3";
  * export default defineEventHandler(async (event) => {
- *  await requireBasicAuth(event, { username: "test", password: "test" });
+ *  await requireBasicAuth(event, { password: "test" });
  *  return `Hello, ${event.context.basicAuth.username}!`;
  * });
  */
@@ -78,7 +71,7 @@ export async function requireBasicAuth(
   if (opts.password && password !== opts.password) {
     throw autheFailed(event, opts?.realm);
   }
-  if (opts.validate && !(await opts.validate({ username, password }))) {
+  if (opts.validate && !(await opts.validate(username, password))) {
     throw autheFailed(event, opts?.realm);
   }
 
@@ -87,6 +80,15 @@ export async function requireBasicAuth(
   return true;
 }
 
+/**
+ * Create a basic authentication middleware.
+ *
+ * @example
+ * import { H3, serve, basicAuth } from "h3";
+ * const auth = basicAuth({ password: "test" });
+ * app.get("/", (event) => `Hello ${event.context.basicAuth?.username}!`, [auth]);
+ * serve(app, { port: 3000 });
+ */
 export function basicAuth(opts: BasicAuthOptions): Middleware {
   return async (event, next) => {
     await requireBasicAuth(event, opts);
@@ -94,13 +96,12 @@ export function basicAuth(opts: BasicAuthOptions): Middleware {
   };
 }
 
-function autheFailed(event: H3Event, realm: string = "auth") {
-  event.res.headers.set(
-    "www-authenticate",
-    `Basic realm=${JSON.stringify(realm)}`,
-  );
+function autheFailed(event: H3Event, realm: string = "") {
   return createError({
     statusCode: 401,
     statusMessage: "Authentication required",
+    headers: {
+      "www-authenticate": `Basic realm=${JSON.stringify(realm)}`,
+    },
   });
 }
