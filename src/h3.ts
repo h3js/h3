@@ -95,29 +95,46 @@ export const H3 = /* @__PURE__ */ (() => {
         event.context.params = route.params;
         event.context.matchedRoute = route.data;
       }
-      return callMiddleware(event, this.#middleware, () => {
+      const middleware = route?.data.middleware
+        ? [...this.#middleware, ...route.data.middleware]
+        : this.#middleware;
+      return callMiddleware(event, middleware, () => {
         return route ? route.data.handler(event) : kNotFound;
       });
     }
 
-    all(route: string, handler: EventHandler | H3Type): H3Type {
-      return this.on("", route, handler);
+    all(
+      route: string,
+      handler: EventHandler | H3Type,
+      middleware?: Middleware[],
+    ): H3Type {
+      return this.on("", route, handler, middleware);
     }
 
     on(
       method: HTTPMethod | Lowercase<HTTPMethod> | "",
       route: string,
       handler: EventHandler | H3Type,
+      middleware?: Middleware[],
     ): H3Type {
       if (!this.#router) {
         this.#router = createRouter();
       }
       const _method = (method || "").toUpperCase();
       const _handler = (handler as H3Type)?.handler || handler;
+      const _handleMiddleware = _handler as EventHandler;
+      const routeMiddleware =
+        middleware?.length || _handleMiddleware.middleware?.length
+          ? [
+              ...(middleware || []),
+              ...(_handleMiddleware.middleware || []),
+            ].filter(Boolean)
+          : undefined;
       addRoute(this.#router, _method, route, {
         method: _method as HTTPMethod,
         route,
         handler: _handler,
+        middleware: routeMiddleware,
       } satisfies H3Route);
       return this as unknown as H3Type;
     }
@@ -133,8 +150,9 @@ export const H3 = /* @__PURE__ */ (() => {
       this: H3Type,
       route: string,
       handler: EventHandler | H3Type,
+      middleware?: Middleware[],
     ) {
-      return this.on(method, route, handler);
+      return this.on(method, route, handler, middleware);
     };
   }
 

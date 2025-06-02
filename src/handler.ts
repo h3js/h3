@@ -3,6 +3,7 @@ import type {
   EventHandlerRequest,
   EventHandlerResponse,
   DynamicEventHandler,
+  Middleware,
 } from "./types/handler.ts";
 
 // --- event handler ---
@@ -10,8 +11,11 @@ import type {
 export function defineEventHandler<
   Request extends EventHandlerRequest = EventHandlerRequest,
   Response = EventHandlerResponse,
->(handler: EventHandler<Request, Response>): EventHandler<Request, Response> {
-  return handler;
+>(
+  handler: EventHandler<Request, Response>,
+  middleware?: Middleware[],
+): EventHandler<Request, Response> {
+  return middleware?.length ? Object.assign(handler, { middleware }) : handler;
 }
 
 //  --- dynamic event handler ---

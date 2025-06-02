@@ -25,10 +25,13 @@ export type PreparedResponse = ResponseInit & { body?: BodyInit | null };
 export interface H3Route {
   route?: string;
   method?: HTTPMethod;
+  middleware?: Middleware[];
   handler: EventHandler;
 }
 
 // --- H3 App ---
+
+type InputHandler = EventHandler | H3;
 
 export declare class H3 {
   /**
@@ -70,17 +73,22 @@ export declare class H3 {
   on(
     method: HTTPMethod | Lowercase<HTTPMethod> | "",
     route: string,
-    handler: EventHandler | H3,
+    handler: InputHandler,
+    middleware?: Middleware[],
   ): H3;
 
-  all(route: string, handler: EventHandler | H3): H3;
-  get(route: string, handler: EventHandler | H3): H3;
-  post(route: string, handler: EventHandler | H3): H3;
-  put(route: string, handler: EventHandler | H3): H3;
-  delete(route: string, handler: EventHandler | H3): H3;
-  patch(route: string, handler: EventHandler | H3): H3;
-  head(route: string, handler: EventHandler | H3): H3;
-  options(route: string, handler: EventHandler | H3): H3;
-  connect(route: string, handler: EventHandler | H3): H3;
-  trace(route: string, handler: EventHandler | H3): H3;
+  /**
+   * Register a route handler for all HTTP methods.
+   */
+  all(route: string, handler: InputHandler, middleware?: Middleware[]): H3;
+
+  get(route: string, handler: InputHandler, middleware?: Middleware[]): H3;
+  post(route: string, handler: InputHandler, middleware?: Middleware[]): H3;
+  put(route: string, handler: InputHandler, middleware?: Middleware[]): H3;
+  delete(route: string, handler: InputHandler, middleware?: Middleware[]): H3;
+  patch(route: string, handler: InputHandler, middleware?: Middleware[]): H3;
+  head(route: string, handler: InputHandler, middleware?: Middleware[]): H3;
+  options(route: string, handler: InputHandler, middleware?: Middleware[]): H3;
+  connect(route: string, handler: InputHandler, middleware?: Middleware[]): H3;
+  trace(route: string, handler: InputHandler, middleware?: Middleware[]): H3;
 }

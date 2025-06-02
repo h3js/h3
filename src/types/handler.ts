@@ -8,6 +8,7 @@ export interface EventHandler<
   Response extends EventHandlerResponse = EventHandlerResponse,
 > {
   (event: H3Event<Request>): Response;
+  middleware?: Middleware[];
 }
 
 export interface EventHandlerRequest {

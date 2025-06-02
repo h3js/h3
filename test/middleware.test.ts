@@ -1,6 +1,7 @@
 import { beforeEach } from "vitest";
 import { describeMatrix } from "./_setup.ts";
 import { H3 } from "../src/h3.ts";
+import { defineEventHandler } from "../src/handler.ts";
 
 describeMatrix("middleware", (t, { it, expect }) => {
   beforeEach(() => {
@@ -41,18 +42,33 @@ describeMatrix("middleware", (t, { it, expect }) => {
       },
     );
 
-    t.app.get("/**", (event) => {
-      return {
-        log: event.context._middleware.join(" > "),
-      };
-    });
+    t.app.get(
+      "/**",
+      defineEventHandler(
+        (event) => {
+          return {
+            log: event.context._middleware.join(" > "),
+          };
+        },
+        [
+          (event) => {
+            event.context._middleware.push(`route (define)`);
+          },
+        ],
+      ),
+      [
+        (event) => {
+          event.context._middleware.push(`route (register)`);
+        },
+      ],
+    );
   });
 
   it("should run all middleware in order", async () => {
     const response = await t.app.fetch("/");
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({
-      log: "(event) > async (event) > async (event, next) > (event, next)",
+      log: "(event) > async (event) > async (event, next) > (event, next) > route (register) > route (define)",
     });
   });
 
