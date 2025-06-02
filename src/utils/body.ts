@@ -1,12 +1,14 @@
+import { createError } from "../error.ts";
+import { validateData } from "./internal/validate.ts";
+import { parseURLEncodedBody } from "./internal/body.ts";
+
 import type { H3Event } from "../types/event.ts";
 import type { InferEventInput } from "../types/handler.ts";
-import { createError } from "../error.ts";
-import { validateData, type ValidateResult } from "./internal/validate.ts";
+import type { ValidateResult } from "./internal/validate.ts";
 import type {
   StandardSchemaV1,
   InferOutput,
 } from "./internal/standard-schema.ts";
-import { parseURLEncodedBody } from "./internal/body.ts";
 
 /**
  * Reads request body and tries to parse using JSON.parse or URLSearchParams.
