@@ -1,7 +1,12 @@
 import { createError } from "../error.ts";
 import { parseQuery } from "./internal/query.ts";
-import { validateData, type ValidateFunction } from "./internal/validate.ts";
+import { validateData } from "./internal/validate.ts";
 
+import type {
+  StandardSchemaV1,
+  InferOutput,
+} from "./internal/standard-schema.ts";
+import type { ValidateResult } from "./internal/validate.ts";
 import type { H3Event } from "../types/event.ts";
 import type { InferEventInput } from "../types/handler.ts";
 import type { HTTPMethod } from "../types/h3.ts";
@@ -22,6 +27,20 @@ export function getQuery<
   return parseQuery(event.url.search.slice(1)) as _T;
 }
 
+export function getValidatedQuery<
+  Event extends H3Event,
+  S extends StandardSchemaV1<any, any>,
+>(event: Event, validate: S): Promise<InferOutput<S>>;
+export function getValidatedQuery<
+  Event extends H3Event,
+  OutputT,
+  InputT = InferEventInput<"query", Event, OutputT>,
+>(
+  event: Event,
+  validate: (
+    data: InputT,
+  ) => ValidateResult<OutputT> | Promise<ValidateResult<OutputT>>,
+): Promise<OutputT>;
 /**
  * Get the query param from the request URL validated with validate function.
  *
@@ -45,11 +64,7 @@ export function getQuery<
  *   );
  * });
  */
-export function getValidatedQuery<
-  T,
-  Event extends H3Event = H3Event,
-  _T = InferEventInput<"query", Event, T>,
->(event: Event, validate: ValidateFunction<_T>): Promise<_T> {
+export function getValidatedQuery(event: H3Event, validate: any): Promise<any> {
   const query = getQuery(event);
   return validateData(query, validate);
 }
@@ -79,6 +94,25 @@ export function getRouterParams(
   return params;
 }
 
+export function getValidatedRouterParams<
+  Event extends H3Event,
+  S extends StandardSchemaV1,
+>(
+  event: Event,
+  validate: S,
+  opts?: { decode?: boolean },
+): Promise<InferOutput<S>>;
+export function getValidatedRouterParams<
+  Event extends H3Event,
+  OutputT,
+  InputT = InferEventInput<"routerParams", Event, OutputT>,
+>(
+  event: Event,
+  validate: (
+    data: InputT,
+  ) => ValidateResult<OutputT> | Promise<ValidateResult<OutputT>>,
+  opts?: { decode?: boolean },
+): Promise<OutputT>;
 /**
  * Get matched route params and validate with validate function.
  *
@@ -104,15 +138,11 @@ export function getRouterParams(
  *   );
  * });
  */
-export function getValidatedRouterParams<
-  T,
-  Event extends H3Event = H3Event,
-  _T = InferEventInput<"routerParams", Event, T>,
->(
-  event: Event,
-  validate: ValidateFunction<_T>,
+export function getValidatedRouterParams(
+  event: H3Event,
+  validate: any,
   opts: { decode?: boolean } = {},
-): Promise<_T> {
+): Promise<any> {
   const routerParams = getRouterParams(event, opts);
   return validateData(routerParams, validate);
 }

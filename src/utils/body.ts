@@ -1,8 +1,14 @@
+import { createError } from "../error.ts";
+import { validateData } from "./internal/validate.ts";
+import { parseURLEncodedBody } from "./internal/body.ts";
+
 import type { H3Event } from "../types/event.ts";
 import type { InferEventInput } from "../types/handler.ts";
-import { createError } from "../error.ts";
-import { validateData, type ValidateFunction } from "./internal/validate.ts";
-import { parseURLEncodedBody } from "./internal/body.ts";
+import type { ValidateResult } from "./internal/validate.ts";
+import type {
+  StandardSchemaV1,
+  InferOutput,
+} from "./internal/standard-schema.ts";
 
 /**
  * Reads request body and tries to parse using JSON.parse or URLSearchParams.
@@ -43,6 +49,20 @@ export async function readBody<
   }
 }
 
+export async function readValidatedBody<
+  Event extends H3Event,
+  S extends StandardSchemaV1,
+>(event: Event, validate: S): Promise<InferOutput<S>>;
+export async function readValidatedBody<
+  Event extends H3Event,
+  OutputT,
+  InputT = InferEventInput<"body", Event, OutputT>,
+>(
+  event: Event,
+  validate: (
+    data: InputT,
+  ) => ValidateResult<OutputT> | Promise<ValidateResult<OutputT>>,
+): Promise<OutputT>;
 /**
  * Tries to read the request body via `readBody`, then uses the provided validation function and either throws a validation error or returns the result.
  *
@@ -68,11 +88,10 @@ export async function readBody<
  * @return {*} The `Object`, `Array`, `String`, `Number`, `Boolean`, or `null` value corresponding to the request JSON body.
  * @see {readBody}
  */
-export async function readValidatedBody<
-  T,
-  Event extends H3Event = H3Event,
-  _T = InferEventInput<"body", Event, T>,
->(event: Event, validate: ValidateFunction<_T>): Promise<_T> {
+export async function readValidatedBody(
+  event: H3Event,
+  validate: any,
+): Promise<any> {
   const _body = await readBody(event);
   return validateData(_body, validate);
 }

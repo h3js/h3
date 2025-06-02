@@ -1,10 +1,13 @@
 import { createError } from "../../error.ts";
-import type { StandardSchemaV1 } from "./standard-schema.ts";
+import type { StandardSchemaV1, InferOutput } from "./standard-schema.ts";
 
 export type ValidateResult<T> = T | true | false | void;
 
-export type ValidateFunction<T> =
-  | StandardSchemaV1<T>
+export type ValidateFunction<
+  T,
+  Schema extends StandardSchemaV1 = StandardSchemaV1<any, T>,
+> =
+  | Schema
   | ((data: unknown) => ValidateResult<T> | Promise<ValidateResult<T>>);
 
 /**
@@ -15,6 +18,14 @@ export type ValidateFunction<T> =
  * @returns A Promise that resolves with the validated data if it passes validation, meaning the validation function does not throw and returns a value other than false.
  * @throws {ValidationError} If the validation function returns false or throws an error.
  */
+export async function validateData<Schema extends StandardSchemaV1>(
+  data: unknown,
+  fn: Schema,
+): Promise<InferOutput<Schema>>;
+export async function validateData<T>(
+  data: unknown,
+  fn: (data: unknown) => ValidateResult<T> | Promise<ValidateResult<T>>,
+): Promise<T>;
 export async function validateData<T>(
   data: unknown,
   fn: ValidateFunction<T>,
