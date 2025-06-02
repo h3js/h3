@@ -93,5 +93,6 @@ export interface H3EventContext extends Record<string, any> {
   basicAuth?: {
     username?: string;
     password?: string;
+    realm?: string;
   };
 }

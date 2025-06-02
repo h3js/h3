@@ -75,7 +75,7 @@ export async function requireBasicAuth(
     throw autheFailed(event, opts?.realm);
   }
 
-  event.context.basicAuth = { username, password };
+  event.context.basicAuth = { username, password, realm: opts.realm };
 
   return true;
 }
