@@ -204,9 +204,9 @@ function errorResponse(error: H3Error, debug?: boolean): Response {
     {
       status: error.statusCode,
       statusText: error.statusMessage,
-      headers: {
-        "content-type": "application/json; charset=utf-8",
-      },
+      headers: error.headers
+        ? mergeHeaders(jsonHeaders, error.headers)
+        : jsonHeaders,
     },
   );
 }
