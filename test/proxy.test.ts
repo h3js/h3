@@ -1,8 +1,8 @@
 import { readFile } from "node:fs/promises";
 import { vi, beforeEach } from "vitest";
-import { setCookie } from "../src";
-import { proxy, proxyRequest } from "../src/utils/proxy";
-import { describeMatrix } from "./_setup";
+import { setCookie } from "../src/index.ts";
+import { proxy, proxyRequest } from "../src/utils/proxy.ts";
+import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("proxy", (t, { it, expect, describe }) => {
   const spy = vi.spyOn(console, "error");
@@ -24,10 +24,10 @@ describeMatrix("proxy", (t, { it, expect, describe }) => {
     describe("proxyRequest()", () => {
       it("can proxy request", async () => {
         t.app.all("/debug", async (event) => {
-          const headers = Object.fromEntries(event.request.headers.entries());
-          const body = await event.request.text();
+          const headers = Object.fromEntries(event.req.headers.entries());
+          const body = await event.req.text();
           return {
-            method: event.request.method,
+            method: event.req.method,
             headers,
             body,
           };
@@ -36,9 +36,9 @@ describeMatrix("proxy", (t, { it, expect, describe }) => {
         t.app.all("/", (event) => {
           return proxyRequest(event, t.url + "/debug", {
             fetch,
-            headers: { "x-custom1": "overridden" },
+            headers: [["x-custom1", "overridden"]],
             fetchOptions: {
-              headers: { "x-custom2": "overridden" },
+              headers: new Headers({ "x-custom2": "overridden" }),
             },
           });
         });
@@ -73,15 +73,15 @@ describeMatrix("proxy", (t, { it, expect, describe }) => {
 
       it("can proxy binary request", async () => {
         t.app.all("/debug", async (event) => {
-          const body = await event.request.arrayBuffer();
+          const body = await event.req.arrayBuffer();
           return {
-            headers: Object.fromEntries(event.request.headers.entries()),
+            headers: Object.fromEntries(event.req.headers.entries()),
             bytes: body.byteLength,
           };
         });
 
         t.app.all("/", (event) => {
-          event.response.headers.set("x-res-header", "works");
+          event.res.headers.set("x-res-header", "works");
           return proxyRequest(event, t.url + "/debug", { fetch });
         });
 
@@ -106,8 +106,8 @@ describeMatrix("proxy", (t, { it, expect, describe }) => {
       it("can proxy stream request", async () => {
         t.app.all("/debug", async (event) => {
           return {
-            body: await event.request.text(),
-            headers: Object.fromEntries(event.request.headers.entries()),
+            body: await event.req.text(),
+            headers: Object.fromEntries(event.req.headers.entries()),
           };
         });
 
@@ -151,7 +151,7 @@ describeMatrix("proxy", (t, { it, expect, describe }) => {
         const message = '{"hello":"world"}';
 
         t.app.all("/debug", (event) => {
-          event.response.headers.set("content-type", "application/json");
+          event.res.headers.set("content-type", "application/json");
           return message;
         });
 
@@ -215,7 +215,7 @@ describeMatrix("proxy", (t, { it, expect, describe }) => {
     describe("cookieDomainRewrite", () => {
       beforeEach(() => {
         t.app.all("/debug", (event) => {
-          event.response.headers.set(
+          event.res.headers.set(
             "set-cookie",
             "foo=219ffwef9w0f; Domain=somecompany.co.uk; Path=/; Expires=Wed, 30 Aug 2022 00:00:00 GMT",
           );
@@ -257,11 +257,11 @@ describeMatrix("proxy", (t, { it, expect, describe }) => {
 
       it("can rewrite domains of multiple cookies", async () => {
         t.app.all("/multiple/debug", (event) => {
-          event.response.headers.append(
+          event.res.headers.append(
             "set-cookie",
             "foo=219ffwef9w0f; Domain=somecompany.co.uk; Path=/; Expires=Wed, 30 Aug 2022 00:00:00 GMT",
           );
-          event.response.headers.append(
+          event.res.headers.append(
             "set-cookie",
             "bar=38afes7a8; Domain=somecompany.co.uk; Path=/; Expires=Wed, 30 Aug 2022 00:00:00 GMT",
           );
@@ -306,7 +306,7 @@ describeMatrix("proxy", (t, { it, expect, describe }) => {
     describe("cookiePathRewrite", () => {
       beforeEach(() => {
         t.app.all("/debug", (event) => {
-          event.response.headers.set(
+          event.res.headers.set(
             "set-cookie",
             "foo=219ffwef9w0f; Domain=somecompany.co.uk; Path=/; Expires=Wed, 30 Aug 2022 00:00:00 GMT",
           );
@@ -348,11 +348,11 @@ describeMatrix("proxy", (t, { it, expect, describe }) => {
 
       it("can rewrite paths of multiple cookies", async () => {
         t.app.all("/multiple/debug", (event) => {
-          event.response.headers.append(
+          event.res.headers.append(
             "set-cookie",
             "foo=219ffwef9w0f; Domain=somecompany.co.uk; Path=/; Expires=Wed, 30 Aug 2022 00:00:00 GMT",
           );
-          event.response.headers.append(
+          event.res.headers.append(
             "set-cookie",
             "bar=38afes7a8; Domain=somecompany.co.uk; Path=/; Expires=Wed, 30 Aug 2022 00:00:00 GMT",
           );
@@ -408,7 +408,7 @@ describeMatrix("proxy", (t, { it, expect, describe }) => {
           return proxyRequest(event, t.url + "/debug", {
             fetch,
             onResponse(event) {
-              event.response.headers.set("x-custom", "hello");
+              event.res.headers.set("x-custom", "hello");
             },
           });
         });
@@ -424,7 +424,7 @@ describeMatrix("proxy", (t, { it, expect, describe }) => {
             fetch,
             onResponse(_event) {
               return new Promise((resolve) => {
-                resolve(event.response.headers.set("x-custom", "hello"));
+                resolve(event.res.headers.set("x-custom", "hello"));
               });
             },
           });
@@ -450,7 +450,7 @@ describeMatrix("proxy", (t, { it, expect, describe }) => {
         await t.fetch("/");
 
         expect(headers?.["content-type"]).toEqual(
-          "application/json; charset=utf-8",
+          "application/json;charset=UTF-8",
         );
       });
     });

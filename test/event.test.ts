@@ -1,11 +1,11 @@
-import { readBody } from "../src";
-import { describeMatrix } from "./_setup";
+import { readBody } from "../src/index.ts";
+import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("event", (t, { it, expect }) => {
   it("can read the method", async () => {
     t.app.all("/*", (event) => {
-      expect(event.request.method).toBe(event.request.method);
-      expect(event.request.method).toBe("POST");
+      expect(event.req.method).toBe(event.req.method);
+      expect(event.req.method).toBe("POST");
       return "200";
     });
     const result = await t.fetch("/hello", { method: "POST" });
@@ -15,7 +15,7 @@ describeMatrix("event", (t, { it, expect }) => {
   it("can read the headers", async () => {
     t.app.all("/*", (event) => {
       return {
-        headers: [...event.request.headers.entries()],
+        headers: [...event.req.headers.entries()],
       };
     });
     const result = await t.fetch("/hello", {
@@ -46,7 +46,7 @@ describeMatrix("event", (t, { it, expect }) => {
     t.app.all("/*", async (event) => {
       let bytes = 0;
       // @ts-expect-error iterator
-      for await (const chunk of event.request.body!) {
+      for await (const chunk of event.req.body!) {
         bytes += chunk.length;
       }
       return {
@@ -64,8 +64,8 @@ describeMatrix("event", (t, { it, expect }) => {
 
   it("can convert to a web request", async () => {
     t.app.all("/", async (event) => {
-      expect(event.request.method).toBe("POST");
-      expect(event.request.headers.get("x-test")).toBe("123");
+      expect(event.req.method).toBe("POST");
+      expect(event.req.headers.get("x-test")).toBe("123");
       expect(await readBody(event)).toMatchObject({ hello: "world" });
       return "200";
     });

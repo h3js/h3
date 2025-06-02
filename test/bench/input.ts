@@ -27,4 +27,12 @@ export const requests = [
       body: `{"hello":"world"}`,
     },
   },
-];
+] as Array<{
+  method: string;
+  path: string;
+  body?: string;
+  response: {
+    body: string;
+    headers?: Record<string, string>;
+  };
+}>;

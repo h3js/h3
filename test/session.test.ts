@@ -1,10 +1,10 @@
-import type { SessionConfig } from "../src/types";
+import type { SessionConfig } from "../src/utils/session.ts";
 import { beforeEach } from "vitest";
-import { useSession, readBody, createH3 } from "../src";
-import { describeMatrix } from "./_setup";
+import { useSession, readBody, H3 } from "../src/index.ts";
+import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("session", (t, { it, expect }) => {
-  let router: ReturnType<typeof createH3>;
+  let app: H3;
 
   let cookie = "";
 
@@ -16,15 +16,15 @@ describeMatrix("session", (t, { it, expect }) => {
   };
 
   beforeEach(() => {
-    router = createH3({});
-    router.use("/", async (event) => {
+    app = new H3({});
+    t.app.all("/", async (event) => {
       const session = await useSession(event, sessionConfig);
-      if (event.request.method === "POST") {
+      if (event.req.method === "POST") {
         await session.update((await readBody(event)) as any);
       }
       return { session };
     });
-    t.app.use(router);
+    t.app.use(app);
   });
 
   it("initiates session", async () => {
@@ -61,7 +61,7 @@ describeMatrix("session", (t, { it, expect }) => {
   });
 
   it("gets same session back (concurrent)", async () => {
-    router.use("/concurrent", async (event) => {
+    app.get("/concurrent", async (event) => {
       const sessions = await Promise.all(
         [1, 2, 3].map(() =>
           useSession(event, sessionConfig).then((s) => ({

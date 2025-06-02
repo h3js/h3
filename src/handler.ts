@@ -1,109 +1,24 @@
 import type {
-  DynamicEventHandler,
-  H3Event,
-  RequestMiddleware,
-  ResponseMiddleware,
-} from "./types";
-import type {
   EventHandler,
   EventHandlerRequest,
   EventHandlerResponse,
-  EventHandlerObject,
-} from "./types";
+  DynamicEventHandler,
+  Middleware,
+} from "./types/handler.ts";
 
-type _EventHandlerHooks<
-  Request extends EventHandlerRequest = EventHandlerRequest,
-  Response extends EventHandlerResponse = EventHandlerResponse,
-> = {
-  onRequest?: RequestMiddleware<Request>[];
-  onBeforeResponse?: ResponseMiddleware<Request, Response>[];
-};
+// --- event handler ---
 
 export function defineEventHandler<
   Request extends EventHandlerRequest = EventHandlerRequest,
   Response = EventHandlerResponse,
 >(
-  handler:
-    | EventHandler<Request, Response>
-    | EventHandlerObject<Request, Response>,
-): EventHandler<Request, Response>;
-// TODO: remove when appropriate
-// This signature provides backwards compatibility with previous signature where first generic was return type
-export function defineEventHandler<
-  Request = EventHandlerRequest,
-  Response = EventHandlerResponse,
->(
-  handler: EventHandler<
-    Request extends EventHandlerRequest ? Request : EventHandlerRequest,
-    Request extends EventHandlerRequest ? Response : Request
-  >,
-): EventHandler<
-  Request extends EventHandlerRequest ? Request : EventHandlerRequest,
-  Request extends EventHandlerRequest ? Response : Request
->;
-export function defineEventHandler<
-  Request extends EventHandlerRequest,
-  Response = EventHandlerResponse,
->(
-  handler:
-    | EventHandler<Request, Response>
-    | EventHandlerObject<Request, Response>,
-): EventHandler<Request, Response> {
-  // Function Syntax
-  if (typeof handler === "function") {
-    return handler;
-  }
-  // Object Syntax
-  const _hooks: _EventHandlerHooks<Request, Response> = {
-    onRequest: _normalizeArray(handler.onRequest),
-    onBeforeResponse: _normalizeArray(handler.onBeforeResponse),
-  };
-  const _handler: EventHandler<Request, any> = (event) => {
-    return _callHandler(event, handler.handler, _hooks);
-  };
-  _handler.resolve = handler.handler.resolve;
-  _handler.websocket = { hooks: handler.websocket };
-  return _handler as EventHandler<Request, Response>;
-}
-
-function _normalizeArray<T>(input?: T | T[]): T[] | undefined {
-  return input ? (Array.isArray(input) ? input : [input]) : undefined;
-}
-
-async function _callHandler<
-  Request extends EventHandlerRequest = EventHandlerRequest,
-  Response extends EventHandlerResponse = EventHandlerResponse,
->(
-  event: H3Event,
   handler: EventHandler<Request, Response>,
-  hooks: _EventHandlerHooks<Request, Response>,
-): Promise<Awaited<Response> | undefined> {
-  if (hooks.onRequest) {
-    for (const hook of hooks.onRequest) {
-      await hook(event);
-    }
-  }
-  const body = await handler(event);
-  const response = { body };
-  if (hooks.onBeforeResponse) {
-    for (const hook of hooks.onBeforeResponse) {
-      await hook(event, response);
-    }
-  }
-  return response.body;
+  middleware?: Middleware[],
+): EventHandler<Request, Response> {
+  return middleware?.length ? Object.assign(handler, { middleware }) : handler;
 }
 
-export function defineRequestMiddleware<
-  Request extends EventHandlerRequest = EventHandlerRequest,
->(fn: RequestMiddleware<Request>): RequestMiddleware<Request> {
-  return fn;
-}
-
-export function defineResponseMiddleware<
-  Request extends EventHandlerRequest = EventHandlerRequest,
->(fn: ResponseMiddleware<Request>): ResponseMiddleware<Request> {
-  return fn;
-}
+//  --- dynamic event handler ---
 
 export function dynamicEventHandler(
   initial?: EventHandler,
@@ -119,6 +34,8 @@ export function dynamicEventHandler(
   };
   return wrapper;
 }
+
+// --- lazy event handler ---
 
 export function defineLazyEventHandler(
   load: () => Promise<EventHandler> | EventHandler,
@@ -152,13 +69,6 @@ export function defineLazyEventHandler(
     }
     return resolveHandler().then((r) => r.handler(event));
   };
-
-  handler.resolve = (method, path) =>
-    Promise.resolve(
-      resolveHandler().then(({ handler }) =>
-        handler.resolve ? handler.resolve(method, path) : { handler },
-      ),
-    );
 
   return handler;
 }

@@ -1,21 +1,25 @@
-# Handle Session
+---
+icon: ph:arrow-right
+---
+
+# Sessions
 
 > Remember your users using a session.
 
-A session is a way to remember users using cookies. It is a very common way to authenticate users or save data about them such as their language or their preferences on the web.
+A session is a way to remember users using cookies. It is a very common method for authenticating users or saving data about them, such as their language or preferences on the web.
 
-h3 provide many utilities to handle sessions:
+h3 provides many utilities to handle sessions:
 
-- `useSession` to initializes a session and returns a wrapper to control it.
-- `getSession` to initializes or gets the current user session.
-- `updateSession` to updates data of the current session.
-- `clearSession` to clears the current session.
+- `useSession` initializes a session and returns a wrapper to control it.
+- `getSession` initializes or retrieves the current user session.
+- `updateSession` updates the data of the current session.
+- `clearSession` clears the current session.
 
 Most of the time, you will use `useSession` to manipulate the session.
 
 ## Initialize a Session
 
-To initialize a session, you need to use `useSession` in an [event handler](/guide/event-handler):
+To initialize a session, you need to use `useSession` in an [event handler](/guide/handler):
 
 ```js
 import { useSession } from "h3";

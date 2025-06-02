@@ -1,12 +1,54 @@
-import type { H3Event, Session, SessionConfig, SessionData } from "../types";
-import { seal, unseal, defaults as sealDefaults } from "./internal/iron-crypto";
-import { getCookie, setCookie } from "./cookie";
+import {
+  seal,
+  unseal,
+  defaults as sealDefaults,
+} from "./internal/iron-crypto.ts";
+import { getCookie, setCookie } from "./cookie.ts";
 import {
   DEFAULT_SESSION_NAME,
   DEFAULT_SESSION_COOKIE,
-  kGetSession,
-} from "./internal/session";
-import { EmptyObject } from "./internal/obj";
+} from "./internal/session.ts";
+import { EmptyObject } from "./internal/obj.ts";
+import { kGetSession } from "./internal/session.ts";
+
+import type { H3Event } from "../types/event.ts";
+import type { CookieSerializeOptions } from "cookie-es";
+import type { SealOptions } from "./internal/iron-crypto.ts";
+
+type SessionDataT = Record<string, any>;
+
+export type SessionData<T extends SessionDataT = SessionDataT> = Partial<T>;
+
+export interface Session<T extends SessionDataT = SessionDataT> {
+  id: string;
+  createdAt: number;
+  data: SessionData<T>;
+  [kGetSession]?: Promise<Session<T>>;
+}
+
+export interface SessionManager<T extends SessionDataT = SessionDataT> {
+  readonly id: string | undefined;
+  readonly data: SessionData<T>;
+  update: (update: SessionUpdate<T>) => Promise<SessionManager<T>>;
+  clear: () => Promise<SessionManager<T>>;
+}
+
+export interface SessionConfig {
+  /** Private key used to encrypt session tokens */
+  password: string;
+  /** Session expiration time in seconds */
+  maxAge?: number;
+  /** default is h3 */
+  name?: string;
+  /** Default is secure, httpOnly, / */
+  cookie?: false | CookieSerializeOptions;
+  /** Default is x-h3-session / x-{name}-session */
+  sessionHeader?: false | string;
+  seal?: SealOptions;
+  crypto?: Crypto;
+  /** Default is Crypto.randomUUID */
+  generateId?: () => string;
+}
 
 /**
  * Create a session manager for the current request.
@@ -15,7 +57,7 @@ import { EmptyObject } from "./internal/obj";
 export async function useSession<T extends SessionData = SessionData>(
   event: H3Event,
   config: SessionConfig,
-) {
+): Promise<SessionManager<T>> {
   // Create a synced wrapper around the session
   const sessionName = config.name || DEFAULT_SESSION_NAME;
   await getSession(event, config); // Force init
@@ -73,7 +115,7 @@ export async function getSession<T extends SessionData = SessionData>(
       typeof config.sessionHeader === "string"
         ? config.sessionHeader.toLowerCase()
         : `x-${sessionName.toLowerCase()}-session`;
-    const headerValue = event.request.headers.get(headerName);
+    const headerValue = event.req.headers.get(headerName);
     if (typeof headerValue === "string") {
       sealedSession = headerValue;
     }
@@ -154,7 +196,7 @@ export async function updateSession<T extends SessionData = SessionData>(
 export async function sealSession<T extends SessionData = SessionData>(
   event: H3Event,
   config: SessionConfig,
-) {
+): Promise<string> {
   const sessionName = config.name || DEFAULT_SESSION_NAME;
 
   // Access current session
@@ -178,7 +220,7 @@ export async function unsealSession(
   _event: H3Event,
   config: SessionConfig,
   sealed: string,
-) {
+): Promise<Partial<Session>> {
   const unsealed = (await unseal(sealed, config.password, {
     ...sealDefaults,
     ttl: config.maxAge ? config.maxAge * 1000 : 0,

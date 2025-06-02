@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { serializeIterableValue } from "../../src/utils/internal/iterable";
+import { serializeIterableValue } from "../../src/utils/internal/iterable.ts";
 
 describe("iterable (unit)", () => {
   describe("serializeIterableValue", () => {

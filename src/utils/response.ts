@@ -1,34 +1,34 @@
-import type { H3Event, StatusCode } from "../types";
-import { sanitizeStatusCode } from "./sanitize";
+import type { H3Event } from "../types/event.ts";
+import { sanitizeStatusCode } from "./sanitize.ts";
 import {
   serializeIterableValue,
   coerceIterable,
   type IterationSource,
   type IteratorSerializer,
-} from "./internal/iterable";
+} from "./internal/iterable.ts";
 
 /**
  * Respond with an empty payload.<br>
  *
  * @example
- * app.use("/", () => noContent());
+ * app.get("/", () => noContent());
  *
  * @param event H3 event
  * @param code status code to be send. By default, it is `204 No Content`.
  */
-export function noContent(event: H3Event, code?: StatusCode): "" {
-  const currentStatus = event.response.status;
+export function noContent(event: H3Event, code?: number): "" {
+  const currentStatus = event.res.status;
 
   if (!code && currentStatus && currentStatus !== 200) {
-    code = event.response.status;
+    code = event.res.status;
   }
 
-  event.response.status = sanitizeStatusCode(code, 204);
+  event.res.status = sanitizeStatusCode(code, 204);
 
   // 204 responses MUST NOT have a Content-Length header field
   // https://www.rfc-editor.org/rfc/rfc7230#section-3.3.2
-  if (event.response.status === 204) {
-    event.response.headers.delete("content-length");
+  if (event.res.status === 204) {
+    event.res.headers.delete("content-length");
   }
 
   return "";
@@ -42,26 +42,26 @@ export function noContent(event: H3Event, code?: StatusCode): "" {
  * In the body, it sends a simple HTML page with a meta refresh tag to redirect the client in case the headers are ignored.
  *
  * @example
- * app.use("/", (event) => {
+ * app.get("/", (event) => {
  *   return redirect(event, "https://example.com");
  * });
  *
  * @example
- * app.use("/", (event) => {
+ * app.get("/", (event) => {
  *   return redirect(event, "https://example.com", 301); // Permanent redirect
  * });
  */
 export function redirect(
   event: H3Event,
   location: string,
-  code: StatusCode = 302,
-) {
-  event.response.status = sanitizeStatusCode(code, event.response.status);
-  event.response.headers.set("location", location);
+  code: number = 302,
+): string {
+  event.res.status = sanitizeStatusCode(code, event.res.status);
+  event.res.headers.set("location", location);
   const encodedLoc = location.replace(/"/g, "%22");
   const html = `<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0; url=${encodedLoc}"></head></html>`;
-  if (!event.response.headers.has("content-type")) {
-    event.response.headers.set("content-type", "text/html");
+  if (!event.res.headers.has("content-type")) {
+    event.res.headers.set("content-type", "text/html");
   }
   return html;
 }
@@ -73,11 +73,11 @@ export function writeEarlyHints(
   event: H3Event,
   hints: Record<string, string>,
 ): void | Promise<void> {
-  if (!event.node?.res?.writeEarlyHints) {
+  if (!event.runtime?.node?.res?.writeEarlyHints) {
     return;
   }
   return new Promise((resolve) => {
-    event.node?.res.writeEarlyHints(hints, () => resolve());
+    event.runtime?.node?.res?.writeEarlyHints(hints, () => resolve());
   });
 }
 

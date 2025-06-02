@@ -1,5 +1,5 @@
-import { getCookie, parseCookies, setCookie } from "../src/utils/cookie";
-import { describeMatrix } from "./_setup";
+import { getCookie, parseCookies, setCookie } from "../src/utils/cookie.ts";
+import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("cookies", (t, { it, expect, describe }) => {
   describe("parseCookies", () => {
@@ -84,16 +84,25 @@ describeMatrix("cookies", (t, { it, expect, describe }) => {
 
   it("can merge unique cookies", async () => {
     t.app.get("/", (event) => {
-      setCookie(event, "session", "123", { httpOnly: true });
-      setCookie(event, "session", "123", {
-        httpOnly: true,
-        maxAge: 60 * 60 * 24 * 30,
-      });
+      setCookie(event, "session", "abc", { path: "/a" });
+      setCookie(event, "session", "cba", { path: "/b" });
+
+      setCookie(event, "session", "123", { httpOnly: false });
+      setCookie(event, "session", "321", { httpOnly: true });
+
+      setCookie(event, "session", "456", { secure: false });
+      setCookie(event, "session", "654", { secure: true });
+
+      setCookie(event, "session", "789", { sameSite: false });
+      setCookie(event, "session", "987", { sameSite: true });
+
       return "200";
     });
     const result = await t.fetch("/");
     expect(result.headers.getSetCookie()).toEqual([
-      "session=123; Max-Age=2592000; Path=/; HttpOnly",
+      "session=abc; Path=/a",
+      "session=cba; Path=/b",
+      "session=987; Path=/; SameSite=Strict",
     ]);
     expect(await result.text()).toBe("200");
   });

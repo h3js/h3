@@ -1,12 +1,12 @@
 import { createReadStream } from "node:fs";
 import { readFile } from "node:fs/promises";
-import { readBody } from "../src";
-import { describeMatrix } from "./_setup";
+import { readBody } from "../src/index.ts";
+import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("body", (t, { it, expect, describe }) => {
   it("can read simple string", async () => {
     t.app.all("/api/test", async (event) => {
-      const body = await event.request.text();
+      const body = await event.req.text();
       expect(body).toEqual('{"bool":true,"name":"string","number":1}');
       return "200";
     });
@@ -25,7 +25,7 @@ describeMatrix("body", (t, { it, expect, describe }) => {
   it("can read chunked string", async () => {
     const requestJsonUrl = new URL("assets/sample.json", import.meta.url);
     t.app.all("/api/test", async (event) => {
-      const body = await event.request.text();
+      const body = await event.req.text();
       const json = (await readFile(requestJsonUrl)).toString("utf8");
 
       expect(body).toEqual(json);
@@ -55,7 +55,7 @@ describeMatrix("body", (t, { it, expect, describe }) => {
   it("returns empty string if body is not present", async () => {
     let _body: string | undefined = "initial";
     t.app.all("/api/test", async (event) => {
-      _body = await event.request.text();
+      _body = await event.req.text();
       return "200";
     });
     const res = await t.fetch("/api/test", {
@@ -187,7 +187,7 @@ describeMatrix("body", (t, { it, expect, describe }) => {
 
   it("parses multipart form data", async () => {
     t.app.all("/api/test", async (event) => {
-      const formData = await event.request.formData();
+      const formData = await event.req.formData();
       return [...formData.entries()].map(([name, value]) => ({
         name,
         data: value,
@@ -222,7 +222,7 @@ describeMatrix("body", (t, { it, expect, describe }) => {
   it("returns empty string if body is not present with text/plain", async () => {
     let _body: string | undefined;
     t.app.all("/api/test", async (event) => {
-      _body = await event.request.text();
+      _body = await event.req.text();
       return "200";
     });
     const result = await t.fetch("/api/test", {
@@ -256,7 +256,7 @@ describeMatrix("body", (t, { it, expect, describe }) => {
   it("returns the string if content type is text/*", async () => {
     let _body: string | undefined;
     t.app.all("/api/test", async (event) => {
-      _body = await event.request.text();
+      _body = await event.req.text();
       return "200";
     });
     const result = await t.fetch("/api/test", {
@@ -273,7 +273,7 @@ describeMatrix("body", (t, { it, expect, describe }) => {
 
   it("returns string as is if cannot parse with unknown content type", async () => {
     t.app.all("/api/test", async (event) => {
-      const _body = await event.request.text();
+      const _body = await event.req.text();
       return _body;
     });
     const result = await t.fetch("/api/test", {
@@ -310,7 +310,7 @@ describeMatrix("body", (t, { it, expect, describe }) => {
   describe("readFormDataBody", () => {
     it("can handle form as FormData in event handler", async () => {
       t.app.all("/api/*", async (event) => {
-        const formData = await event.request.formData();
+        const formData = await event.req.formData();
         const user = formData!.get("user");
         expect(formData instanceof FormData).toBe(true);
         expect(user).toBe("john");

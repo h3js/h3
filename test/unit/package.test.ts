@@ -2,9 +2,10 @@ import { describe, expect, it } from "vitest";
 
 describe("h3 package", () => {
   it("package exports (snapshot)", async () => {
-    const exportNames = Object.keys(await import("../../src")).sort();
+    const exportNames = Object.keys(await import("../../src/index.ts")).sort();
     expect(exportNames).toMatchInlineSnapshot(`
       [
+        "H3",
         "appendCorsHeaders",
         "appendCorsPreflightHeaders",
         "appendHeader",
@@ -17,16 +18,14 @@ describe("h3 package", () => {
         "createApp",
         "createError",
         "createEventStream",
-        "createH3",
         "createRouter",
         "defaultContentType",
         "defineEventHandler",
         "defineLazyEventHandler",
+        "defineMiddleware",
         "defineNodeHandler",
         "defineNodeListener",
         "defineNodeMiddleware",
-        "defineRequestMiddleware",
-        "defineResponseMiddleware",
         "defineWebSocket",
         "defineWebSocketHandler",
         "deleteCookie",

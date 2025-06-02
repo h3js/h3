@@ -1,4 +1,11 @@
-import type { CacheConditions, H3Event } from "../types";
+import type { H3Event } from "../types/event.ts";
+
+export interface CacheConditions {
+  modifiedTime?: string | Date;
+  maxAge?: number;
+  etag?: string;
+  cacheControls?: string[];
+}
 
 /**
  * Check request caching headers (`If-Modified-Since`) and add caching headers (Last-Modified, Cache-Control)
@@ -18,25 +25,25 @@ export function handleCacheHeaders(
 
   if (opts.modifiedTime) {
     const modifiedTime = new Date(opts.modifiedTime);
-    const ifModifiedSince = event.request.headers.get("if-modified-since");
-    event.response.headers.set("last-modified", modifiedTime.toUTCString());
-    if (ifModifiedSince && new Date(ifModifiedSince) >= opts.modifiedTime) {
+    const ifModifiedSince = event.req.headers.get("if-modified-since");
+    event.res.headers.set("last-modified", modifiedTime.toUTCString());
+    if (ifModifiedSince && new Date(ifModifiedSince) >= modifiedTime) {
       cacheMatched = true;
     }
   }
 
   if (opts.etag) {
-    event.response.headers.set("etag", opts.etag);
-    const ifNonMatch = event.request.headers.get("if-none-match");
+    event.res.headers.set("etag", opts.etag);
+    const ifNonMatch = event.req.headers.get("if-none-match");
     if (ifNonMatch === opts.etag) {
       cacheMatched = true;
     }
   }
 
-  event.response.headers.set("cache-control", cacheControls.join(", "));
+  event.res.headers.set("cache-control", cacheControls.join(", "));
 
   if (cacheMatched) {
-    event.response.status = 304;
+    event.res.status = 304;
     return true;
   }
 

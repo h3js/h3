@@ -1,13 +1,14 @@
-import type { H3, EventHandler } from "../types";
-import { withoutBase, withoutTrailingSlash } from "./internal/path";
+import type { H3 } from "../h3.ts";
+import type { EventHandler } from "../types/handler.ts";
+import { withoutBase, withoutTrailingSlash } from "./internal/path.ts";
 
 /**
  * Returns a new event handler that removes the base url of the event before calling the original handler.
  *
  * @example
- * const api = createApp()
+ * const api = new H3()
  *  .get("/", () => "Hello API!");
- * const app = createApp();
+ * const app = new H3();
  *  .use("/api/**", withBase("/api", api.handler));
  *
  * @param base The base path to prefix.
@@ -20,18 +21,11 @@ export function withBase(base: string, input: EventHandler | H3): EventHandler {
 
   const _handler: EventHandler = async (event) => {
     const _pathBefore = event.url.pathname || "/";
-    event.url.pathname = withoutBase(event.pathname || "/", base);
+    event.url.pathname = withoutBase(event.url.pathname || "/", base);
     return Promise.resolve(_originalHandler(event)).finally(() => {
       event.url.pathname = _pathBefore;
     });
   };
-
-  _handler.websocket = _originalHandler.websocket;
-  _handler.resolve = _originalHandler.resolve
-    ? (method, path) => {
-        return _originalHandler.resolve!(method, withoutBase(path, base));
-      }
-    : undefined;
 
   return _handler;
 }

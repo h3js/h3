@@ -1,12 +1,12 @@
 import { beforeEach } from "vitest";
-import { createEventStream } from "../src";
+import { createEventStream } from "../src/index.ts";
 
-import { describeMatrix } from "./_setup";
+import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("sse", (t, { it, expect }) => {
   beforeEach(() => {
     t.app.get("/sse", (event) => {
-      const includeMeta = event.query.get("includeMeta") === "true";
+      const includeMeta = event.url.searchParams.get("includeMeta") === "true";
       const eventStream = createEventStream(event);
       let counter = 0;
       const clear = setInterval(() => {

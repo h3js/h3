@@ -1,4 +1,4 @@
-import type { H3CorsOptions } from "../../src/types";
+import type { CorsOptions } from "../../src/utils/cors.ts";
 import { expect, it, describe } from "vitest";
 import {
   mockEvent,
@@ -6,7 +6,7 @@ import {
   isCorsOriginAllowed,
   appendCorsPreflightHeaders,
   appendCorsHeaders,
-} from "../../src";
+} from "../../src/index.ts";
 import {
   resolveCorsOptions,
   createOriginHeaders,
@@ -15,7 +15,7 @@ import {
   createAllowHeaderHeaders,
   createExposeHeaders,
   createMaxAgeHeader,
-} from "../../src/utils/internal/cors";
+} from "../../src/utils/internal/cors.ts";
 
 describe("cors (unit)", () => {
   describe("resolveCorsOptions", () => {
@@ -108,21 +108,21 @@ describe("cors (unit)", () => {
   describe("isCorsOriginAllowed", () => {
     it("returns `true` if `origin` header is not defined", () => {
       const origin = undefined;
-      const options: H3CorsOptions = {};
+      const options: CorsOptions = {};
 
       expect(isCorsOriginAllowed(origin, options)).toEqual(true);
     });
 
     it("returns `true` if `origin` option is not defined", () => {
       const origin = "https://example.com";
-      const options: H3CorsOptions = {};
+      const options: CorsOptions = {};
 
       expect(isCorsOriginAllowed(origin, options)).toEqual(true);
     });
 
     it('returns `true` if `origin` option is `"*"`', () => {
       const origin = "https://example.com";
-      const options: H3CorsOptions = {
+      const options: CorsOptions = {
         origin: "*",
       };
 
@@ -131,7 +131,7 @@ describe("cors (unit)", () => {
 
     it('returns `true` if `origin` option is `"null"`', () => {
       const origin = "https://example.com";
-      const options: H3CorsOptions = {
+      const options: CorsOptions = {
         origin: "null",
       };
 
@@ -140,7 +140,7 @@ describe("cors (unit)", () => {
 
     it("can detect allowed origin (string)", () => {
       const origin = "https://example.com";
-      const options: H3CorsOptions = {
+      const options: CorsOptions = {
         origin: ["https://example.com"],
       };
 
@@ -149,7 +149,7 @@ describe("cors (unit)", () => {
 
     it("can detect allowed origin (regular expression)", () => {
       const origin = "https://example.com";
-      const options: H3CorsOptions = {
+      const options: CorsOptions = {
         origin: [/example/],
       };
 
@@ -158,7 +158,7 @@ describe("cors (unit)", () => {
 
     it("can detect allowed origin (function)", () => {
       const origin = "https://example.com";
-      const options: H3CorsOptions = {
+      const options: CorsOptions = {
         origin: (_origin: string) => {
           expect(_origin).toEqual(origin);
           return true;
@@ -170,7 +170,7 @@ describe("cors (unit)", () => {
 
     it("can detect allowed origin (falsy)", () => {
       const origin = "https://example.com";
-      const options: H3CorsOptions = {
+      const options: CorsOptions = {
         origin: ["https://example2.com"],
       };
 
@@ -186,8 +186,8 @@ describe("cors (unit)", () => {
           origin: "https://example.com",
         },
       });
-      const options1: H3CorsOptions = {};
-      const options2: H3CorsOptions = {
+      const options1: CorsOptions = {};
+      const options2: CorsOptions = {
         origin: "*",
       };
 
@@ -204,7 +204,7 @@ describe("cors (unit)", () => {
         method: "OPTIONS",
         headers: {},
       });
-      const options: H3CorsOptions = {};
+      const options: CorsOptions = {};
 
       expect(createOriginHeaders(eventMock, options)).toEqual({
         "access-control-allow-origin": "*",
@@ -218,7 +218,7 @@ describe("cors (unit)", () => {
           origin: "https://example.com",
         },
       });
-      const options: H3CorsOptions = {
+      const options: CorsOptions = {
         origin: "null",
       };
 
@@ -235,10 +235,10 @@ describe("cors (unit)", () => {
           origin: "http://example.com",
         },
       });
-      const options1: H3CorsOptions = {
+      const options1: CorsOptions = {
         origin: ["http://example.com"],
       };
-      const options2: H3CorsOptions = {
+      const options2: CorsOptions = {
         origin: [/example.com/],
       };
 
@@ -259,10 +259,10 @@ describe("cors (unit)", () => {
           origin: "https://example.com",
         },
       });
-      const options1: H3CorsOptions = {
+      const options1: CorsOptions = {
         origin: ["http://example2.com"],
       };
-      const options2: H3CorsOptions = {
+      const options2: CorsOptions = {
         origin: () => false,
       };
 
@@ -273,8 +273,8 @@ describe("cors (unit)", () => {
 
   describe("createMethodsHeaders", () => {
     it("returns an empty object if `methods` option is not defined or an empty array", () => {
-      const options1: H3CorsOptions = {};
-      const options2: H3CorsOptions = {
+      const options1: CorsOptions = {};
+      const options2: CorsOptions = {
         methods: [],
       };
 
@@ -283,7 +283,7 @@ describe("cors (unit)", () => {
     });
 
     it('returns an object whose `access-control-allow-methods` is `"*"` if `methods` option is `"*"`', () => {
-      const options1: H3CorsOptions = {
+      const options1: CorsOptions = {
         methods: "*",
       };
 
@@ -293,7 +293,7 @@ describe("cors (unit)", () => {
     });
 
     it("returns an object whose `access-control-allow-methods` is set as `methods` option", () => {
-      const options: H3CorsOptions = {
+      const options: CorsOptions = {
         methods: ["GET", "POST"],
       };
 
@@ -305,13 +305,13 @@ describe("cors (unit)", () => {
 
   describe("createCredentialsHeaders", () => {
     it("returns an empty object if `credentials` option is not defined", () => {
-      const options: H3CorsOptions = {};
+      const options: CorsOptions = {};
 
       expect(createCredentialsHeaders(options)).toEqual({});
     });
 
     it('returns an object whose `access-control-allow-credentials` is `"true"` if `credentials` option is true', () => {
-      const options: H3CorsOptions = {
+      const options: CorsOptions = {
         credentials: true,
       };
 
@@ -329,11 +329,11 @@ describe("cors (unit)", () => {
           "access-control-request-headers": "CUSTOM-HEADER",
         },
       });
-      const options1: H3CorsOptions = {};
-      const options2: H3CorsOptions = {
+      const options1: CorsOptions = {};
+      const options2: CorsOptions = {
         allowHeaders: "*",
       };
-      const options3: H3CorsOptions = {
+      const options3: CorsOptions = {
         allowHeaders: [],
       };
 
@@ -356,7 +356,7 @@ describe("cors (unit)", () => {
         method: "OPTIONS",
         headers: {},
       });
-      const options: H3CorsOptions = {
+      const options: CorsOptions = {
         allowHeaders: ["CUSTOM-HEADER"],
       };
 
@@ -371,11 +371,11 @@ describe("cors (unit)", () => {
         method: "OPTIONS",
         headers: {},
       });
-      const options1: H3CorsOptions = {};
-      const options2: H3CorsOptions = {
+      const options1: CorsOptions = {};
+      const options2: CorsOptions = {
         allowHeaders: "*",
       };
-      const options3: H3CorsOptions = {
+      const options3: CorsOptions = {
         allowHeaders: [],
       };
 
@@ -387,16 +387,16 @@ describe("cors (unit)", () => {
 
   describe("createExposeHeaders", () => {
     it("returns an object if `exposeHeaders` option is not defined", () => {
-      const options: H3CorsOptions = {};
+      const options: CorsOptions = {};
 
       expect(createExposeHeaders(options)).toEqual({});
     });
 
     it("returns an object with `access-control-expose-headers` key according to `exposeHeaders` option", () => {
-      const options1: H3CorsOptions = {
+      const options1: CorsOptions = {
         exposeHeaders: "*",
       };
-      const options2: H3CorsOptions = {
+      const options2: CorsOptions = {
         exposeHeaders: ["EXPOSED-HEADER-1", "EXPOSED-HEADER-2"],
       };
 
@@ -411,11 +411,11 @@ describe("cors (unit)", () => {
 
   describe("createMaxAgeHeader", () => {
     it("returns an object if `maxAge` option is not defined, false, or an empty string", () => {
-      const options1: H3CorsOptions = {};
-      const options2: H3CorsOptions = {
+      const options1: CorsOptions = {};
+      const options2: CorsOptions = {
         maxAge: false,
       };
-      const options3: H3CorsOptions = {
+      const options3: CorsOptions = {
         maxAge: "",
       };
 
@@ -425,10 +425,10 @@ describe("cors (unit)", () => {
     });
 
     it("returns an object with `access-control-max-age` key according to `exposeHeaders` option", () => {
-      const options1: H3CorsOptions = {
+      const options1: CorsOptions = {
         maxAge: "12345",
       };
-      const options2: H3CorsOptions = {
+      const options2: CorsOptions = {
         maxAge: "0",
       };
 
@@ -453,7 +453,7 @@ describe("cors (unit)", () => {
           },
         });
         // default options
-        const options: H3CorsOptions = {
+        const options: CorsOptions = {
           origin: "*",
           methods: "*",
           allowHeaders: "*",
@@ -468,23 +468,23 @@ describe("cors (unit)", () => {
         appendCorsPreflightHeaders(eventMock, options);
 
         expect(
-          eventMock.response.headers.get("access-control-allow-origin"),
+          eventMock.res.headers.get("access-control-allow-origin"),
         ).toEqual("*");
         expect(
-          eventMock.response.headers.has("access-control-allow-credentials"),
+          eventMock.res.headers.has("access-control-allow-credentials"),
         ).toEqual(false);
         expect(
-          eventMock.response.headers.get("access-control-allow-methods"),
+          eventMock.res.headers.get("access-control-allow-methods"),
         ).toEqual("*");
         expect(
-          eventMock.response.headers.get("access-control-allow-headers"),
+          eventMock.res.headers.get("access-control-allow-headers"),
         ).toEqual("CUSTOM-HEADER");
-        expect(eventMock.response.headers.get("vary")).toEqual(
+        expect(eventMock.res.headers.get("vary")).toEqual(
           "access-control-request-headers",
         );
-        expect(
-          eventMock.response.headers.has("access-control-max-age"),
-        ).toEqual(false);
+        expect(eventMock.res.headers.has("access-control-max-age")).toEqual(
+          false,
+        );
       }
 
       {
@@ -497,7 +497,7 @@ describe("cors (unit)", () => {
           },
         });
         // exposeHeaders and maxAge
-        const options: H3CorsOptions = {
+        const options: CorsOptions = {
           origin: "*",
           exposeHeaders: ["EXPOSE-HEADER", "Authorization"],
           maxAge: "12345",
@@ -506,23 +506,23 @@ describe("cors (unit)", () => {
         appendCorsPreflightHeaders(eventMock, options);
 
         expect(
-          eventMock.response.headers.get("access-control-allow-origin"),
+          eventMock.res.headers.get("access-control-allow-origin"),
         ).toEqual("*");
         expect(
-          eventMock.response.headers.has("access-control-allow-credentials"),
+          eventMock.res.headers.has("access-control-allow-credentials"),
         ).toEqual(false);
         expect(
-          eventMock.response.headers.has("access-control-allow-methods"),
+          eventMock.res.headers.has("access-control-allow-methods"),
         ).toEqual(false);
         expect(
-          eventMock.response.headers.get("access-control-allow-headers"),
+          eventMock.res.headers.get("access-control-allow-headers"),
         ).toEqual("CUSTOM-HEADER");
-        expect(eventMock.response.headers.get("vary")).toEqual(
+        expect(eventMock.res.headers.get("vary")).toEqual(
           "access-control-request-headers",
         );
-        expect(
-          eventMock.response.headers.get("access-control-max-age"),
-        ).toEqual("12345");
+        expect(eventMock.res.headers.get("access-control-max-age")).toEqual(
+          "12345",
+        );
       }
 
       {
@@ -534,7 +534,7 @@ describe("cors (unit)", () => {
           },
         });
         // credentials
-        const options: H3CorsOptions = {
+        const options: CorsOptions = {
           origin: ["https://example.com"],
           credentials: true,
         };
@@ -542,21 +542,21 @@ describe("cors (unit)", () => {
         appendCorsPreflightHeaders(eventMock, options);
 
         expect(
-          eventMock.response.headers.get("access-control-allow-origin"),
+          eventMock.res.headers.get("access-control-allow-origin"),
         ).toEqual("https://example.com");
-        expect(eventMock.response.headers.get("vary")).toEqual("origin");
+        expect(eventMock.res.headers.get("vary")).toEqual("origin");
         expect(
-          eventMock.response.headers.get("access-control-allow-credentials"),
+          eventMock.res.headers.get("access-control-allow-credentials"),
         ).toEqual("true");
         expect(
-          eventMock.response.headers.has("access-control-allow-methods"),
+          eventMock.res.headers.has("access-control-allow-methods"),
         ).toEqual(false);
         expect(
-          eventMock.response.headers.has("access-control-allow-headers"),
+          eventMock.res.headers.has("access-control-allow-headers"),
         ).toEqual(false);
-        expect(
-          eventMock.response.headers.has("access-control-max-age"),
-        ).toEqual(false);
+        expect(eventMock.res.headers.has("access-control-max-age")).toEqual(
+          false,
+        );
       }
     });
   });
@@ -572,7 +572,7 @@ describe("cors (unit)", () => {
           },
         });
         // default options
-        const options: H3CorsOptions = {
+        const options: CorsOptions = {
           origin: "*",
           methods: "*",
           allowHeaders: "*",
@@ -587,13 +587,13 @@ describe("cors (unit)", () => {
         appendCorsHeaders(eventMock, options);
 
         expect(
-          eventMock.response.headers.get("access-control-allow-origin"),
+          eventMock.res.headers.get("access-control-allow-origin"),
         ).toEqual("*");
         expect(
-          eventMock.response.headers.has("access-control-allow-credentials"),
+          eventMock.res.headers.has("access-control-allow-credentials"),
         ).toEqual(false);
         expect(
-          eventMock.response.headers.get("access-control-expose-headers"),
+          eventMock.res.headers.get("access-control-expose-headers"),
         ).toEqual("*");
       }
 
@@ -605,7 +605,7 @@ describe("cors (unit)", () => {
           },
         });
         // exposeHeaders and maxAge
-        const options: H3CorsOptions = {
+        const options: CorsOptions = {
           origin: "*",
           exposeHeaders: ["EXPOSE-HEADER", "Authorization"],
           maxAge: "12345",
@@ -614,13 +614,13 @@ describe("cors (unit)", () => {
         appendCorsHeaders(eventMock, options);
 
         expect(
-          eventMock.response.headers.get("access-control-allow-origin"),
+          eventMock.res.headers.get("access-control-allow-origin"),
         ).toEqual("*");
         expect(
-          eventMock.response.headers.has("access-control-allow-credentials"),
+          eventMock.res.headers.has("access-control-allow-credentials"),
         ).toEqual(false);
         expect(
-          eventMock.response.headers.get("access-control-expose-headers"),
+          eventMock.res.headers.get("access-control-expose-headers"),
         ).toEqual("EXPOSE-HEADER,Authorization");
       }
 
@@ -632,7 +632,7 @@ describe("cors (unit)", () => {
           },
         });
         // credentials
-        const options: H3CorsOptions = {
+        const options: CorsOptions = {
           origin: ["https://example.com"],
           credentials: true,
         };
@@ -640,11 +640,11 @@ describe("cors (unit)", () => {
         appendCorsHeaders(eventMock, options);
 
         expect(
-          eventMock.response.headers.get("access-control-allow-origin"),
+          eventMock.res.headers.get("access-control-allow-origin"),
         ).toEqual("https://example.com");
-        expect(eventMock.response.headers.get("vary")).toEqual("origin");
+        expect(eventMock.res.headers.get("vary")).toEqual("origin");
         expect(
-          eventMock.response.headers.get("access-control-allow-credentials"),
+          eventMock.res.headers.get("access-control-allow-credentials"),
         ).toEqual("true");
       }
     });

@@ -7,8 +7,9 @@ import {
   getRequestURL,
   getRequestIP,
   getRequestFingerprint,
-} from "../src";
-import { describeMatrix } from "./_setup";
+  handleCacheHeaders,
+} from "../src/index.ts";
+import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("utils", (t, { it, describe, expect }) => {
   describe("redirect", () => {
@@ -22,19 +23,13 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
 
   describe("withBase", () => {
     it("can prefix routes", async () => {
-      t.app.use(
-        "/**",
-        withBase("/api", (event) => Promise.resolve(event.path)),
-      );
+      t.app.use(withBase("/api", (event) => Promise.resolve(event.path)));
       const result = await t.fetch("/api/test");
 
       expect(await result.text()).toBe("/test");
     });
     it("does nothing when not provided a base", async () => {
-      t.app.use(
-        "/**",
-        withBase("", (event) => Promise.resolve(event.path)),
-      );
+      t.app.use(withBase("", (event) => Promise.resolve(event.path)));
       const result = await t.fetch("/api/test");
 
       expect(await result.text()).toBe("/api/test");
@@ -60,7 +55,7 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
 
   describe("getMethod", () => {
     it("can get method", async () => {
-      t.app.all("/*", (event) => event.request.method);
+      t.app.all("/*", (event) => event.req.method);
       expect(await (await t.fetch("/api")).text()).toBe("GET");
       expect(await (await t.fetch("/api", { method: "POST" })).text()).toBe(
         "POST",
@@ -224,14 +219,14 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
         getRequestFingerprint(event, {
           hash: false,
           ip: false,
-          path: true,
+          url: true,
           method: true,
         }),
       );
 
       const res = await t.fetch("/foo", { method: "POST" });
 
-      expect(await res.text()).toBe("POST|/foo");
+      expect(await res.text()).toMatch(/^POST\|http.+\/foo$/);
     });
 
     it("uses user agent when available", async () => {
@@ -268,15 +263,15 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
     });
 
     it("uses the request ip when no x-forwarded-for header set", async () => {
-      t.app.use((event) => getRequestFingerprint(event, { hash: false }));
-
-      t.app.config.onRequest = (event) => {
+      t.app.use((event) => {
         Object.defineProperty(event.node?.req.socket || {}, "remoteAddress", {
           get(): any {
             return "0.0.0.0";
           },
         });
-      };
+      });
+
+      t.app.use((event) => getRequestFingerprint(event, { hash: false }));
 
       const res = await t.fetch("/");
 
@@ -295,6 +290,74 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
       expect((await t.fetch("/post")).status).toBe(405);
       expect((await t.fetch("/post", { method: "POST" })).status).toBe(200);
       expect((await t.fetch("/post", { method: "HEAD" })).status).toBe(200);
+    });
+  });
+
+  describe("handleCacheHeaders", () => {
+    it("can handle cache headers", async () => {
+      t.app.use((event) => {
+        handleCacheHeaders(event, {
+          maxAge: 60,
+          modifiedTime: new Date("2021-01-01"),
+        });
+        return "ok";
+      });
+      const res = await t.fetch("/");
+      expect(res.headers.get("cache-control")).toBe(
+        "public, max-age=60, s-maxage=60",
+      );
+      expect(res.headers.get("last-modified")).toBe(
+        "Fri, 01 Jan 2021 00:00:00 GMT",
+      );
+      expect(await res.text()).toBe("ok");
+    });
+
+    it("can handle cache headers with etag", async () => {
+      t.app.use((event) => {
+        handleCacheHeaders(event, {
+          maxAge: 60,
+          etag: "123",
+        });
+        return "ok";
+      });
+      const res = await t.fetch("/");
+      expect(res.headers.get("cache-control")).toBe(
+        "public, max-age=60, s-maxage=60",
+      );
+      expect(res.headers.get("etag")).toBe("123");
+      expect(await res.text()).toBe("ok");
+    });
+
+    it("can handle cache headers with if-none-match", async () => {
+      t.app.use((event) => {
+        handleCacheHeaders(event, {
+          maxAge: 60,
+          etag: "123",
+        });
+        return "ok";
+      });
+      const res = await t.fetch("/", {
+        headers: {
+          "if-none-match": "123",
+        },
+      });
+      expect(res.status).toBe(304);
+    });
+
+    it("can handle cache headers with if-modified-since", async () => {
+      t.app.use((event) => {
+        handleCacheHeaders(event, {
+          maxAge: 60,
+          modifiedTime: new Date("2021-01-01"),
+        });
+        return "ok";
+      });
+      const res = await t.fetch("/", {
+        headers: {
+          "if-modified-since": "Fri, 01 Jan 2021 00:00:00 GMT",
+        },
+      });
+      expect(res.status).toBe(304);
     });
   });
 });

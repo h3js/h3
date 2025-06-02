@@ -1,165 +1,212 @@
-import type { H3Config, H3Event } from "./types";
-import type { H3Error, PreparedResponse } from "./types/h3";
-import type { H3WebEvent } from "./event";
-import { Response as SrvxResponse } from "srvx";
-import { createError } from "./error";
-import { isJSONSerializable } from "./utils/internal/object";
+import { FastResponse } from "srvx";
+import { createError, type H3Error } from "./error.ts";
+import { isJSONSerializable } from "./utils/internal/object.ts";
 
-export const kNotFound = /* @__PURE__ */ Symbol.for("h3.notFound");
-export const kHandled = /* @__PURE__ */ Symbol.for("h3.handled");
+import type { H3Config } from "./types/h3.ts";
+import type { H3Event } from "./types/event.ts";
 
-export function prepareResponse(
+export const kNotFound: symbol = /* @__PURE__ */ Symbol.for("h3.notFound");
+export const kHandled: symbol = /* @__PURE__ */ Symbol.for("h3.handled");
+
+export function handleResponse(
   val: unknown,
   event: H3Event,
   config: H3Config,
-): Response {
-  const isHead = event.method === "HEAD";
+): Response | Promise<Response> {
+  if (val && val instanceof Promise) {
+    return val
+      .catch((error) => error)
+      .then((resolvedVal) => handleResponse(resolvedVal, event, config));
+  }
 
+  const response = prepareResponse(val, event, config);
+  if (response instanceof Promise) {
+    return handleResponse(response, event, config);
+  }
+
+  const { onBeforeResponse } = config;
+  return onBeforeResponse
+    ? Promise.resolve(onBeforeResponse(event, response)).then(() => response)
+    : response;
+}
+
+function prepareResponse(
+  val: unknown,
+  event: H3Event,
+  config: H3Config,
+  nested?: boolean,
+): Response | Promise<Response> {
   if (val === kHandled) {
-    return new Response(null);
+    return new FastResponse(null);
   }
 
-  if (val instanceof Response) {
-    const we = event as H3WebEvent;
-    const status = we.response.status;
-    const statusText = we.response.statusText;
-    const headers = we.response._headers || we.response._headersInit;
-    if (!status && !statusText && !headers) {
-      return val;
+  if (val === kNotFound) {
+    val = createError({
+      statusCode: 404,
+      statusMessage: `Cannot find any route matching [${event.req.method}] ${event.url}`,
+    });
+  }
+
+  if (val && val instanceof Error) {
+    const error = createError(val); // todo: flag unhandled
+    const { onError } = config;
+    return onError && !nested
+      ? Promise.resolve(onError(error, event))
+          .catch((error) => error)
+          .then((newVal) => prepareResponse(newVal ?? val, event, config, true))
+      : errorResponse(error, config.debug);
+  }
+
+  // Only set if event.res.headers is accessed
+  const eventHeaders = (event.res as { _headers?: Headers })._headers;
+
+  if (!(val instanceof Response)) {
+    const res = prepareResponseBody(val, event, config);
+    const status = event.res.status;
+    return new FastResponse(
+      nullBody(event.req.method, status) ? null : res.body,
+      {
+        status,
+        statusText: event.res.statusText,
+        headers:
+          res.headers && eventHeaders
+            ? mergeHeaders(res.headers, eventHeaders)
+            : res.headers || eventHeaders,
+      },
+    );
+  }
+
+  // Note: Only check _headers. res.status/statusText are not used as we use them from the response
+  if (!eventHeaders) {
+    return val; // Fast path: no headers to merge
+  }
+  return new FastResponse(
+    nullBody(event.req.method, val.status) ? null : val.body,
+    {
+      status: val.status,
+      statusText: val.statusText,
+      headers: mergeHeaders(eventHeaders, val.headers),
+    },
+  ) as Response;
+}
+
+function mergeHeaders(base: HeadersInit, merge: Headers): Headers {
+  const mergedHeaders = new Headers(base);
+  for (const [name, value] of merge) {
+    if (name === "set-cookie") {
+      mergedHeaders.append(name, value);
+    } else {
+      mergedHeaders.set(name, value);
     }
-    return new SrvxResponse(isHead || isNullStatus(status) ? null : val.body, {
-      status: status || val.status,
-      statusText: statusText || val.statusText,
-      headers: headers || val.headers,
-    }) as Response;
   }
-
-  // We always prepare response body to resolve status and headers
-  const body = prepareResponseBody(val, event, config);
-  const status = event.response.status;
-  const responseInit: PreparedResponse = {
-    body: isHead || isNullStatus(status) ? null : body,
-    status,
-    statusText: event.response.statusText,
-    headers: event.response._headers || event.response._headersInit,
-  };
-
-  return new SrvxResponse(responseInit.body, responseInit) as Response;
+  return mergedHeaders;
 }
 
-function isNullStatus(status?: number) {
-  return (
-    status &&
-    (status === 100 ||
-      status === 101 ||
-      status === 102 ||
-      status === 204 ||
-      status === 205 ||
-      status === 304)
-  );
-}
+const emptyHeaders = /* @__PURE__ */ new Headers({ "content-length": "0" });
 
-export function prepareResponseBody(
+const jsonHeaders = /* @__PURE__ */ new Headers({
+  "content-type": "application/json;charset=UTF-8",
+});
+
+function prepareResponseBody(
   val: unknown,
   event: H3Event,
   config: H3Config,
-): BodyInit | null | undefined {
+): { body: BodyInit; headers?: HeadersInit } {
   // Empty Content
   if (val === null || val === undefined) {
-    return "";
-  }
-
-  // Not found
-  if (val === kNotFound) {
-    return prepareErrorResponseBody(
-      {
-        statusCode: 404,
-        statusMessage: `Cannot find any route matching [${event.request.method}] ${event.path}`,
-      },
-      event,
-      config,
-    );
+    return { body: "", headers: emptyHeaders };
   }
 
   const valType = typeof val;
 
   // Text
   if (valType === "string") {
-    return val as string;
+    // Default header is text/plain we don't set it for performance reasons
+    // new Response("").headers.get('content-type') === "text/plain;charset=UTF-8"
+    return { body: val as string };
   }
 
   // Buffer (should be before JSON)
   if (val instanceof Uint8Array) {
-    event.response.setHeader("content-type", "application/octet-stream");
-    event.response.setHeader("content-length", val.byteLength.toString());
-    return val;
-  }
-
-  // Error (should be before JSON)
-  if (val instanceof Error) {
-    return prepareErrorResponseBody(val, event, config);
+    event.res.headers.set("content-length", val.byteLength.toString());
+    return { body: val };
   }
 
   // JSON
   if (isJSONSerializable(val, valType)) {
-    event.response.setHeader("content-type", "application/json; charset=utf-8");
-    return JSON.stringify(val, undefined, config.debug ? 2 : undefined);
+    return {
+      body: JSON.stringify(val, undefined, config.debug ? 2 : undefined),
+      headers: jsonHeaders,
+    };
   }
 
   // BigInt
   if (valType === "bigint") {
-    event.response.setHeader("content-type", "application/json; charset=utf-8");
-    return val.toString();
-  }
-
-  // Web Response
-  if (val instanceof Response) {
-    event.response.status = val.status;
-    event.response.statusText = val.statusText;
-    for (const [name, value] of val.headers) {
-      event.response.setHeader(name, value);
-    }
-    return val.body;
+    return { body: val.toString(), headers: jsonHeaders };
   }
 
   // Blob
   if (val instanceof Blob) {
-    event.response.setHeader("content-type", val.type);
-    event.response.setHeader("content-length", val.size.toString());
-    return val.stream();
+    const headers: Record<string, string> = {
+      "content-type": val.type,
+      "content-length": val.size.toString(),
+    };
+
+    // File
+    if ("name" in val) {
+      const filename = encodeURIComponent(val.name as string);
+      // Omit the disposition type ("inline" or "attachment") and let the client (browser) decide.
+      headers["content-disposition"] =
+        `filename="${filename}"; filename*=UTF-8''${filename}`;
+    }
+
+    return { body: val.stream(), headers };
   }
 
-  // Symbol or Function is not supported
-  if (valType === "symbol" || valType === "function") {
-    return prepareErrorResponseBody(
-      {
-        statusCode: 500,
-        statusMessage: `[h3] Cannot send ${valType} as response.`,
-      },
-      event,
-      config,
-    );
+  // Symbol or Function
+  if (valType === "symbol") {
+    return { body: val.toString() };
+  }
+  if (valType === "function") {
+    return { body: `${(val as () => unknown).name}()` };
   }
 
-  return val as BodyInit;
+  return { body: val as BodyInit };
 }
 
-export function prepareErrorResponseBody(
-  val: Partial<H3Error> | Error,
-  event: H3Event,
-  config: H3Config,
-): string {
-  const error = createError(val as H3Error);
-  event.response.status = error.statusCode;
-  event.response.statusText = error.statusMessage;
-  event.response.setHeader("content-type", "application/json; charset=utf-8");
-  return JSON.stringify({
-    statusCode: error.statusCode,
-    statusMessage: error.statusMessage,
-    data: error.data,
-    stack:
-      config.debug && error.stack
-        ? error.stack.split("\n").map((l) => l.trim())
-        : undefined,
-  });
+function nullBody(
+  method: string,
+  status: number | undefined,
+): boolean | 0 | undefined {
+  // prettier-ignore
+  return (method === "HEAD" ||
+    status === 100 || status === 101 || status === 102 ||
+    status === 204 || status === 205 || status === 304
+  )
+}
+
+function errorResponse(error: H3Error, debug?: boolean): Response {
+  return new FastResponse(
+    JSON.stringify(
+      {
+        statusCode: error.statusCode,
+        statusMessage: error.statusMessage,
+        data: error.data,
+        stack:
+          debug && error.stack
+            ? error.stack.split("\n").map((l) => l.trim())
+            : undefined,
+      },
+      null,
+      2,
+    ),
+    {
+      status: error.statusCode,
+      statusText: error.statusMessage,
+      headers: {
+        "content-type": "application/json; charset=utf-8",
+      },
+    },
+  );
 }

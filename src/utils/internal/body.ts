@@ -1,5 +1,5 @@
-import { EmptyObject } from "./obj";
-import { hasProp } from "./object";
+import { EmptyObject } from "./obj.ts";
+import { hasProp } from "./object.ts";
 
 export function parseURLEncodedBody(body: string) {
   const form = new URLSearchParams(body);

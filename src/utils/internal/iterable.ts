@@ -1,4 +1,4 @@
-import { textEncoder } from "./encoding";
+import { textEncoder } from "./encoding.ts";
 
 export type IterationSource<Val, Ret = Val> =
   | Iterable<Val>

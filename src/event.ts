@@ -1,114 +1,54 @@
-import type { ServerRequest } from "srvx/types";
-import type { H3Event, H3EventContext, HTTPMethod } from "./types";
-import type { H3EventResponse } from "./types/event";
+import type { ServerRequest, ServerRuntimeContext } from "srvx";
+import type { H3Event as H3EventT, H3EventContext } from "./types/event.ts";
 
-const H3EventContext = /* @__PURE__ */ (() => {
-  const C = function () {};
-  C.prototype = Object.create(null);
-  return C;
-})() as unknown as { new (): H3EventContext };
+import { EmptyObject } from "./utils/internal/obj.ts";
+import { FastURL } from "srvx";
 
-const HeadersObject = /* @__PURE__ */ (() => {
-  const C = function () {};
-  C.prototype = Object.create(null);
-  return C;
-})() as unknown as { new (): H3EventContext };
-
-export class H3WebEvent implements H3Event {
+export class H3Event implements H3EventT {
   static __is_event__ = true;
+
+  req: ServerRequest;
+  url: URL;
   context: H3EventContext;
-  request: ServerRequest;
-  response: H3EventResponse;
+  _res?: H3EventResponse;
 
-  _url?: URL;
-  _pathname?: string;
-  _urlqindex?: number;
-  _query?: URLSearchParams;
-  _queryString?: string;
-
-  constructor(request: ServerRequest, context?: H3EventContext) {
-    this.context = context || new H3EventContext();
-    this.request = request;
-    this.response = new WebEventResponse();
+  constructor(req: ServerRequest, context?: H3EventContext) {
+    this.context = context || new EmptyObject();
+    this.req = req;
+    // Parsed URL can be provided by srvx (node) and other runtimes
+    const _url = (req as { _url?: URL })._url;
+    this.url = _url && _url instanceof URL ? _url : new FastURL(req.url);
   }
 
-  get method(): HTTPMethod {
-    return this.request.method as HTTPMethod;
+  get res(): H3EventResponse {
+    if (!this._res) {
+      this._res = new H3EventResponse();
+    }
+    return this._res;
+  }
+
+  get path(): string {
+    return this.url.pathname + this.url.search;
+  }
+
+  get method(): string {
+    return this.req.method;
   }
 
   get headers(): Headers {
-    return this.request.headers;
+    return this.req.headers;
   }
 
-  get url() {
-    if (!this._url) {
-      this._url = new URL(this.request.url);
-    }
-    return this._url;
+  get runtime(): ServerRuntimeContext | undefined {
+    return this.req.runtime;
   }
 
-  get path() {
-    return this.pathname + this.queryString;
-  }
-
-  get pathname() {
-    if (this._url) {
-      return this._url.pathname; // reuse parsed URL
-    }
-    if (!this._pathname) {
-      const url = this.request.url;
-      const protoIndex = url.indexOf("://");
-      if (protoIndex === -1) {
-        return this.url.pathname; // deoptimize
-      }
-      const pIndex = url.indexOf("/", protoIndex + 4 /* :// */);
-      if (pIndex === -1) {
-        return this.url.pathname; // deoptimize
-      }
-      const qIndex = (this._urlqindex = url.indexOf("?", pIndex));
-      this._pathname = url.slice(pIndex, qIndex === -1 ? undefined : qIndex);
-    }
-    return this._pathname;
-  }
-
-  get query() {
-    if (this._url) {
-      return this._url.searchParams; // reuse parsed URL
-    }
-    if (!this._query) {
-      this._query = new URLSearchParams(this.queryString);
-    }
-    return this._query;
-  }
-
-  get queryString() {
-    if (this._url) {
-      return this._url.search; // reuse parsed URL
-    }
-    if (!this._queryString) {
-      const qIndex = this._urlqindex;
-      if (qIndex === -1) {
-        this._queryString = "";
-      } else {
-        this._queryString =
-          this._urlqindex === undefined
-            ? this.url.search // deoptimize (mostly unlikely as pathname accessor is always used)
-            : this.request.url.slice(this._urlqindex);
-      }
-    }
-    return this._queryString;
-  }
-
-  get node() {
-    return this.request.node;
-  }
-
-  get ip() {
-    return this.request.remoteAddress;
+  get node(): ServerRuntimeContext["node"] | undefined {
+    return this.req.runtime?.node;
   }
 
   toString(): string {
-    return `[${this.request.method}] ${this.request.url}`;
+    return `[${this.req.method}] ${this.req.url}`;
   }
 
   toJSON(): string {
@@ -116,25 +56,14 @@ export class H3WebEvent implements H3Event {
   }
 }
 
-class WebEventResponse implements H3EventResponse {
-  _headersInit?: Record<string, string>;
+class H3EventResponse {
+  status?: number;
+  // statusText?: string;
   _headers?: Headers;
-
-  get headers() {
+  get headers(): Headers {
     if (!this._headers) {
-      this._headers = new Headers(this._headersInit);
+      this._headers = new Headers();
     }
     return this._headers;
-  }
-
-  setHeader(name: string, value: string): void {
-    if (this._headers) {
-      this._headers.set(name, value);
-    } else {
-      if (!this._headersInit) {
-        this._headersInit = new HeadersObject();
-      }
-      this._headersInit[name] = value;
-    }
   }
 }

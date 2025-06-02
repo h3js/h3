@@ -1,11 +1,12 @@
+---
+icon: ph:arrow-right
+---
+
 # Stream Response
 
 > Stream response to the client.
 
-Streaming is a powerful feature of h3. It allows you to send data to the client as soon as you have it. This is useful for large files or long running tasks.
-
-> [!WARNING]
-> Streaming is complicated and can become an overhead if you don't need it.
+Using stream responses It allows you to send data to the client as soon as you have it. This is useful for large files or long running responses.
 
 ## Create a Stream
 
@@ -41,9 +42,9 @@ const stream = new ReadableStream({
 ## Send a Stream
 
 ```ts
-import { createApp, setResponseHeader } from "h3";
+import { H3, setResponseHeader } from "h3";
 
-export const app = createApp();
+export const app = new H3();
 
 app.use((event) => {
   // Set to response header to tell to the client that we are sending a stream.

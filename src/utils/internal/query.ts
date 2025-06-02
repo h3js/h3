@@ -4,7 +4,7 @@ Copyright (c) 2022 Yagiz Nizipli
 https://github.com/anonrig/fast-querystring/blob/main/LICENSE
 */
 
-import { EmptyObject } from "./obj";
+import { EmptyObject } from "./obj.ts";
 
 const plusRegex = /\+/g;
 

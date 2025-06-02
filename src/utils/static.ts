@@ -1,10 +1,57 @@
-import type { H3Event, StaticAssetMeta, ServeStaticOptions } from "../types";
-import { createError } from "../error";
-import {
-  withLeadingSlash,
-  withoutTrailingSlash,
-  getPathname,
-} from "./internal/path";
+import type { H3Event } from "../types/event.ts";
+import { createError } from "../error.ts";
+import { withLeadingSlash, withoutTrailingSlash } from "./internal/path.ts";
+
+export interface StaticAssetMeta {
+  type?: string;
+  etag?: string;
+  mtime?: number | string | Date;
+  path?: string;
+  size?: number;
+  encoding?: string;
+}
+
+export interface ServeStaticOptions {
+  /**
+   * This function should resolve asset meta
+   */
+  getMeta: (
+    id: string,
+  ) => StaticAssetMeta | undefined | Promise<StaticAssetMeta | undefined>;
+
+  /**
+   * This function should resolve asset content
+   */
+  getContents: (
+    id: string,
+  ) => BodyInit | null | undefined | Promise<BodyInit | null | undefined>;
+
+  /**
+   * Headers to set on the response
+   */
+  headers?: HeadersInit;
+
+  /**
+   * Map of supported encodings (compressions) and their file extensions.
+   *
+   * Each extension will be appended to the asset path to find the compressed version of the asset.
+   *
+   * @example { gzip: ".gz", br: ".br" }
+   */
+  encodings?: Record<string, string>;
+
+  /**
+   * Default index file to serve when the path is a directory
+   *
+   * @default ["/index.html"]
+   */
+  indexNames?: string[];
+
+  /**
+   * When set to true, the function will not throw 404 error when the asset meta is not found or meta validation failed
+   */
+  fallthrough?: boolean;
+}
 
 /**
  * Dynamically serve static assets based on the request path.
@@ -13,28 +60,39 @@ export async function serveStatic(
   event: H3Event,
   options: ServeStaticOptions,
 ): Promise<false | undefined | null | BodyInit> {
-  if (event.request.method !== "GET" && event.request.method !== "HEAD") {
-    if (!options.fallthrough) {
-      event.response.headers.set("allow", "GET, HEAD");
-      throw createError({
-        statusMessage: "Method Not Allowed",
-        statusCode: 405,
-      });
+  if (options.headers) {
+    const entries = Array.isArray(options.headers)
+      ? options.headers
+      : typeof options.headers.entries === "function"
+        ? options.headers.entries()
+        : Object.entries(options.headers);
+    for (const [key, value] of entries) {
+      event.res.headers.set(key, value);
     }
-    return false;
+  }
+
+  if (event.req.method !== "GET" && event.req.method !== "HEAD") {
+    if (options.fallthrough) {
+      return;
+    }
+    event.res.headers.set("allow", "GET, HEAD");
+    throw createError({
+      statusMessage: "Method Not Allowed",
+      statusCode: 405,
+    });
   }
 
   const originalId = decodeURI(
-    withLeadingSlash(withoutTrailingSlash(getPathname(event.path))),
+    withLeadingSlash(withoutTrailingSlash(event.url.pathname)),
   );
 
   const acceptEncodings = parseAcceptEncoding(
-    event.request.headers.get("accept-encoding") || "",
+    event.req.headers.get("accept-encoding") || "",
     options.encodings,
   );
 
   if (acceptEncodings.length > 1) {
-    event.response.headers.set("vary", "accept-encoding");
+    event.res.headers.set("vary", "accept-encoding");
   }
 
   let id = originalId;
@@ -56,59 +114,56 @@ export async function serveStatic(
   }
 
   if (!meta) {
-    if (!options.fallthrough) {
-      throw createError({
-        statusMessage: "Cannot find static asset " + id,
-        statusCode: 404,
-      });
+    if (options.fallthrough) {
+      return;
     }
-    return false;
+    throw createError({ statusCode: 404 });
   }
 
-  if (meta.etag && !event.response.headers.has("etag")) {
-    event.response.headers.set("etag", meta.etag);
+  if (meta.etag && !event.res.headers.has("etag")) {
+    event.res.headers.set("etag", meta.etag);
   }
 
   const ifNotMatch =
-    meta.etag && event.request.headers.get("if-none-match") === meta.etag;
+    meta.etag && event.req.headers.get("if-none-match") === meta.etag;
   if (ifNotMatch) {
-    event.response.status = 304;
-    event.response.statusText = "Not Modified";
+    event.res.status = 304;
+    event.res.statusText = "Not Modified";
     return "";
   }
 
   if (meta.mtime) {
     const mtimeDate = new Date(meta.mtime);
 
-    const ifModifiedSinceH = event.request.headers.get("if-modified-since");
+    const ifModifiedSinceH = event.req.headers.get("if-modified-since");
     if (ifModifiedSinceH && new Date(ifModifiedSinceH) >= mtimeDate) {
-      event.response.status = 304;
-      event.response.statusText = "Not Modified";
+      event.res.status = 304;
+      event.res.statusText = "Not Modified";
       return "";
     }
 
-    if (!event.response.headers.get("last-modified")) {
-      event.response.headers.set("last-modified", mtimeDate.toUTCString());
+    if (!event.res.headers.get("last-modified")) {
+      event.res.headers.set("last-modified", mtimeDate.toUTCString());
     }
   }
 
-  if (meta.type && !event.response.headers.get("content-type")) {
-    event.response.headers.set("content-type", meta.type);
+  if (meta.type && !event.res.headers.get("content-type")) {
+    event.res.headers.set("content-type", meta.type);
   }
 
-  if (meta.encoding && !event.response.headers.get("content-encoding")) {
-    event.response.headers.set("content-encoding", meta.encoding);
+  if (meta.encoding && !event.res.headers.get("content-encoding")) {
+    event.res.headers.set("content-encoding", meta.encoding);
   }
 
   if (
     meta.size !== undefined &&
     meta.size > 0 &&
-    !event.request.headers.get("content-length")
+    !event.req.headers.get("content-length")
   ) {
-    event.response.headers.set("content-length", meta.size + "");
+    event.res.headers.set("content-length", meta.size + "");
   }
 
-  if (event.request.method === "HEAD") {
+  if (event.req.method === "HEAD") {
     return "";
   }
 

@@ -1,5 +1,5 @@
-import { noContent } from "../src";
-import { describeMatrix } from "./_setup";
+import { noContent } from "../src/index.ts";
+import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("event response", (t, { it, describe, expect }) => {
   async function webResponseToPlain(res: Response) {
@@ -37,8 +37,8 @@ describeMatrix("event response", (t, { it, describe, expect }) => {
 
     it("override status and statusText", async () => {
       t.app.all("/test", (event) => {
-        event.response.status = 418;
-        event.response.statusText = "custom-status";
+        event.res.status = 418;
+        event.res.statusText = "custom-status";
         return "text";
       });
 
@@ -83,8 +83,8 @@ describeMatrix("event response", (t, { it, describe, expect }) => {
     });
     it("override status and statusText with setResponseStatus method", async () => {
       t.app.all("/test", (event) => {
-        event.response.status = 418;
-        event.response.statusText = "status-text";
+        event.res.status = 418;
+        event.res.statusText = "status-text";
         return "";
       });
 
@@ -103,8 +103,8 @@ describeMatrix("event response", (t, { it, describe, expect }) => {
 
     it("does not sets content-type for 304", async () => {
       t.app.all("/test", (event) => {
-        event.response.status = 304;
-        event.response.statusText = "Not Modified";
+        event.res.status = 304;
+        event.res.statusText = "Not Modified";
         return "";
       });
 

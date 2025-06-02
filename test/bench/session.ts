@@ -1,6 +1,6 @@
 import { bench, run, summary } from "mitata";
-import * as h3 from "../../src";
-import * as h3Nightly from "h3-nightly";
+import * as h3 from "../../src/index.ts";
+// import * as h3Nightly from "h3-nightly";
 
 // Create a random string
 // prettier-ignore
@@ -11,12 +11,12 @@ const password = "some_not_random_password_that_is_also_long_enough";
 const apps = (
   [
     ["h3", h3],
-    ["h3-nightly", h3Nightly],
+    // ["h3-nightly", h3Nightly],
   ] as const
 ).map(([name, lib]) => {
   return [
     name,
-    lib.createH3({ debug: true }).get("/", async (event: any) => {
+    new lib.H3({ debug: true }).get("/", async (event: any) => {
       const session = await lib.useSession(event, { password });
       await session.update((data) => {
         data.ctr = (data.ctr || 0) + 1;

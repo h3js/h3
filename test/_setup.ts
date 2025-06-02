@@ -1,5 +1,5 @@
 import type { Mock } from "vitest";
-import type { H3, H3Config, H3Error, H3Event, NodeHandler } from "../src/types";
+import type { H3Config, H3Error, H3Event, NodeHandler } from "../src/index.ts";
 import { Server as NodeServer } from "node:http";
 import { getRandomPort } from "get-port-please";
 import {
@@ -12,14 +12,14 @@ import {
   beforeAll,
   afterAll,
 } from "vitest";
-import { createH3, toNodeHandler } from "../src";
+import { H3, toNodeHandler } from "../src/index.ts";
 
 // Matrix
 export function describeMatrix(
   title: string,
   fn: (ctx: TestContext, testUtils: TestUtils) => void | Promise<void>,
   opts?: TestOptions,
-) {
+): void {
   const run = (ctx: TestContext) => {
     const utils: TestUtils = {
       expect,
@@ -48,7 +48,22 @@ export function describeMatrix(
 function setupWebTest(opts: TestOptions = {}): TestContext {
   const ctx = setupBaseTest("web", opts);
   beforeEach(() => {
-    ctx.fetch = (input, init) => Promise.resolve(ctx.app.fetch(input, init));
+    ctx.fetch = (input, init) => {
+      const headers = new Headers(init?.headers);
+      if (
+        input.startsWith("/") &&
+        !headers.has("host") &&
+        !headers.has("x-forwarded-host")
+      ) {
+        headers.set("Host", "localhost");
+      }
+      return Promise.resolve(
+        ctx.app.fetch(input, {
+          ...init,
+          headers,
+        }),
+      );
+    };
   });
   return ctx;
 }
@@ -71,11 +86,14 @@ function setupNodeTest(opts: TestOptions = {}): TestContext {
       const url = new URL(input, ctx.url);
       const headers = new Headers(init.headers);
       // Emulate a reverse proxy
+      if (!headers.has("host")) {
+        headers.set("Host", url.host);
+      }
       if (!headers.has("x-forwarded-host")) {
-        headers.set("x-forwarded-host", url.host);
+        headers.set("X-Forwarded-Host", url.host);
       }
       if (url.protocol === "https:" && !headers.has("x-forwarded-proto")) {
-        headers.set("x-forwarded-proto", "https");
+        headers.set("X-Forwarded-Proto", "https");
       }
       return fetch(`${ctx.url}${url.pathname}${url.search}`, {
         redirect: "manual",
@@ -127,7 +145,7 @@ function setupBaseTest(
       ctx.errors.push(error);
     });
 
-    ctx.app = createH3({
+    ctx.app = new H3({
       debug: true,
       onError: ctx.hooks.onError,
       onRequest: ctx.hooks.onRequest,

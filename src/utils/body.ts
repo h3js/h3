@@ -1,13 +1,20 @@
-import type { InferEventInput, ValidateFunction, H3Event } from "../types";
-import { createError } from "../error";
-import { validateData } from "./internal/validate";
-import { parseURLEncodedBody } from "./internal/body";
+import { createError } from "../error.ts";
+import { validateData } from "./internal/validate.ts";
+import { parseURLEncodedBody } from "./internal/body.ts";
+
+import type { H3Event } from "../types/event.ts";
+import type { InferEventInput } from "../types/handler.ts";
+import type { ValidateResult } from "./internal/validate.ts";
+import type {
+  StandardSchemaV1,
+  InferOutput,
+} from "./internal/standard-schema.ts";
 
 /**
  * Reads request body and tries to parse using JSON.parse or URLSearchParams.
  *
  * @example
- * app.use("/", async (event) => {
+ * app.get("/", async (event) => {
  *   const body = await readBody(event);
  * });
  *
@@ -21,12 +28,12 @@ export async function readBody<
   _Event extends H3Event = H3Event,
   _T = InferEventInput<"body", _Event, T>,
 >(event: _Event): Promise<undefined | _T> {
-  const text = await event.request.text();
+  const text = await event.req.text();
   if (!text) {
     return undefined;
   }
 
-  const contentType = event.request.headers.get("content-type") || "";
+  const contentType = event.req.headers.get("content-type") || "";
   if (contentType.startsWith("application/x-www-form-urlencoded")) {
     return parseURLEncodedBody(text) as _T;
   }
@@ -42,13 +49,27 @@ export async function readBody<
   }
 }
 
+export async function readValidatedBody<
+  Event extends H3Event,
+  S extends StandardSchemaV1,
+>(event: Event, validate: S): Promise<InferOutput<S>>;
+export async function readValidatedBody<
+  Event extends H3Event,
+  OutputT,
+  InputT = InferEventInput<"body", Event, OutputT>,
+>(
+  event: Event,
+  validate: (
+    data: InputT,
+  ) => ValidateResult<OutputT> | Promise<ValidateResult<OutputT>>,
+): Promise<OutputT>;
 /**
  * Tries to read the request body via `readBody`, then uses the provided validation function and either throws a validation error or returns the result.
  *
  * You can use a simple function to validate the body or use a library like `zod` to define a schema.
  *
  * @example
- * app.use("/", async (event) => {
+ * app.get("/", async (event) => {
  *   const body = await readValidatedBody(event, (body) => {
  *     return typeof body === "object" && body !== null;
  *   });
@@ -56,7 +77,7 @@ export async function readBody<
  * @example
  * import { z } from "zod";
  *
- * app.use("/", async (event) => {
+ * app.get("/", async (event) => {
  *   const objectSchema = z.object();
  *   const body = await readValidatedBody(event, objectSchema.safeParse);
  * });
@@ -67,11 +88,10 @@ export async function readBody<
  * @return {*} The `Object`, `Array`, `String`, `Number`, `Boolean`, or `null` value corresponding to the request JSON body.
  * @see {readBody}
  */
-export async function readValidatedBody<
-  T,
-  Event extends H3Event = H3Event,
-  _T = InferEventInput<"body", Event, T>,
->(event: Event, validate: ValidateFunction<_T>): Promise<_T> {
+export async function readValidatedBody(
+  event: H3Event,
+  validate: any,
+): Promise<any> {
   const _body = await readBody(event);
   return validateData(_body, validate);
 }

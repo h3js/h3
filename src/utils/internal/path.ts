@@ -35,7 +35,7 @@ export function joinURL(
   return base + path;
 }
 
-export function withoutBase(input: string = "", base: string = "") {
+export function withoutBase(input: string = "", base: string = ""): string {
   if (!base || base === "/") {
     return input;
   }
@@ -47,7 +47,7 @@ export function withoutBase(input: string = "", base: string = "") {
   return trimmed[0] === "/" ? trimmed : "/" + trimmed;
 }
 
-export function getPathname(path: string = "/") {
+export function getPathname(path: string = "/"): string {
   return path.startsWith("/")
     ? path.split("?")[0]
     : new URL(path, "http://localhost").pathname;

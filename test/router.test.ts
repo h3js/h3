@@ -1,13 +1,11 @@
-import type { H3 } from "../src/types";
 import { beforeEach } from "vitest";
-import { getRouterParams, getRouterParam, createH3 } from "../src";
-import { describeMatrix } from "./_setup";
+import { getRouterParams, getRouterParam, H3 } from "../src/index.ts";
+import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("router", (t, { it, expect, describe }) => {
   beforeEach(() => {
     t.app
       .get("/", () => "Hello")
-      .get("/test/?/a", () => "/test/?/a")
       .get("/many/routes", () => "many routes")
       .post("/many/routes", () => "many routes")
       .get("/test", () => "Test (GET)")
@@ -20,7 +18,7 @@ describeMatrix("router", (t, { it, expect, describe }) => {
   });
 
   it("Multiple Routers", async () => {
-    const secondRouter = createH3().get("/router2", () => "router2");
+    const secondRouter = new H3().get("/router2", () => "router2");
 
     t.app.use(secondRouter);
 
@@ -63,12 +61,9 @@ describeMatrix("router", (t, { it, expect, describe }) => {
   });
 
   it("Handle shadowed route", async () => {
-    t.app.post(
-      "/test/123",
-      (event) => `[${event.request.method}] ${event.path}`,
-    );
+    t.app.post("/test/123", (event) => `[${event.req.method}] ${event.path}`);
 
-    t.app.get("/test/**", (event) => `[${event.request.method}] ${event.path}`);
+    t.app.get("/test/**", (event) => `[${event.req.method}] ${event.path}`);
 
     // Loop to validate cached behavior
     for (let i = 0; i < 5; i++) {
@@ -86,7 +81,7 @@ describeMatrix("router", (t, { it, expect, describe }) => {
     let router: H3;
 
     beforeEach(() => {
-      router = createH3()
+      router = new H3()
         .get("/preemptive/test", () => "Test")
         .get("/preemptive/undefined", () => undefined);
       t.app.all("/**", router);
@@ -101,7 +96,9 @@ describeMatrix("router", (t, { it, expect, describe }) => {
       const res = await t.fetch("/preemptive/404");
       expect(JSON.parse(await res.text())).toMatchObject({
         statusCode: 404,
-        statusMessage: "Cannot find any route matching [GET] /preemptive/404",
+        statusMessage: expect.stringMatching(
+          /Cannot find any route matching \[GET\] http:\/\/localhost[:\d]*\/preemptive\/404/,
+        ),
       });
     });
 
@@ -119,7 +116,7 @@ describeMatrix("router", (t, { it, expect, describe }) => {
   describe("getRouterParams", () => {
     describe("with router", () => {
       it("can return router params", async () => {
-        const router = createH3().get("/test/params/:name", (event) => {
+        const router = new H3().get("/test/params/:name", (event) => {
           expect(getRouterParams(event)).toMatchObject({ name: "string" });
           return "200";
         });
@@ -130,7 +127,7 @@ describeMatrix("router", (t, { it, expect, describe }) => {
       });
 
       it("can decode router params", async () => {
-        const router = createH3().get("/test/params/:name", (event) => {
+        const router = new H3().get("/test/params/:name", (event) => {
           expect(getRouterParams(event, { decode: true })).toMatchObject({
             name: "string with space",
           });
@@ -159,7 +156,7 @@ describeMatrix("router", (t, { it, expect, describe }) => {
   describe("getRouterParam", () => {
     describe("with router", () => {
       it("can return a value of router params corresponding to the given name", async () => {
-        const router = createH3().get("/test/params/:name", (event) => {
+        const router = new H3().get("/test/params/:name", (event) => {
           expect(getRouterParam(event, "name")).toEqual("string");
           return "200";
         });
@@ -170,7 +167,7 @@ describeMatrix("router", (t, { it, expect, describe }) => {
       });
 
       it("can decode a value of router params corresponding to the given name", async () => {
-        const router = createH3().get("/test/params/:name", (event) => {
+        const router = new H3().get("/test/params/:name", (event) => {
           expect(getRouterParam(event, "name", { decode: true })).toEqual(
             "string with space",
           );
@@ -199,7 +196,7 @@ describeMatrix("router", (t, { it, expect, describe }) => {
   describe("evet.context.matchedRoute", () => {
     describe("with router", () => {
       it("can return the matched path", async () => {
-        const router = createH3().get("/test/:template", (event) => {
+        const router = new H3().get("/test/:template", (event) => {
           expect(event.context.matchedRoute).toMatchObject({
             method: "GET",
             route: "/test/:template",

@@ -1,3 +1,7 @@
+---
+icon: ph:arrow-right
+---
+
 # Validate Data
 
 > Ensure that your data are valid and safe before processing them.

@@ -1,11 +1,12 @@
+import { defineEventHandler } from "../handler.ts";
+
 import type { Hooks as WSHooks } from "crossws";
-import { createError } from "../error";
-import { defineEventHandler } from "../handler";
+import type { EventHandler } from "../types/handler.ts";
 
 /**
  * Define WebSocket hooks.
  *
- * @see https://h3.unjs.io/guide/websocket
+ * @see https://h3.dev/guide/websocket
  */
 export function defineWebSocket(hooks: Partial<WSHooks>): Partial<WSHooks> {
   return hooks;
@@ -14,16 +15,17 @@ export function defineWebSocket(hooks: Partial<WSHooks>): Partial<WSHooks> {
 /**
  * Define WebSocket event handler.
  *
- * @see https://h3.unjs.io/guide/websocket
+ * @see https://h3.dev/guide/websocket
  */
-export function defineWebSocketHandler(hooks: Partial<WSHooks>) {
-  return defineEventHandler({
-    handler() {
-      throw createError({
-        statusCode: 426,
-        statusMessage: "Upgrade Required",
-      });
-    },
-    websocket: hooks,
+export function defineWebSocketHandler(hooks: Partial<WSHooks>): EventHandler {
+  return defineEventHandler(() => {
+    return Object.assign(
+      new Response("WebSocket upgrade is required.", {
+        status: 426,
+      }),
+      {
+        crossws: hooks,
+      },
+    );
   });
 }
