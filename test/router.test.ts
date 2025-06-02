@@ -6,7 +6,6 @@ describeMatrix("router", (t, { it, expect, describe }) => {
   beforeEach(() => {
     t.app
       .get("/", () => "Hello")
-      .get("/test/?/a", () => "/test/?/a")
       .get("/many/routes", () => "many routes")
       .post("/many/routes", () => "many routes")
       .get("/test", () => "Test (GET)")
