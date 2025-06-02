@@ -1,35 +1,20 @@
-import { defineEventHandler, withBasicAuth } from "../src";
-import { describeMatrix } from "./_setup";
+import { basicAuth } from "../src/index.ts";
+import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("auth", (t, { it, expect }) => {
+  const auth = basicAuth({ username: "test", password: "123!" });
+
   it("responds 401 for a missing authorization header", async () => {
-    t.app.use(
-      "/test",
-      withBasicAuth(
-        { username: "test", password: "123!" },
-        defineEventHandler(async () => {
-          return "Hello, world!";
-        }),
-      ),
-    );
+    t.app.get("/test", () => "Hello, world!", [auth]);
     const result = await t.fetch("/test", {
       method: "GET",
     });
-
-    expect(await result.text()).toBe("Authentication required");
+    expect(result.statusText).toBe("Authentication required");
     expect(result.status).toBe(401);
   });
 
   it("responds 401 for an incorrect authorization header", async () => {
-    t.app.use(
-      "/test",
-      withBasicAuth(
-        { username: "test", password: "123!" },
-        defineEventHandler(async () => {
-          return "Hello, world!";
-        }),
-      ),
-    );
+    t.app.get("/test", () => "Hello, world!", [auth]);
     const result = await t.fetch("/test", {
       method: "GET",
       headers: {
@@ -37,20 +22,12 @@ describeMatrix("auth", (t, { it, expect }) => {
       },
     });
 
-    expect(await result.text()).toBe("Authentication required");
+    expect(result.statusText).toBe("Authentication required");
     expect(result.status).toBe(401);
   });
 
   it("responds 200 for a correct authorization header", async () => {
-    t.app.use(
-      "/test",
-      withBasicAuth(
-        "test:123!",
-        defineEventHandler(async () => {
-          return "Hello, world!";
-        }),
-      ),
-    );
+    t.app.get("/test", () => "Hello, world!", [auth]);
     const result = await t.fetch("/test", {
       method: "GET",
       headers: {

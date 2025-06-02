@@ -13,6 +13,7 @@ describe("h3 package", () => {
         "appendResponseHeader",
         "appendResponseHeaders",
         "assertMethod",
+        "basicAuth",
         "clearResponseHeaders",
         "clearSession",
         "createApp",
@@ -81,6 +82,7 @@ describe("h3 package", () => {
         "readValidatedBody",
         "redirect",
         "removeResponseHeader",
+        "requireBasicAuth",
         "sanitizeStatusCode",
         "sanitizeStatusMessage",
         "sealSession",
@@ -107,7 +109,6 @@ describe("h3 package", () => {
         "useBase",
         "useSession",
         "withBase",
-        "withBasicAuth",
         "writeEarlyHints",
       ]
     `);
