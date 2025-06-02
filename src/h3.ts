@@ -104,10 +104,6 @@ export const H3 = /* @__PURE__ */ (() => {
       return this.on("", route, handler);
     }
 
-    get(route: string, handler: EventHandler | H3Type): H3Type {
-      return this.on("GET", route, handler);
-    }
-
     on(
       method: HTTPMethod | Lowercase<HTTPMethod> | "",
       route: string,
