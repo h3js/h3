@@ -1,46 +1,106 @@
-import type { EventHandler, H3Event } from "../types";
-import { defineEventHandler } from "../handler";
+import { createError } from "../index.ts";
 
-const authenticationFailed = (event: H3Event) => {
-  event.response.headers.set(
-    "WWW-Authenticate",
-    'Basic realm="Authentication required"',
-  );
-  event.response.status = 401;
-  return "Authentication required";
+import type { H3Event, Middleware } from "../index.ts";
+
+type _BasicAuthOptions = {
+  /**
+   * Validate username for basic auth.
+   */
+  username: string;
+
+  /***
+   * Simple password for basic auth.
+   */
+  password: string;
+
+  /**
+   * Custom validation function for basic auth.
+   */
+  validate: (auth: {
+    username: string;
+    password: string;
+  }) => boolean | Promise<boolean>;
+
+  /**
+   * Realm for the basic auth challenge.
+   *
+   * Defaults to "auth".
+   */
+  realm: string;
 };
 
+export type BasicAuthOptions = Partial<_BasicAuthOptions> &
+  (
+    | { validate: _BasicAuthOptions["validate"] }
+    | { password: _BasicAuthOptions["password"] }
+  );
+
 /**
- * Protect an event handler with basic authentication
+ * Check for basic authentication in the request.
  *
- * @example
- * export default withBasicAuth({ username: 'test', password: 'abc123!' }, defineEventHandler(async (event) => {
- *   return 'Hello, world!';
- * }));
+ * Example:
  *
- * @param auth The username and password to use for authentication.
- * @param handler The event handler to wrap.
+ * ```ts
+ * import { requireBasicAuth } from "h3";
+ * import { defineEventHandler } from "h3";
+ *
+ * export default defineEventHandler(async (event) => {
+ *  await requireBasicAuth(event, { username: "test", password: "test" });
+ *  return `Hello, ${event.context.basicAuth.username}!`;
+ * });
  */
-export function withBasicAuth(
-  auth: { username: string; password: string } | string,
-  handler: EventHandler,
-): EventHandler {
-  const authString =
-    typeof auth === "string" ? auth : `${auth.username}:${auth.password}`;
-  return defineEventHandler(async (event) => {
-    const authHeader = event.request.headers.get("authorization");
+export async function requireBasicAuth(
+  event: H3Event,
+  opts: BasicAuthOptions,
+): Promise<true> {
+  if (!opts.validate && !opts.password) {
+    throw new Error(
+      "You must provide either a validate function or a password for basic auth.",
+    );
+  }
 
-    if (!authHeader) {
-      return authenticationFailed(event);
-    }
+  const authHeader = event.req.headers.get("authorization");
+  if (!authHeader) {
+    throw autheFailed(event);
+  }
+  const [authType, b64auth] = authHeader.split(" ");
+  if (authType !== "Basic" || !b64auth) {
+    throw autheFailed(event, opts?.realm);
+  }
+  const [username, password] = atob(b64auth).split(":");
+  if (!username || !password) {
+    throw autheFailed(event, opts?.realm);
+  }
 
-    const b64auth = authHeader.split(" ")[1] || "";
-    const decodedAuthHeader = Buffer.from(b64auth, "base64").toString();
+  if (opts.username && username !== opts.username) {
+    throw autheFailed(event, opts?.realm);
+  }
+  if (opts.password && password !== opts.password) {
+    throw autheFailed(event, opts?.realm);
+  }
+  if (opts.validate && !(await opts.validate({ username, password }))) {
+    throw autheFailed(event, opts?.realm);
+  }
 
-    if (decodedAuthHeader !== authString) {
-      return authenticationFailed(event);
-    }
+  event.context.basicAuth = { username, password };
 
-    return await handler(event);
+  return true;
+}
+
+export function basicAuth(opts: BasicAuthOptions): Middleware {
+  return async (event, next) => {
+    await requireBasicAuth(event, opts);
+    return next();
+  };
+}
+
+function autheFailed(event: H3Event, realm: string = "auth") {
+  event.res.headers.set(
+    "www-authenticate",
+    `Basic realm=${JSON.stringify(realm)}`,
+  );
+  return createError({
+    statusCode: 401,
+    statusMessage: "Authentication required",
   });
 }

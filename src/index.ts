@@ -145,7 +145,11 @@ export {
 } from "./utils/cors.ts";
 
 // Auth
-export { withBasicAuth } from "./utils/auth";
+export {
+  type BasicAuthOptions,
+  requireBasicAuth,
+  basicAuth,
+} from "./utils/auth.ts";
 
 // Fingerprint
 export {
