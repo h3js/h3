@@ -205,7 +205,12 @@ function errorResponse(error: H3Error, debug?: boolean): Response {
       status: error.statusCode,
       statusText: error.statusMessage,
       headers: error.headers
-        ? mergeHeaders(jsonHeaders, error.headers)
+        ? mergeHeaders(
+            jsonHeaders,
+            error.headers instanceof Headers
+              ? error.headers
+              : new Headers(error.headers),
+          )
         : jsonHeaders,
     },
   );
