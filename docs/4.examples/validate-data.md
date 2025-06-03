@@ -32,8 +32,8 @@ You can use `getValidatedRouterParams` to validate params and get the result, as
 
 ```js
 import { getValidatedRouterParams } from "h3";
-import * as z from 'zod';
-import * as v from 'valibot';
+import * as z from "zod";
+import * as v from "valibot";
 
 // Example with Zod
 const contentSchema = z.object({
@@ -70,13 +70,13 @@ You can use `getValidatedQuery` to validate query and get the result, as a repla
 
 ```js
 import { getValidatedQuery } from "h3";
-import * as z from 'zod';
-import * as v from 'valibot';
+import * as z from "zod";
+import * as v from "valibot";
 
 // Example with Zod
 const stringToNumber = z
   .string()
-  .regex(/^\d+$/, 'Must be a number string')
+  .regex(/^\d+$/, "Must be a number string")
   .transform(Number);
 const paginationSchema = z.object({
   page: stringToNumber.optional().default(1),
@@ -86,9 +86,9 @@ const paginationSchema = z.object({
 // Example with Valibot
 const stringToNumber = v.pipe(
   v.string(),
-  v.regex(/^\d+$/, 'Must be a number string'),
+  v.regex(/^\d+$/, "Must be a number string"),
   v.transform(Number),
-)
+);
 const paginationSchema = v.object({
   page: v.optional(stringToNumber, 1),
   size: v.optional(stringToNumber, 10),
@@ -117,7 +117,7 @@ You can use `readValidatedBody` to validate body and get the result, as a replac
 ```js
 import { readValidatedBody } from "h3";
 import { z } from "zod";
-import * as v from 'valibot';
+import * as v from "valibot";
 
 // Example with Zod
 const userSchema = z.object({
@@ -169,39 +169,36 @@ const contentSchema = z.object({
   uuid: z.string().uuid(),
 });
 
-router.use(
-  "/content/:topic/:uuid",
-  async (event) => {
-    const params = await getValidatedRouterParams(event, contentSchema.safeParse);
-    if (!params.success) {
-      // Handle validation errors
-      return `Validation failed:\n${z.prettifyError(params.error)}`
-    }
-    return `You are looking for content with topic "${params.data.topic}" and uuid "${params.data.uuid}".`;
-  },
-);
+router.use("/content/:topic/:uuid", async (event) => {
+  const params = await getValidatedRouterParams(event, contentSchema.safeParse);
+  if (!params.success) {
+    // Handle validation errors
+    return `Validation failed:\n${z.prettifyError(params.error)}`;
+  }
+  return `You are looking for content with topic "${params.data.topic}" and uuid "${params.data.uuid}".`;
+});
 ```
 
 And for Valibot, it would look like this:
 
 ```ts
 import { getValidatedRouterParams } from "h3";
-import * as v from 'valibot';
+import * as v from "valibot";
 
 const contentSchema = v.object({
   topic: v.pipe(v.string(), v.nonEmpty()),
   uuid: v.pipe(v.string(), v.uuid()),
 });
 
-router.use(
-  "/content/:topic/:uuid",
-  async (event) => {
-    const params = await getValidatedRouterParams(event, v.safeParser(contentSchema))
-    if (!params.success) {
-      // Handle validation errors
-      return `Validation failed:\n${v.summarize(params.issues)}`
-    }
-    return `You are looking for content with topic "${params.output.topic}" and uuid "${params.output.uuid}".`;
-  },
-);
+router.use("/content/:topic/:uuid", async (event) => {
+  const params = await getValidatedRouterParams(
+    event,
+    v.safeParser(contentSchema),
+  );
+  if (!params.success) {
+    // Handle validation errors
+    return `Validation failed:\n${v.summarize(params.issues)}`;
+  }
+  return `You are looking for content with topic "${params.output.topic}" and uuid "${params.output.uuid}".`;
+});
 ```
