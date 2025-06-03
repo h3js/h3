@@ -144,7 +144,7 @@ export function iterable<Value = unknown, Return = unknown>(
  * Respond with HTML content.
  *
  * @example
- * app.get("/", (event) => html(event, "<h1>Hello, World!</h1>"))
+ * app.get("/", (event) => html(event, "<h1>Hello, World!</h1>"));
  */
 export function html(event: H3Event, content: string): string {
   if (!event.res.headers.has("content-type")) {

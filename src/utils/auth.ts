@@ -38,8 +38,8 @@ export type BasicAuthOptions = Partial<_BasicAuthOptions> &
  * @example
  * import { defineEventHandler, requireBasicAuth } from "h3";
  * export default defineEventHandler(async (event) => {
- *  await requireBasicAuth(event, { password: "test" });
- *  return `Hello, ${event.context.basicAuth.username}!`;
+ *   await requireBasicAuth(event, { password: "test" });
+ *   return `Hello, ${event.context.basicAuth.username}!`;
  * });
  */
 export async function requireBasicAuth(

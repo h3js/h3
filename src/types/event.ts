@@ -41,6 +41,11 @@ export declare class H3Event<
   runtime: ServerRequest["runtime"];
 
   /**
+   * Tell the runtime about an ongoing operation that shouldn't close until the promise resolves.
+   */
+  waitUntil: (promise: Promise<any>) => void;
+
+  /**
    * Access to the raw Node.js req/res objects.
    *
    * @deprecated Use `event.runtime.{node|deno|bun|...}.` instead.
