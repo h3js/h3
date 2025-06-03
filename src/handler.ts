@@ -1,9 +1,9 @@
 import type {
   EventHandler,
+  EventHandlerObject,
   EventHandlerRequest,
   EventHandlerResponse,
   DynamicEventHandler,
-  Middleware,
 } from "./types/handler.ts";
 
 // --- event handler ---
@@ -11,15 +11,21 @@ import type {
 export function defineEventHandler<
   Request extends EventHandlerRequest = EventHandlerRequest,
   Response = EventHandlerResponse,
-  M extends Middleware[] = Middleware[],
-  H extends EventHandler<Request, Response> = EventHandler<Request, Response>,
->(...args: [...M, H]): H {
-  if (args.length > 1) {
-    const handler = args.pop() as H;
-    const middleware = args as unknown as M;
-    return Object.assign(handler, { middleware });
+>(handler: EventHandler<Request, Response>): EventHandler<Request, Response>;
+
+export function defineEventHandler<
+  Request extends EventHandlerRequest = EventHandlerRequest,
+  Response = EventHandlerResponse,
+>(def: EventHandlerObject): EventHandler<Request, Response>;
+
+export function defineEventHandler(arg1: unknown): EventHandler {
+  if (typeof arg1 === "function") {
+    return arg1 as EventHandler<Request, Response>;
   }
-  return args[0] as H;
+  return Object.assign(
+    (arg1 as EventHandlerObject).handler,
+    arg1 as EventHandlerObject,
+  );
 }
 
 //  --- dynamic event handler ---
@@ -28,16 +34,15 @@ export function dynamicEventHandler(
   initial?: EventHandler,
 ): DynamicEventHandler {
   let current: EventHandler | undefined = initial;
-  const handler: EventHandler = (event) => {
+  const wrapper = defineEventHandler((event) => {
     if (current) {
       return current(event);
     }
+  }) as DynamicEventHandler;
+  wrapper.set = (handler) => {
+    current = handler;
   };
-  return Object.assign(handler, {
-    set: (handler: EventHandler) => {
-      current = handler;
-    },
-  });
+  return wrapper;
 }
 
 // --- lazy event handler ---

@@ -11,6 +11,14 @@ export interface EventHandler<
   middleware?: Middleware[];
 }
 
+export interface EventHandlerObject<
+  Request extends EventHandlerRequest = EventHandlerRequest,
+  Response extends EventHandlerResponse = EventHandlerResponse,
+> {
+  handler: EventHandler<Request, Response>;
+  middleware?: Middleware[];
+}
+
 export interface EventHandlerRequest {
   body?: unknown;
   query?: Record<string, string>;
