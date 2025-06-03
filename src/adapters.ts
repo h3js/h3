@@ -25,7 +25,7 @@ export function toWebHandler(
   app: H3,
 ): (request: Request, context?: H3Event) => Promise<Response> {
   return (request, context) => {
-    return Promise.resolve(app.fetch(request, undefined, context));
+    return Promise.resolve(app._fetch(request, undefined, context));
   };
 }
 
