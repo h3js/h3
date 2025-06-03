@@ -1,4 +1,3 @@
-import { set } from "zod";
 import type {
   EventHandler,
   EventHandlerRequest,
