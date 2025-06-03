@@ -40,9 +40,7 @@ describeMatrix("integrations", (t, { it, expect, describe }) => {
       expressApp.use("/", (_req, res) => {
         res.json({ express: "works" });
       });
-      t.app.use(fromNodeHandler(expressApp as NodeMiddleware), {
-        route: "/api/express",
-      });
+      t.app.use("/api/express", fromNodeHandler(expressApp as NodeMiddleware));
       const res = await t.fetch("/api/express");
 
       expect(await res.json()).toEqual({ express: "works" });
@@ -51,13 +49,14 @@ describeMatrix("integrations", (t, { it, expect, describe }) => {
     it("can be used as express middleware", async () => {
       const expressApp = express();
       t.app.use(
+        "/api/*",
         fromNodeHandler((_req, res, next) => {
           (res as any).prop = "42";
           next();
         }),
-        { route: "/api/*" },
       );
       t.app.use(
+        "/api/hello",
         fromNodeHandler(
           defineNodeHandler((req, res) => {
             res.end(
@@ -68,7 +67,6 @@ describeMatrix("integrations", (t, { it, expect, describe }) => {
             );
           }),
         ),
-        { route: "/api/hello" },
       );
       expressApp.use("/api", toNodeHandler(t.app) as any);
 
@@ -92,13 +90,14 @@ describeMatrix("integrations", (t, { it, expect, describe }) => {
     it("can be used as connect middleware", async () => {
       const connectApp = createConnectApp();
       t.app.use(
+        "/api/hello",
         fromNodeHandler((_req, res, next) => {
           (res as any).prop = "42";
           next?.();
         }),
-        { route: "/api/hello" },
       );
       t.app.use(
+        "/api/hello",
         fromNodeHandler(
           defineNodeHandler((req, res) => {
             res.end(
@@ -109,7 +108,6 @@ describeMatrix("integrations", (t, { it, expect, describe }) => {
             );
           }),
         ),
-        { route: "/api/hello" },
       );
       connectApp.use("/api", toNodeHandler(t.app));
 
@@ -124,7 +122,7 @@ describeMatrix("integrations", (t, { it, expect, describe }) => {
         "/hello",
         (event) => event.url.searchParams.get("x") ?? "hello",
       );
-      t.app.use(withBase("/api", router), { route: "/api/**" });
+      t.app.use("/api/**", withBase("/api", router));
       connectApp.use("/api", toNodeHandler(t.app));
 
       const res = await t.fetch("/api/hello/?x=y");

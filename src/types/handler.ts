@@ -37,12 +37,6 @@ export interface Middleware {
   match?: (event: H3Event) => boolean;
 }
 
-export interface MiddlewareOptions {
-  route?: string;
-  method?: string;
-  match?: (event: H3Event) => boolean;
-}
-
 // --- lazy event handler ---
 
 export type LazyEventHandler = () => EventHandler | Promise<EventHandler>;

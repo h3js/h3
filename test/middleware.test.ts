@@ -30,6 +30,7 @@ describeMatrix("middleware", (t, { it, expect }) => {
     });
 
     t.app.use(
+      "/test/**",
       new H3().all("/test", (event) =>
         event.req.headers.has("x-async")
           ? Promise.resolve("Hello World!")
@@ -37,7 +38,6 @@ describeMatrix("middleware", (t, { it, expect }) => {
       ),
       {
         method: "GET",
-        route: "/test/**",
         match: (event) => !event.req.headers.has("x-skip"),
       },
     );
@@ -56,11 +56,13 @@ describeMatrix("middleware", (t, { it, expect }) => {
           };
         },
       }),
-      [
-        (event) => {
-          event.context._middleware.push(`route (register)`);
-        },
-      ],
+      {
+        middleware: [
+          (event) => {
+            event.context._middleware.push(`route (register)`);
+          },
+        ],
+      },
     );
   });
 
@@ -114,12 +116,5 @@ describeMatrix("middleware", (t, { it, expect }) => {
     const response = await t.app.fetch("/test/...");
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ log: expect.any(String) });
-  });
-
-  it("mounting invalid middleware", async () => {
-    const app = new H3();
-    expect(() => app.use({} as any)).toThrowError(
-      "Invalid middleware: [object Object]",
-    );
   });
 });

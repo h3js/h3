@@ -2,18 +2,21 @@ import { createRouter, addRoute, findRoute } from "rou3";
 import { serve as srvxServe } from "srvx";
 import { H3Event } from "./event.ts";
 import { handleResponse, kNotFound } from "./response.ts";
-import { callMiddleware, defineMiddleware } from "./middleware.ts";
+import { callMiddleware, prepareMiddleware } from "./middleware.ts";
 
 import type { ServerOptions, Server } from "srvx";
 import type { RouterContext } from "rou3";
-import type { H3Route, HTTPMethod, H3 as H3Type } from "./types/h3.ts";
 import type { H3Config } from "./types/h3.ts";
 import type { H3EventContext } from "./types/event.ts";
+import type { EventHandler, Middleware } from "./types/handler.ts";
 import type {
-  EventHandler,
-  Middleware,
+  H3Route,
+  HTTPMethod,
+  H3 as H3Type,
+  RouteOptions,
+  RouteHandler,
   MiddlewareOptions,
-} from "./types/handler.ts";
+} from "./types/h3.ts";
 
 export type H3 = H3Type;
 
@@ -103,19 +106,15 @@ export const H3 = /* @__PURE__ */ (() => {
       });
     }
 
-    all(
-      route: string,
-      handler: EventHandler | H3Type,
-      middleware?: Middleware[],
-    ): H3Type {
-      return this.on("", route, handler, middleware);
+    all(route: string, handler: RouteHandler, opts?: RouteOptions): H3Type {
+      return this.on("", route, handler, opts);
     }
 
     on(
       method: HTTPMethod | Lowercase<HTTPMethod> | "",
       route: string,
-      handler: EventHandler | H3Type,
-      middleware?: Middleware[],
+      handler: RouteHandler,
+      opts?: RouteOptions,
     ): H3Type {
       if (!this.#router) {
         this.#router = createRouter();
@@ -124,9 +123,9 @@ export const H3 = /* @__PURE__ */ (() => {
       const _handler = (handler as H3Type)?.handler || handler;
       const _handleMiddleware = _handler as EventHandler;
       const routeMiddleware =
-        middleware?.length || _handleMiddleware.middleware?.length
+        opts?.middleware?.length || _handleMiddleware.middleware?.length
           ? [
-              ...(middleware || []),
+              ...(opts?.middleware || []),
               ...(_handleMiddleware.middleware || []),
             ].filter(Boolean)
           : undefined;
@@ -140,8 +139,21 @@ export const H3 = /* @__PURE__ */ (() => {
       return this as unknown as H3Type;
     }
 
-    use(input: Middleware | H3Type, opts?: MiddlewareOptions): H3Type {
-      this.#middleware.push(defineMiddleware(input, opts));
+    use(arg1: unknown, arg2?: unknown, arg3?: unknown): H3Type {
+      let route: string | undefined;
+      let fn: Middleware | H3Type;
+      let opts: MiddlewareOptions | undefined;
+      if (typeof arg1 === "string") {
+        route = arg1;
+        fn = arg2 as Middleware | H3Type;
+        opts = arg3 as MiddlewareOptions;
+      } else {
+        fn = arg1 as Middleware | H3Type;
+        opts = arg2 as MiddlewareOptions;
+      }
+      this.#middleware.push(
+        prepareMiddleware(fn, route ? { ...opts, route } : opts),
+      );
       return this as unknown as H3Type;
     }
   }
@@ -151,9 +163,9 @@ export const H3 = /* @__PURE__ */ (() => {
       this: H3Type,
       route: string,
       handler: EventHandler | H3Type,
-      middleware?: Middleware[],
+      opts?: RouteOptions,
     ) {
-      return this.on(method, route, handler, middleware);
+      return this.on(method, route, handler, opts);
     };
   }
 

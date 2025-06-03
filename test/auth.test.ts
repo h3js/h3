@@ -5,7 +5,7 @@ describeMatrix("auth", (t, { it, expect }) => {
   const auth = basicAuth({ username: "test", password: "123!" });
 
   it("responds 401 for a missing authorization header", async () => {
-    t.app.get("/test", () => "Hello, world!", [auth]);
+    t.app.get("/test", () => "Hello, world!", { middleware: [auth] });
     const result = await t.fetch("/test", {
       method: "GET",
     });
@@ -14,7 +14,7 @@ describeMatrix("auth", (t, { it, expect }) => {
   });
 
   it("responds 401 for an incorrect authorization header", async () => {
-    t.app.get("/test", () => "Hello, world!", [auth]);
+    t.app.get("/test", () => "Hello, world!", { middleware: [auth] });
     const result = await t.fetch("/test", {
       method: "GET",
       headers: {
@@ -27,7 +27,7 @@ describeMatrix("auth", (t, { it, expect }) => {
   });
 
   it("responds 200 for a correct authorization header", async () => {
-    t.app.get("/test", () => "Hello, world!", [auth]);
+    t.app.get("/test", () => "Hello, world!", { middleware: [auth] });
     const result = await t.fetch("/test", {
       method: "GET",
       headers: {

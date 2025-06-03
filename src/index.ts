@@ -25,7 +25,7 @@ export type {
   InferEventInput,
   LazyEventHandler,
   Middleware,
-  MiddlewareOptions,
+  EventHandlerObject,
 } from "./types/handler.ts";
 
 export {

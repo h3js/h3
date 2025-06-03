@@ -1,5 +1,5 @@
 import type { H3Event, H3EventContext } from "./event.ts";
-import type { EventHandler, Middleware, MiddlewareOptions } from "./handler.ts";
+import type { EventHandler, Middleware } from "./handler.ts";
 import type { H3Error } from "../error.ts";
 import type { MaybePromise } from "./_utils.ts";
 
@@ -31,7 +31,16 @@ export interface H3Route {
 
 // --- H3 App ---
 
-type InputHandler = EventHandler | H3;
+export type RouteHandler = EventHandler | H3;
+
+export type RouteOptions = {
+  middleware?: Middleware[];
+};
+
+export type MiddlewareOptions = {
+  method?: string;
+  match?: (event: H3Event) => boolean;
+};
 
 export declare class H3 {
   /**
@@ -65,7 +74,8 @@ export declare class H3 {
   /**
    * Register a global middleware.
    */
-  use(input: Middleware | H3, opts?: MiddlewareOptions): H3;
+  use(route: string, handler: Middleware | H3, opts?: MiddlewareOptions): H3;
+  use(handler: Middleware | H3, opts?: MiddlewareOptions): H3;
 
   /**
    * Register a route handler for the specified HTTP method and route.
@@ -73,22 +83,22 @@ export declare class H3 {
   on(
     method: HTTPMethod | Lowercase<HTTPMethod> | "",
     route: string,
-    handler: InputHandler,
-    middleware?: Middleware[],
+    handler: RouteHandler,
+    opts?: RouteOptions,
   ): H3;
 
   /**
    * Register a route handler for all HTTP methods.
    */
-  all(route: string, handler: InputHandler, middleware?: Middleware[]): H3;
+  all(route: string, handler: RouteHandler, opts?: RouteOptions): H3;
 
-  get(route: string, handler: InputHandler, middleware?: Middleware[]): H3;
-  post(route: string, handler: InputHandler, middleware?: Middleware[]): H3;
-  put(route: string, handler: InputHandler, middleware?: Middleware[]): H3;
-  delete(route: string, handler: InputHandler, middleware?: Middleware[]): H3;
-  patch(route: string, handler: InputHandler, middleware?: Middleware[]): H3;
-  head(route: string, handler: InputHandler, middleware?: Middleware[]): H3;
-  options(route: string, handler: InputHandler, middleware?: Middleware[]): H3;
-  connect(route: string, handler: InputHandler, middleware?: Middleware[]): H3;
-  trace(route: string, handler: InputHandler, middleware?: Middleware[]): H3;
+  get(route: string, handler: RouteHandler, opts?: RouteOptions): H3;
+  post(route: string, handler: RouteHandler, opts?: RouteOptions): H3;
+  put(route: string, handler: RouteHandler, opts?: RouteOptions): H3;
+  delete(route: string, handler: RouteHandler, opts?: RouteOptions): H3;
+  patch(route: string, handler: RouteHandler, opts?: RouteOptions): H3;
+  head(route: string, handler: RouteHandler, opts?: RouteOptions): H3;
+  options(route: string, handler: RouteHandler, opts?: RouteOptions): H3;
+  connect(route: string, handler: RouteHandler, opts?: RouteOptions): H3;
+  trace(route: string, handler: RouteHandler, opts?: RouteOptions): H3;
 }

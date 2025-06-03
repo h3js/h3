@@ -202,7 +202,7 @@ describeMatrix("app", (t, { it, expect }) => {
   });
 
   it("can chain .use calls", async () => {
-    t.app.get("/1", () => "prefix1").use(() => "prefix2", { route: "/2" });
+    t.app.get("/1", () => "prefix1").use("/2", () => "prefix2");
     const res = await t.fetch("/2");
 
     expect(await res.text()).toBe("prefix2");
