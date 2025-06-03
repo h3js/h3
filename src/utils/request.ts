@@ -44,7 +44,7 @@ export function getValidatedQuery<
 /**
  * Get the query param from the request URL validated with validate function.
  *
- * You can use a simple function to validate the query object or a library like `zod` to define a schema.
+ * You can use a simple function to validate the query object or use a Standard-Schema compatible library like `zod` to define a schema.
  *
  * @example
  * app.get("/", async (event) => {
@@ -60,7 +60,7 @@ export function getValidatedQuery<
  *     event,
  *     z.object({
  *       key: z.string(),
- *     }).parse,
+ *     }),
  *   );
  * });
  */
@@ -118,7 +118,7 @@ export function getValidatedRouterParams<
  *
  * If `decode` option is `true`, it will decode the matched route params using `decodeURI`.
  *
- * You can use a simple function to validate the params object or a library like `zod` to define a schema.
+ * You can use a simple function to validate the params object or use a Standard-Schema compatible library like `zod` to define a schema.
  *
  * @example
  * app.get("/", async (event) => {
@@ -134,7 +134,7 @@ export function getValidatedRouterParams<
  *     event,
  *     z.object({
  *       key: z.string(),
- *     }).parse,
+ *     }),
  *   );
  * });
  */
