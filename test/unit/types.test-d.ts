@@ -12,7 +12,7 @@ import {
 describe("types", () => {
   describe("eventHandler", () => {
     it("return type (inferred)", () => {
-      const handler = defineEventHandler((_event) => {
+      const handler = defineEventHandler(() => {
         return {
           foo: "bar",
         };
