@@ -79,6 +79,9 @@ export {
   html,
 } from "./utils/response.ts";
 
+// Middleware
+export { onError, onRequest, onResponse } from "./utils/middleware.ts";
+
 // Proxy
 export {
   type ProxyOptions,

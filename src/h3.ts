@@ -40,6 +40,7 @@ export const H3 = /* @__PURE__ */ (() => {
       this.#middleware = [];
       this.config = config;
       this.fetch = this.fetch.bind(this);
+      this._fetch = this._fetch.bind(this);
       this.handler = this.handler.bind(this);
     }
 
