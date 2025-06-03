@@ -6,7 +6,7 @@ import { callMiddleware, prepareMiddleware } from "./middleware.ts";
 
 import type { ServerOptions, Server } from "srvx";
 import type { RouterContext } from "rou3";
-import type { H3Config } from "./types/h3.ts";
+import type { FetchHandler, H3Config } from "./types/h3.ts";
 import type { H3EventContext } from "./types/event.ts";
 import type { EventHandler, Middleware } from "./types/handler.ts";
 import type {
@@ -64,7 +64,7 @@ export const H3 = /* @__PURE__ */ (() => {
       if (typeof _request === "string") {
         let url = _request;
         if (url[0] === "/") {
-          const host = getHeader("Host", options?.headers) || ".";
+          const host = getHeader("Host", options?.headers) || "localhost";
           const proto =
             getHeader("X-Forwarded-Proto", options?.headers) === "https"
               ? "https"
@@ -115,6 +115,16 @@ export const H3 = /* @__PURE__ */ (() => {
       return callMiddleware(event, middleware, () => {
         return route ? route.data.handler(event) : kNotFound;
       });
+    }
+
+    mount(base: string, input: FetchHandler | { fetch: FetchHandler }): H3Type {
+      const fetchHandler = "fetch" in input ? input.fetch : input;
+      this.all(`${base}/**`, (event) => {
+        const url = new URL(event.url);
+        url.pathname = url.pathname.slice(base.length) || "/";
+        return fetchHandler(new Request(url, event.req));
+      });
+      return this as unknown as H3Type;
     }
 
     all(route: string, handler: RouteHandler, opts?: RouteOptions): H3Type {

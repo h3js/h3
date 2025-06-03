@@ -2,6 +2,7 @@ import type { H3Event, H3EventContext } from "./event.ts";
 import type { EventHandler, Middleware } from "./handler.ts";
 import type { H3Error } from "../error.ts";
 import type { MaybePromise } from "./_utils.ts";
+import type { ServerRequest } from "srvx/types";
 
 // --- Misc ---
 
@@ -31,7 +32,9 @@ export interface H3Route {
 
 // --- H3 App ---
 
-export type RouteHandler = EventHandler | H3;
+export type RouteHandler = EventHandler | { handler: EventHandler };
+
+export type FetchHandler = (req: ServerRequest) => Response | Promise<Response>;
 
 export type RouteOptions = {
   middleware?: Middleware[];
@@ -76,6 +79,11 @@ export declare class H3 {
    * An h3 compatible event handler useful to compose multiple h3 app instances.
    */
   handler(event: H3Event): unknown | Promise<unknown>;
+
+  /**
+   * Mount a `.fetch` compatible server (like Hono or Elysia) to the H3 app.
+   */
+  mount(base: string, input: FetchHandler | { fetch: FetchHandler }): H3;
 
   /**
    * Register a global middleware.

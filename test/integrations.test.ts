@@ -2,6 +2,8 @@ import express from "express";
 import createConnectApp from "connect";
 import { createElement } from "react";
 import * as reactDom from "react-dom/server";
+import { Hono } from "hono";
+import { Elysia } from "elysia";
 import {
   H3,
   toNodeHandler,
@@ -31,6 +33,48 @@ describeMatrix("integrations", (t, { it, expect, describe }) => {
       });
       const res = await t.fetch("/");
       expect(await res.text()).toBe("<h1>Hello</h1>");
+    });
+  });
+
+  describe("hono", () => {
+    it("can mount hono in h3", async () => {
+      const h3App = new H3().mount(
+        "/hono",
+        new Hono().get("/test", (c) => c.text("Hello Hono!")),
+      );
+      const res = await h3App.fetch("/hono/test");
+      expect(await res.text()).toBe("Hello Hono!");
+    });
+
+    it("can mount h3 in hono", async () => {
+      const honoApp = new Hono().mount(
+        "/h3",
+        new H3().get("/test", () => "Hello H3!").fetch,
+      );
+      const res = await honoApp.request("/h3/test");
+      expect(await res.text()).toBe("Hello H3!");
+    });
+  });
+
+  describe("elysia", () => {
+    it("can mount elysia in h3", async () => {
+      const h3App = new H3().mount(
+        "/elysia",
+        new Elysia().get("/test", () => "Hello Elysia!"),
+      );
+      const res = await h3App.fetch("/elysia/test");
+      expect(await res.text()).toBe("Hello Elysia!");
+    });
+
+    it("can mount h3 in elysia", async () => {
+      const elysiaApp = new Elysia().mount(
+        "/h3",
+        new H3().get("/test", () => "Hello H3!").fetch,
+      );
+      const res = await elysiaApp.fetch(
+        new Request("http://localhost/h3/test"),
+      );
+      expect(await res.text()).toBe("Hello H3!");
     });
   });
 
