@@ -58,9 +58,15 @@ export declare class H3 {
    *
    * Input can be a URL, relative path or standard [Request](https://developer.mozilla.org/en-US/docs/Web/API/Request) object.
    *
-   * Returned value is a standard [Response](https://developer.mozilla.org/en-US/docs/Web/API/Response) or a promise resolving to a Response.
+   * Returned value is a [Response](https://developer.mozilla.org/en-US/docs/Web/API/Response) Promise.
    */
   fetch(
+    _request: Request | URL | string,
+    options?: RequestInit,
+  ): Promise<Response>;
+
+  /** (internal fetch) */
+  _fetch(
     _request: Request | URL | string,
     options?: RequestInit,
     context?: H3EventContext,

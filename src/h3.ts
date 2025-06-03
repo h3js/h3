@@ -44,6 +44,17 @@ export const H3 = /* @__PURE__ */ (() => {
     }
 
     fetch(
+      request: Request | URL | string,
+      options?: RequestInit,
+    ): Promise<Response> {
+      try {
+        return Promise.resolve(this._fetch(request, options));
+      } catch (error: any) {
+        return Promise.reject(error);
+      }
+    }
+
+    _fetch(
       _request: Request | URL | string,
       options?: RequestInit,
       context?: H3EventContext,
