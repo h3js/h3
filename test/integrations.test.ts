@@ -2,6 +2,8 @@ import express from "express";
 import createConnectApp from "connect";
 import { createElement } from "react";
 import * as reactDom from "react-dom/server";
+import { Hono } from "hono";
+import { Elysia } from "elysia";
 import {
   H3,
   toNodeHandler,
@@ -34,15 +36,55 @@ describeMatrix("integrations", (t, { it, expect, describe }) => {
     });
   });
 
+  describe("hono", () => {
+    it("can mount hono in h3", async () => {
+      const h3App = new H3().mount(
+        "/hono",
+        new Hono().get("/test", (c) => c.text("Hello Hono!")),
+      );
+      const res = await h3App.fetch("/hono/test");
+      expect(await res.text()).toBe("Hello Hono!");
+    });
+
+    it("can mount h3 in hono", async () => {
+      const honoApp = new Hono().mount(
+        "/h3",
+        new H3().get("/test", () => "Hello H3!").fetch,
+      );
+      const res = await honoApp.request("/h3/test");
+      expect(await res.text()).toBe("Hello H3!");
+    });
+  });
+
+  describe("elysia", () => {
+    it("can mount elysia in h3", async () => {
+      const h3App = new H3().mount(
+        "/elysia",
+        new Elysia().get("/test", () => "Hello Elysia!"),
+      );
+      const res = await h3App.fetch("/elysia/test");
+      expect(await res.text()).toBe("Hello Elysia!");
+    });
+
+    it("can mount h3 in elysia", async () => {
+      const elysiaApp = new Elysia().mount(
+        "/h3",
+        new H3().get("/test", () => "Hello H3!").fetch,
+      );
+      const res = await elysiaApp.fetch(
+        new Request("http://localhost/h3/test"),
+      );
+      expect(await res.text()).toBe("Hello H3!");
+    });
+  });
+
   describe.skipIf(t.target === "web")("express", () => {
     it("can wrap an express instance", async () => {
       const expressApp = express();
       expressApp.use("/", (_req, res) => {
         res.json({ express: "works" });
       });
-      t.app.use(fromNodeHandler(expressApp as NodeMiddleware), {
-        route: "/api/express",
-      });
+      t.app.use("/api/express", fromNodeHandler(expressApp as NodeMiddleware));
       const res = await t.fetch("/api/express");
 
       expect(await res.json()).toEqual({ express: "works" });
@@ -51,13 +93,14 @@ describeMatrix("integrations", (t, { it, expect, describe }) => {
     it("can be used as express middleware", async () => {
       const expressApp = express();
       t.app.use(
+        "/api/*",
         fromNodeHandler((_req, res, next) => {
           (res as any).prop = "42";
           next();
         }),
-        { route: "/api/*" },
       );
       t.app.use(
+        "/api/hello",
         fromNodeHandler(
           defineNodeHandler((req, res) => {
             res.end(
@@ -68,7 +111,6 @@ describeMatrix("integrations", (t, { it, expect, describe }) => {
             );
           }),
         ),
-        { route: "/api/hello" },
       );
       expressApp.use("/api", toNodeHandler(t.app) as any);
 
@@ -92,13 +134,14 @@ describeMatrix("integrations", (t, { it, expect, describe }) => {
     it("can be used as connect middleware", async () => {
       const connectApp = createConnectApp();
       t.app.use(
+        "/api/hello",
         fromNodeHandler((_req, res, next) => {
           (res as any).prop = "42";
           next?.();
         }),
-        { route: "/api/hello" },
       );
       t.app.use(
+        "/api/hello",
         fromNodeHandler(
           defineNodeHandler((req, res) => {
             res.end(
@@ -109,7 +152,6 @@ describeMatrix("integrations", (t, { it, expect, describe }) => {
             );
           }),
         ),
-        { route: "/api/hello" },
       );
       connectApp.use("/api", toNodeHandler(t.app));
 
@@ -124,7 +166,7 @@ describeMatrix("integrations", (t, { it, expect, describe }) => {
         "/hello",
         (event) => event.url.searchParams.get("x") ?? "hello",
       );
-      t.app.use(withBase("/api", router), { route: "/api/**" });
+      t.app.use("/api/**", withBase("/api", router));
       connectApp.use("/api", toNodeHandler(t.app));
 
       const res = await t.fetch("/api/hello/?x=y");

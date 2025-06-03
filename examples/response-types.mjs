@@ -1,4 +1,4 @@
-import { H3, serve } from "h3";
+import { H3, html, serve } from "h3";
 
 export const app = new H3();
 
@@ -10,15 +10,12 @@ app
       hello: "world",
     };
   })
-  .get("/html", (event) => {
-    event.res.headers.set("Content-Type", "text/html");
-    return "<h1>hello world</h1>";
-  })
-  .get("/buffer", () => {
-    return Buffer.from("hello world");
-  })
-  .get("/blob", () => {
-    return new Blob(["hello world"]);
-  });
+  .get("/html", (event) => html(event, "<h1>hello world</h1>"))
+  .get("/buffer", () => Buffer.from("hello world"))
+  .get("/blob", () => new Blob(["hello world"]))
+  .get(
+    "/file",
+    () => new File(["hello world"], "hello.txt", { type: "text/plain" }),
+  );
 
 serve(app);

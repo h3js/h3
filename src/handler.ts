@@ -1,5 +1,8 @@
+import { callMiddleware } from "./middleware.ts";
+
 import type {
   EventHandler,
+  EventHandlerObject,
   EventHandlerRequest,
   EventHandlerResponse,
   DynamicEventHandler,
@@ -10,8 +13,22 @@ import type {
 export function defineEventHandler<
   Request extends EventHandlerRequest = EventHandlerRequest,
   Response = EventHandlerResponse,
->(handler: EventHandler<Request, Response>): EventHandler<Request, Response> {
-  return handler;
+>(handler: EventHandler<Request, Response>): EventHandler<Request, Response>;
+
+export function defineEventHandler<
+  Request extends EventHandlerRequest = EventHandlerRequest,
+  Response = EventHandlerResponse,
+>(def: EventHandlerObject): EventHandler<Request, Response>;
+
+export function defineEventHandler(arg1: unknown): EventHandler {
+  if (typeof arg1 === "function") {
+    return arg1 as EventHandler<Request, Response>;
+  }
+  const { middleware, handler } = arg1 as EventHandlerObject;
+  if (!middleware?.length) {
+    return handler;
+  }
+  return (event) => callMiddleware(event, middleware, handler);
 }
 
 //  --- dynamic event handler ---

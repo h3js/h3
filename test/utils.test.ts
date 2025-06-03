@@ -17,7 +17,9 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
       t.app.use((event) => redirect(event, "https://google.com"));
       const result = await t.fetch("/");
       expect(result.headers.get("location")).toBe("https://google.com");
-      expect(result.headers.get("content-type")).toBe("text/html");
+      expect(result.headers.get("content-type")).toBe(
+        "text/html; charset=utf-8",
+      );
     });
   });
 

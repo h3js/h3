@@ -13,6 +13,8 @@ import { EmptyObject } from "./internal/obj.ts";
 
 export interface ProxyOptions {
   headers?: HeadersInit;
+  forwardHeaders?: string[];
+  filterHeaders?: string[];
   fetchOptions?: RequestInit & { duplex?: "half" | "full" } & {
     ignoreResponseError?: boolean;
   };
@@ -49,7 +51,11 @@ export async function proxyRequest(
 
   // Headers
   const fetchHeaders = mergeHeaders(
-    getProxyRequestHeaders(event, { host: target.startsWith("/") }),
+    getProxyRequestHeaders(event, {
+      host: target.startsWith("/"),
+      forwardHeaders: opts.forwardHeaders,
+      filterHeaders: opts.filterHeaders,
+    }),
     opts.fetchOptions?.headers,
     opts.headers,
   );
@@ -149,11 +155,20 @@ export async function proxy(
  */
 export function getProxyRequestHeaders(
   event: H3Event,
-  opts?: { host?: boolean },
+  opts?: {
+    host?: boolean;
+    forwardHeaders?: string[];
+    filterHeaders?: string[];
+  },
 ): Record<string, string> {
   const headers = new EmptyObject();
   for (const [name, value] of event.req.headers.entries()) {
-    if (!ignoredHeaders.has(name) || (name === "host" && opts?.host)) {
+    if (
+      opts?.forwardHeaders?.includes(name) ||
+      (opts?.filterHeaders && !opts.filterHeaders.includes(name)) ||
+      !ignoredHeaders.has(name) ||
+      (name === "host" && opts?.host)
+    ) {
       headers[name] = value;
     }
   }

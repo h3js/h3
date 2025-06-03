@@ -14,6 +14,7 @@ app
       status: 400,
       message: "Bad request",
       statusMessage: "Bad request message",
+      headers: { "X-Custom-Header": "Custom Value" },
     });
   })
   .get("/fatal-error", () => {

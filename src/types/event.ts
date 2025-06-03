@@ -45,7 +45,7 @@ export declare class H3Event<
    *
    * @deprecated Use `event.runtime.{node|deno|bun|...}.` instead.
    */
-  node?: NonNullable<ServerRequest["runtime"]>["node"];
+  node: NonNullable<ServerRequest["runtime"]>["node"] | undefined;
 
   /**
    * Access to the incoming request url (pathname+search).
@@ -70,11 +70,17 @@ export declare class H3Event<
    *
    * */
   readonly headers: Headers;
+
+  toJSON(): string;
+  toString(): string;
 }
 
 export interface H3EventContext extends Record<string, any> {
   /* Matched router parameters */
   params?: Record<string, string>;
+
+  /* Matched middleware parameters */
+  middlewareParams?: Record<string, string>;
 
   /**
    * Matched router Node
@@ -88,4 +94,11 @@ export interface H3EventContext extends Record<string, any> {
 
   /* Trusted IP Address of client */
   clientAddress?: string;
+
+  /* Basic authentication data */
+  basicAuth?: {
+    username?: string;
+    password?: string;
+    realm?: string;
+  };
 }

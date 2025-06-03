@@ -59,11 +59,10 @@ export function redirect(
   event.res.status = sanitizeStatusCode(code, event.res.status);
   event.res.headers.set("location", location);
   const encodedLoc = location.replace(/"/g, "%22");
-  const html = `<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0; url=${encodedLoc}"></head></html>`;
-  if (!event.res.headers.has("content-type")) {
-    event.res.headers.set("content-type", "text/html");
-  }
-  return html;
+  return html(
+    event,
+    `<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0; url=${encodedLoc}"></head></html>`,
+  );
 }
 
 /**
@@ -139,4 +138,17 @@ export function iterable<Value = unknown, Return = unknown>(
       iterator.return?.();
     },
   });
+}
+
+/**
+ * Respond with HTML content.
+ *
+ * @example
+ * app.get("/", (event) => html(event, "<h1>Hello, World!</h1>"))
+ */
+export function html(event: H3Event, content: string): string {
+  if (!event.res.headers.has("content-type")) {
+    event.res.headers.set("content-type", "text/html; charset=utf-8");
+  }
+  return content;
 }

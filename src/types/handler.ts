@@ -3,11 +3,17 @@ import type { H3Event } from "./event.ts";
 
 //  --- event handler ---
 
-export interface EventHandler<
+export type EventHandler<
+  Request extends EventHandlerRequest = EventHandlerRequest,
+  Response extends EventHandlerResponse = EventHandlerResponse,
+> = (event: H3Event<Request>) => Response;
+
+export interface EventHandlerObject<
   Request extends EventHandlerRequest = EventHandlerRequest,
   Response extends EventHandlerResponse = EventHandlerResponse,
 > {
-  (event: H3Event<Request>): Response;
+  handler: EventHandler<Request, Response>;
+  middleware?: Middleware[];
 }
 
 export interface EventHandlerRequest {
@@ -20,19 +26,10 @@ export type EventHandlerResponse<T = unknown> = T | Promise<T>;
 
 //  --- middleware ---
 
-export interface Middleware {
-  (
-    event: H3Event,
-    next: () => MaybePromise<unknown | undefined>,
-  ): MaybePromise<unknown | undefined>;
-  match?: (event: H3Event) => boolean;
-}
-
-export interface MiddlewareOptions {
-  route?: string;
-  method?: string;
-  match?: (event: H3Event) => boolean;
-}
+export type Middleware = (
+  event: H3Event,
+  next: () => MaybePromise<unknown | undefined>,
+) => MaybePromise<unknown | undefined>;
 
 // --- lazy event handler ---
 

@@ -202,7 +202,7 @@ describeMatrix("app", (t, { it, expect }) => {
   });
 
   it("can chain .use calls", async () => {
-    t.app.get("/1", () => "prefix1").use(() => "prefix2", { route: "/2" });
+    t.app.get("/1", () => "prefix1").use("/2", () => "prefix2");
     const res = await t.fetch("/2");
 
     expect(await res.text()).toBe("prefix2");
@@ -239,6 +239,13 @@ describeMatrix("app", (t, { it, expect }) => {
 
     const res = await t.fetch("/test");
     expect(await res.text()).toBe("valid");
+  });
+
+  it("can add arabic routes", async () => {
+    t.app.get("/عربي", () => "valid");
+
+    const res = await t.fetch("/عربي");
+    expect(res.status).toBe(200);
   });
 
   it.skipIf(t.target !== "node")(
