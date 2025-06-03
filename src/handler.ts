@@ -1,3 +1,4 @@
+import { set } from "zod";
 import type {
   EventHandler,
   EventHandlerRequest,
@@ -11,11 +12,15 @@ import type {
 export function defineEventHandler<
   Request extends EventHandlerRequest = EventHandlerRequest,
   Response = EventHandlerResponse,
->(
-  handler: EventHandler<Request, Response>,
-  middleware?: Middleware[],
-): EventHandler<Request, Response> {
-  return middleware?.length ? Object.assign(handler, { middleware }) : handler;
+  M extends Middleware[] = Middleware[],
+  H extends EventHandler<Request, Response> = EventHandler<Request, Response>,
+>(...args: [...M, H]): H {
+  if (args.length > 1) {
+    const handler = args.pop() as H;
+    const middleware = args as unknown as M;
+    return Object.assign(handler, { middleware });
+  }
+  return args[0] as H;
 }
 
 //  --- dynamic event handler ---
@@ -24,15 +29,16 @@ export function dynamicEventHandler(
   initial?: EventHandler,
 ): DynamicEventHandler {
   let current: EventHandler | undefined = initial;
-  const wrapper = defineEventHandler((event) => {
+  const handler: EventHandler = (event) => {
     if (current) {
       return current(event);
     }
-  }) as DynamicEventHandler;
-  wrapper.set = (handler) => {
-    current = handler;
   };
-  return wrapper;
+  return Object.assign(handler, {
+    set: (handler: EventHandler) => {
+      current = handler;
+    },
+  });
 }
 
 // --- lazy event handler ---

@@ -46,15 +46,13 @@ describeMatrix("middleware", (t, { it, expect }) => {
       "/**",
       defineEventHandler(
         (event) => {
+          event.context._middleware.push(`route (define)`);
+        },
+        (event) => {
           return {
             log: event.context._middleware.join(" > "),
           };
         },
-        [
-          (event) => {
-            event.context._middleware.push(`route (define)`);
-          },
-        ],
       ),
       [
         (event) => {
