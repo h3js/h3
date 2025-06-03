@@ -47,6 +47,10 @@ export class H3Event implements H3EventT {
     return this.req.runtime?.node;
   }
 
+  waitUntil(promise: Promise<any>): void {
+    this.req.waitUntil?.(promise);
+  }
+
   toString(): string {
     return `[${this.req.method}] ${this.req.url}`;
   }
