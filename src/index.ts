@@ -5,6 +5,10 @@ export type {
   H3Route,
   HTTPMethod,
   PreparedResponse,
+  RouteOptions,
+  RouteHandler,
+  MiddlewareOptions,
+  FetchHandler,
 } from "./types/h3.ts";
 
 export { H3, serve } from "./h3.ts";
