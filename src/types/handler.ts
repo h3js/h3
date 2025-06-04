@@ -4,15 +4,20 @@ import type { H3Event } from "./event.ts";
 //  --- event handler ---
 
 export type EventHandler<
-  Request extends EventHandlerRequest = EventHandlerRequest,
-  Response extends EventHandlerResponse = EventHandlerResponse,
-> = (event: H3Event<Request>) => Response;
+  Req extends EventHandlerRequest = EventHandlerRequest,
+  Res extends EventHandlerResponse = EventHandlerResponse,
+> = (event: H3Event<Req>) => Res;
+
+export type EventHandlerFetch = (
+  req: Request | URL | string,
+  init?: RequestInit,
+) => Promise<Response>;
 
 export interface EventHandlerObject<
-  Request extends EventHandlerRequest = EventHandlerRequest,
-  Response extends EventHandlerResponse = EventHandlerResponse,
+  Req extends EventHandlerRequest = EventHandlerRequest,
+  Res extends EventHandlerResponse = EventHandlerResponse,
 > {
-  handler: EventHandler<Request, Response>;
+  handler: EventHandler<Req, Res>;
   middleware?: Middleware[];
 }
 
@@ -23,6 +28,13 @@ export interface EventHandlerRequest {
 }
 
 export type EventHandlerResponse<T = unknown> = T | Promise<T>;
+
+export type EventHandlerWithFetch<
+  Req extends EventHandlerRequest = EventHandlerRequest,
+  Res extends EventHandlerResponse = EventHandlerResponse,
+> = EventHandler<Req, Res> & {
+  fetch: EventHandlerFetch;
+};
 
 //  --- middleware ---
 
@@ -35,7 +47,7 @@ export type Middleware = (
 
 export type LazyEventHandler = () => EventHandler | Promise<EventHandler>;
 
-export interface DynamicEventHandler extends EventHandler {
+export interface DynamicEventHandler extends EventHandlerWithFetch {
   set: (handler: EventHandler) => void;
 }
 

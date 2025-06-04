@@ -6,7 +6,7 @@ import zlib from "node:zlib";
 const inspect = !!process.env.BUNDLE_INSPECT;
 
 describe("benchmark", () => {
-  it("bundle size", async () => {
+  it("bundle size (H3)", async () => {
     const code = /* js */ `
       import { H3 } from "../../src/index.ts";
       const app = new H3();
@@ -16,10 +16,30 @@ describe("benchmark", () => {
       return;
     }
     if (process.env.DEBUG) {
-      console.log(`Bundle size:${bundle.bytes} (gzip: ${bundle.gzipSize})`);
+      console.log(
+        `Bundle size (H3): ${bundle.bytes} (gzip: ${bundle.gzipSize})`,
+      );
     }
     expect(bundle.bytes).toBeLessThanOrEqual(11_000); // <11kb
     expect(bundle.gzipSize).toBeLessThanOrEqual(4000); // <4kb
+  });
+
+  it("bundle size (defineEventHandler)", async () => {
+    const code = /* js */ `
+      import { defineEventHandler } from "h3";
+      const handler = defineEventHandler({});
+    `;
+    const bundle = await getBundleSize(code);
+    if (inspect) {
+      return;
+    }
+    if (process.env.DEBUG) {
+      console.log(
+        `Bundle size (defineEventHandler): ${bundle.bytes} (gzip: ${bundle.gzipSize})`,
+      );
+    }
+    expect(bundle.bytes).toBeLessThanOrEqual(5200); // <5.2kb
+    expect(bundle.gzipSize).toBeLessThanOrEqual(2200); // <2.2kb
   });
 });
 

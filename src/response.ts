@@ -11,7 +11,7 @@ export const kHandled: symbol = /* @__PURE__ */ Symbol.for("h3.handled");
 export function handleResponse(
   val: unknown,
   event: H3Event,
-  config: H3Config,
+  config: H3Config = {},
 ): Response | Promise<Response> {
   if (val && val instanceof Promise) {
     return val

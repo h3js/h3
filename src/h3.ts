@@ -56,29 +56,12 @@ export const H3 = /* @__PURE__ */ (() => {
     }
 
     _fetch(
-      _request: Request | URL | string,
-      options?: RequestInit,
+      _req: Request | URL | string,
+      _init?: RequestInit,
       context?: H3EventContext,
     ): Response | Promise<Response> {
-      // Normalize request
-      let request: Request;
-      if (typeof _request === "string") {
-        let url = _request;
-        if (url[0] === "/") {
-          const headers = options?.headers
-            ? new Headers(options.headers)
-            : undefined;
-          const host = headers?.get("host") || "localhost";
-          const proto =
-            headers?.get("x-forwarded-proto") === "https" ? "https" : "http";
-          url = `${proto}://${host}${url}`;
-        }
-        request = new Request(url, options);
-      } else if (options || _request instanceof URL) {
-        request = new Request(_request, options);
-      } else {
-        request = _request;
-      }
+      // Convert the request to a Request object
+      const request: Request = toRequest(_req, _init);
 
       // Create a new event instance
       const event = new H3Event(request, context);
@@ -186,3 +169,23 @@ export const H3 = /* @__PURE__ */ (() => {
 
   return H3;
 })() as unknown as typeof H3Type;
+
+export function toRequest(
+  _request: Request | URL | string,
+  _init?: RequestInit,
+): Request {
+  if (typeof _request === "string") {
+    let url = _request;
+    if (url[0] === "/") {
+      const headers = _init?.headers ? new Headers(_init.headers) : undefined;
+      const host = headers?.get("host") || "localhost";
+      const proto =
+        headers?.get("x-forwarded-proto") === "https" ? "https" : "http";
+      url = `${proto}://${host}${url}`;
+    }
+    return new Request(url, _init);
+  } else if (_init || _request instanceof URL) {
+    return new Request(_request, _init);
+  }
+  return _request as Request;
+}
