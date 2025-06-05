@@ -192,20 +192,16 @@ function nullBody(
 }
 
 function errorResponse(error: HTTPError, debug?: boolean): Response {
-  const isSensitive = !debug && error.unhandled;
   return new FastResponse(
     JSON.stringify(
       {
-        status: error.status,
-        statusText: isSensitive ? undefined : error.statusText || undefined,
-        message: isSensitive ? undefined : error.message,
-        data: isSensitive ? undefined : error.data,
+        ...error.toJSON(),
         stack:
           debug && error.stack
             ? error.stack.split("\n").map((l) => l.trim())
             : undefined,
       },
-      null,
+      undefined,
       debug ? 2 : undefined,
     ),
     {

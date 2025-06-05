@@ -56,7 +56,7 @@ export interface ErrorBody<DataT = unknown> {
   /**
    * Flag to indicate that the error was not handled by the application.
    *
-   * Unhandled error stack trace, data and message are hidden in non debug mode for security reasons.
+   * Unhandled error stack trace, `data`, `body` and `message` are hidden for security reasons.
    */
   unhandled?: boolean;
 
@@ -229,13 +229,14 @@ export class HTTPError<DataT = unknown>
   }
 
   toJSON(): ErrorBody {
+    const unhandled = this.unhandled;
     return {
       status: this.status,
       statusText: this.statusText,
-      message: this.message,
-      unhandled: this.unhandled,
-      data: this.data,
-      ...this.body,
+      unhandled: unhandled,
+      message: unhandled ? "HTTPError" : this.message,
+      data: unhandled ? undefined : this.data,
+      ...(unhandled ? undefined : this.body),
     };
   }
 }
