@@ -17,7 +17,6 @@ export class HttpError<
   cause: unknown | undefined;
   data: DataT | undefined;
 
-  fatal?: boolean;
   unhandled?: boolean;
 
   constructor(message: string, details?: ErrorDetails);
@@ -80,11 +79,6 @@ export class HttpError<
       (details?.cause as ErrorObjectInput)?.headers;
     this.headers = rawHeaders ? new Headers(rawHeaders) : undefined;
 
-    this.fatal =
-      (details as ErrorObject)?.fatal ??
-      (details?.cause as ErrorObject)?.fatal ??
-      false;
-
     this.unhandled =
       (details as ErrorObject)?.unhandled ??
       (details?.cause as ErrorObject)?.unhandled ??
@@ -108,7 +102,6 @@ export class HttpError<
       status: this.status,
       statusText: this.statusText,
       message: this.message,
-      fatal: this.fatal,
       unhandled: this.unhandled,
       data: this.data,
     };
@@ -143,7 +136,6 @@ export interface ErrorObject<
   status: number;
   statusText?: string;
   message: string;
-  fatal?: boolean;
   unhandled?: boolean;
   data?: DataT;
 }
