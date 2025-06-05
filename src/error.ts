@@ -9,8 +9,6 @@ export class HTTPError<
   extends Error
   implements ErrorObject<DataT>
 {
-  static __http_error__ = true;
-
   status: number;
   statusText: string | undefined;
   headers: Headers | undefined;
@@ -20,7 +18,7 @@ export class HTTPError<
   unhandled?: boolean;
 
   static isError(input: any): input is HTTPError {
-    return input?.constructor?.__http_error__ === true;
+    return input?.constructor?.name === "HTTPError";
   }
 
   static status(
