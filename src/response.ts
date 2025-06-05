@@ -51,6 +51,7 @@ function prepareResponse(
     const isHTTPError = HTTPError.isError(val);
     const error = isHTTPError ? (val as HTTPError) : new HTTPError(val);
     if (!isHTTPError) {
+      // @ts-expect-error unhandled is readonly for public interface
       error.unhandled = true;
     }
     const { onError } = config;

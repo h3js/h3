@@ -76,7 +76,7 @@ export class HTTPError<DataT = unknown>
   /**
    * HTTP status code in range [200...599]
    */
-  status: number;
+  readonly status: number;
 
   /**
    * HTTP status text
@@ -86,29 +86,29 @@ export class HTTPError<DataT = unknown>
    *
    * **TIP:** Use `message` for longer error descriptions in JSON body.
    */
-  statusText: string | undefined;
+  readonly statusText: string | undefined;
 
   /**
    * Additional HTTP headers to be sent in error response.
    */
-  headers: Headers | undefined;
+  readonly headers: Headers | undefined;
 
   /**
    * Original error object that caused this error.
    */
-  cause: unknown | undefined;
+  readonly cause: unknown | undefined;
 
   /**
    * Additional data to attach in the error JSON body under `data` key.
    */
-  data: DataT | undefined;
+  readonly data: DataT | undefined;
 
   /**
    * Flag to indicate that the error was not handled by the application.
    *
    * Unhandled error stack trace, data and message are hidden in non debug mode for security reasons.
    */
-  unhandled: boolean | undefined;
+  readonly unhandled: boolean | undefined;
 
   /**
    * Check if the input is an instance of HTTPError using its constructor name.
