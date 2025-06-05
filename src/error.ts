@@ -52,8 +52,8 @@ export class HTTPError<
         (details as ErrorObject)?.status ||
         (details?.cause as ErrorObject)?.status ||
         (details as ErrorObject)?.status ||
-        (details as ErrorObjectInput)?.statusCode ||
-        500,
+        (details as ErrorObjectInput)?.statusCode,
+      500,
     );
 
     const stautText = sanitizeStatusMessage(
