@@ -72,8 +72,6 @@ describeMatrix("hooks", (t, { it, expect }) => {
     expect(t.hooks.onRequest).toHaveBeenCalledTimes(1);
     expect(t.hooks.onRequest.mock.calls[0][0].path).toBe("/foo");
 
-    console.log(t.hooks.onError.mock.calls[0]![0]!);
-
     expect(t.hooks.onError).toHaveBeenCalledTimes(1);
     expect(t.hooks.onError.mock.calls[0]![0]!.status).toBe(500);
     expect(t.hooks.onError.mock.calls[0]![0]!.cause).toBeInstanceOf(TypeError);
