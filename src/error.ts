@@ -65,8 +65,8 @@ export class HTTPError<
       messageInput ||
       details?.message ||
       (details?.cause as ErrorDetails)?.message ||
-      (details as ErrorObjectInput)?.statusMessage ||
       (details as ErrorObject)?.statusText ||
+      (details as ErrorObjectInput)?.statusMessage ||
       ["HTTPError", status, stautText].filter(Boolean).join(" ");
 
     // @ts-ignore https://v8.dev/features/error-cause
