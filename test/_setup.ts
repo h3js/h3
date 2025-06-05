@@ -167,9 +167,7 @@ function setupBaseTest(
 
     vi.resetAllMocks();
     if (!opts.allowUnhandledErrors) {
-      const unhandledErrors = errors.filter(
-        (error) => error.unhandled !== false,
-      );
+      const unhandledErrors = errors.filter((error) => error.unhandled);
       if (unhandledErrors.length > 0) {
         throw mergeErrors(errors);
       }
