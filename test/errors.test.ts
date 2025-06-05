@@ -11,6 +11,7 @@ describeMatrix("errors", (t, { it, expect }) => {
         statusText: "Unprocessable",
         status: 422,
         data: { test: 123 },
+        body: { topLevel: "works" },
       });
     });
     const result = await t.fetch("/");
@@ -21,6 +22,7 @@ describeMatrix("errors", (t, { it, expect }) => {
       statusText: "Unprocessable",
       message: "Unprocessable",
       data: { test: 123 },
+      topLevel: "works",
     });
   });
 

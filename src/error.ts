@@ -64,6 +64,11 @@ export interface ErrorBody<DataT = unknown> {
    * Additional data to attach in the error JSON body under `data` key.
    */
   data?: DataT;
+
+  /**
+   * Additional top level JSON body properties to attach in the error JSON body.
+   */
+  body?: Record<string, unknown>;
 }
 
 /**
@@ -99,9 +104,14 @@ export class HTTPError<DataT = unknown>
   readonly cause: unknown | undefined;
 
   /**
-   * Additional data to attach in the error JSON body under `data` key.
+   * Additional data attached in the error JSON body under `data` key.
    */
   readonly data: DataT | undefined;
+
+  /**
+   * Additional top level JSON body properties to attach in the error JSON body.
+   */
+  readonly body: Record<string, unknown> | undefined;
 
   /**
    * Flag to indicate that the error was not handled by the application.
@@ -201,6 +211,7 @@ export class HTTPError<DataT = unknown>
       undefined;
 
     this.data = (details as ErrorBody)?.data as DataT | undefined;
+    this.body = (details as ErrorBody)?.body;
   }
 
   /**
@@ -224,6 +235,7 @@ export class HTTPError<DataT = unknown>
       message: this.message,
       unhandled: this.unhandled,
       data: this.data,
+      ...this.body,
     };
   }
 }
