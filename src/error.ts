@@ -11,6 +11,10 @@ export class HttpError<
 {
   static __h3_error__ = true;
 
+  static isHttpError(input: any): input is HttpError {
+    return input?.constructor?.__h3_error__ === true;
+  }
+
   status: number;
   statusText: string | undefined;
   headers: Headers | undefined;
@@ -120,7 +124,7 @@ export function createError(arg1: any, arg2?: any): HttpError {
 }
 
 export function isError(input: any): input is HttpError {
-  return input?.constructor?.__h3_error__ === true;
+  return HttpError.isHttpError(input);
 }
 
 // ---- Types ----

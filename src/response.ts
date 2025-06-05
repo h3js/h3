@@ -48,9 +48,9 @@ function prepareResponse(
   }
 
   if (val && val instanceof Error) {
-    const handled = val instanceof HttpError;
-    const error = handled ? (val as HttpError) : new HttpError(val);
-    if (!handled) {
+    const isHttpError = HttpError.isHttpError(val);
+    const error = isHttpError ? (val as HttpError) : new HttpError(val);
+    if (!isHttpError) {
       error.unhandled = true;
     }
     const { onError } = config;
