@@ -113,21 +113,6 @@ export class HTTPError<
   }
 }
 
-/** @deprecated Use `HTTPError` */
-export type H3Error = HTTPError;
-export const H3Error: typeof HTTPError = HTTPError;
-
-export function createError(message: number, details?: ErrorDetails): HTTPError;
-export function createError(status: number, details?: ErrorDetails): HTTPError;
-export function createError(details: ErrorDetails): HTTPError;
-export function createError(arg1: any, arg2?: any): HTTPError {
-  return new HTTPError(arg1, arg2);
-}
-
-export function isError(input: any): input is HTTPError {
-  return HTTPError.isError(input);
-}
-
 // ---- Types ----
 
 export type ErrorDetails =

@@ -48,7 +48,7 @@ function prepareResponse(
   }
 
   if (val && val instanceof Error) {
-    const isHTTPError = HTTPError.isHTTPError(val);
+    const isHTTPError = HTTPError.isError(val);
     const error = isHTTPError ? (val as HTTPError) : new HTTPError(val);
     if (!isHTTPError) {
       error.unhandled = true;
