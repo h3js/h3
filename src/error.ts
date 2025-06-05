@@ -11,10 +11,6 @@ export class HttpError<
 {
   static __h3_error__ = true;
 
-  static isHttpError(input: any): input is HttpError {
-    return input?.constructor?.__h3_error__ === true;
-  }
-
   status: number;
   statusText: string | undefined;
   headers: Headers | undefined;
@@ -23,27 +19,28 @@ export class HttpError<
 
   unhandled?: boolean;
 
+  static isHttpError(input: any): input is HttpError {
+    return input?.constructor?.__h3_error__ === true;
+  }
+
+  static status(
+    status: number,
+    details?: Exclude<ErrorDetails, "status">,
+  ): HttpError {
+    return new HttpError({ ...details, status });
+  }
+
   constructor(message: string, details?: ErrorDetails);
-  constructor(status: number, details?: ErrorDetails);
   constructor(details: ErrorDetails);
-  constructor(arg1: string | number | ErrorDetails, arg2?: ErrorDetails) {
+  constructor(arg1: string | ErrorDetails, arg2?: ErrorDetails) {
     let statusInput: number | undefined;
     let messageInput: string | undefined;
     let details: ErrorDetails | undefined;
-    switch (typeof arg1) {
-      case "string": {
-        messageInput = arg1;
-        details = arg2;
-        break;
-      }
-      case "number": {
-        statusInput = arg1;
-        details = arg2;
-        break;
-      }
-      default: {
-        details = arg1;
-      }
+    if (typeof arg1 === "string") {
+      messageInput = arg1;
+      details = arg2;
+    } else {
+      details = arg1;
     }
 
     const status = sanitizeStatusCode(
