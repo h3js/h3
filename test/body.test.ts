@@ -303,7 +303,7 @@ describeMatrix("body", (t, { it, expect, describe }) => {
     const resultJson = (await result.json()) as any;
 
     expect(result.status).toBe(400);
-    expect(resultJson.statusMessage).toBe("Bad Request");
+    expect(resultJson.statusText).toBe("Bad Request");
     expect(resultJson.stack[0]).toBe("Error: Invalid JSON body");
   });
 
