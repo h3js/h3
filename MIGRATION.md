@@ -108,6 +108,11 @@ H3 v2 deprecated some legacy and aliased utilities.
 
 - `createApp` / `createRouter`: Migrate to `new H3()`.
 
+**Error:**
+
+- `createError`/`H3Error`: Migrate to `HTTPError`
+- `isError`: Migrate to `HTTPError.isError`
+
 **Handler:**
 
 - `eventHandler`: Migrate to `defineEventHandler` (or remove it!).
