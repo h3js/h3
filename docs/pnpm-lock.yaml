@@ -8,8 +8,8 @@ importers:
   .:
     devDependencies:
       undocs:
-        specifier: ^0.3.4
-        version: 0.3.4(@babel/parser@7.27.4)(@parcel/watcher@2.5.1)(@types/node@22.15.29)(better-sqlite3@11.10.0)(db0@0.3.2(better-sqlite3@11.10.0))(embla-carousel@8.6.0)(ioredis@5.6.1)(jwt-decode@4.0.0)(lightningcss@1.30.1)(magicast@0.3.5)(rollup@4.41.1)(terser@5.40.0)(typescript@5.8.3)(vite@6.3.5(@types/node@22.15.29)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.40.0)(yaml@2.8.0))(yaml@2.8.0)(zod@3.25.48)
+        specifier: ^0.3.5
+        version: 0.3.5(@babel/parser@7.27.4)(@parcel/watcher@2.5.1)(@types/node@22.15.29)(better-sqlite3@11.10.0)(db0@0.3.2(better-sqlite3@11.10.0))(embla-carousel@8.6.0)(ioredis@5.6.1)(jwt-decode@4.0.0)(lightningcss@1.30.1)(magicast@0.3.5)(rollup@4.41.1)(terser@5.40.0)(typescript@5.8.3)(vite@6.3.5(@types/node@22.15.29)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.40.0)(yaml@2.8.0))(yaml@2.8.0)(zod@3.25.48)
 
 packages:
   "@ai-sdk/provider-utils@2.2.8":
@@ -1042,19 +1042,20 @@ packages:
     engines: { node: ^16.10.0 || >=18.0.0 }
     hasBin: true
 
-  "@nuxt/content@3.5.1":
-    resolution:
-      {
-        integrity: sha512-WmWgxt5gWPSHBzLBSBZHiU9jaOmTWINMAppWxZ43ZHZCfa0GvdR5+0uTto2EGITPrPsf6iYhKKzSfmJa+Xmp2Q==,
-      }
+  "@nuxt/content@https://pkg.pr.new/@nuxt/content@3390":
+    resolution: { tarball: https://pkg.pr.new/@nuxt/content@3390 }
+    version: 3.5.1
     peerDependencies:
       "@electric-sql/pglite": "*"
       "@libsql/client": "*"
+      better-sqlite3: 11.x
       sqlite3: "*"
     peerDependenciesMeta:
       "@electric-sql/pglite":
         optional: true
       "@libsql/client":
+        optional: true
+      better-sqlite3:
         optional: true
       sqlite3:
         optional: true
@@ -5579,6 +5580,12 @@ packages:
       }
     engines: { node: ">=10" }
 
+  minimark@0.2.0:
+    resolution:
+      {
+        integrity: sha512-AmtWU9pO0C2/3AM2pikaVhJ//8E5rOpJ7+ioFQfjIq+wCsBeuZoxPd97hBFZ9qrI7DMHZudwGH3r8A7BMnsIew==,
+      }
+
   minimatch@10.0.1:
     resolution:
       {
@@ -7600,10 +7607,10 @@ packages:
         integrity: sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ==,
       }
 
-  undocs@0.3.4:
+  undocs@0.3.5:
     resolution:
       {
-        integrity: sha512-iNUR4rJ9/LJ1GjMGV8f3bYTV++vm0q6J3AX28d2825htaNnhgsf+JpncZj4nG+75k9VdsBeyZnZAjWAHAckZoA==,
+        integrity: sha512-t6BBTKAxV9xrofCLYGbZyyk/sVYLBf06Tz8wQMViGsiDKDdG5ZJlyRaYGwSe0E2Q3kO6XW+L+MjGonoH5YCk4Q==,
       }
     hasBin: true
 
@@ -9041,21 +9048,19 @@ snapshots:
     transitivePeerDependencies:
       - magicast
 
-  "@nuxt/content@3.5.1(magicast@0.3.5)(typescript@5.8.3)":
+  "@nuxt/content@https://pkg.pr.new/@nuxt/content@3390(better-sqlite3@11.10.0)(magicast@0.3.5)(typescript@5.8.3)":
     dependencies:
       "@nuxt/kit": 3.17.4(magicast@0.3.5)
       "@nuxtjs/mdc": 0.17.0(magicast@0.3.5)
       "@shikijs/langs": 3.4.2
       "@sqlite.org/sqlite-wasm": 3.49.1-build4
       "@webcontainer/env": 1.1.1
-      better-sqlite3: 11.10.0
       c12: 3.0.4(magicast@0.3.5)
       chokidar: 4.0.3
       consola: 3.4.2
       db0: 0.3.2(better-sqlite3@11.10.0)
       defu: 6.1.4
       destr: 2.0.5
-      fast-glob: 3.3.3
       git-url-parse: 16.1.0
       jiti: 2.4.2
       knitwork: 1.2.0
@@ -9068,8 +9073,10 @@ snapshots:
       micromark-util-resolve-all: 2.0.1
       micromark-util-sanitize-uri: 2.0.1
       micromatch: 4.0.8
+      minimark: 0.2.0
       minimatch: 10.0.1
       nuxt-component-meta: 0.11.0(magicast@0.3.5)
+      nypm: 0.6.0
       ohash: 2.0.11
       pathe: 2.0.3
       pkg-types: 2.1.0
@@ -9079,6 +9086,7 @@ snapshots:
       slugify: 1.6.6
       socket.io-client: 4.8.1
       tar: 7.4.3
+      tinyglobby: 0.2.14
       ufo: 1.6.1
       unified: 11.0.5
       unist-util-stringify-position: 4.0.0
@@ -9087,6 +9095,8 @@ snapshots:
       zod: 3.25.48
       zod-to-json-schema: 3.24.5(zod@3.25.48)
       zod-to-ts: 1.2.0(typescript@5.8.3)(zod@3.25.48)
+    optionalDependencies:
+      better-sqlite3: 11.10.0
     transitivePeerDependencies:
       - bufferutil
       - drizzle-orm
@@ -9147,7 +9157,7 @@ snapshots:
       simple-git: 3.27.0
       sirv: 3.0.1
       structured-clone-es: 1.0.0
-      tinyglobby: 0.2.13
+      tinyglobby: 0.2.14
       vite: 6.3.5(@types/node@22.15.29)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.40.0)(yaml@2.8.0)
       vite-plugin-inspect: 11.1.0(@nuxt/kit@3.17.4(magicast@0.3.5))(vite@6.3.5(@types/node@22.15.29)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.40.0)(yaml@2.8.0))
       vite-plugin-vue-tracer: 0.1.3(vite@6.3.5(@types/node@22.15.29)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.40.0)(yaml@2.8.0))(vue@3.5.16(typescript@5.8.3))
@@ -10468,6 +10478,7 @@ snapshots:
     dependencies:
       bindings: 1.5.0
       prebuild-install: 7.1.3
+    optional: true
 
   binary-extensions@2.3.0: {}
 
@@ -10482,6 +10493,7 @@ snapshots:
       buffer: 5.7.1
       inherits: 2.0.4
       readable-stream: 3.6.2
+    optional: true
 
   blob-to-buffer@1.2.9: {}
 
@@ -10516,6 +10528,7 @@ snapshots:
     dependencies:
       base64-js: 1.5.1
       ieee754: 1.2.1
+    optional: true
 
   buffer@6.0.3:
     dependencies:
@@ -10596,7 +10609,8 @@ snapshots:
     dependencies:
       readdirp: 4.1.2
 
-  chownr@1.1.4: {}
+  chownr@1.1.4:
+    optional: true
 
   chownr@3.0.0: {}
 
@@ -10841,8 +10855,10 @@ snapshots:
   decompress-response@6.0.0:
     dependencies:
       mimic-response: 3.1.0
+    optional: true
 
-  deep-extend@0.6.0: {}
+  deep-extend@0.6.0:
+    optional: true
 
   deepmerge@4.3.1: {}
 
@@ -11177,7 +11193,8 @@ snapshots:
       signal-exit: 4.1.0
       strip-final-newline: 3.0.0
 
-  expand-template@2.0.3: {}
+  expand-template@2.0.3:
+    optional: true
 
   exsolve@1.0.5: {}
 
@@ -11293,7 +11310,8 @@ snapshots:
 
   fresh@2.0.0: {}
 
-  fs-constants@1.0.0: {}
+  fs-constants@1.0.0:
+    optional: true
 
   fs.realpath@1.0.0: {}
 
@@ -11357,7 +11375,8 @@ snapshots:
     dependencies:
       git-up: 8.1.1
 
-  github-from-package@0.0.0: {}
+  github-from-package@0.0.0:
+    optional: true
 
   github-slugger@2.0.0: {}
 
@@ -11629,7 +11648,8 @@ snapshots:
 
   inherits@2.0.4: {}
 
-  ini@1.3.8: {}
+  ini@1.3.8:
+    optional: true
 
   ini@4.1.1: {}
 
@@ -12281,7 +12301,10 @@ snapshots:
 
   mimic-fn@4.0.0: {}
 
-  mimic-response@3.1.0: {}
+  mimic-response@3.1.0:
+    optional: true
+
+  minimark@0.2.0: {}
 
   minimatch@10.0.1:
     dependencies:
@@ -12305,7 +12328,8 @@ snapshots:
 
   mitt@3.0.1: {}
 
-  mkdirp-classic@0.5.3: {}
+  mkdirp-classic@0.5.3:
+    optional: true
 
   mkdirp@3.0.1: {}
 
@@ -12337,7 +12361,8 @@ snapshots:
 
   nanotar@0.2.0: {}
 
-  napi-build-utils@2.0.0: {}
+  napi-build-utils@2.0.0:
+    optional: true
 
   netlify@13.3.5:
     dependencies:
@@ -12451,6 +12476,7 @@ snapshots:
   node-abi@3.75.0:
     dependencies:
       semver: 7.7.2
+    optional: true
 
   node-addon-api@7.1.1: {}
 
@@ -13044,6 +13070,7 @@ snapshots:
       simple-get: 4.0.1
       tar-fs: 2.1.3
       tunnel-agent: 0.6.0
+    optional: true
 
   precinct@12.2.0:
     dependencies:
@@ -13116,6 +13143,7 @@ snapshots:
       ini: 1.3.8
       minimist: 1.2.8
       strip-json-comments: 2.0.1
+    optional: true
 
   read-package-up@11.0.0:
     dependencies:
@@ -13477,13 +13505,15 @@ snapshots:
 
   signal-exit@4.1.0: {}
 
-  simple-concat@1.0.1: {}
+  simple-concat@1.0.1:
+    optional: true
 
   simple-get@4.0.1:
     dependencies:
       decompress-response: 6.0.0
       once: 1.4.0
       simple-concat: 1.0.1
+    optional: true
 
   simple-git@3.27.0:
     dependencies:
@@ -13612,7 +13642,8 @@ snapshots:
 
   strip-final-newline@3.0.0: {}
 
-  strip-json-comments@2.0.1: {}
+  strip-json-comments@2.0.1:
+    optional: true
 
   strip-literal@3.0.0:
     dependencies:
@@ -13667,6 +13698,7 @@ snapshots:
       mkdirp-classic: 0.5.3
       pump: 3.0.2
       tar-stream: 2.2.0
+    optional: true
 
   tar-stream@2.2.0:
     dependencies:
@@ -13675,6 +13707,7 @@ snapshots:
       fs-constants: 1.0.0
       inherits: 2.0.4
       readable-stream: 3.6.2
+    optional: true
 
   tar-stream@3.1.7:
     dependencies:
@@ -13757,6 +13790,7 @@ snapshots:
   tunnel-agent@0.6.0:
     dependencies:
       safe-buffer: 5.2.1
+    optional: true
 
   type-fest@4.41.0: {}
 
@@ -13780,12 +13814,12 @@ snapshots:
   undici-types@6.21.0:
     optional: true
 
-  undocs@0.3.4(@babel/parser@7.27.4)(@parcel/watcher@2.5.1)(@types/node@22.15.29)(better-sqlite3@11.10.0)(db0@0.3.2(better-sqlite3@11.10.0))(embla-carousel@8.6.0)(ioredis@5.6.1)(jwt-decode@4.0.0)(lightningcss@1.30.1)(magicast@0.3.5)(rollup@4.41.1)(terser@5.40.0)(typescript@5.8.3)(vite@6.3.5(@types/node@22.15.29)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.40.0)(yaml@2.8.0))(yaml@2.8.0)(zod@3.25.48):
+  undocs@0.3.5(@babel/parser@7.27.4)(@parcel/watcher@2.5.1)(@types/node@22.15.29)(better-sqlite3@11.10.0)(db0@0.3.2(better-sqlite3@11.10.0))(embla-carousel@8.6.0)(ioredis@5.6.1)(jwt-decode@4.0.0)(lightningcss@1.30.1)(magicast@0.3.5)(rollup@4.41.1)(terser@5.40.0)(typescript@5.8.3)(vite@6.3.5(@types/node@22.15.29)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.40.0)(yaml@2.8.0))(yaml@2.8.0)(zod@3.25.48):
     dependencies:
       "@headlessui/vue": 1.7.23(vue@3.5.16(typescript@5.8.3))
       "@iconify-json/logos": 1.2.4
       "@iconify-json/simple-icons": 1.2.37
-      "@nuxt/content": 3.5.1(magicast@0.3.5)(typescript@5.8.3)
+      "@nuxt/content": https://pkg.pr.new/@nuxt/content@3390(better-sqlite3@11.10.0)(magicast@0.3.5)(typescript@5.8.3)
       "@nuxt/fonts": 0.11.4(db0@0.3.2(better-sqlite3@11.10.0))(ioredis@5.6.1)(magicast@0.3.5)(vite@6.3.5(@types/node@22.15.29)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.40.0)(yaml@2.8.0))
       "@nuxt/ui-pro": 3.1.3(@babel/parser@7.27.4)(db0@0.3.2(better-sqlite3@11.10.0))(embla-carousel@8.6.0)(ioredis@5.6.1)(jwt-decode@4.0.0)(magicast@0.3.5)(typescript@5.8.3)(vite@6.3.5(@types/node@22.15.29)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.40.0)(yaml@2.8.0))(vue-router@4.5.1(vue@3.5.16(typescript@5.8.3)))(vue@3.5.16(typescript@5.8.3))(zod@3.25.48)
       "@nuxtjs/plausible": 1.2.0(magicast@0.3.5)
@@ -14185,7 +14219,7 @@ snapshots:
       picomatch: 4.0.2
       strip-ansi: 7.1.0
       tiny-invariant: 1.3.3
-      tinyglobby: 0.2.13
+      tinyglobby: 0.2.14
       vite: 6.3.5(@types/node@22.15.29)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.40.0)(yaml@2.8.0)
       vscode-uri: 3.1.0
     optionalDependencies:
@@ -14225,7 +14259,7 @@ snapshots:
       picomatch: 4.0.2
       postcss: 8.5.4
       rollup: 4.41.1
-      tinyglobby: 0.2.13
+      tinyglobby: 0.2.14
     optionalDependencies:
       "@types/node": 22.15.29
       fsevents: 2.3.3
