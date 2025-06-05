@@ -1,5 +1,5 @@
 import type { H3Event } from "../types/event.ts";
-import { createError } from "../error.ts";
+import { HttpError } from "../error.ts";
 import { withLeadingSlash, withoutTrailingSlash } from "./internal/path.ts";
 
 export interface StaticAssetMeta {
@@ -76,10 +76,7 @@ export async function serveStatic(
       return;
     }
     event.res.headers.set("allow", "GET, HEAD");
-    throw createError({
-      statusMessage: "Method Not Allowed",
-      statusCode: 405,
-    });
+    throw new HttpError({ status: 405 });
   }
 
   const originalId = decodeURI(
@@ -117,7 +114,7 @@ export async function serveStatic(
     if (options.fallthrough) {
       return;
     }
-    throw createError({ statusCode: 404 });
+    throw new HttpError({ statusCode: 404 });
   }
 
   if (meta.etag && !event.res.headers.has("etag")) {

@@ -1,4 +1,4 @@
-import { createError } from "../index.ts";
+import { HttpError } from "../index.ts";
 
 import type { H3Event, Middleware } from "../index.ts";
 
@@ -97,9 +97,9 @@ export function basicAuth(opts: BasicAuthOptions): Middleware {
 }
 
 function autheFailed(event: H3Event, realm: string = "") {
-  return createError({
-    statusCode: 401,
-    statusMessage: "Authentication required",
+  return new HttpError({
+    status: 401,
+    statusText: "Authentication required",
     headers: {
       "www-authenticate": `Basic realm=${JSON.stringify(realm)}`,
     },

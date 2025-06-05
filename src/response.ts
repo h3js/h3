@@ -1,5 +1,5 @@
 import { FastResponse } from "srvx";
-import { createError, type H3Error } from "./error.ts";
+import { HttpError } from "./error.ts";
 import { isJSONSerializable } from "./utils/internal/object.ts";
 
 import type { H3Config } from "./types/h3.ts";
@@ -41,14 +41,18 @@ function prepareResponse(
   }
 
   if (val === kNotFound) {
-    val = createError({
-      statusCode: 404,
-      statusMessage: `Cannot find any route matching [${event.req.method}] ${event.url}`,
+    val = new HttpError({
+      status: 404,
+      message: `Cannot find any route matching [${event.req.method}] ${event.url}`,
     });
   }
 
   if (val && val instanceof Error) {
-    const error = createError(val); // todo: flag unhandled
+    const handled = val instanceof HttpError;
+    const error = handled ? (val as HttpError) : new HttpError(val);
+    if (!handled) {
+      error.unhandled = true;
+    }
     const { onError } = config;
     return onError && !nested
       ? Promise.resolve(onError(error, event))
@@ -186,24 +190,26 @@ function nullBody(
   )
 }
 
-function errorResponse(error: H3Error, debug?: boolean): Response {
+function errorResponse(error: HttpError, debug?: boolean): Response {
+  const isSensitive = !debug && error.unhandled;
   return new FastResponse(
     JSON.stringify(
       {
-        statusCode: error.statusCode,
-        statusMessage: error.statusMessage,
-        data: error.data,
+        status: error.status,
+        statusText: isSensitive ? undefined : error.statusText || undefined,
+        message: isSensitive ? undefined : error.message,
+        data: isSensitive ? undefined : error.data,
         stack:
           debug && error.stack
             ? error.stack.split("\n").map((l) => l.trim())
             : undefined,
       },
       null,
-      2,
+      debug ? 2 : undefined,
     ),
     {
-      status: error.statusCode,
-      statusText: error.statusMessage,
+      status: error.status,
+      statusText: error.statusText,
       headers: error.headers
         ? mergeHeaders(jsonHeaders, error.headers)
         : jsonHeaders,

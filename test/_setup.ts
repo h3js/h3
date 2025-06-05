@@ -1,5 +1,10 @@
 import type { Mock } from "vitest";
-import type { H3Config, H3Error, H3Event, NodeHandler } from "../src/index.ts";
+import type {
+  H3Config,
+  H3Event,
+  NodeHandler,
+  HttpError,
+} from "../src/index.ts";
 import { Server as NodeServer } from "node:http";
 import { getRandomPort } from "get-port-please";
 import {
@@ -183,7 +188,7 @@ export interface TestOptions {
 }
 
 export interface TestContext {
-  errors: H3Error[];
+  errors: HttpError[];
   hooks: {
     onRequest: Mock<Exclude<H3Config["onRequest"], undefined>>;
     onError: Mock<Exclude<H3Config["onError"], undefined>>;

@@ -94,9 +94,9 @@ describeMatrix("router", (t, { it, expect, describe }) => {
 
     it("Handle /404", async () => {
       const res = await t.fetch("/preemptive/404");
-      expect(JSON.parse(await res.text())).toMatchObject({
-        statusCode: 404,
-        statusMessage: expect.stringMatching(
+      expect(await res.json()).toMatchObject({
+        status: 404,
+        message: expect.stringMatching(
           /Cannot find any route matching \[GET\] http:\/\/localhost[:\d]*\/preemptive\/404/,
         ),
       });

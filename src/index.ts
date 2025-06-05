@@ -41,7 +41,9 @@ export { defineMiddleware } from "./middleware.ts";
 
 // Error
 
-export { type H3Error, createError, isError } from "./error.ts";
+export type { ErrorDetails, ErrorObject, ErrorObjectInput } from "./error.ts";
+
+export { createError, isError, HttpError, H3Error } from "./error.ts";
 
 // Adapters
 

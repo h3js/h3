@@ -1,55 +1,62 @@
 import { vi } from "vitest";
-import { createError } from "../src/index.ts";
+import { HttpError } from "../src/index.ts";
 import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("errors", (t, { it, expect }) => {
   const consoleMock = ((globalThis.console.error as any) = vi.fn());
 
-  it("logs errors", async () => {
+  it("throw HttpError", async () => {
     t.app.use(() => {
-      throw createError({ statusMessage: "Unprocessable", statusCode: 422 });
-    });
-    const result = await t.fetch("/");
-
-    expect(result.status).toBe(422);
-  });
-
-  it("returns errors", async () => {
-    t.app.use(() => {
-      throw createError({ statusMessage: "Unprocessable", statusCode: 422 });
-    });
-    const result = await t.fetch("/");
-
-    expect(result.status).toBe(422);
-  });
-
-  it("returns error data", async () => {
-    t.app.get("/", () => {
-      throw createError({
-        status: 400,
-        data: { validationMessage: "Invalid Input" },
+      throw new HttpError({
+        statusText: "Unprocessable",
+        status: 422,
+        data: { test: 123 },
       });
     });
     const result = await t.fetch("/");
-
-    expect(result.status).toBe(400);
-    expect(JSON.parse(await result.text())).toMatchObject({
-      statusCode: 400,
-      data: {
-        validationMessage: "Invalid Input",
-      },
+    expect(result.status).toBe(422);
+    expect(result.statusText).toBe("Unprocessable");
+    expect(await result.json()).toMatchObject({
+      status: 422,
+      statusText: "Unprocessable",
+      message: "Unprocessable",
+      data: { test: 123 },
     });
   });
 
-  it("can send internal error", async () => {
-    t.app.get("/api/test", () => {
-      throw new Error("Booo");
+  it("return HttpError", async () => {
+    t.app.use(() => {
+      return new HttpError({
+        statusText: "Unprocessable",
+        status: 422,
+        data: { test: 123 },
+      });
+    });
+    const result = await t.fetch("/");
+    expect(result.status).toBe(422);
+    expect(result.statusText).toBe("Unprocessable");
+    expect(await result.json()).toMatchObject({
+      status: 422,
+      statusText: "Unprocessable",
+      message: "Unprocessable",
+      data: { test: 123 },
+    });
+  });
+
+  it("unandled errors", async () => {
+    t.app.use("/api/test", () => {
+      // @ts-expect-error
+      foo.bar = 123;
     });
     const result = await t.fetch("/api/test");
 
+    expect(t.errors[0].message).toMatch("foo is not defined");
+    expect(t.errors[0].unhandled).toBe(true);
+    t.errors = [];
+
     expect(result.status).toBe(500);
     expect(JSON.parse(await result.text())).toMatchObject({
-      statusCode: 500,
+      status: 500,
     });
   });
 
@@ -57,9 +64,9 @@ describeMatrix("errors", (t, { it, expect }) => {
     consoleMock.mockReset();
 
     t.app.get("/api/test", () => {
-      throw createError({
-        statusCode: 400,
-        statusMessage: "Bad Request",
+      throw new HttpError({
+        status: 400,
+        statusText: "Bad Request",
         data: {
           message: "Invalid Input",
         },
@@ -69,40 +76,17 @@ describeMatrix("errors", (t, { it, expect }) => {
     const result = await t.fetch("/api/test");
 
     expect(result.status).toBe(400);
-    // expect(result.type).toMatch("application/json"); // TODO: fix this
+    expect(result.headers.get("content-type")).toMatch("application/json");
 
     expect(console.error).not.toBeCalled();
 
     expect(JSON.parse(await result.text())).toMatchObject({
-      statusCode: 400,
-      statusMessage: "Bad Request",
+      status: 400,
+      statusText: "Bad Request",
       data: {
         message: "Invalid Input",
       },
     });
-  });
-
-  it("can handle errors in promises", async () => {
-    t.app.get("/", () => {
-      throw new Error("failed");
-    });
-
-    const res = await t.fetch("/");
-    expect(res.status).toBe(500);
-  });
-
-  it("can handle returned Error", async () => {
-    t.app.get("/", () => new Error("failed"));
-
-    const res = await t.fetch("/");
-    expect(res.status).toBe(500);
-  });
-
-  it("can handle returned H3Error", async () => {
-    t.app.get("/", () => createError({ statusCode: 501 }));
-
-    const res = await t.fetch("/");
-    expect(res.status).toBe(501);
   });
 
   it("can access original error", async () => {
@@ -111,7 +95,7 @@ describeMatrix("errors", (t, { it, expect }) => {
     }
 
     t.app.get("/", () => {
-      throw createError(new CustomError());
+      throw new HttpError(new CustomError());
     });
 
     const res = await t.fetch("/");
@@ -122,16 +106,16 @@ describeMatrix("errors", (t, { it, expect }) => {
 
   it("can inherit from cause", async () => {
     class CustomError extends Error {
-      cause = createError({
-        statusCode: 400,
-        statusMessage: "Bad Request",
+      cause = new HttpError({
+        status: 400,
+        statusText: "Bad Request",
         unhandled: true,
         fatal: true,
       });
     }
 
     t.app.get("/", () => {
-      throw createError(new CustomError());
+      throw new HttpError(new CustomError());
     });
 
     const res = await t.fetch("/");

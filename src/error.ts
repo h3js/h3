@@ -1,168 +1,152 @@
-import { hasProp } from "./utils/internal/object.ts";
 import { sanitizeStatusMessage, sanitizeStatusCode } from "./utils/sanitize.ts";
 
 /**
  * H3 Runtime Error
- * @class
- * @extends Error
- * @property {number} statusCode - An integer indicating the HTTP response status code.
- * @property {string} statusMessage - A string representing the HTTP status message.
- * @property {boolean} fatal - Indicates if the error is a fatal error.
- * @property {boolean} unhandled - Indicates if the error was unhandled and auto-captured.
- * @property {DataT} data - An extra data that will be included in the response.
- *                         This can be used to pass additional information about the error.
  */
-export class H3Error<DataT = unknown> extends Error {
+export class HttpError<
+    DataT extends Record<string, unknown> = Record<string, unknown>,
+  >
+  extends Error
+  implements ErrorObject<DataT>
+{
   static __h3_error__ = true;
-  statusCode = 500;
-  fatal = false;
-  unhandled = false;
-  statusMessage?: string;
-  data?: DataT;
-  cause?: unknown;
-  headers?: Headers;
 
-  constructor(message: string, opts: { cause?: unknown } = {}) {
-    // @ts-ignore https://v8.dev/features/error-cause
-    super(message, opts);
+  status: number;
+  statusText: string | undefined;
+  headers: Headers | undefined;
+  cause: unknown | undefined;
+  data: DataT | undefined;
 
-    // Polyfill cause for other runtimes
-    if (opts.cause && !this.cause) {
-      this.cause = opts.cause;
-    }
-  }
+  fatal?: boolean;
+  unhandled?: boolean;
 
-  toJSON(): Pick<
-    H3Error<DataT>,
-    "message" | "statusCode" | "statusMessage" | "data"
-  > {
-    const obj: Pick<
-      H3Error<DataT>,
-      "message" | "statusCode" | "statusMessage" | "data"
-    > = {
-      message: this.message,
-      statusCode: sanitizeStatusCode(this.statusCode, 500),
-    };
-
-    if (this.statusMessage) {
-      obj.statusMessage = sanitizeStatusMessage(this.statusMessage);
-    }
-    if (this.data !== undefined) {
-      obj.data = this.data;
-    }
-
-    return obj;
-  }
-}
-
-/**
- * Creates a new `Error` that can be used to handle both internal and runtime errors.
- *
- * @param input {string | (Partial<H3Error> & { status?: number; statusText?: string })} - The error message or an object containing error properties.
- * If a string is provided, it will be used as the error `message`.
- *
- * @example
- * // String error where `statusCode` defaults to `500`
- * throw createError("An error occurred");
- * // Object error
- * throw createError({
- *   statusCode: 400,
- *   statusMessage: "Bad Request",
- *   message: "Invalid input",
- *   data: { field: "email" }
- * });
- *
- *
- * @return {H3Error} - An instance of H3Error.
- *
- * @remarks
- * - Typically, `message` contains a brief, human-readable description of the error, while `statusMessage` is specific to HTTP responses and describes
- * the status text related to the response status code.
- * - In a client-server context, using a short `statusMessage` is recommended because it can be accessed on the client side. Otherwise, a `message`
- * passed to `createError` on the server will not propagate to the client.
- * - Consider avoiding putting dynamic user input in the `message` to prevent potential security issues.
- */
-export function createError<DataT = unknown>(
-  input:
-    | string
-    | (Omit<Partial<H3Error<DataT>>, "headers"> & {
-        status?: number;
-        statusText?: string;
-        headers?: HeadersInit;
-      }),
-): H3Error<DataT> {
-  if (typeof input === "string") {
-    return new H3Error<DataT>(input);
-  }
-
-  // Inherit H3Error properties from cause as fallback
-  const cause: unknown = input.cause;
-
-  const err = new H3Error<DataT>(input.message ?? input.statusMessage ?? "", {
-    cause: cause || input,
-  });
-
-  if (hasProp(input, "stack")) {
-    try {
-      Object.defineProperty(err, "stack", {
-        get() {
-          return input.stack;
-        },
-      });
-    } catch {
-      try {
-        err.stack = input.stack;
-      } catch {
-        // Ignore
+  constructor(message: string, details?: ErrorDetails);
+  constructor(status: number, details?: ErrorDetails);
+  constructor(details: ErrorDetails);
+  constructor(arg1: string | number | ErrorDetails, arg2?: ErrorDetails) {
+    let statusInput: number | undefined;
+    let messageInput: string | undefined;
+    let details: ErrorDetails | undefined;
+    switch (typeof arg1) {
+      case "string": {
+        messageInput = arg1;
+        details = arg2;
+        break;
+      }
+      case "number": {
+        statusInput = arg1;
+        details = arg2;
+        break;
+      }
+      default: {
+        details = arg1;
       }
     }
+
+    const status = sanitizeStatusCode(
+      statusInput ||
+        (details as ErrorObject)?.status ||
+        (details?.cause as ErrorObject)?.status ||
+        (details as ErrorObject)?.status ||
+        (details as ErrorObjectInput)?.statusCode ||
+        500,
+    );
+
+    const stautText = sanitizeStatusMessage(
+      (details as ErrorObject)?.statusText ||
+        (details?.cause as ErrorObject)?.statusText ||
+        (details as ErrorObject)?.statusText ||
+        (details as ErrorObjectInput)?.statusMessage,
+    );
+
+    const message: string =
+      messageInput ||
+      details?.message ||
+      (details?.cause as ErrorDetails)?.message ||
+      (details as ErrorObjectInput)?.statusMessage ||
+      (details as ErrorObject)?.statusText ||
+      ["HttpError", status, stautText].filter(Boolean).join(" ");
+
+    // @ts-ignore https://v8.dev/features/error-cause
+    super(message, { cause: details });
+    this.cause = details;
+    Error.captureStackTrace?.(this, this.constructor);
+
+    this.status = status;
+    this.statusText = stautText || undefined;
+
+    const rawHeaders =
+      (details as ErrorObjectInput)?.headers ||
+      (details?.cause as ErrorObjectInput)?.headers;
+    this.headers = rawHeaders ? new Headers(rawHeaders) : undefined;
+
+    this.fatal =
+      (details as ErrorObject)?.fatal ??
+      (details?.cause as ErrorObject)?.fatal ??
+      false;
+
+    this.unhandled =
+      (details as ErrorObject)?.unhandled ??
+      (details?.cause as ErrorObject)?.unhandled ??
+      false;
+
+    this.data = (details as ErrorObject)?.data as DataT | undefined;
   }
 
-  if (input.data) {
-    err.data = input.data;
+  toJSON(): ErrorObject {
+    return {
+      status: this.status,
+      statusText: this.statusText,
+      message: this.message,
+      fatal: this.fatal,
+      unhandled: this.unhandled,
+      data: this.data,
+    };
   }
-
-  const statusCode =
-    input.statusCode ??
-    input.status ??
-    (cause as H3Error)?.statusCode ??
-    (cause as { status?: number })?.status;
-  if (typeof statusCode === "number") {
-    err.statusCode = sanitizeStatusCode(statusCode);
-  }
-
-  const statusMessage =
-    input.statusMessage ??
-    input.statusText ??
-    (cause as H3Error)?.statusMessage ??
-    (cause as { statusText?: string })?.statusText;
-  if (statusMessage) {
-    err.statusMessage = sanitizeStatusMessage(statusMessage);
-  }
-
-  const fatal = input.fatal ?? (cause as H3Error)?.fatal;
-  if (fatal !== undefined) {
-    err.fatal = fatal;
-  }
-
-  const unhandled = input.unhandled ?? (cause as H3Error)?.unhandled;
-  if (unhandled !== undefined) {
-    err.unhandled = unhandled;
-  }
-
-  if (input.headers) {
-    err.headers = new Headers(input.headers);
-  }
-
-  return err;
 }
 
-/**
- * Checks if the given input is an instance of H3Error.
- *
- * @param input {*} - The input to check.
- * @return {boolean} - Returns true if the input is an instance of H3Error, false otherwise.
- */
-export function isError<DataT = unknown>(input: any): input is H3Error<DataT> {
+/** @deprecated Use `HttpError` */
+export type H3Error = HttpError;
+export const H3Error: typeof HttpError = HttpError;
+
+export function createError(message: number, details?: ErrorDetails): HttpError;
+export function createError(status: number, details?: ErrorDetails): HttpError;
+export function createError(details: ErrorDetails): HttpError;
+export function createError(arg1: any, arg2?: any): HttpError {
+  return new HttpError(arg1, arg2);
+}
+
+export function isError(input: any): input is HttpError {
   return input?.constructor?.__h3_error__ === true;
+}
+
+// ---- Types ----
+
+export type ErrorDetails =
+  | (Error & { cause?: unknown })
+  | HttpError
+  | ErrorObjectInput;
+
+export interface ErrorObject<
+  DataT extends Record<string, unknown> = Record<string, unknown>,
+> {
+  status: number;
+  statusText?: string;
+  message: string;
+  fatal?: boolean;
+  unhandled?: boolean;
+  data?: DataT;
+}
+
+export interface ErrorObjectInput<
+  DataT extends Record<string, unknown> = Record<string, unknown>,
+> extends Partial<ErrorObject<DataT>> {
+  cause?: unknown;
+  headers?: HeadersInit;
+
+  /** @deprecated use `status` */
+  statusCode?: number;
+
+  /** @deprecated use `statusText` */
+  statusMessage?: string;
 }

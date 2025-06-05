@@ -1,5 +1,5 @@
 import { toNodeHandler as _toNodeHandler } from "srvx/node";
-import { createError } from "./error.ts";
+import { HttpError } from "./error.ts";
 import { kHandled } from "./response.ts";
 
 import type { NodeServerRequest, NodeServerResponse } from "srvx/types";
@@ -91,17 +91,23 @@ function callNodeHandler(
     try {
       if (isMiddleware) {
         Promise.resolve(
-          handler(req, res, (err) =>
-            err ? reject(createError(err)) : resolve(void 0),
+          handler(req, res, (error) =>
+            error
+              ? reject(new HttpError({ cause: error, unhandled: true }))
+              : resolve(void 0),
           ),
-        ).catch((error) => reject(createError(error)));
+        ).catch((error) =>
+          reject(new HttpError({ cause: error, unhandled: true })),
+        );
       } else {
         return Promise.resolve((handler as NodeHandler)(req, res))
           .then(() => resolve(kHandled))
-          .catch((error) => reject(createError(error)));
+          .catch((error) =>
+            reject(new HttpError({ cause: error, unhandled: true })),
+          );
       }
-    } catch (error: any) {
-      reject(createError(error));
+    } catch (error: unknown) {
+      reject(new HttpError({ cause: error, unhandled: true }));
     }
   });
 }
