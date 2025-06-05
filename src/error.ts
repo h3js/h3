@@ -35,7 +35,6 @@ export class HTTPError<
   constructor(message: string, details?: ErrorDetails);
   constructor(details: ErrorDetails);
   constructor(arg1: string | ErrorDetails, arg2?: ErrorDetails) {
-    let statusInput: number | undefined;
     let messageInput: string | undefined;
     let details: ErrorDetails | undefined;
     if (typeof arg1 === "string") {
@@ -46,8 +45,7 @@ export class HTTPError<
     }
 
     const status = sanitizeStatusCode(
-      statusInput ||
-        (details as ErrorObject)?.status ||
+      (details as ErrorObject)?.status ||
         (details?.cause as ErrorObject)?.status ||
         (details as ErrorObject)?.status ||
         (details as ErrorObjectInput)?.statusCode,
