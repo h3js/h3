@@ -1,5 +1,5 @@
 import { FastResponse } from "srvx";
-import { HttpError } from "./error.ts";
+import { HTTPError } from "./error.ts";
 import { isJSONSerializable } from "./utils/internal/object.ts";
 
 import type { H3Config } from "./types/h3.ts";
@@ -41,16 +41,16 @@ function prepareResponse(
   }
 
   if (val === kNotFound) {
-    val = new HttpError({
+    val = new HTTPError({
       status: 404,
       message: `Cannot find any route matching [${event.req.method}] ${event.url}`,
     });
   }
 
   if (val && val instanceof Error) {
-    const isHttpError = HttpError.isHttpError(val);
-    const error = isHttpError ? (val as HttpError) : new HttpError(val);
-    if (!isHttpError) {
+    const isHTTPError = HTTPError.isHTTPError(val);
+    const error = isHTTPError ? (val as HTTPError) : new HTTPError(val);
+    if (!isHTTPError) {
       error.unhandled = true;
     }
     const { onError } = config;
@@ -190,7 +190,7 @@ function nullBody(
   )
 }
 
-function errorResponse(error: HttpError, debug?: boolean): Response {
+function errorResponse(error: HTTPError, debug?: boolean): Response {
   const isSensitive = !debug && error.unhandled;
   return new FastResponse(
     JSON.stringify(

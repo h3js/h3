@@ -1,5 +1,5 @@
 import { Readable } from "node:stream";
-import { HttpError, fromNodeHandler } from "../src/index.ts";
+import { HTTPError, fromNodeHandler } from "../src/index.ts";
 import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("app", (t, { it, expect }) => {
@@ -163,7 +163,7 @@ describeMatrix("app", (t, { it, expect }) => {
     t.app.use(() => {
       return new ReadableStream({
         start() {
-          throw new HttpError({ status: 500, statusText: "test" });
+          throw new HTTPError({ status: 500, statusText: "test" });
         },
       });
     });

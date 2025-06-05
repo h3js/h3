@@ -1,5 +1,5 @@
 import type { H3Event } from "../types/event.ts";
-import { HttpError } from "../error.ts";
+import { HTTPError } from "../error.ts";
 import { withLeadingSlash, withoutTrailingSlash } from "./internal/path.ts";
 
 export interface StaticAssetMeta {
@@ -76,7 +76,7 @@ export async function serveStatic(
       return;
     }
     event.res.headers.set("allow", "GET, HEAD");
-    throw new HttpError({ status: 405 });
+    throw new HTTPError({ status: 405 });
   }
 
   const originalId = decodeURI(
@@ -114,7 +114,7 @@ export async function serveStatic(
     if (options.fallthrough) {
       return;
     }
-    throw new HttpError({ statusCode: 404 });
+    throw new HTTPError({ statusCode: 404 });
   }
 
   if (meta.etag && !event.res.headers.has("etag")) {

@@ -1,5 +1,5 @@
 import { toNodeHandler as _toNodeHandler } from "srvx/node";
-import { HttpError } from "./error.ts";
+import { HTTPError } from "./error.ts";
 import { kHandled } from "./response.ts";
 
 import type { NodeServerRequest, NodeServerResponse } from "srvx/types";
@@ -93,21 +93,21 @@ function callNodeHandler(
         Promise.resolve(
           handler(req, res, (error) =>
             error
-              ? reject(new HttpError({ cause: error, unhandled: true }))
+              ? reject(new HTTPError({ cause: error, unhandled: true }))
               : resolve(void 0),
           ),
         ).catch((error) =>
-          reject(new HttpError({ cause: error, unhandled: true })),
+          reject(new HTTPError({ cause: error, unhandled: true })),
         );
       } else {
         return Promise.resolve((handler as NodeHandler)(req, res))
           .then(() => resolve(kHandled))
           .catch((error) =>
-            reject(new HttpError({ cause: error, unhandled: true })),
+            reject(new HTTPError({ cause: error, unhandled: true })),
           );
       }
     } catch (error: unknown) {
-      reject(new HttpError({ cause: error, unhandled: true }));
+      reject(new HTTPError({ cause: error, unhandled: true }));
     }
   });
 }

@@ -3,7 +3,7 @@ import type {
   H3Config,
   H3Event,
   NodeHandler,
-  HttpError,
+  HTTPError,
 } from "../src/index.ts";
 import { Server as NodeServer } from "node:http";
 import { getRandomPort } from "get-port-please";
@@ -188,7 +188,7 @@ export interface TestOptions {
 }
 
 export interface TestContext {
-  errors: HttpError[];
+  errors: HTTPError[];
   hooks: {
     onRequest: Mock<Exclude<H3Config["onRequest"], undefined>>;
     onError: Mock<Exclude<H3Config["onError"], undefined>>;

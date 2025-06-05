@@ -1,4 +1,4 @@
-import { HttpError } from "../error.ts";
+import { HTTPError } from "../error.ts";
 import { parseQuery } from "./internal/query.ts";
 import { validateData } from "./internal/validate.ts";
 
@@ -220,7 +220,7 @@ export function assertMethod(
   allowHead?: boolean,
 ): void {
   if (!isMethod(event, expected, allowHead)) {
-    throw new HttpError({ status: 405 });
+    throw new HTTPError({ status: 405 });
   }
 }
 

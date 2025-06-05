@@ -1,5 +1,5 @@
 import { vi } from "vitest";
-import { HttpError } from "../src/index.ts";
+import { HTTPError } from "../src/index.ts";
 import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("hooks", (t, { it, expect }) => {
@@ -24,7 +24,7 @@ describeMatrix("hooks", (t, { it, expect }) => {
 
   it("сalls onRequest and onResponse when an exception is thrown", async () => {
     t.app.use(() => {
-      throw new HttpError({ status: 503 });
+      throw new HTTPError({ status: 503 });
     });
     await t.fetch("/foo");
 
@@ -40,7 +40,7 @@ describeMatrix("hooks", (t, { it, expect }) => {
 
   it("calls onRequest and onResponse when an error is thrown", async () => {
     t.app.use(() => {
-      throw new HttpError({ status: 404 });
+      throw new HTTPError({ status: 404 });
     });
     await t.fetch("/foo");
 

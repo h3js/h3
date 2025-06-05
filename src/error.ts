@@ -3,13 +3,13 @@ import { sanitizeStatusMessage, sanitizeStatusCode } from "./utils/sanitize.ts";
 /**
  * H3 Runtime Error
  */
-export class HttpError<
+export class HTTPError<
     DataT extends Record<string, unknown> = Record<string, unknown>,
   >
   extends Error
   implements ErrorObject<DataT>
 {
-  static __h3_error__ = true;
+  static __http_error__ = true;
 
   status: number;
   statusText: string | undefined;
@@ -19,8 +19,8 @@ export class HttpError<
 
   unhandled?: boolean;
 
-  static isHttpError(input: any): input is HttpError {
-    return input?.constructor?.__h3_error__ === true;
+  static isHTTPError(input: any): input is HTTPError {
+    return input?.constructor?.__http_error__ === true;
   }
 
   static status(
@@ -30,8 +30,8 @@ export class HttpError<
       ErrorDetails,
       "status" | "statusText" | "statusCode" | "statusMessage"
     >,
-  ): HttpError {
-    return new HttpError({ ...details, statusText, status });
+  ): HTTPError {
+    return new HTTPError({ ...details, statusText, status });
   }
 
   constructor(message: string, details?: ErrorDetails);
@@ -69,7 +69,7 @@ export class HttpError<
       (details?.cause as ErrorDetails)?.message ||
       (details as ErrorObjectInput)?.statusMessage ||
       (details as ErrorObject)?.statusText ||
-      ["HttpError", status, stautText].filter(Boolean).join(" ");
+      ["HTTPError", status, stautText].filter(Boolean).join(" ");
 
     // @ts-ignore https://v8.dev/features/error-cause
     super(message, { cause: details });
@@ -113,26 +113,26 @@ export class HttpError<
   }
 }
 
-/** @deprecated Use `HttpError` */
-export type H3Error = HttpError;
-export const H3Error: typeof HttpError = HttpError;
+/** @deprecated Use `HTTPError` */
+export type H3Error = HTTPError;
+export const H3Error: typeof HTTPError = HTTPError;
 
-export function createError(message: number, details?: ErrorDetails): HttpError;
-export function createError(status: number, details?: ErrorDetails): HttpError;
-export function createError(details: ErrorDetails): HttpError;
-export function createError(arg1: any, arg2?: any): HttpError {
-  return new HttpError(arg1, arg2);
+export function createError(message: number, details?: ErrorDetails): HTTPError;
+export function createError(status: number, details?: ErrorDetails): HTTPError;
+export function createError(details: ErrorDetails): HTTPError;
+export function createError(arg1: any, arg2?: any): HTTPError {
+  return new HTTPError(arg1, arg2);
 }
 
-export function isError(input: any): input is HttpError {
-  return HttpError.isHttpError(input);
+export function isError(input: any): input is HTTPError {
+  return HTTPError.isHTTPError(input);
 }
 
 // ---- Types ----
 
 export type ErrorDetails =
   | (Error & { cause?: unknown })
-  | HttpError
+  | HTTPError
   | ErrorObjectInput;
 
 export interface ErrorObject<

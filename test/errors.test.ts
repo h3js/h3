@@ -1,13 +1,13 @@
 import { vi } from "vitest";
-import { HttpError } from "../src/index.ts";
+import { HTTPError } from "../src/index.ts";
 import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("errors", (t, { it, expect }) => {
   const consoleMock = ((globalThis.console.error as any) = vi.fn());
 
-  it("throw HttpError", async () => {
+  it("throw HTTPError", async () => {
     t.app.use(() => {
-      throw new HttpError({
+      throw new HTTPError({
         statusText: "Unprocessable",
         status: 422,
         data: { test: 123 },
@@ -24,9 +24,9 @@ describeMatrix("errors", (t, { it, expect }) => {
     });
   });
 
-  it("return HttpError", async () => {
+  it("return HTTPError", async () => {
     t.app.use(() => {
-      return new HttpError({
+      return new HTTPError({
         statusText: "Unprocessable",
         status: 422,
         data: { test: 123 },
@@ -64,7 +64,7 @@ describeMatrix("errors", (t, { it, expect }) => {
     consoleMock.mockReset();
 
     t.app.get("/api/test", () => {
-      throw new HttpError({
+      throw new HTTPError({
         status: 400,
         statusText: "Bad Request",
         data: {
@@ -95,7 +95,7 @@ describeMatrix("errors", (t, { it, expect }) => {
     }
 
     t.app.get("/", () => {
-      throw new HttpError(new CustomError());
+      throw new HTTPError(new CustomError());
     });
 
     const res = await t.fetch("/");
@@ -106,7 +106,7 @@ describeMatrix("errors", (t, { it, expect }) => {
 
   it("can inherit from cause", async () => {
     class CustomError extends Error {
-      cause = new HttpError({
+      cause = new HTTPError({
         status: 400,
         statusText: "Bad Request",
         unhandled: true,
@@ -114,7 +114,7 @@ describeMatrix("errors", (t, { it, expect }) => {
     }
 
     t.app.get("/", () => {
-      throw new HttpError(new CustomError());
+      throw new HTTPError(new CustomError());
     });
 
     const res = await t.fetch("/");

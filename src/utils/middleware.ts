@@ -1,4 +1,4 @@
-import type { HttpError } from "../error.ts";
+import type { HTTPError } from "../error.ts";
 import type { H3Event } from "../types/event.ts";
 import type { Middleware } from "../types/handler.ts";
 
@@ -30,13 +30,13 @@ export function onResponse(
  * Define a middleware that runs when an error occurs.
  */
 export function onError(
-  handler: (event: H3Event, error: Error | HttpError) => void | Promise<void>,
+  handler: (event: H3Event, error: Error | HTTPError) => void | Promise<void>,
 ): Middleware {
   return async (event, next) => {
     try {
       return await next();
     } catch (error) {
-      await handler(event, error as Error | HttpError);
+      await handler(event, error as Error | HTTPError);
       throw error;
     }
   };

@@ -1,7 +1,7 @@
 import type { H3EventContext, H3Event } from "../types/event.ts";
 import { splitSetCookieString } from "cookie-es";
 import { sanitizeStatusMessage, sanitizeStatusCode } from "./sanitize.ts";
-import { HttpError } from "../error.ts";
+import { HTTPError } from "../error.ts";
 import {
   PayloadMethods,
   getFetch,
@@ -88,7 +88,7 @@ export async function proxy(
       ...opts.fetchOptions,
     });
   } catch (error) {
-    throw new HttpError({ status: 502, cause: error });
+    throw new HTTPError({ status: 502, cause: error });
   }
   event.res.status = sanitizeStatusCode(response.status, event.res.status);
   event.res.statusText = sanitizeStatusMessage(response.statusText);

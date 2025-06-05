@@ -1,4 +1,4 @@
-import { HttpError } from "../../error.ts";
+import { HTTPError } from "../../error.ts";
 import type { StandardSchemaV1, InferOutput } from "./standard-schema.ts";
 
 export type ValidateResult<T> = T | true | false | void;
@@ -56,7 +56,7 @@ export async function validateData<T>(
 }
 
 function createValidationError(validateError?: any) {
-  throw new HttpError({
+  throw new HTTPError({
     status: 400,
     statusText: "Validation failed",
     message: validateError?.message,
