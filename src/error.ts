@@ -93,6 +93,16 @@ export class HttpError<
     this.data = (details as ErrorObject)?.data as DataT | undefined;
   }
 
+  /** @deprecated Use `status` */
+  get statusCode(): number {
+    return this.status;
+  }
+
+  /** @deprecated Use `statusText` */
+  get statusMessage(): string | undefined {
+    return this.statusText;
+  }
+
   toJSON(): ErrorObject {
     return {
       status: this.status,
