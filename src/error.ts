@@ -19,7 +19,7 @@ export class HTTPError<
 
   unhandled?: boolean;
 
-  static isHTTPError(input: any): input is HTTPError {
+  static isError(input: any): input is HTTPError {
     return input?.constructor?.__http_error__ === true;
   }
 
@@ -125,7 +125,7 @@ export function createError(arg1: any, arg2?: any): HTTPError {
 }
 
 export function isError(input: any): input is HTTPError {
-  return HTTPError.isHTTPError(input);
+  return HTTPError.isError(input);
 }
 
 // ---- Types ----
