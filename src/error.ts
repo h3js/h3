@@ -25,9 +25,13 @@ export class HttpError<
 
   static status(
     status: number,
-    details?: Exclude<ErrorDetails, "status">,
+    statusText?: string,
+    details?: Exclude<
+      ErrorDetails,
+      "status" | "statusText" | "statusCode" | "statusMessage"
+    >,
   ): HttpError {
-    return new HttpError({ ...details, status });
+    return new HttpError({ ...details, statusText, status });
   }
 
   constructor(message: string, details?: ErrorDetails);
