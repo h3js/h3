@@ -117,18 +117,6 @@ export async function serveStatic(
     throw new HTTPError({ statusCode: 404 });
   }
 
-  if (meta.etag && !event.res.headers.has("etag")) {
-    event.res.headers.set("etag", meta.etag);
-  }
-
-  const ifNotMatch =
-    meta.etag && event.req.headers.get("if-none-match") === meta.etag;
-  if (ifNotMatch) {
-    event.res.status = 304;
-    event.res.statusText = "Not Modified";
-    return "";
-  }
-
   if (meta.mtime) {
     const mtimeDate = new Date(meta.mtime);
 
@@ -142,6 +130,18 @@ export async function serveStatic(
     if (!event.res.headers.get("last-modified")) {
       event.res.headers.set("last-modified", mtimeDate.toUTCString());
     }
+  }
+
+  if (meta.etag && !event.res.headers.has("etag")) {
+    event.res.headers.set("etag", meta.etag);
+  }
+
+  const ifNotMatch =
+    meta.etag && event.req.headers.get("if-none-match") === meta.etag;
+  if (ifNotMatch) {
+    event.res.status = 304;
+    event.res.statusText = "Not Modified";
+    return "";
   }
 
   if (meta.type && !event.res.headers.get("content-type")) {
