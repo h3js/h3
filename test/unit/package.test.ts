@@ -27,6 +27,7 @@ describe("h3 package", () => {
         "createRouter",
         "defaultContentType",
         "defineEventHandler",
+        "defineHandler",
         "defineLazyEventHandler",
         "defineMiddleware",
         "defineNodeHandler",

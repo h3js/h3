@@ -1,10 +1,10 @@
-import { H3, serve, defineEventHandler } from "h3";
+import { H3, serve, defineHandler } from "h3";
 
 export const app = new H3();
 
 app.get(
   "/",
-  defineEventHandler({
+  defineHandler({
     onRequest: () => {
       // Do anything you want here like authentication, rate limiting, etc.
       console.log("onRequest");

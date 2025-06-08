@@ -32,7 +32,7 @@ export type {
 } from "./types/handler.ts";
 
 export {
-  defineEventHandler,
+  defineHandler,
   defineLazyEventHandler,
   dynamicEventHandler,
 } from "./handler.ts";

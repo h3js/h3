@@ -24,10 +24,10 @@ describe("benchmark", () => {
     expect(bundle.gzipSize).toBeLessThanOrEqual(4000); // <4kb
   });
 
-  it("bundle size (defineEventHandler)", async () => {
+  it("bundle size (defineHandler)", async () => {
     const code = /* js */ `
-      import { defineEventHandler } from "h3";
-      const handler = defineEventHandler({});
+      import { defineHandler } from "h3";
+      const handler = defineHandler({});
     `;
     const bundle = await getBundleSize(code);
     if (inspect) {
@@ -35,7 +35,7 @@ describe("benchmark", () => {
     }
     if (process.env.DEBUG) {
       console.log(
-        `Bundle size (defineEventHandler): ${bundle.bytes} (gzip: ${bundle.gzipSize})`,
+        `Bundle size (defineHandler): ${bundle.bytes} (gzip: ${bundle.gzipSize})`,
       );
     }
     expect(bundle.bytes).toBeLessThanOrEqual(5300); // <5.3kb

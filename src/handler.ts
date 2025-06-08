@@ -14,17 +14,17 @@ import type {
 
 // --- event handler ---
 
-export function defineEventHandler<
+export function defineHandler<
   Req extends EventHandlerRequest = EventHandlerRequest,
   Res = EventHandlerResponse,
 >(handler: EventHandler<Req, Res>): EventHandlerWithFetch<Req, Res>;
 
-export function defineEventHandler<
+export function defineHandler<
   Req extends EventHandlerRequest = EventHandlerRequest,
   Res = EventHandlerResponse,
 >(def: EventHandlerObject<Req, Res>): EventHandlerWithFetch<Req, Res>;
 
-export function defineEventHandler(arg1: unknown): EventHandlerWithFetch {
+export function defineHandler(arg1: unknown): EventHandlerWithFetch {
   if (typeof arg1 === "function") {
     return handlerWithFetch(arg1 as EventHandler);
   }
@@ -68,7 +68,7 @@ export function dynamicEventHandler(
 ): DynamicEventHandler {
   let current: EventHandler | undefined = initial;
   return Object.assign(
-    defineEventHandler((event: H3Event) => current?.(event)),
+    defineHandler((event: H3Event) => current?.(event)),
     {
       set: (handler: EventHandler) => {
         current = handler;
@@ -105,7 +105,7 @@ export function defineLazyEventHandler(
     return _promise;
   };
 
-  return defineEventHandler((event) => {
+  return defineHandler((event) => {
     if (_resolved) {
       return _resolved.handler(event);
     }

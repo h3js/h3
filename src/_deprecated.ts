@@ -4,7 +4,7 @@ import {
   fromNodeHandler,
   toNodeHandler,
 } from "./adapters.ts";
-import { defineEventHandler, defineLazyEventHandler } from "./handler.ts";
+import { defineHandler, defineLazyEventHandler } from "./handler.ts";
 import { proxy, type ProxyOptions } from "./utils/proxy.ts";
 import { H3 } from "./h3.ts";
 import { withBase } from "./utils/base.ts";
@@ -292,9 +292,13 @@ export function clearResponseHeaders(
 
 // -- Event handler --
 
-/** Please use `defineEventHandler`  */
+/** Please use `defineHandler`  */
+export const defineEventHandler: (handler: EventHandler) => EventHandler =
+  defineHandler;
+
+/** Please use `defineHandler`  */
 export const eventHandler: (handler: EventHandler) => EventHandler =
-  defineEventHandler;
+  defineHandler;
 
 /** Please use `defineLazyEventHandler` */
 export const lazyEventHandler: (
