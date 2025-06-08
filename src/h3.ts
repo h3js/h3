@@ -15,6 +15,7 @@ import type {
   RouteHandler,
   MiddlewareOptions,
 } from "./types/h3.ts";
+import type { ServerRequest } from "srvx/types";
 
 export type H3 = H3Type;
 
@@ -36,7 +37,7 @@ export const H3 = /* @__PURE__ */ (() => {
     }
 
     fetch(
-      request: Request | URL | string,
+      request: ServerRequest | URL | string,
       options?: RequestInit,
     ): Promise<Response> {
       try {
@@ -47,12 +48,12 @@ export const H3 = /* @__PURE__ */ (() => {
     }
 
     _fetch(
-      _req: Request | URL | string,
+      _req: ServerRequest | URL | string,
       _init?: RequestInit,
       context?: H3EventContext,
     ): Response | Promise<Response> {
       // Convert the request to a Request object
-      const request: Request = toRequest(_req, _init);
+      const request: ServerRequest = toRequest(_req, _init);
 
       // Create a new event instance
       const event = new H3Event(request, context);
@@ -162,9 +163,9 @@ export const H3 = /* @__PURE__ */ (() => {
 })() as unknown as typeof H3Type;
 
 export function toRequest(
-  _request: Request | URL | string,
+  _request: ServerRequest | URL | string,
   _init?: RequestInit,
-): Request {
+): ServerRequest {
   if (typeof _request === "string") {
     let url = _request;
     if (url[0] === "/") {
@@ -178,5 +179,5 @@ export function toRequest(
   } else if (_init || _request instanceof URL) {
     return new Request(_request, _init);
   }
-  return _request as Request;
+  return _request;
 }

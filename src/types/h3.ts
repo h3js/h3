@@ -64,13 +64,13 @@ export declare class H3 {
    * Returned value is a [Response](https://developer.mozilla.org/en-US/docs/Web/API/Response) Promise.
    */
   fetch(
-    _request: Request | URL | string,
+    _request: ServerRequest | URL | string,
     options?: RequestInit,
   ): Promise<Response>;
 
   /** (internal fetch) */
   _fetch(
-    _request: Request | URL | string,
+    _request: ServerRequest | URL | string,
     options?: RequestInit,
     context?: H3EventContext,
   ): Response | Promise<Response>;

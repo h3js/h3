@@ -1,3 +1,4 @@
+import type { ServerRequest } from "srvx/types";
 import type { MaybePromise } from "./_utils.ts";
 import type { H3Event } from "./event.ts";
 
@@ -9,7 +10,7 @@ export type EventHandler<
 > = (event: H3Event<Req>) => Res;
 
 export type EventHandlerFetch = (
-  req: Request | URL | string,
+  req: ServerRequest | URL | string,
   init?: RequestInit,
 ) => Promise<Response>;
 

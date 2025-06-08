@@ -1,3 +1,4 @@
+import type { ServerRequest } from "srvx/types";
 import { H3Event } from "./event.ts";
 import { toRequest } from "./h3.ts";
 import { callMiddleware } from "./middleware.ts";
@@ -45,7 +46,7 @@ function handlerWithFetch<
 >(handler: EventHandler<Req, Res>): EventHandlerWithFetch<Req, Res> {
   return Object.assign(handler, {
     fetch: (
-      _req: Request | URL | string,
+      _req: ServerRequest | URL | string,
       _init?: RequestInit,
     ): Promise<Response> => {
       const req = toRequest(_req, _init);
