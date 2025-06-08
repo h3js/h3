@@ -15,7 +15,7 @@ export interface H3Config {
 
   onError?: (error: HTTPError, event: H3Event) => MaybePromise<void | unknown>;
   onRequest?: (event: H3Event) => MaybePromise<void>;
-  onBeforeResponse?: (
+  onResponse?: (
     event: H3Event,
     response: Response | PreparedResponse,
   ) => MaybePromise<void>;

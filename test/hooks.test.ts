@@ -12,11 +12,11 @@ describeMatrix("hooks", (t, { it, expect }) => {
 
     expect(t.hooks.onError).toHaveBeenCalledTimes(0);
 
-    expect(t.hooks.onBeforeResponse).toHaveBeenCalledTimes(1);
+    expect(t.hooks.onResponse).toHaveBeenCalledTimes(1);
 
     // In Node.js, srvx garbage collects the response body after preparing it for Node.js
     if (t.target !== "node") {
-      const res = t.hooks.onBeforeResponse.mock.calls[0]![1]!;
+      const res = t.hooks.onResponse.mock.calls[0]![1]!;
       const resBody = res instanceof Response ? await res.text() : res.body;
       expect(resBody).toBe("Hello World!");
     }
@@ -35,7 +35,7 @@ describeMatrix("hooks", (t, { it, expect }) => {
     expect(t.hooks.onError.mock.calls[0]![0]!.status).toBe(503);
     expect(t.hooks.onError.mock.calls[0]![1]!.path).toBe("/foo");
 
-    expect(t.hooks.onBeforeResponse).toHaveBeenCalledTimes(1);
+    expect(t.hooks.onResponse).toHaveBeenCalledTimes(1);
   });
 
   it("calls onRequest and onResponse when an error is thrown", async () => {
@@ -51,7 +51,7 @@ describeMatrix("hooks", (t, { it, expect }) => {
     expect(t.hooks.onError.mock.calls[0]![0]!.status).toBe(404);
     expect(t.hooks.onError.mock.calls[0]![1]!.path).toBe("/foo");
 
-    expect(t.hooks.onBeforeResponse).toHaveBeenCalledTimes(1);
+    expect(t.hooks.onResponse).toHaveBeenCalledTimes(1);
   });
 
   it("calls onRequest and onResponse when an unhandled error occurs", async () => {
@@ -77,6 +77,6 @@ describeMatrix("hooks", (t, { it, expect }) => {
     expect(t.hooks.onError.mock.calls[0]![0]!.cause).toBeInstanceOf(TypeError);
     expect(t.hooks.onError.mock.calls[0]![1]!.path).toBe("/foo");
 
-    expect(t.hooks.onBeforeResponse).toHaveBeenCalledTimes(1);
+    expect(t.hooks.onResponse).toHaveBeenCalledTimes(1);
   });
 });

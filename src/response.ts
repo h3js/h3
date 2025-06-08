@@ -24,9 +24,9 @@ export function handleResponse(
     return handleResponse(response, event, config);
   }
 
-  const { onBeforeResponse } = config;
-  return onBeforeResponse
-    ? Promise.resolve(onBeforeResponse(event, response)).then(() => response)
+  const { onResponse } = config;
+  return onResponse
+    ? Promise.resolve(onResponse(event, response)).then(() => response)
     : response;
 }
 
