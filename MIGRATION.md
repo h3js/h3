@@ -20,11 +20,11 @@ You can still `require("h3")` thanks to `require(esm)` supported in newer Node.j
 
 ## Web standards
 
-H3 v2 is rewritten based on Web standard primitives ([`URL`](https://developer.mozilla.org/en-US/docs/Web/API/URL), [`Headers`](https://developer.mozilla.org/en-US/docs/Web/API/Headers), [`Request`](https://developer.mozilla.org/en-US/docs/Web/API/Request), and [`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response)).
+H3 v2 is rewritten based on web standard primitives ([`URL`](https://developer.mozilla.org/en-US/docs/Web/API/URL), [`Headers`](https://developer.mozilla.org/en-US/docs/Web/API/Headers), [`Request`](https://developer.mozilla.org/en-US/docs/Web/API/Request), and [`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response)).
 
 `event.node` context is only available when running in Node.js runtime and `event.web` is available via `event.req`.
 
-On Node.js runtime, H3 uses a two way proxy to sync Node.js API with Web standard API making it a seamless experience on Node.
+On Node.js runtime, H3 uses a two way proxy to sync Node.js API with Web API making it a seamless experience on Node.
 
 Old utils for plain handler and web handler are removed to embrace web standards.
 
@@ -78,7 +78,7 @@ H3 migrated to a brand new route-matching engine [rou3](https://rou3.h3.dev/). Y
 
 ## Body utils
 
-Most of request body utilities can now be replaced with `event.req` utils which is based on standard [`Request`](https://developer.mozilla.org/en-US/docs/Web/API/Response) interface + platform addons from [srvx](https://srvx.h3.dev/guide/handler#additional-properties).
+Most of request body utilities can now be replaced with `event.req` utils which is based on [`Request`](https://developer.mozilla.org/en-US/docs/Web/API/Response) interface + platform addons from [srvx](https://srvx.h3.dev/guide/handler#additional-properties).
 
 `readBody(event)` utility will use [`JSON.parse`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/parse) or [`URLSearchParams`](https://developer.mozilla.org/en-US/docs/Web/API/URLSearchParams) for parsing requests with `application/x-www-form-urlencoded` content-type.
 
