@@ -1,6 +1,6 @@
 import type { H3Event, H3EventContext } from "./event.ts";
 import type { EventHandler, Middleware } from "./handler.ts";
-import type { H3Error } from "../error.ts";
+import type { HTTPError } from "../error.ts";
 import type { MaybePromise } from "./_utils.ts";
 import type { ServerRequest } from "srvx/types";
 
@@ -13,9 +13,9 @@ export type HTTPMethod =  "GET" | "HEAD" | "PATCH" | "POST" | "PUT" | "DELETE" |
 export interface H3Config {
   debug?: boolean;
 
-  onError?: (error: H3Error, event: H3Event) => MaybePromise<void | unknown>;
+  onError?: (error: HTTPError, event: H3Event) => MaybePromise<void | unknown>;
   onRequest?: (event: H3Event) => MaybePromise<void>;
-  onBeforeResponse?: (
+  onResponse?: (
     event: H3Event,
     response: Response | PreparedResponse,
   ) => MaybePromise<void>;
@@ -64,13 +64,13 @@ export declare class H3 {
    * Returned value is a [Response](https://developer.mozilla.org/en-US/docs/Web/API/Response) Promise.
    */
   fetch(
-    _request: Request | URL | string,
+    _request: ServerRequest | URL | string,
     options?: RequestInit,
   ): Promise<Response>;
 
   /** (internal fetch) */
   _fetch(
-    _request: Request | URL | string,
+    _request: ServerRequest | URL | string,
     options?: RequestInit,
     context?: H3EventContext,
   ): Response | Promise<Response>;

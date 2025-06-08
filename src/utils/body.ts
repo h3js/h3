@@ -1,4 +1,4 @@
-import { createError } from "../error.ts";
+import { HTTPError } from "../error.ts";
 import { validateData } from "./internal/validate.ts";
 import { parseURLEncodedBody } from "./internal/body.ts";
 
@@ -41,9 +41,9 @@ export async function readBody<
   try {
     return JSON.parse(text) as _T;
   } catch {
-    throw createError({
-      statusCode: 400,
-      statusMessage: "Bad Request",
+    throw new HTTPError({
+      status: 400,
+      statusText: "Bad Request",
       message: "Invalid JSON body",
     });
   }

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import {
-  defineEventHandler,
+  defineHandler,
   dynamicEventHandler,
   defineLazyEventHandler,
 } from "../src/index.ts";
@@ -8,17 +8,17 @@ import {
 import type { H3Event } from "../src/types/event.ts";
 
 describe("handler.ts", () => {
-  describe("defineEventHandler", () => {
+  describe("defineHandler", () => {
     it("should return the handler function when passed a function", () => {
       const handler = vi.fn();
-      const eventHandler = defineEventHandler(handler);
+      const eventHandler = defineHandler(handler);
       expect(eventHandler).toBe(handler);
     });
 
     it("object syntax", () => {
       const handler = vi.fn();
       const middleware = [vi.fn()];
-      const eventHandler = defineEventHandler({ handler, middleware });
+      const eventHandler = defineHandler({ handler, middleware });
       eventHandler({} as H3Event);
       expect(middleware[0]).toHaveBeenCalled();
       expect(handler).toHaveBeenCalled();

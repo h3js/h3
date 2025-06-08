@@ -1,5 +1,5 @@
 import { FastResponse } from "srvx";
-import { createError, type H3Error } from "./error.ts";
+import { HTTPError } from "./error.ts";
 import { isJSONSerializable } from "./utils/internal/object.ts";
 
 import type { H3Config } from "./types/h3.ts";
@@ -11,7 +11,7 @@ export const kHandled: symbol = /* @__PURE__ */ Symbol.for("h3.handled");
 export function handleResponse(
   val: unknown,
   event: H3Event,
-  config: H3Config,
+  config: H3Config = {},
 ): Response | Promise<Response> {
   if (val && val instanceof Promise) {
     return val
@@ -24,9 +24,9 @@ export function handleResponse(
     return handleResponse(response, event, config);
   }
 
-  const { onBeforeResponse } = config;
-  return onBeforeResponse
-    ? Promise.resolve(onBeforeResponse(event, response)).then(() => response)
+  const { onResponse } = config;
+  return onResponse
+    ? Promise.resolve(onResponse(event, response)).then(() => response)
     : response;
 }
 
@@ -41,14 +41,22 @@ function prepareResponse(
   }
 
   if (val === kNotFound) {
-    val = createError({
-      statusCode: 404,
-      statusMessage: `Cannot find any route matching [${event.req.method}] ${event.url}`,
+    val = new HTTPError({
+      status: 404,
+      message: `Cannot find any route matching [${event.req.method}] ${event.url}`,
     });
   }
 
   if (val && val instanceof Error) {
-    const error = createError(val); // todo: flag unhandled
+    const isHTTPError = HTTPError.isError(val);
+    const error = isHTTPError ? (val as HTTPError) : new HTTPError(val);
+    if (!isHTTPError) {
+      // @ts-expect-error unhandled is readonly for public interface
+      error.unhandled = true;
+      if (val?.stack) {
+        error.stack = val.stack;
+      }
+    }
     const { onError } = config;
     return onError && !nested
       ? Promise.resolve(onError(error, event))
@@ -186,24 +194,22 @@ function nullBody(
   )
 }
 
-function errorResponse(error: H3Error, debug?: boolean): Response {
+function errorResponse(error: HTTPError, debug?: boolean): Response {
   return new FastResponse(
     JSON.stringify(
       {
-        statusCode: error.statusCode,
-        statusMessage: error.statusMessage,
-        data: error.data,
+        ...error.toJSON(),
         stack:
           debug && error.stack
             ? error.stack.split("\n").map((l) => l.trim())
             : undefined,
       },
-      null,
-      2,
+      undefined,
+      debug ? 2 : undefined,
     ),
     {
-      status: error.statusCode,
-      statusText: error.statusMessage,
+      status: error.status,
+      statusText: error.statusText,
       headers: error.headers
         ? mergeHeaders(jsonHeaders, error.headers)
         : jsonHeaders,

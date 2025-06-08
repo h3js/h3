@@ -4,33 +4,41 @@ icon: icons8:up-round
 
 # Migration guide for v1 to v2
 
-h3 v2 includes some behavior and API changes that you need to consider applying when migrating.
+H3 version 2 includes some behavior and API changes that you need to consider applying when migrating.
 
 > [!NOTE]
-> Currently v2 is in beta stage You can try with [`h3-nightly@2x`](https://www.npmjs.com/package/h3-nightly?activeTab=versions)
+> Currently H3 v2 in beta stage. You can try with [nightly channel](/guide/advanced/nightly).
 
 > [!NOTE]
-> This is an undergoing migration guide and is not finished yet.
+> This is an undergoing migration guide and might be updated.
 
-## ESM and latest Node.js
+> [!TIP]
+> H3 has a brand new documentation rewrite. Head to the new [Guide](/guide) section to learn more!
 
-H3 v2 requires Node.js >= 20.11 with ESM support.
+## Latest Node.js and ESM-only
 
-You can still `require("h3")` thanks to `require(esm)` supported in newer Node.js versions.
+> [!TIP]
+> H3 v2 requires Node.js >= 20.11 (latest LTS recommended) .
 
-## Web standards
+If your application is currently using CommonJS modules (`require` and `module.exports`), You can still use `require("h3")` thanks to `require(esm)` supported in latest Node.js versions.
 
-H3 v2 is rewritten based on Web standard primitives ([`URL`](https://developer.mozilla.org/en-US/docs/Web/API/URL), [`Headers`](https://developer.mozilla.org/en-US/docs/Web/API/Headers), [`Request`](https://developer.mozilla.org/en-US/docs/Web/API/Request), and [`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response)).
+You can alternatively use other compatible runtimes [Bun](https://bun.sh/) or [Deno](https://deno.com/).
 
-`event.node` context is only available when running in Node.js runtime and `event.web` is available via `event.req`.
+## Web Standards
 
-On Node.js runtime, h3 uses a two way proxy to sync Node.js API with Web standard API making it a seamless experience on Node.
+> [!TIP]
+> H3 v2 is rewritten based on web standard primitives ([`URL`](https://developer.mozilla.org/en-US/docs/Web/API/URL), [`Headers`](https://developer.mozilla.org/en-US/docs/Web/API/Headers), [`Request`](https://developer.mozilla.org/en-US/docs/Web/API/Request), and [`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response)).
 
-Old utils for plain handler and web handler are removed to embrace web standards.
+When using Node.js, H3 uses a compatibility layer ([💥 srvx](https://srvx.h3.dev/guide/node)) and in other runtimes uses native web compatibility APIs.
 
-## Response handling
+Access to the native `event.node.{req,res}` is only available when running server in Node.js runtime.
 
-You should always explicitly `return` the response body.
+`event.web` is renamed to `event.req` (instance of web [Response](https://developer.mozilla.org/en-US/docs/Web/API/Response)).
+
+## Response Handling
+
+> [!TIP]
+> You should always explicitly **return** the response body or **throw** an error.
 
 If you were previously using methods below, you can replace them with `return` statements returning a text, JSON, stream, or web `Response` (h3 smartly detects and handles each):
 
@@ -43,32 +51,28 @@ Other send utils that are renamed and need explicit `return`:
 
 - `sendNoContent(event)` / `return null`: Migrate to `return noContent(event)`.
 - `sendIterable(event, <value>)`: Migrate to `return iterable(event, <value>)`.
-- `sendRedirect(event, location, code)`: Migrate to `return redirect(event, location, code)`.
 - `sendProxy(event, target)`: Migrate to `return proxy(event, target)`.
 - `handleCors(event)`: Check return value (boolean) and early `return` if handled.
 - `serveStatic(event, content)`: Make sure to add `return` before.
+- `sendRedirect(event, location, code)`: Migrate to `return redirect(event, location, code)`.
 
-## App interface and router
+:read-more{to="/guide/basics/response" title="Sending Response"}
 
-Router functionality is now integrated into the h3 app core. Instead of `createApp()` and `createRouter()` you can use `new H3()`.
+## H3 and Router
 
-New methods:
+> [!TIP]
+> Router function is now integrated into the H3 core.
+> <br> Instead of `createApp()` and `createRouter()` you can use [`new H3()`](/guide/api/h3).
 
-- `app.use(middleware, opts?: { route?: string, method?: string })`: Adds a global middleware.
-- `app.on(method, handler)` / `app.all(handler)` / `app.[METHOD](handler)`: Adds a route handler.
+Any handler can return a response. If middleware don't return a response, next handlers will be tried and finally make a 404 if neither responses. Router handlers can return or not return any response, in this case, H3 will send a simple 200 with empty content.
 
-Handlers will run in this order:
+:read-more{to="/guide/basics/lifecycle" title="Request Lifecycle"}
 
-- Global middleware in the same order were registered
-- Matched route handler
-
-Any handler can return a response. If middleware don't return a response, next handlers will be tried and finally make a 404 if neither responses. Router handlers can return or not return any response, in this case, h3 will send a simple 200 with empty content.
-
-h3 migrated to a brand new route-matching engine [rou3](https://rou3.h3.dev/). You might experience slight (but more intuitive) behavior changes for matching patterns.
+H3 migrated to a brand new route-matching engine ([🌳 rou3](https://rou3.h3.dev/)). You might experience slight (but more intuitive) behavior changes for matching patterns.
 
 **Other changes from v1:**
 
-- Handlers registered with `app.use("/path", handler)` only match `/path` (not `/path/foo/bar`). For matching all subpaths like before, it should be updated to `app.use("/path/**", handler)`.
+- Middleware added with `app.use("/path", handler)` only matches `/path` (not `/path/foo/bar`). For matching all subpaths like before, it should be updated to `app.use("/path/**", handler)`.
 - The `event.path` received in each handler will have a full path without omitting the prefixes. use `withBase(base, handler)` utility to make prefixed app. (example: `withBase("/api", app.handler)`).
 - **`router.add(path, method: Method | Method[]` signature is changed to `router.add(method: Method, path)`**
 - `router.use(path, handler)` is deprecated. Use `router.all(path, handler)` instead.
@@ -76,9 +80,14 @@ h3 migrated to a brand new route-matching engine [rou3](https://rou3.h3.dev/). Y
 - `app.use(["/path1", "/path2"], ...)` and `app.use("/path", [handler1, handler2])` are not supported anymore. Instead, use multiple `app.use()` calls.
 - `app.resolve(path)` removed.
 
-## Body utils
+:read-more{to="/guide/basics/routing" title="Routing"}
 
-Most of request body utilities can now be replaced with `event.req` utils which is based on standard [`Request`](https://developer.mozilla.org/en-US/docs/Web/API/Response) interface + platform addons from [srvx](https://srvx.h3.dev/guide/handler#additional-properties).
+:read-more{to="/guide/basics/middleware" title="Middleware"}
+
+## Request Body
+
+> [!TIP]
+> Most of request body utilities can now be replaced with native `event.req.*` methods which is based on web [`Request`](https://developer.mozilla.org/en-US/docs/Web/API/Response) interface.
 
 `readBody(event)` utility will use [`JSON.parse`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/parse) or [`URLSearchParams`](https://developer.mozilla.org/en-US/docs/Web/API/URLSearchParams) for parsing requests with `application/x-www-form-urlencoded` content-type.
 
@@ -92,39 +101,45 @@ Most of request body utilities can now be replaced with `event.req` utils which 
 - Body utils won't throw an error if the incoming request has no body (or is a `GET` method for example) but instead, return empty values.
 - Native `request.json` and `readBody` does not use [unjs/destr](https://destr.unjs.io) anymore. You should always filter and sanitize data coming from user to avoid [prototype-poisoning](https://medium.com/intrinsic-blog/javascript-prototype-poisoning-vulnerabilities-in-the-wild-7bc15347c96).
 
-## Cookie and headers
+## Cookie and Headers
 
-h3 migrated to leverage standard web [`Headers`](https://developer.mozilla.org/en-US/docs/Web/API/Headers) for all utils.
+> [!TIP]
+> H3 now natively uses standard web [`Headers`](https://developer.mozilla.org/en-US/docs/Web/API/Headers) for all utils.
 
 Header values are always a plain `string` now (no `null` or `undefined` or `number` or `string[]`).
 
 For the [`Set-Cookie`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie) header, you can use [`headers.getSetCookie`](https://developer.mozilla.org/en-US/docs/Web/API/Headers/getSetCookie) that always returns a string array.
 
-### Other deprecations
+## Other Deprecations
 
-h3 v2 deprecated some legacy and aliased utilities.
+H3 v2 deprecated some legacy and aliased utilities.
 
-**App and router:**
+### App and router utils
 
 - `createApp` / `createRouter`: Migrate to `new H3()`.
 
-**Handler:**
+### Error utils
 
-- `eventHandler`: Migrate to `defineEventHandler` (or remove it!).
+- `createError`/`H3Error`: Migrate to `HTTPError`
+- `isError`: Migrate to `HTTPError.isError`
+
+### Handler utils
+
+- `eventHandler`/`defineEventHandler`: Migrate to `defineHandler` (you can also directly use a function!).
 - `lazyEventHandler`: Migrate to `defineLazyEventHandler`.
 - `toEventHandler`: Remove wrapper.
 - `isEventHandler`: (removed) Any function can be an event handler.
 - `useBase`: Migrate to `withBase`.
 - `defineRequestMiddleware` and `defineResponseMiddleware` removed.
 
-**Request:**
+### Request utils
 
 - `getHeader` / `getRequestHeader`: Migrate to `event.req.headers.get(name)`.
 - `getHeaders` / `getRequestHeaders`: Migrate to `Object.fromEntries(event.req.headers.entries())`.
 - `getRequestPath`: Migrate to `event.path` or `event.url`.
 - `getMethod`: Migrate to `event.method`.
 
-**Response:**
+### Response utils
 
 - `getResponseHeader` / `getResponseHeaders`: Migrate to `event.res.headers.get(name)`
 - `setHeader` / `setResponseHeader` / `setHeaders` / `setResponseHeaders`: Migrate to `event.res.headers.set(name, value)`.
@@ -134,7 +149,7 @@ h3 v2 deprecated some legacy and aliased utilities.
 - `defaultContentType`: Migrate to `event.res.headers.set("content-type", type)`
 - `getResponseStatus` / `getResponseStatusText` / `setResponseStatus`: Use `event.res.status` and `event.res.statusText`.
 
-**Node.js:**
+### Node.js utils
 
 - `defineNodeListener`: Migrate to `defineNodeHandler`.
 - `fromNodeMiddleware`: Migrate to `fromNodeHandler`.
@@ -144,7 +159,7 @@ h3 v2 deprecated some legacy and aliased utilities.
 - `promisifyNodeListener` (removed).
 - `callNodeListener`: (removed).
 
-**Web:**
+### Web Utils
 
 - `fromPlainHandler`: (removed) Migrate to Web API.
 - `toPlainHandler`: (removed) Migrate to Web API.
@@ -153,20 +168,23 @@ h3 v2 deprecated some legacy and aliased utilities.
 - `fromWebRequest`: (removed) Migrate to Web API.
 - `callWithWebRequest`: (removed).
 
-**Body:**
+### Body Utils
 
 - `readRawBody`: Migrate to `event.req.text()` or `event.req.arrayBuffer()`.
 - `getBodyStream` / `getRequestWebStream`: Migrate to `event.req.body`.
 - `readFormData` / `readMultipartFormData` / `readFormDataBody`: Migrate to `event.req.formData()`.
 
-**Utils:**
+### Other Utils
 
 - `isStream`: Migrate to `instanceof ReadableStream`.
 - `isWebResponse`: Migrate to `instanceof Response`.
 - `splitCookiesString`: Use `splitSetCookieString` from [cookie-es](https://github.com/unjs/cookie-es).
 - `MIMES`: (removed).
 
-**Types:**
+### Type Exports
+
+> [!NOTE]
+> There might be more type changes.
 
 - `App`: Migrate to `H3`.
 - `AppOptions`: Migrate to `H3Config`.

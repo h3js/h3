@@ -13,16 +13,16 @@ When you receive data on your server, you must validate them. By validate, we me
 
 ## Utilities for Validation
 
-h3 provide some utilities to help you to handle data validation. You will be able to validate:
+H3 provide some utilities to help you to handle data validation. You will be able to validate:
 
 - query with `getValidatedQuery`
 - params with `getValidatedRouterParams`.
 - body with `readValidatedBody`
 
-h3 doesn't provide any validation library but it does support schemas coming from a **Standard-Schema** compatible one, like: [Zod](https://zod.dev), [Valibot](https://valibot.dev), [ArkType](https://arktype.io/), etc... (for all compatible libraries please check [their official repository](https://github.com/standard-schema/standard-schema)). If you want to use a validation library that is not compatible with Standard-Schema, you can still use it, but you will have to use parsing functions provided by the library itself (refer to the [Safe Parsing](#safe-parsing) section below).
+H3 doesn't provide any validation library but it does support schemas coming from a **Standard-Schema** compatible one, like: [Zod](https://zod.dev), [Valibot](https://valibot.dev), [ArkType](https://arktype.io/), etc... (for all compatible libraries please check [their official repository](https://github.com/standard-schema/standard-schema)). If you want to use a validation library that is not compatible with Standard-Schema, you can still use it, but you will have to use parsing functions provided by the library itself (refer to the [Safe Parsing](#safe-parsing) section below).
 
 > [!WARNING]
-> h3 is runtime agnostic. This means that you can use it in [any runtime](/adapters). But some validation libraries are not compatible with all runtimes.
+> H3 is runtime agnostic. This means that you can use it in [any runtime](/adapters). But some validation libraries are not compatible with all runtimes.
 
 Let's see how to validate data with [Zod](https://zod.dev) and [Valibot](https://valibot.dev).
 
@@ -62,7 +62,7 @@ If you send a valid request like `/content/posts/123e4567-e89b-12d3-a456-4266141
 You are looking for content with topic "posts" and uuid "123e4567-e89b-12d3-a456-426614174000".
 ```
 
-If you send an invalid request and the validation fails, h3 will throw a `400 Validation Error` error. In the data of the error, you will find the validation errors you can use on your client to display a nice error message to your user.
+If you send an invalid request and the validation fails, H3 will throw a `400 Validation Error` error. In the data of the error, you will find the validation errors you can use on your client to display a nice error message to your user.
 
 ### Validate Query
 
@@ -108,7 +108,7 @@ If you send a valid request like `/?page=2&size=20` to this event handler, you w
 You are on page 2 with 20 items per page.
 ```
 
-If you send an invalid request and the validation fails, h3 will throw a `400 Validation Error` error. In the data of the error, you will find the validation errors you can use on your client to display a nice error message to your user.
+If you send an invalid request and the validation fails, H3 will throw a `400 Validation Error` error. In the data of the error, you will find the validation errors you can use on your client to display a nice error message to your user.
 
 ### Validate Body
 
@@ -152,7 +152,7 @@ You will get a response like this:
 Hello John! You are 42 years old.
 ```
 
-If you send an invalid request and the validation fails, h3 will throw a `400 Validation Error` error. In the data of the error, you will find the validation errors you can use on your client to display a nice error message to your user.
+If you send an invalid request and the validation fails, H3 will throw a `400 Validation Error` error. In the data of the error, you will find the validation errors you can use on your client to display a nice error message to your user.
 
 ## Safe Parsing
 

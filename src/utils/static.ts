@@ -1,5 +1,5 @@
 import type { H3Event } from "../types/event.ts";
-import { createError } from "../error.ts";
+import { HTTPError } from "../error.ts";
 import { withLeadingSlash, withoutTrailingSlash } from "./internal/path.ts";
 
 export interface StaticAssetMeta {
@@ -76,10 +76,7 @@ export async function serveStatic(
       return;
     }
     event.res.headers.set("allow", "GET, HEAD");
-    throw createError({
-      statusMessage: "Method Not Allowed",
-      statusCode: 405,
-    });
+    throw new HTTPError({ status: 405 });
   }
 
   const originalId = decodeURI(
@@ -117,19 +114,7 @@ export async function serveStatic(
     if (options.fallthrough) {
       return;
     }
-    throw createError({ statusCode: 404 });
-  }
-
-  if (meta.etag && !event.res.headers.has("etag")) {
-    event.res.headers.set("etag", meta.etag);
-  }
-
-  const ifNotMatch =
-    meta.etag && event.req.headers.get("if-none-match") === meta.etag;
-  if (ifNotMatch) {
-    event.res.status = 304;
-    event.res.statusText = "Not Modified";
-    return "";
+    throw new HTTPError({ statusCode: 404 });
   }
 
   if (meta.mtime) {
@@ -145,6 +130,18 @@ export async function serveStatic(
     if (!event.res.headers.get("last-modified")) {
       event.res.headers.set("last-modified", mtimeDate.toUTCString());
     }
+  }
+
+  if (meta.etag && !event.res.headers.has("etag")) {
+    event.res.headers.set("etag", meta.etag);
+  }
+
+  const ifNotMatch =
+    meta.etag && event.req.headers.get("if-none-match") === meta.etag;
+  if (ifNotMatch) {
+    event.res.status = 304;
+    event.res.statusText = "Not Modified";
+    return "";
   }
 
   if (meta.type && !event.res.headers.get("content-type")) {

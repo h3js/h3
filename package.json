@@ -9,9 +9,22 @@
   "type": "module",
   "exports": {
     "./package.json": "./package.json",
-    ".": "./dist/index.mjs"
+    ".": {
+      "deno": "./dist/_entries/deno.mjs",
+      "bun": "./dist/_entries/bun.mjs",
+      "workerd": "./dist/_entries/cloudflare.mjs",
+      "browser": "./dist/_entries/service-worker.mjs",
+      "node": "./dist/_entries/node.mjs",
+      "default": "./dist/_entries/generic.mjs"
+    },
+    "./deno": "./dist/_entries/deno.mjs",
+    "./bun": "./dist/_entries/bun.mjs",
+    "./cloudflare": "./dist/_entries/cloudflare.mjs",
+    "./service-worker": "./dist/_entries/service-worker.mjs",
+    "./node": "./dist/_entries/node.mjs",
+    "./generic": "./dist/_entries/generic.mjs"
   },
-  "types": "./dist/index.d.mts",
+  "types": "./dist/_entries/generic.d.mts",
   "files": [
     "dist"
   ],
@@ -66,6 +79,7 @@
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "typescript": "^5.8.3",
+    "vite": "^6.3.5",
     "vitest": "^3.2.1",
     "zod": "^3.25.49"
   },

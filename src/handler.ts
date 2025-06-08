@@ -1,4 +1,8 @@
+import type { ServerRequest } from "srvx/types";
+import { H3Event } from "./event.ts";
+import { toRequest } from "./h3.ts";
 import { callMiddleware } from "./middleware.ts";
+import { handleResponse } from "./response.ts";
 
 import type {
   EventHandler,
@@ -6,29 +10,56 @@ import type {
   EventHandlerRequest,
   EventHandlerResponse,
   DynamicEventHandler,
+  EventHandlerWithFetch,
 } from "./types/handler.ts";
 
 // --- event handler ---
 
-export function defineEventHandler<
-  Request extends EventHandlerRequest = EventHandlerRequest,
-  Response = EventHandlerResponse,
->(handler: EventHandler<Request, Response>): EventHandler<Request, Response>;
+export function defineHandler<
+  Req extends EventHandlerRequest = EventHandlerRequest,
+  Res = EventHandlerResponse,
+>(handler: EventHandler<Req, Res>): EventHandlerWithFetch<Req, Res>;
 
-export function defineEventHandler<
-  Request extends EventHandlerRequest = EventHandlerRequest,
-  Response = EventHandlerResponse,
->(def: EventHandlerObject): EventHandler<Request, Response>;
+export function defineHandler<
+  Req extends EventHandlerRequest = EventHandlerRequest,
+  Res = EventHandlerResponse,
+>(def: EventHandlerObject<Req, Res>): EventHandlerWithFetch<Req, Res>;
 
-export function defineEventHandler(arg1: unknown): EventHandler {
+export function defineHandler(arg1: unknown): EventHandlerWithFetch {
   if (typeof arg1 === "function") {
-    return arg1 as EventHandler<Request, Response>;
+    return handlerWithFetch(arg1 as EventHandler);
   }
   const { middleware, handler } = arg1 as EventHandlerObject;
   if (!middleware?.length) {
-    return handler;
+    return handlerWithFetch(handler);
   }
-  return (event) => callMiddleware(event, middleware, handler);
+  return handlerWithFetch((event) =>
+    callMiddleware(event, middleware, handler),
+  );
+}
+
+// --- handler .fetch ---
+
+function handlerWithFetch<
+  Req extends EventHandlerRequest = EventHandlerRequest,
+  Res = EventHandlerResponse,
+>(handler: EventHandler<Req, Res>): EventHandlerWithFetch<Req, Res> {
+  return Object.assign(handler, {
+    fetch: (
+      _req: ServerRequest | URL | string,
+      _init?: RequestInit,
+    ): Promise<Response> => {
+      const req = toRequest(_req, _init);
+      const event = new H3Event(req);
+      try {
+        return Promise.resolve(handler(event)).then((rawRes) =>
+          handleResponse(rawRes, event),
+        );
+      } catch (error: any) {
+        return Promise.reject(error);
+      }
+    },
+  });
 }
 
 //  --- dynamic event handler ---
@@ -37,22 +68,21 @@ export function dynamicEventHandler(
   initial?: EventHandler,
 ): DynamicEventHandler {
   let current: EventHandler | undefined = initial;
-  const wrapper = defineEventHandler((event) => {
-    if (current) {
-      return current(event);
-    }
-  }) as DynamicEventHandler;
-  wrapper.set = (handler) => {
-    current = handler;
-  };
-  return wrapper;
+  return Object.assign(
+    defineHandler((event: H3Event) => current?.(event)),
+    {
+      set: (handler: EventHandler) => {
+        current = handler;
+      },
+    },
+  );
 }
 
 // --- lazy event handler ---
 
 export function defineLazyEventHandler(
   load: () => Promise<EventHandler> | EventHandler,
-): EventHandler {
+): EventHandlerWithFetch {
   let _promise: Promise<typeof _resolved>;
   let _resolved: { handler: EventHandler };
 
@@ -76,12 +106,10 @@ export function defineLazyEventHandler(
     return _promise;
   };
 
-  const handler: EventHandler = (event) => {
+  return defineHandler((event) => {
     if (_resolved) {
       return _resolved.handler(event);
     }
     return resolveHandler().then((r) => r.handler(event));
-  };
-
-  return handler;
+  });
 }

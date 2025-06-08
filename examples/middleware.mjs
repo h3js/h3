@@ -1,4 +1,4 @@
-import { H3, serve, createError, onRequest, onResponse, onError } from "h3";
+import { H3, serve, HTTPError, onRequest, onResponse, onError } from "h3";
 
 const app = new H3({ debug: true });
 
@@ -7,7 +7,7 @@ app
     return "Hello, World!";
   })
   .get("/error", () => {
-    throw createError({ statusMessage: "I'm a teapot", statusCode: 418 });
+    throw new HTTPError.status(500, "Internal Server Error");
   });
 
 app

@@ -1,10 +1,8 @@
 import { createRouter, addRoute, findRoute } from "rou3";
-import { serve as srvxServe } from "srvx";
 import { H3Event } from "./event.ts";
 import { handleResponse, kNotFound } from "./response.ts";
 import { callMiddleware, normalizeMiddleware } from "./middleware.ts";
 
-import type { ServerOptions, Server } from "srvx";
 import type { RouterContext } from "rou3";
 import type { FetchHandler, H3Config } from "./types/h3.ts";
 import type { H3EventContext } from "./types/event.ts";
@@ -17,15 +15,9 @@ import type {
   RouteHandler,
   MiddlewareOptions,
 } from "./types/h3.ts";
+import type { ServerRequest } from "srvx/types";
 
 export type H3 = H3Type;
-
-/**
- * Serve the h3 app, automatically handles current runtime behavior.
- */
-export function serve(app: H3, options?: Omit<ServerOptions, "fetch">): Server {
-  return srvxServe({ fetch: app._fetch, ...options });
-}
 
 export const H3 = /* @__PURE__ */ (() => {
   // prettier-ignore
@@ -45,7 +37,7 @@ export const H3 = /* @__PURE__ */ (() => {
     }
 
     fetch(
-      request: Request | URL | string,
+      request: ServerRequest | URL | string,
       options?: RequestInit,
     ): Promise<Response> {
       try {
@@ -56,29 +48,12 @@ export const H3 = /* @__PURE__ */ (() => {
     }
 
     _fetch(
-      _request: Request | URL | string,
-      options?: RequestInit,
+      _req: ServerRequest | URL | string,
+      _init?: RequestInit,
       context?: H3EventContext,
     ): Response | Promise<Response> {
-      // Normalize request
-      let request: Request;
-      if (typeof _request === "string") {
-        let url = _request;
-        if (url[0] === "/") {
-          const headers = options?.headers
-            ? new Headers(options.headers)
-            : undefined;
-          const host = headers?.get("host") || "localhost";
-          const proto =
-            headers?.get("x-forwarded-proto") === "https" ? "https" : "http";
-          url = `${proto}://${host}${url}`;
-        }
-        request = new Request(url, options);
-      } else if (options || _request instanceof URL) {
-        request = new Request(_request, options);
-      } else {
-        request = _request;
-      }
+      // Convert the request to a Request object
+      const request: ServerRequest = toRequest(_req, _init);
 
       // Create a new event instance
       const event = new H3Event(request, context);
@@ -186,3 +161,23 @@ export const H3 = /* @__PURE__ */ (() => {
 
   return H3;
 })() as unknown as typeof H3Type;
+
+export function toRequest(
+  _request: ServerRequest | URL | string,
+  _init?: RequestInit,
+): ServerRequest {
+  if (typeof _request === "string") {
+    let url = _request;
+    if (url[0] === "/") {
+      const headers = _init?.headers ? new Headers(_init.headers) : undefined;
+      const host = headers?.get("host") || "localhost";
+      const proto =
+        headers?.get("x-forwarded-proto") === "https" ? "https" : "http";
+      url = `${proto}://${host}${url}`;
+    }
+    return new Request(url, _init);
+  } else if (_init || _request instanceof URL) {
+    return new Request(_request, _init);
+  }
+  return _request;
+}

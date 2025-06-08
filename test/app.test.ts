@@ -1,5 +1,5 @@
 import { Readable } from "node:stream";
-import { createError, fromNodeHandler } from "../src/index.ts";
+import { HTTPError, fromNodeHandler } from "../src/index.ts";
 import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("app", (t, { it, expect }) => {
@@ -163,17 +163,14 @@ describeMatrix("app", (t, { it, expect }) => {
     t.app.use(() => {
       return new ReadableStream({
         start() {
-          throw createError({
-            statusCode: 500,
-            statusText: "test",
-          });
+          throw new HTTPError({ status: 500, statusText: "test" });
         },
       });
     });
     const res = await t.fetch("/");
 
     expect(res.status).toBe(500);
-    expect(JSON.parse(await res.text()).statusMessage).toBe("test");
+    expect(JSON.parse(await res.text()).statusText).toBe("test");
   });
 
   it("can return text directly", async () => {

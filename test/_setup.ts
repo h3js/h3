@@ -1,5 +1,10 @@
 import type { Mock } from "vitest";
-import type { H3Config, H3Error, H3Event, NodeHandler } from "../src/index.ts";
+import type {
+  H3Config,
+  H3Event,
+  NodeHandler,
+  HTTPError,
+} from "../src/index.ts";
 import { Server as NodeServer } from "node:http";
 import { getRandomPort } from "get-port-please";
 import {
@@ -134,7 +139,7 @@ function setupBaseTest(
     ctx.hooks = {
       onRequest: vi.fn(),
       onError: vi.fn(),
-      onBeforeResponse: vi.fn(),
+      onResponse: vi.fn(),
     };
 
     ctx.errors = [];
@@ -149,7 +154,7 @@ function setupBaseTest(
       debug: true,
       onError: ctx.hooks.onError,
       onRequest: ctx.hooks.onRequest,
-      onBeforeResponse: ctx.hooks.onBeforeResponse,
+      onResponse: ctx.hooks.onResponse,
     });
   });
 
@@ -162,9 +167,7 @@ function setupBaseTest(
 
     vi.resetAllMocks();
     if (!opts.allowUnhandledErrors) {
-      const unhandledErrors = errors.filter(
-        (error) => error.unhandled !== false,
-      );
+      const unhandledErrors = errors.filter((error) => error.unhandled);
       if (unhandledErrors.length > 0) {
         throw mergeErrors(errors);
       }
@@ -183,11 +186,11 @@ export interface TestOptions {
 }
 
 export interface TestContext {
-  errors: H3Error[];
+  errors: HTTPError[];
   hooks: {
     onRequest: Mock<Exclude<H3Config["onRequest"], undefined>>;
     onError: Mock<Exclude<H3Config["onError"], undefined>>;
-    onBeforeResponse: Mock<Exclude<H3Config["onBeforeResponse"], undefined>>;
+    onResponse: Mock<Exclude<H3Config["onResponse"], undefined>>;
   };
 
   target: "web" | "node";

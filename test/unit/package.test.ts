@@ -2,11 +2,15 @@ import { describe, expect, it } from "vitest";
 
 describe("h3 package", () => {
   it("package exports (snapshot)", async () => {
-    const exportNames = Object.keys(await import("../../src/index.ts")).sort();
+    const exportNames = Object.keys(
+      await import("../../src/_entries/generic.ts"),
+    ).sort();
     expect(exportNames).toMatchInlineSnapshot(`
       [
         "H3",
+        "H3Error",
         "H3Event",
+        "HTTPError",
         "appendCorsHeaders",
         "appendCorsPreflightHeaders",
         "appendHeader",
@@ -23,6 +27,7 @@ describe("h3 package", () => {
         "createRouter",
         "defaultContentType",
         "defineEventHandler",
+        "defineHandler",
         "defineLazyEventHandler",
         "defineMiddleware",
         "defineNodeHandler",

@@ -1,7 +1,7 @@
 import { beforeEach } from "vitest";
 import { describeMatrix } from "./_setup.ts";
 import { H3 } from "../src/h3.ts";
-import { defineEventHandler } from "../src/handler.ts";
+import { defineHandler } from "../src/handler.ts";
 
 describeMatrix("middleware", (t, { it, expect }) => {
   beforeEach(() => {
@@ -44,7 +44,7 @@ describeMatrix("middleware", (t, { it, expect }) => {
 
     t.app.get(
       "/**",
-      defineEventHandler({
+      defineHandler({
         middleware: [
           (event) => {
             event.context._middleware.push(`route (define)`);

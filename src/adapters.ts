@@ -1,8 +1,12 @@
 import { toNodeHandler as _toNodeHandler } from "srvx/node";
-import { createError } from "./error.ts";
+import { HTTPError } from "./error.ts";
 import { kHandled } from "./response.ts";
 
-import type { NodeServerRequest, NodeServerResponse } from "srvx/types";
+import type {
+  NodeServerRequest,
+  NodeServerResponse,
+  ServerRequest,
+} from "srvx/types";
 import type { H3 } from "./h3.ts";
 import type { H3Event, H3EventContext } from "./types/event.ts";
 import type { EventHandler, EventHandlerResponse } from "./types/handler.ts";
@@ -23,14 +27,17 @@ export type NodeMiddleware = (
  */
 export function toWebHandler(
   app: H3,
-): (request: Request, context?: H3Event) => Promise<Response> {
+): (request: ServerRequest, context?: H3Event) => Promise<Response> {
   return (request, context) => {
     return Promise.resolve(app._fetch(request, undefined, context));
   };
 }
 
 export function fromWebHandler(
-  handler: (request: Request, context?: H3EventContext) => Promise<Response>,
+  handler: (
+    request: ServerRequest,
+    context?: H3EventContext,
+  ) => Promise<Response>,
 ): EventHandler {
   return (event) => handler(event.req, event.context);
 }
@@ -91,17 +98,23 @@ function callNodeHandler(
     try {
       if (isMiddleware) {
         Promise.resolve(
-          handler(req, res, (err) =>
-            err ? reject(createError(err)) : resolve(void 0),
+          handler(req, res, (error) =>
+            error
+              ? reject(new HTTPError({ cause: error, unhandled: true }))
+              : resolve(void 0),
           ),
-        ).catch((error) => reject(createError(error)));
+        ).catch((error) =>
+          reject(new HTTPError({ cause: error, unhandled: true })),
+        );
       } else {
         return Promise.resolve((handler as NodeHandler)(req, res))
           .then(() => resolve(kHandled))
-          .catch((error) => reject(createError(error)));
+          .catch((error) =>
+            reject(new HTTPError({ cause: error, unhandled: true })),
+          );
       }
-    } catch (error: any) {
-      reject(createError(error));
+    } catch (error: unknown) {
+      reject(new HTTPError({ cause: error, unhandled: true }));
     }
   });
 }

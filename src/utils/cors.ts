@@ -13,12 +13,64 @@ import {
 export { isCorsOriginAllowed } from "./internal/cors.ts";
 
 export interface CorsOptions {
+  /**
+   * This determines the value of the "access-control-allow-origin" response header.
+   * If "*", it can be used to allow all origins.
+   * If an array of strings or regular expressions, it can be used with origin matching.
+   * If a custom function, it's used to validate the origin. It takes the origin as an argument and returns `true` if allowed.
+   *
+   * @see https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Origin
+   * @default "*"
+   */
   origin?: "*" | "null" | (string | RegExp)[] | ((origin: string) => boolean);
+
+  /**
+   * This determines the value of the "access-control-allow-methods" response header of a preflight request.
+   *
+   * @see https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Methods
+   * @default "*"
+   * @example ["GET", "HEAD", "PUT", "POST"]
+   */
   methods?: "*" | string[];
+
+  /**
+   * This determines the value of the "access-control-allow-headers" response header of a preflight request.
+   *
+   * @see https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Headers
+   * @default "*"
+   */
   allowHeaders?: "*" | string[];
+
+  /**
+   * This determines the value of the "access-control-expose-headers" response header.
+   *
+   * @see https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Expose-Headers
+   * @default "*"
+   */
   exposeHeaders?: "*" | string[];
+
+  /**
+   * This determines the value of the "access-control-allow-credentials" response header.
+   * When request with credentials, the options that `origin`, `methods`, `exposeHeaders` and `allowHeaders` should not be set "*".
+   *
+   * @see https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Credentials
+   * @see https://fetch.spec.whatwg.org/#cors-protocol-and-credentials
+   * @default false
+   */
   credentials?: boolean;
+
+  /**
+   * This determines the value of the "access-control-max-age" response header of a preflight request.
+   *
+   * @see https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Max-Age
+   * @default false
+   */
   maxAge?: string | false;
+
+  /**
+   *
+   * @see https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Headers
+   */
   preflight?: {
     statusCode?: number;
   };

@@ -4,7 +4,7 @@ import {
   fromNodeHandler,
   toNodeHandler,
 } from "./adapters.ts";
-import { defineEventHandler, defineLazyEventHandler } from "./handler.ts";
+import { defineHandler, defineLazyEventHandler } from "./handler.ts";
 import { proxy, type ProxyOptions } from "./utils/proxy.ts";
 import { H3 } from "./h3.ts";
 import { withBase } from "./utils/base.ts";
@@ -18,6 +18,29 @@ import type {
   IterationSource,
   IteratorSerializer,
 } from "./utils/internal/iterable.ts";
+import { HTTPError, type ErrorDetails } from "./error.ts";
+
+// --- Error ---
+
+/** @deprecated Use `HTTPError` */
+export type H3Error = HTTPError;
+
+/** @deprecated Use `HTTPError` */
+export const H3Error: typeof HTTPError = HTTPError;
+
+/** @deprecated Use new HTTPError() */
+export function createError(message: number, details?: ErrorDetails): HTTPError;
+export function createError(details: ErrorDetails): HTTPError;
+export function createError(arg1: any, arg2?: any): HTTPError {
+  return new HTTPError(arg1, arg2);
+}
+
+/**
+ * @deprecated Use `HTTPError.isError`
+ */
+export function isError(input: any): input is HTTPError {
+  return HTTPError.isError(input);
+}
 
 // --- Request ---
 
@@ -269,9 +292,13 @@ export function clearResponseHeaders(
 
 // -- Event handler --
 
-/** Please use `defineEventHandler`  */
+/** Please use `defineHandler`  */
+export const defineEventHandler: (handler: EventHandler) => EventHandler =
+  defineHandler;
+
+/** Please use `defineHandler`  */
 export const eventHandler: (handler: EventHandler) => EventHandler =
-  defineEventHandler;
+  defineHandler;
 
 /** Please use `defineLazyEventHandler` */
 export const lazyEventHandler: (

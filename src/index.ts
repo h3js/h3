@@ -5,9 +5,13 @@ export type {
   H3Route,
   HTTPMethod,
   PreparedResponse,
+  RouteOptions,
+  RouteHandler,
+  MiddlewareOptions,
+  FetchHandler,
 } from "./types/h3.ts";
 
-export { H3, serve } from "./h3.ts";
+export { H3 } from "./h3.ts";
 
 // Event
 export type { H3EventContext } from "./types/event.ts";
@@ -28,7 +32,7 @@ export type {
 } from "./types/handler.ts";
 
 export {
-  defineEventHandler,
+  defineHandler,
   defineLazyEventHandler,
   dynamicEventHandler,
 } from "./handler.ts";
@@ -37,7 +41,9 @@ export { defineMiddleware } from "./middleware.ts";
 
 // Error
 
-export { type H3Error, createError, isError } from "./error.ts";
+export type { ErrorDetails, ErrorBody, ErrorInput } from "./error.ts";
+
+export { HTTPError } from "./error.ts";
 
 // Adapters
 

@@ -1,4 +1,4 @@
-import { createError } from "../index.ts";
+import { HTTPError } from "../index.ts";
 
 import type { H3Event, Middleware } from "../index.ts";
 
@@ -36,8 +36,8 @@ export type BasicAuthOptions = Partial<_BasicAuthOptions> &
  * Apply basic authentication for current request.
  *
  * @example
- * import { defineEventHandler, requireBasicAuth } from "h3";
- * export default defineEventHandler(async (event) => {
+ * import { defineHandler, requireBasicAuth } from "h3";
+ * export default defineHandler(async (event) => {
  *   await requireBasicAuth(event, { password: "test" });
  *   return `Hello, ${event.context.basicAuth.username}!`;
  * });
@@ -97,9 +97,9 @@ export function basicAuth(opts: BasicAuthOptions): Middleware {
 }
 
 function autheFailed(event: H3Event, realm: string = "") {
-  return createError({
-    statusCode: 401,
-    statusMessage: "Authentication required",
+  return new HTTPError({
+    status: 401,
+    statusText: "Authentication required",
     headers: {
       "www-authenticate": `Basic realm=${JSON.stringify(realm)}`,
     },
