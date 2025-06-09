@@ -35,6 +35,7 @@ export {
   defineHandler,
   defineLazyEventHandler,
   dynamicEventHandler,
+  defineValidatedHandler,
 } from "./handler.ts";
 
 export { defineMiddleware } from "./middleware.ts";

@@ -12,6 +12,8 @@ import type {
   DynamicEventHandler,
   EventHandlerWithFetch,
 } from "./types/handler.ts";
+import type { InferOutput, StandardSchemaV1 } from "./utils/internal/standard-schema.ts"
+import type { TypedRequest } from "fetchdts"
 
 // --- event handler ---
 
@@ -36,6 +38,25 @@ export function defineHandler(arg1: unknown): EventHandlerWithFetch {
   return handlerWithFetch((event) =>
     callMiddleware(event, middleware, handler),
   );
+}
+
+
+type StringHeaders<T> = {
+  [K in keyof T]: Extract<T[K], string>;
+}
+export function defineValidatedHandler<
+  RequestBody extends StandardSchemaV1, 
+  RequestHeaders extends StandardSchemaV1,
+  RequestQuery extends StandardSchemaV1,
+  Res extends EventHandlerResponse = EventHandlerResponse,
+>(spec: {
+  body?: RequestBody,
+  headers?: RequestHeaders,
+  query?: RequestQuery,
+  handler: EventHandler<{ body: InferOutput<RequestBody>, query: StringHeaders<InferOutput<RequestQuery>> }, Res>
+}): EventHandler<TypedRequest<InferOutput<RequestBody>, InferOutput<RequestHeaders>>, Res> {
+  // TODO: wrap with validation logic
+  return defineHandler(spec.handler) as any
 }
 
 // --- handler .fetch ---
