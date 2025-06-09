@@ -49,6 +49,7 @@
   },
   "dependencies": {
     "cookie-es": "^2.0.0",
+    "fetchdts": "^0.1.3",
     "rou3": "^0.6.3",
     "srvx": "^0.7.5"
   },

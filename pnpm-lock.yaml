@@ -14,6 +14,9 @@ importers:
       cookie-es:
         specifier: ^2.0.0
         version: 2.0.0
+      fetchdts:
+        specifier: ^0.1.3
+        version: 0.1.3
       rou3:
         specifier: ^0.6.3
         version: 0.6.3
@@ -1615,6 +1618,9 @@ packages:
       picomatch:
         optional: true
 
+  fetchdts@0.1.3:
+    resolution: {integrity: sha512-3sypjmvtv3TKl67qRoejPULUddI8BpduKRnppX/oB3FYQxPMVsO0nIP3LWp+8d4ddYNxg6Kh7TU5zztsfE2g4g==}
+
   fflate@0.8.2:
     resolution: {integrity: sha512-cPJU47OaAoCbg0pBvzsgpTPhmhqI5eJjh/JIu8tPj5q+T7iLvW/JAYUqmE7KOB4R1ZyEhzBaIQpQpardBF5z8A==}
 
@@ -2217,10 +2223,6 @@ packages:
     resolution: {integrity: sha512-vE7JKRyES09KiunauX7nd2Q9/L7lhok4smP9RZTDeD4MVs72Dp2qNFVz39Nz5a0FVEW0BJR6C0DYrq6unoziZA==}
     engines: {node: '>= 14.16'}
 
-  peek-readable@7.0.0:
-    resolution: {integrity: sha512-nri2TO5JE3/mRryik9LlHFT53cgHfRK0Lt0BAZQXku/AW3E6XLt2GaY8siWi7dvW/m1z0ecn+J+bpDa9ZN3IsQ==}
-    engines: {node: '>=18'}
-
   perfect-debounce@1.0.0:
     resolution: {integrity: sha512-xCy9V055GLEqoFaHoC1SoLIaLmWctgCUaBaWxDZ7/Zx4CTyX7cJQLJOok/orfjZAh9kEYpjJa4d0KcJmCbctZA==}
 
@@ -2502,8 +2504,8 @@ packages:
     resolution: {integrity: sha512-6fPc+R4ihwqP6N/aIv2f1gMH8lOVtWQHoqC4yK6oSDVVocumAsfCqjkXnqiYMhmMwS/mEHLp7Vehlt3ql6lEig==}
     engines: {node: '>=8'}
 
-  strtok3@10.2.2:
-    resolution: {integrity: sha512-Xt18+h4s7Z8xyZ0tmBoRmzxcop97R4BAh+dXouUDCYn+Em+1P3qpkUfI5ueWLT8ynC5hZ+q4iPEmGG1urvQGBg==}
+  strtok3@10.3.1:
+    resolution: {integrity: sha512-3JWEZM6mfix/GCJBBUrkA8p2Id2pBkyTkVCJKto55w080QBKZ+8R171fGrbiSp+yMO/u6F8/yUh7K4V9K+YCnw==}
     engines: {node: '>=18'}
 
   supports-color@7.2.0:
@@ -4115,6 +4117,8 @@ snapshots:
     optionalDependencies:
       picomatch: 4.0.2
 
+  fetchdts@0.1.3: {}
+
   fflate@0.8.2: {}
 
   file-entry-cache@8.0.0:
@@ -4124,7 +4128,7 @@ snapshots:
   file-type@21.0.0:
     dependencies:
       '@tokenizer/inflate': 0.2.7
-      strtok3: 10.2.2
+      strtok3: 10.3.1
       token-types: 6.0.0
       uint8array-extras: 1.4.0
     transitivePeerDependencies:
@@ -4776,8 +4780,6 @@ snapshots:
 
   pathval@2.0.0: {}
 
-  peek-readable@7.0.0: {}
-
   perfect-debounce@1.0.0: {}
 
   picocolors@1.1.1: {}
@@ -5094,10 +5096,9 @@ snapshots:
 
   strip-json-comments@3.1.1: {}
 
-  strtok3@10.2.2:
+  strtok3@10.3.1:
     dependencies:
       '@tokenizer/token': 0.3.0
-      peek-readable: 7.0.0
 
   supports-color@7.2.0:
     dependencies:
