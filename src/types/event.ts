@@ -1,7 +1,7 @@
 import type { ServerRequest } from "srvx";
 import type { Session } from "../utils/session.ts";
 import type { H3Route } from "./h3.ts";
-import type { TypedRequest } from 'fetchdts'
+import type { TypedRequest } from "fetchdts";
 import type { EventHandlerRequest } from "./handler.ts";
 
 export declare class H3Event<
@@ -17,9 +17,11 @@ export declare class H3Event<
    *
    * [MDN Reference](https://developer.mozilla.org/en-US/docs/Web/API/Request)
    */
-  readonly req:
-    Omit<ServerRequest, 'json' | 'headers' | 'clone'>
-    & Pick<TypedRequest<NonNullable<_RequestT['body']>, Record<string, string>>, 'json' | 'headers' | 'clone'>;
+  readonly req: Omit<ServerRequest, "json" | "headers" | "clone"> &
+    Pick<
+      TypedRequest<NonNullable<_RequestT["body"]>, Record<string, string>>,
+      "json" | "headers" | "clone"
+    >;
 
   /**
    * Access to the parsed request URL.
