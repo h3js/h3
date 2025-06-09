@@ -16,6 +16,7 @@ export default unjs(
       "unicorn/prefer-code-point": "off",
       "unicorn/no-nested-ternary": "off",
       "unicorn/prefer-regexp-test": "off",
+      "unicorn/no-array-for-each": "off",
     },
   },
 );

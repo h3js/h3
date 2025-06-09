@@ -34,6 +34,7 @@ export const H3 = /* @__PURE__ */ (() => {
       this.fetch = this.fetch.bind(this);
       this._fetch = this._fetch.bind(this);
       this.handler = this.handler.bind(this);
+      config.plugins?.forEach((plugin) => plugin(this as unknown as H3Type));
     }
 
     fetch(

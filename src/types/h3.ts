@@ -13,6 +13,8 @@ export type HTTPMethod =  "GET" | "HEAD" | "PATCH" | "POST" | "PUT" | "DELETE" |
 export interface H3Config {
   debug?: boolean;
 
+  plugins?: H3Plugin[];
+
   onError?: (error: HTTPError, event: H3Event) => MaybePromise<void | unknown>;
   onRequest?: (event: H3Event) => MaybePromise<void>;
   onResponse?: (
@@ -29,6 +31,10 @@ export interface H3Route {
   middleware?: Middleware[];
   handler: EventHandler;
 }
+
+// --- H3 Pluins ---
+
+export type H3Plugin = (h3: H3) => void;
 
 // --- H3 App ---
 
