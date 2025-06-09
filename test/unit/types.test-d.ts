@@ -57,7 +57,7 @@ describe("types", () => {
       });
     });
 
-    it('typed via validated event handler', () => {
+    it("typed via validated event handler", () => {
       defineValidatedHandler({
         body: z.object({
           id: z.string(),
@@ -68,24 +68,24 @@ describe("types", () => {
         query: z.object({
           search: z.string().optional(),
         }),
-        async handler (event) {
+        async handler(event) {
           const query = getQuery(event);
           expectTypeOf(query.search).not.toBeAny();
           expectTypeOf(query.search).toEqualTypeOf<string | undefined>();
-          
+
           // TODO:
           // type PossibleParams = Parameters<typeof event.url.searchParams.get>[0]
           // expectTypeOf<PossibleParams>().toEqualTypeOf<(string & {}) | "search">();
 
-          const value = await event.req.json()
+          const value = await event.req.json();
           expectTypeOf(value).toEqualTypeOf<{ id: string }>();
 
           const body = await readBody(event);
           expectTypeOf(body).not.toBeAny();
           expectTypeOf(body).toEqualTypeOf<{ id: string } | undefined>();
-        }
+        },
       });
-    })
+    });
   });
 
   describe("getQuery", () => {
