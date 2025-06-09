@@ -9,10 +9,10 @@ import type { Middleware } from "../types/handler.ts";
  * Define a middleware that runs on each request.
  */
 export function onRequest(
-  handler: (event: H3Event) => void | Promise<void>,
+  hook: (event: H3Event) => void | Promise<void>,
 ): Middleware {
   return async (event) => {
-    await handler(event);
+    await hook(event);
   };
 }
 
@@ -22,16 +22,13 @@ export function onRequest(
  * You can return a new Response from the handler to replace the original response.
  */
 export function onResponse(
-  handler: (
-    response: Response,
-    event: H3Event,
-  ) => MaybePromise<void | Response>,
+  hook: (response: Response, event: H3Event) => MaybePromise<void | Response>,
 ): Middleware {
   return async (event, next) => {
     const rawBody = await next();
     const response = await handleResponse(rawBody, event);
-    const newResponse = await handler(response, event);
-    return newResponse || response;
+    const hookResponse = await hook(response, event);
+    return hookResponse || response;
   };
 }
 
@@ -41,7 +38,7 @@ export function onResponse(
  * You can return a new Response from the handler to gracefully handle the error.
  */
 export function onError(
-  handler: (error: HTTPError, event: H3Event) => MaybePromise<void | unknown>,
+  hook: (error: HTTPError, event: H3Event) => MaybePromise<void | unknown>,
 ): Middleware {
   return async (event, next) => {
     try {
@@ -58,9 +55,9 @@ export function onError(
           error.stack = rawError.stack;
         }
       }
-      const newResponse = await handler(error, event);
-      if (newResponse !== undefined) {
-        return newResponse;
+      const hookResponse = await hook(error, event);
+      if (hookResponse !== undefined) {
+        return hookResponse;
       }
       throw error;
     }
