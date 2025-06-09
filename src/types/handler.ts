@@ -1,6 +1,7 @@
 import type { ServerRequest } from "srvx/types";
 import type { MaybePromise } from "./_utils.ts";
 import type { H3Event } from "./event.ts";
+import type { ResponseHeaderMap, TypedResponse } from "fetchdts"
 
 //  --- event handler ---
 
@@ -9,10 +10,10 @@ export type EventHandler<
   Res extends EventHandlerResponse = EventHandlerResponse,
 > = (event: H3Event<Req>) => Res;
 
-export type EventHandlerFetch = (
+export type EventHandlerFetch<T extends Response | TypedResponse = Response> = (
   req: ServerRequest | URL | string,
   init?: RequestInit,
-) => Promise<Response>;
+) => Promise<T>;
 
 export interface EventHandlerObject<
   Req extends EventHandlerRequest = EventHandlerRequest,
@@ -34,7 +35,7 @@ export type EventHandlerWithFetch<
   Req extends EventHandlerRequest = EventHandlerRequest,
   Res extends EventHandlerResponse = EventHandlerResponse,
 > = EventHandler<Req, Res> & {
-  fetch: EventHandlerFetch;
+  fetch: EventHandlerFetch<TypedResponse<Res, ResponseHeaderMap>>;
 };
 
 //  --- middleware ---
