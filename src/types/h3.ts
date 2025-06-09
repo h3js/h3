@@ -36,6 +36,10 @@ export interface H3Route {
 
 export type H3Plugin = (h3: H3) => void;
 
+export function definePlugin(plugin: H3Plugin): H3Plugin {
+  return plugin;
+}
+
 // --- H3 App ---
 
 export type RouteHandler = EventHandler | { handler: EventHandler };
@@ -80,6 +84,11 @@ export declare class H3 {
     options?: RequestInit,
     context?: H3EventContext,
   ): Response | Promise<Response>;
+
+  /**
+   * Immediately register an H3 plugin.
+   */
+  register(plugin: H3Plugin): H3;
 
   /**
    * An h3 compatible event handler useful to compose multiple h3 app instances.

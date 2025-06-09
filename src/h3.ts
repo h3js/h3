@@ -4,7 +4,7 @@ import { handleResponse, kNotFound } from "./response.ts";
 import { callMiddleware, normalizeMiddleware } from "./middleware.ts";
 
 import type { RouterContext } from "rou3";
-import type { FetchHandler, H3Config } from "./types/h3.ts";
+import type { FetchHandler, H3Config, H3Plugin } from "./types/h3.ts";
 import type { H3EventContext } from "./types/event.ts";
 import type { EventHandler, Middleware } from "./types/handler.ts";
 import type {
@@ -77,6 +77,11 @@ export const H3 = /* @__PURE__ */ (() => {
 
       // Prepare response
       return handleResponse(handlerRes, event, this.config);
+    }
+
+    register(plugin: H3Plugin): H3Type {
+      plugin(this as unknown as H3Type);
+      return this as unknown as H3Type;
     }
 
     handler(event: H3Event): unknown | Promise<unknown> {

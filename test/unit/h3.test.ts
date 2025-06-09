@@ -3,8 +3,10 @@ import { H3 } from "../../src/h3.ts";
 
 describe("H3", () => {
   it("plugins work", () => {
-    const plugin = vi.fn();
-    const app = new H3({ plugins: [plugin] });
-    expect(plugin).toHaveBeenCalledWith(app);
+    const pluginA = vi.fn();
+    const pluginB = vi.fn();
+    const app = new H3({ plugins: [pluginA] }).register(pluginB);
+    expect(pluginA).toHaveBeenCalledWith(app);
+    expect(pluginB).toHaveBeenCalledWith(app);
   });
 });

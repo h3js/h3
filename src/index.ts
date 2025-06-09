@@ -2,6 +2,7 @@
 
 export type {
   H3Config,
+  H3Plugin,
   H3Route,
   HTTPMethod,
   PreparedResponse,
@@ -10,6 +11,8 @@ export type {
   MiddlewareOptions,
   FetchHandler,
 } from "./types/h3.ts";
+
+export { definePlugin } from "./types/h3.ts";
 
 export { H3 } from "./h3.ts";
 
