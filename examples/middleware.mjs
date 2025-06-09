@@ -17,8 +17,10 @@ app
     }),
   )
   .use(
-    onResponse((event, { body }) => {
-      console.log(`[${event.req.method}] ${event.url.pathname} ~>`, body);
+    onResponse((response, event) => {
+      console.log(
+        `[${event.req.method}] ${event.url.pathname} ~> ${response.statusCode}`,
+      );
     }),
   )
   .use(

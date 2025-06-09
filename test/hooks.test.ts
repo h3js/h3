@@ -16,9 +16,8 @@ describeMatrix("hooks", (t, { it, expect }) => {
 
     // In Node.js, srvx garbage collects the response body after preparing it for Node.js
     if (t.target !== "node") {
-      const res = t.hooks.onResponse.mock.calls[0]![1]!;
-      const resBody = res instanceof Response ? await res.text() : res.body;
-      expect(resBody).toBe("Hello World!");
+      const res = t.hooks.onResponse.mock.calls[0]![0]!;
+      expect(await res.text()).toBe("Hello World!");
     }
   });
 

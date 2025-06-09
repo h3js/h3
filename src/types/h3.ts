@@ -15,12 +15,9 @@ export interface H3Config {
 
   plugins?: H3Plugin[];
 
-  onError?: (error: HTTPError, event: H3Event) => MaybePromise<void | unknown>;
   onRequest?: (event: H3Event) => MaybePromise<void>;
-  onResponse?: (
-    event: H3Event,
-    response: Response | PreparedResponse,
-  ) => MaybePromise<void>;
+  onResponse?: (response: Response, event: H3Event) => MaybePromise<void>;
+  onError?: (error: HTTPError, event: H3Event) => MaybePromise<void | unknown>;
 }
 
 export type PreparedResponse = ResponseInit & { body?: BodyInit | null };
