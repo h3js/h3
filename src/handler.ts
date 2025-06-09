@@ -48,6 +48,10 @@ export function defineHandler(arg1: unknown): EventHandlerWithFetch {
 type StringHeaders<T> = {
   [K in keyof T]: Extract<T[K], string>;
 };
+
+/**
+ * @experimental defineValidatedHandler is an experimental feature and API may change.
+ */
 export function defineValidatedHandler<
   RequestBody extends StandardSchemaV1,
   RequestHeaders extends StandardSchemaV1,
