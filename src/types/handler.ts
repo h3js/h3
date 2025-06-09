@@ -1,7 +1,7 @@
 import type { ServerRequest } from "srvx/types";
 import type { MaybePromise } from "./_utils.ts";
 import type { H3Event } from "./event.ts";
-import type { ResponseHeaderMap, TypedResponse } from "fetchdts"
+import type { ResponseHeaderMap, TypedResponse } from "fetchdts";
 
 //  --- event handler ---
 
