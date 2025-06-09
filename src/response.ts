@@ -194,7 +194,7 @@ function nullBody(
   )
 }
 
-function errorResponse(error: HTTPError, debug?: boolean): Response {
+export function errorResponse(error: HTTPError, debug?: boolean): Response {
   return new FastResponse(
     JSON.stringify(
       {

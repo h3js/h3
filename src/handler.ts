@@ -11,12 +11,14 @@ import type {
   EventHandlerResponse,
   DynamicEventHandler,
   EventHandlerWithFetch,
+  Middleware,
 } from "./types/handler.ts";
 import type {
   InferOutput,
   StandardSchemaV1,
 } from "./utils/internal/standard-schema.ts";
 import type { TypedRequest } from "fetchdts";
+import { validatedRequest, validatedURL } from "./utils/internal/validate.ts";
 
 // --- event handler ---
 
@@ -51,7 +53,8 @@ export function defineValidatedHandler<
   RequestHeaders extends StandardSchemaV1,
   RequestQuery extends StandardSchemaV1,
   Res extends EventHandlerResponse = EventHandlerResponse,
->(spec: {
+>(def: {
+  middleware?: Middleware[];
   body?: RequestBody;
   headers?: RequestHeaders;
   query?: RequestQuery;
@@ -66,8 +69,14 @@ export function defineValidatedHandler<
   TypedRequest<InferOutput<RequestBody>, InferOutput<RequestHeaders>>,
   Res
 > {
-  // TODO: wrap with validation logic
-  return defineHandler(spec.handler) as any;
+  return defineHandler({
+    middleware: def.middleware,
+    handler: (event) => {
+      (event as any) /* readonly */.req = validatedRequest(event.req, def);
+      (event as any) /* readonly */.url = validatedURL(event.url, def);
+      return def.handler(event as any);
+    },
+  }) as any;
 }
 
 // --- handler .fetch ---
@@ -84,11 +93,9 @@ function handlerWithFetch<
       const req = toRequest(_req, _init);
       const event = new H3Event(req);
       try {
-        return Promise.resolve(handler(event)).then((rawRes) =>
-          handleResponse(rawRes, event),
-        );
+        return Promise.resolve(handleResponse(handler(event), event));
       } catch (error: any) {
-        return Promise.reject(error);
+        return Promise.resolve(handleResponse(error, event));
       }
     },
   });
