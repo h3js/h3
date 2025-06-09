@@ -1,14 +1,14 @@
 import type { ServerRequest } from "srvx/types";
 import type { MaybePromise } from "./_utils.ts";
 import type { H3Event } from "./event.ts";
-import type { ResponseHeaderMap, TypedResponse } from "fetchdts";
+import type { TypedRequest, TypedResponse, ResponseHeaderMap } from "fetchdts";
 
 //  --- event handler ---
 
 export type EventHandler<
-  Req extends EventHandlerRequest = EventHandlerRequest,
-  Res extends EventHandlerResponse = EventHandlerResponse,
-> = (event: H3Event<Req>) => Res;
+  _RequestT extends EventHandlerRequest = EventHandlerRequest,
+  _ResponseT extends EventHandlerResponse = EventHandlerResponse,
+> = (event: H3Event<_RequestT>) => _ResponseT;
 
 export type EventHandlerFetch<T extends Response | TypedResponse = Response> = (
   req: ServerRequest | URL | string,
@@ -16,10 +16,10 @@ export type EventHandlerFetch<T extends Response | TypedResponse = Response> = (
 ) => Promise<T>;
 
 export interface EventHandlerObject<
-  Req extends EventHandlerRequest = EventHandlerRequest,
-  Res extends EventHandlerResponse = EventHandlerResponse,
+  _RequestT extends EventHandlerRequest = EventHandlerRequest,
+  _ResponseT extends EventHandlerResponse = EventHandlerResponse,
 > {
-  handler: EventHandler<Req, Res>;
+  handler: EventHandler<_RequestT, _ResponseT>;
   middleware?: Middleware[];
 }
 
@@ -32,11 +32,19 @@ export interface EventHandlerRequest {
 export type EventHandlerResponse<T = unknown> = T | Promise<T>;
 
 export type EventHandlerWithFetch<
-  Req extends EventHandlerRequest = EventHandlerRequest,
-  Res extends EventHandlerResponse = EventHandlerResponse,
-> = EventHandler<Req, Res> & {
-  fetch: EventHandlerFetch<TypedResponse<Res, ResponseHeaderMap>>;
+  _RequestT extends EventHandlerRequest = EventHandlerRequest,
+  _ResponseT extends EventHandlerResponse = EventHandlerResponse,
+> = EventHandler<_RequestT, _ResponseT> & {
+  fetch: EventHandlerFetch<TypedResponse<_ResponseT, ResponseHeaderMap>>;
 };
+
+export type TypedServerRequest<
+  _RequestT extends EventHandlerRequest = EventHandlerRequest,
+> = Omit<ServerRequest, "json" | "headers" | "clone"> &
+  Pick<
+    TypedRequest<NonNullable<_RequestT["body"]>, Record<string, string>>,
+    "json" | "headers" | "clone"
+  >;
 
 //  --- middleware ---
 
