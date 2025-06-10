@@ -4,7 +4,6 @@ import { describeMatrix } from "./_setup.ts";
 describeMatrix("cookies", (t, { it, expect, describe }) => {
   describe("getChunkedCookie", () => {
     it("can parse cookie that is chunked", async () => {
-
       t.app.get("/", (event) => {
         const authorization = getChunkedCookie(event, "Authorization");
         expect(authorization).toEqual("123456789");
@@ -13,11 +12,11 @@ describeMatrix("cookies", (t, { it, expect, describe }) => {
 
       const result = await t.fetch("/", {
         headers: {
-          "Cookie": [
+          Cookie: [
             "Authorization=chunks:3",
             "Authorization.C1=123",
             "Authorization.C2=456",
-            "Authorization.C3=789"
+            "Authorization.C3=789",
           ].join("; "),
         },
       });
@@ -26,7 +25,6 @@ describeMatrix("cookies", (t, { it, expect, describe }) => {
     });
 
     it("can parse cookie that is not chunked", async () => {
-
       t.app.get("/", (event) => {
         const authorization = getChunkedCookie(event, "Authorization");
         expect(authorization).toEqual("not-chunked");
@@ -35,9 +33,7 @@ describeMatrix("cookies", (t, { it, expect, describe }) => {
 
       const result = await t.fetch("/", {
         headers: {
-          "Cookie": [
-            "Authorization=not-chunked",
-          ].join("; "),
+          Cookie: ["Authorization=not-chunked"].join("; "),
         },
       });
 
