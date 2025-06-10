@@ -110,7 +110,10 @@ export function deleteCookie(
  * const authorization = getCookie(request, 'Session')
  * ```
  */
-export function getChunkedCookie(event: H3Event, name: string): string | undefined {
+export function getChunkedCookie(
+  event: H3Event,
+  name: string,
+): string | undefined {
   const mainCookie = getCookie(event, name);
   if (!mainCookie || !mainCookie.startsWith(CHUNKS_PREFIX)) {
     return mainCookie;
