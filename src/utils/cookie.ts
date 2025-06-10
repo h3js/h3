@@ -116,22 +116,21 @@ export function getChunkedCookie(event: H3Event, name: string): string | undefin
     return mainCookie;
   }
 
-  // TODO extract into function
-  const chunksCount = Number.parseInt(mainCookie.split(":")[1], 10);
-  if (Number.isNaN(chunksCount) || chunksCount <= 0) {
+  const chunksCount = extractChunkCount(mainCookie);
+  if (chunksCount === 0) {
     return undefined;
   }
 
-  const chunkCookies = [];
+  const chunks = [];
   for (let i = 1; i <= chunksCount; i++) {
-    const chunk = getCookie(event, `${name}.C${i}`);
+    const chunk = getCookie(event, createChunkCookieName(name, i));
     if (!chunk) {
       return undefined;
     }
-    chunkCookies.push(chunk);
+    chunks.push(chunk);
   }
 
-  return chunkCookies.join("");
+  return chunks.join("");
 }
 
 /**
@@ -182,10 +181,21 @@ export function deleteChunkedCookie(
   name: string,
   serializeOptions?: CookieSerializeOptions,
 ): void {
-  // TODO get first cookie
-  // TOOD read how many chunks
-  // TODO remove all the chunk cookies
-  // TODO remove original cookie
+  const mainCookie = getCookie(event, name);
+  deleteCookie(event, name, serializeOptions);
+
+  if (!mainCookie || !mainCookie.startsWith(CHUNKS_PREFIX)) {
+    return;
+  }
+
+  const chunksCount = extractChunkCount(mainCookie);
+  if (chunksCount === 0) {
+    return;
+  }
+
+  for (let i = 1; i <= chunksCount; i++) {
+    deleteCookie(event, createChunkCookieName(name, i), serializeOptions);
+  }
 }
 
 /**
@@ -195,4 +205,16 @@ export function deleteChunkedCookie(
  */
 function _getDistinctCookieKey(name: string, options: Partial<SetCookie>) {
   return [name, options.domain || "", options.path || "/"].join(";");
+}
+
+function extractChunkCount(mainCookie: string): number {
+  const chunksCount = Number.parseInt(mainCookie.split(CHUNKS_PREFIX)[1]);
+  if (Number.isNaN(chunksCount) || chunksCount < 0) {
+    return 0;
+  }
+  return chunksCount;
+}
+
+function createChunkCookieName(name: string, i: number): string {
+  return `${name}.C${i}`;
 }
