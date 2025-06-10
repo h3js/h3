@@ -13,12 +13,11 @@ export type HTTPMethod =  "GET" | "HEAD" | "PATCH" | "POST" | "PUT" | "DELETE" |
 export interface H3Config {
   debug?: boolean;
 
-  onError?: (error: HTTPError, event: H3Event) => MaybePromise<void | unknown>;
+  plugins?: H3Plugin[];
+
   onRequest?: (event: H3Event) => MaybePromise<void>;
-  onResponse?: (
-    event: H3Event,
-    response: Response | PreparedResponse,
-  ) => MaybePromise<void>;
+  onResponse?: (response: Response, event: H3Event) => MaybePromise<void>;
+  onError?: (error: HTTPError, event: H3Event) => MaybePromise<void | unknown>;
 }
 
 export type PreparedResponse = ResponseInit & { body?: BodyInit | null };
@@ -28,6 +27,16 @@ export interface H3Route {
   method?: HTTPMethod;
   middleware?: Middleware[];
   handler: EventHandler;
+}
+
+// --- H3 Pluins ---
+
+export type H3Plugin = (h3: H3) => void;
+
+export function definePlugin<T = unknown>(
+  def: (h3: H3, options: T) => void,
+): undefined extends T ? (options?: T) => H3Plugin : (options: T) => H3Plugin {
+  return ((opts?: any) => (h3: H3) => def(h3, opts)) as any;
 }
 
 // --- H3 App ---
@@ -74,6 +83,11 @@ export declare class H3 {
     options?: RequestInit,
     context?: H3EventContext,
   ): Response | Promise<Response>;
+
+  /**
+   * Immediately register an H3 plugin.
+   */
+  register(plugin: H3Plugin): H3;
 
   /**
    * An h3 compatible event handler useful to compose multiple h3 app instances.

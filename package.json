@@ -40,7 +40,7 @@
     "play:node": "pnpm node-ts test/fixture/node.ts",
     "play:plain": "pnpm node-ts test/fixture/plain.ts",
     "play:web": "pnpm node-ts test/fixture/web.ts",
-    "release": "pnpm test && pnpm build && changelogen --publish --publishTag 2x --prerelease && git push --follow-tags",
+    "release": "pnpm test && pnpm build && changelogen --publish --publishTag beta --prerelease && git push --follow-tags",
     "test": "pnpm lint && pnpm test:types && vitest --run --coverage",
     "test:types": "tsc --noEmit --skipLibCheck"
   },
@@ -49,6 +49,7 @@
   },
   "dependencies": {
     "cookie-es": "^2.0.0",
+    "fetchdts": "^0.1.4",
     "rou3": "^0.6.3",
     "srvx": "^0.7.5"
   },

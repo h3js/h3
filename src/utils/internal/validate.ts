@@ -1,4 +1,6 @@
 import { HTTPError } from "../../error.ts";
+
+import type { ServerRequest } from "srvx";
 import type { StandardSchemaV1, InferOutput } from "./standard-schema.ts";
 
 export type ValidateResult<T> = T | true | false | void;
@@ -55,8 +57,102 @@ export async function validateData<T>(
   }
 }
 
+// prettier-ignore
+const reqBodyKeys = new Set(["body", "text", "formData", "arrayBuffer"]);
+
+export function validatedRequest<
+  RequestBody extends StandardSchemaV1,
+  RequestHeaders extends StandardSchemaV1,
+>(
+  req: ServerRequest,
+  validators: {
+    body?: RequestBody;
+    headers?: RequestHeaders;
+  },
+): ServerRequest {
+  // Validate Headers
+  if (validators.headers) {
+    const validatedheaders = syncValidate(
+      "headers",
+      Object.fromEntries(req.headers.entries()),
+      validators.headers as StandardSchemaV1<Record<string, string>>,
+    );
+    for (const [key, value] of Object.entries(validatedheaders)) {
+      req.headers.set(key, value);
+    }
+  }
+
+  if (!validators.body) {
+    return req;
+  }
+
+  // Create proxy for lazy body validation
+  return new Proxy(req, {
+    get(_target, prop: keyof ServerRequest) {
+      if (validators.body) {
+        if (prop === "json") {
+          return () =>
+            req
+              .json()
+              .then((data) => validators.body!["~standard"].validate(data))
+              .then((result) =>
+                result.issues
+                  ? Promise.reject(createValidationError(result))
+                  : result.value,
+              );
+        } else if (reqBodyKeys.has(prop)) {
+          throw new TypeError(
+            `Cannot access .${prop} on request with JSON validation enabled. Use .json() instead.`,
+          );
+        }
+      }
+      return Reflect.get(req, prop);
+    },
+  });
+}
+
+export function validatedURL(
+  url: URL,
+  validators: {
+    query?: StandardSchemaV1;
+  },
+): URL {
+  if (!validators.query) {
+    return url;
+  }
+
+  const validatedQuery = syncValidate(
+    "query",
+    Object.fromEntries(url.searchParams.entries()),
+    validators.query as StandardSchemaV1<Record<string, string>>,
+  );
+
+  for (const [key, value] of Object.entries(validatedQuery)) {
+    url.searchParams.set(key, value);
+  }
+
+  return url;
+}
+
+function syncValidate<T = unknown>(
+  type: string,
+  data: unknown,
+  fn: StandardSchemaV1<T>,
+): T {
+  const result = fn["~standard"].validate(data);
+  if (result instanceof Promise) {
+    throw new TypeError(`Asynchronous validation is not supported for ${type}`);
+  }
+  if (result.issues) {
+    throw createValidationError({
+      issues: result.issues,
+    });
+  }
+  return result.value;
+}
+
 function createValidationError(validateError?: any) {
-  throw new HTTPError({
+  return new HTTPError({
     status: 400,
     statusText: "Validation failed",
     message: validateError?.message,

@@ -1,4 +1,4 @@
-import type { ServerRequest } from "srvx/types";
+import type { ServerRequest } from "srvx";
 import { H3Event } from "./event.ts";
 import { toRequest } from "./h3.ts";
 import { callMiddleware } from "./middleware.ts";
@@ -11,7 +11,14 @@ import type {
   EventHandlerResponse,
   DynamicEventHandler,
   EventHandlerWithFetch,
+  Middleware,
 } from "./types/handler.ts";
+import type {
+  InferOutput,
+  StandardSchemaV1,
+} from "./utils/internal/standard-schema.ts";
+import type { TypedRequest } from "fetchdts";
+import { validatedRequest, validatedURL } from "./utils/internal/validate.ts";
 
 // --- event handler ---
 
@@ -38,6 +45,44 @@ export function defineHandler(arg1: unknown): EventHandlerWithFetch {
   );
 }
 
+type StringHeaders<T> = {
+  [K in keyof T]: Extract<T[K], string>;
+};
+
+/**
+ * @experimental defineValidatedHandler is an experimental feature and API may change.
+ */
+export function defineValidatedHandler<
+  RequestBody extends StandardSchemaV1,
+  RequestHeaders extends StandardSchemaV1,
+  RequestQuery extends StandardSchemaV1,
+  Res extends EventHandlerResponse = EventHandlerResponse,
+>(def: {
+  middleware?: Middleware[];
+  body?: RequestBody;
+  headers?: RequestHeaders;
+  query?: RequestQuery;
+  handler: EventHandler<
+    {
+      body: InferOutput<RequestBody>;
+      query: StringHeaders<InferOutput<RequestQuery>>;
+    },
+    Res
+  >;
+}): EventHandler<
+  TypedRequest<InferOutput<RequestBody>, InferOutput<RequestHeaders>>,
+  Res
+> {
+  return defineHandler({
+    middleware: def.middleware,
+    handler: (event) => {
+      (event as any) /* readonly */.req = validatedRequest(event.req, def);
+      (event as any) /* readonly */.url = validatedURL(event.url, def);
+      return def.handler(event as any);
+    },
+  }) as any;
+}
+
 // --- handler .fetch ---
 
 function handlerWithFetch<
@@ -52,11 +97,9 @@ function handlerWithFetch<
       const req = toRequest(_req, _init);
       const event = new H3Event(req);
       try {
-        return Promise.resolve(handler(event)).then((rawRes) =>
-          handleResponse(rawRes, event),
-        );
+        return Promise.resolve(handleResponse(handler(event), event));
       } catch (error: any) {
-        return Promise.reject(error);
+        return Promise.resolve(handleResponse(error, event));
       }
     },
   });
