@@ -6,6 +6,11 @@ import {
   parseSetCookie,
 } from "cookie-es";
 
+const CHUNKS_PREFIX = "chunks:";
+
+// The limit is approximately 4KB, but may vary by browser and server. We leave some room to be safe.
+const CHUNKS_MAX_LENGTH = 4050;
+
 /**
  * Parse the request to get HTTP Cookie header string and returning an object of all cookie name-value pairs.
  * @param event {H3Event} H3 event or req passed by h3 handler
@@ -106,10 +111,27 @@ export function deleteCookie(
  * ```
  */
 export function getChunkedCookie(event: H3Event, name: string): string | undefined {
-  // TODO get first cookie
-  // TOOD read how many chunks
-  // TODO join all the chunk cookies
-  // TODO return the value
+  const mainCookie = getCookie(event, name);
+  if (!mainCookie || !mainCookie.startsWith(CHUNKS_PREFIX)) {
+    return mainCookie;
+  }
+
+  // TODO extract into function
+  const chunksCount = Number.parseInt(mainCookie.split(":")[1], 10);
+  if (Number.isNaN(chunksCount) || chunksCount <= 0) {
+    return undefined;
+  }
+
+  const chunkCookies = [];
+  for (let i = 1; i <= chunksCount; i++) {
+    const chunk = getCookie(event, `${name}.C${i}`);
+    if (!chunk) {
+      return undefined;
+    }
+    chunkCookies.push(chunk);
+  }
+
+  return chunkCookies.join("");
 }
 
 /**
@@ -128,7 +150,17 @@ export function setChunkedCookie(
   value: string,
   options?: CookieSerializeOptions,
 ): void {
-  // TODO calculate how many chunks
+  const chunkCount = Math.ceil(value.length / CHUNKS_MAX_LENGTH);
+  if (chunkCount <= 1) {
+    // If the value is small enough, just set it as a normal cookie
+    setCookie(event, name, value, options);
+    return;
+  }
+
+  // If the value is too large, we need to chunk it
+  const mainCookieValue = `${CHUNKS_PREFIX}${chunkCount}`;
+  setCookie(event, name, mainCookieValue, options);
+
   // TODO split value into chunks
   // TODO set cookie per chunk
   // TODO set main cookie to store how many chunks
