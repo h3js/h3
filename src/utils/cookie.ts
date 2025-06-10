@@ -97,6 +97,66 @@ export function deleteCookie(
 }
 
 /**
+ * Get a chunked cookie value by name. Will join chunks together.
+ * @param event {H3Event} H3 event or req passed by h3 handler
+ * @param name Name of the cookie to get
+ * @returns {*} Value of the cookie (String or undefined)
+ * ```ts
+ * const authorization = getCookie(request, 'Session')
+ * ```
+ */
+export function getChunkedCookie(event: H3Event, name: string): string | undefined {
+  // TODO get first cookie
+  // TOOD read how many chunks
+  // TODO join all the chunk cookies
+  // TODO return the value
+}
+
+/**
+ * Set a cookie value by name. Chunked cookies will be created as needed.
+ * @param event {H3Event} H3 event or res passed by h3 handler
+ * @param name Name of the cookie to set
+ * @param value Value of the cookie to set
+ * @param options {CookieSerializeOptions} Options for serializing the cookie
+ * ```ts
+ * setCookie(res, 'Session', '<session data>')
+ * ```
+ */
+export function setChunkedCookie(
+  event: H3Event,
+  name: string,
+  value: string,
+  options?: CookieSerializeOptions,
+): void {
+  // TODO calculate how many chunks
+  // TODO split value into chunks
+  // TODO set cookie per chunk
+  // TODO set main cookie to store how many chunks
+
+  // TODO also delete any prior chunks if the cookie is updated
+}
+
+/**
+ * Remove a set of chunked cookies by name.
+ * @param event {H3Event} H3 event or res passed by h3 handler
+ * @param name Name of the cookie to delete
+ * @param serializeOptions {CookieSerializeOptions} Cookie options
+ * ```ts
+ * deleteCookie(res, 'Session')
+ * ```
+ */
+export function deleteChunkedCookie(
+  event: H3Event,
+  name: string,
+  serializeOptions?: CookieSerializeOptions,
+): void {
+  // TODO get first cookie
+  // TOOD read how many chunks
+  // TODO remove all the chunk cookies
+  // TODO remove original cookie
+}
+
+/**
  * Cookies are unique by "cookie-name, domain-value, and path-value".
  *
  * @see https://httpwg.org/specs/rfc6265.html#rfc.section.4.1.2
