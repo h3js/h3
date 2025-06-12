@@ -131,7 +131,7 @@ export const H3 = /* @__PURE__ */ (() => {
         method: _method as HTTPMethod,
         route,
         handler: _handler,
-        middleware: opts?.middleware,
+        ...opts,
       } satisfies H3Route);
       return this as unknown as H3Type;
     }
