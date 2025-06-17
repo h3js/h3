@@ -177,7 +177,7 @@ export class HTTPError<DataT = unknown>
       500,
     );
 
-    const stautText = sanitizeStatusMessage(
+    const statusText = sanitizeStatusMessage(
       (details as ErrorBody)?.statusText ||
         (details?.cause as ErrorBody)?.statusText ||
         (details as ErrorBody)?.statusText ||
@@ -190,7 +190,7 @@ export class HTTPError<DataT = unknown>
       (details?.cause as ErrorDetails)?.message ||
       (details as ErrorBody)?.statusText ||
       (details as ErrorInput)?.statusMessage ||
-      ["HTTPError", status, stautText].filter(Boolean).join(" ");
+      ["HTTPError", status, statusText].filter(Boolean).join(" ");
 
     // @ts-ignore https://v8.dev/features/error-cause
     super(message, { cause: details });
@@ -198,7 +198,7 @@ export class HTTPError<DataT = unknown>
     Error.captureStackTrace?.(this, this.constructor);
 
     this.status = status;
-    this.statusText = stautText || undefined;
+    this.statusText = statusText || undefined;
 
     const rawHeaders =
       (details as ErrorInput)?.headers ||
