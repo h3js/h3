@@ -49,7 +49,6 @@
   },
   "dependencies": {
     "cookie-es": "^2.0.0",
-    "fetchdts": "^0.1.4",
     "rou3": "^0.6.3",
     "srvx": "^0.8.0"
   },
@@ -70,6 +69,7 @@
     "eslint": "^9.28.0",
     "eslint-config-unjs": "^0.4.2",
     "express": "^5.1.0",
+    "fetchdts": "^0.1.4",
     "get-port-please": "^3.1.2",
     "h3-nightly": "^2.0.0-20250610-100419-866f524",
     "h3-v1": "npm:h3@^1.15.3",
