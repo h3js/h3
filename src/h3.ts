@@ -136,7 +136,7 @@ export const H3 = /* @__PURE__ */ (() => {
         _handler = (handler as H3Type).handler;
       } else {
         _handler = handler as EventHandler;
-        meta = { ...(handler as EventHandler).meta, ...opts?.meta };
+        meta = { ...(handler as EventHandler).meta, ...meta };
       }
       route = new URL(route, "h://_").pathname;
       addRoute(this._routes, _method, route, {
