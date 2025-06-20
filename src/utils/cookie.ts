@@ -6,6 +6,11 @@ import {
   parseSetCookie,
 } from "cookie-es";
 
+const CHUNKS_PREFIX = "chunks:";
+
+// The limit is approximately 4KB, but may vary by browser and server. We leave some room to be safe.
+const CHUNKS_MAX_LENGTH = 4050;
+
 /**
  * Parse the request to get HTTP Cookie header string and returning an object of all cookie name-value pairs.
  * @param event {H3Event} H3 event or req passed by h3 handler
@@ -97,10 +102,122 @@ export function deleteCookie(
 }
 
 /**
+ * Get a chunked cookie value by name. Will join chunks together.
+ * @param event {H3Event} H3 event or req passed by h3 handler
+ * @param name Name of the cookie to get
+ * @returns {*} Value of the cookie (String or undefined)
+ * ```ts
+ * const authorization = getCookie(request, 'Session')
+ * ```
+ */
+export function getChunkedCookie(
+  event: H3Event,
+  name: string,
+): string | undefined {
+  const mainCookie = getCookie(event, name);
+  if (!mainCookie || !mainCookie.startsWith(CHUNKS_PREFIX)) {
+    return mainCookie;
+  }
+
+  const chunksCount = extractChunkCount(mainCookie);
+  if (chunksCount === 0) {
+    return undefined;
+  }
+
+  const chunks = [];
+  for (let i = 1; i <= chunksCount; i++) {
+    const chunk = getCookie(event, createChunkCookieName(name, i));
+    if (!chunk) {
+      return undefined;
+    }
+    chunks.push(chunk);
+  }
+
+  return chunks.join("");
+}
+
+/**
+ * Set a cookie value by name. Chunked cookies will be created as needed.
+ * @param event {H3Event} H3 event or res passed by h3 handler
+ * @param name Name of the cookie to set
+ * @param value Value of the cookie to set
+ * @param options {CookieSerializeOptions} Options for serializing the cookie
+ * ```ts
+ * setCookie(res, 'Session', '<session data>')
+ * ```
+ */
+export function setChunkedCookie(
+  event: H3Event,
+  name: string,
+  value: string,
+  options?: CookieSerializeOptions,
+): void {
+  const chunkCount = Math.ceil(value.length / CHUNKS_MAX_LENGTH);
+  if (chunkCount <= 1) {
+    // If the value is small enough, just set it as a normal cookie
+    setCookie(event, name, value, options);
+    return;
+  }
+
+  // If the value is too large, we need to chunk it
+  const mainCookieValue = `${CHUNKS_PREFIX}${chunkCount}`;
+  setCookie(event, name, mainCookieValue, options);
+
+  // TODO split value into chunks
+  // TODO set cookie per chunk
+  // TODO set main cookie to store how many chunks
+
+  // TODO also delete any prior chunks if the cookie is updated
+}
+
+/**
+ * Remove a set of chunked cookies by name.
+ * @param event {H3Event} H3 event or res passed by h3 handler
+ * @param name Name of the cookie to delete
+ * @param serializeOptions {CookieSerializeOptions} Cookie options
+ * ```ts
+ * deleteCookie(res, 'Session')
+ * ```
+ */
+export function deleteChunkedCookie(
+  event: H3Event,
+  name: string,
+  serializeOptions?: CookieSerializeOptions,
+): void {
+  const mainCookie = getCookie(event, name);
+  deleteCookie(event, name, serializeOptions);
+
+  if (!mainCookie || !mainCookie.startsWith(CHUNKS_PREFIX)) {
+    return;
+  }
+
+  const chunksCount = extractChunkCount(mainCookie);
+  if (chunksCount === 0) {
+    return;
+  }
+
+  for (let i = 1; i <= chunksCount; i++) {
+    deleteCookie(event, createChunkCookieName(name, i), serializeOptions);
+  }
+}
+
+/**
  * Cookies are unique by "cookie-name, domain-value, and path-value".
  *
  * @see https://httpwg.org/specs/rfc6265.html#rfc.section.4.1.2
  */
 function _getDistinctCookieKey(name: string, options: Partial<SetCookie>) {
   return [name, options.domain || "", options.path || "/"].join(";");
+}
+
+function extractChunkCount(mainCookie: string): number {
+  const chunksCount = Number.parseInt(mainCookie.split(CHUNKS_PREFIX)[1]);
+  if (Number.isNaN(chunksCount) || chunksCount < 0) {
+    return 0;
+  }
+  return chunksCount;
+}
+
+function createChunkCookieName(name: string, i: number): string {
+  return `${name}.C${i}`;
 }
