@@ -4,7 +4,12 @@ import { toResponse, kNotFound } from "./response.ts";
 import { callMiddleware, normalizeMiddleware } from "./middleware.ts";
 
 import type { RouterContext } from "rou3";
-import type { FetchHandler, H3Config, H3Plugin } from "./types/h3.ts";
+import type {
+  FetchHandler,
+  H3Config,
+  H3Plugin,
+  H3RouteMeta,
+} from "./types/h3.ts";
 import type { H3EventContext } from "./types/context.ts";
 import type { EventHandler, Middleware } from "./types/handler.ts";
 import type {
@@ -125,13 +130,21 @@ export const H3 = /* @__PURE__ */ (() => {
         this._routes = createRouter();
       }
       const _method = (method || "").toUpperCase();
-      const _handler = (handler as H3Type)?.handler || handler;
+      let _handler: EventHandler;
+      let meta: H3RouteMeta | undefined = opts?.meta;
+      if ((handler as H3Type).handler) {
+        _handler = (handler as H3Type).handler;
+      } else {
+        _handler = handler as EventHandler;
+        meta = { ...(handler as EventHandler).meta, ...opts?.meta };
+      }
       route = new URL(route, "h://_").pathname;
       addRoute(this._routes, _method, route, {
         method: _method as HTTPMethod,
         route,
         handler: _handler,
         middleware: opts?.middleware,
+        meta,
       } satisfies H3Route);
       return this as unknown as H3Type;
     }

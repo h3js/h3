@@ -24,10 +24,15 @@ export interface H3Config {
 
 export type PreparedResponse = ResponseInit & { body?: BodyInit | null };
 
+export interface H3RouteMeta {
+  [key: string]: unknown;
+}
+
 export interface H3Route {
   route?: string;
   method?: HTTPMethod;
   middleware?: Middleware[];
+  meta?: H3RouteMeta;
   handler: EventHandler;
 }
 
@@ -49,6 +54,7 @@ export type FetchHandler = (req: ServerRequest) => Response | Promise<Response>;
 
 export type RouteOptions = {
   middleware?: Middleware[];
+  meta?: H3RouteMeta;
 };
 
 export type MiddlewareOptions = {

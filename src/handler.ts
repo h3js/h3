@@ -36,13 +36,14 @@ export function defineHandler(arg1: unknown): EventHandlerWithFetch {
   if (typeof arg1 === "function") {
     return handlerWithFetch(arg1 as EventHandler);
   }
-  const { middleware, handler } = arg1 as EventHandlerObject;
-  if (!middleware?.length) {
-    return handlerWithFetch(handler);
-  }
-  return handlerWithFetch((event) =>
-    callMiddleware(event, middleware, handler),
+  const { middleware, handler, meta } = arg1 as EventHandlerObject;
+  const _handler = handlerWithFetch(
+    middleware?.length
+      ? (event) => callMiddleware(event, middleware, handler)
+      : handler,
   );
+  _handler.meta = meta;
+  return _handler;
 }
 
 type StringHeaders<T> = {
