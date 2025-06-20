@@ -25,7 +25,7 @@ export interface H3Config {
 export type PreparedResponse = ResponseInit & { body?: BodyInit | null };
 
 export interface H3RouteMeta {
-  [key: string]: unknown;
+  readonly [key: string]: unknown;
 }
 
 export interface H3Route {
