@@ -4,6 +4,7 @@ export type {
   H3Config,
   H3Plugin,
   H3Route,
+  H3RouteMeta,
   HTTPMethod,
   PreparedResponse,
   RouteOptions,
