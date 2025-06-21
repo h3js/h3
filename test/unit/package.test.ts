@@ -90,6 +90,7 @@ describe("h3 package", () => {
         "readBody",
         "readFormData",
         "readFormDataBody",
+        "readMultipartFormData",
         "readRawBody",
         "readValidatedBody",
         "redirect",

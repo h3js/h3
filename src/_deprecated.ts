@@ -96,6 +96,32 @@ export async function readFormDataBody(event: H3Event): Promise<FormData> {
 export const readFormData: (event: H3Event) => Promise<FormData> =
   readFormDataBody;
 
+/** @deprecated Please use `event.req.formData()` */
+export async function readMultipartFormData(event: H3Event): Promise<
+  Array<{
+    data: Buffer;
+    name?: string;
+    filename?: string;
+    type?: string;
+  }>
+> {
+  const formData = await readFormDataBody(event);
+
+  return Promise.all(
+    [...formData.entries()].map(async ([key, value]) => {
+      return value instanceof Blob
+        ? {
+            name: key,
+            type: value.type,
+            filename: value.name,
+            // Convert Blob to Buffer for backward compatibility
+            data: Buffer.from(await value.arrayBuffer()),
+          }
+        : { name: key, data: Buffer.from(value) };
+    }),
+  );
+}
+
 /** @deprecated Please use `event.req.body` */
 export function getBodyStream(
   event: H3Event,
