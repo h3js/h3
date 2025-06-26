@@ -15,7 +15,7 @@ export type {
 
 export { definePlugin } from "./types/h3.ts";
 
-export { H3 } from "./h3.ts";
+export { H3Core, H3 } from "./h3.ts";
 
 // Event
 
