@@ -3,7 +3,7 @@ import type { EventHandler, Middleware } from "./handler.ts";
 import type { HTTPError } from "../error.ts";
 import type { MaybePromise } from "./_utils.ts";
 import type { ServerRequest } from "srvx";
-import type { MatchedRoute, RouterContext } from "rou3";
+import type { MatchedRoute } from "rou3";
 import type { H3Event } from "../event.ts";
 
 // --- Misc ---
