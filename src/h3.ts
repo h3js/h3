@@ -187,6 +187,9 @@ export const H3Core = /* @__PURE__ */ (() => {
 })() as unknown as { new (config?: H3Config): H3Type };
 
 export class H3 extends H3Core {
+  /**
+   * @internal
+   */
   _rou3: RouterContext<H3Route>;
 
   constructor(config: H3Config = {}) {
