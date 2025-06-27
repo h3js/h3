@@ -4,12 +4,7 @@ import { toResponse, kNotFound } from "./response.ts";
 import { callMiddleware, normalizeMiddleware } from "./middleware.ts";
 
 import type { RouterContext, MatchedRoute } from "rou3";
-import type {
-  FetchHandler,
-  H3Config,
-  H3Plugin,
-  H3RouteMeta,
-} from "./types/h3.ts";
+import type { FetchHandler, H3Config, H3Plugin } from "./types/h3.ts";
 import type { H3EventContext } from "./types/context.ts";
 import type { EventHandler, Middleware } from "./types/handler.ts";
 import type {
@@ -17,7 +12,6 @@ import type {
   HTTPMethod,
   H3 as H3Type,
   RouteOptions,
-  RouteHandler,
   MiddlewareOptions,
 } from "./types/h3.ts";
 import type { ServerRequest } from "srvx";
@@ -120,32 +114,24 @@ export const H3Core = /* @__PURE__ */ (() => {
       return this as unknown as H3Type;
     }
 
-    all(route: string, handler: RouteHandler, opts?: RouteOptions): H3Type {
+    all(route: string, handler: EventHandler, opts?: RouteOptions): H3Type {
       return this.on("", route, handler, opts);
     }
 
     on(
       method: HTTPMethod | Lowercase<HTTPMethod> | "",
       route: string,
-      handler: RouteHandler,
+      handler: EventHandler,
       opts?: RouteOptions,
     ): H3Type {
       const _method = (method || "").toUpperCase();
-      let _handler: EventHandler;
-      let meta: H3RouteMeta | undefined = opts?.meta;
-      if ((handler as H3Type).handler) {
-        _handler = (handler as H3Type).handler;
-      } else {
-        _handler = handler as EventHandler;
-        meta = { ...(handler as EventHandler).meta, ...meta };
-      }
       route = new URL(route, "h://_").pathname;
       this._addRoute({
         method: _method as HTTPMethod,
         route,
-        handler: _handler,
+        handler,
         middleware: opts?.middleware,
-        meta,
+        meta: { ...(handler as EventHandler).meta, ...opts?.meta },
       });
       return this as unknown as H3Type;
     }
@@ -176,7 +162,7 @@ export const H3Core = /* @__PURE__ */ (() => {
     (H3Core as any).prototype[method.toLowerCase()] = function (
       this: H3Type,
       route: string,
-      handler: EventHandler | H3Type,
+      handler: EventHandler,
       opts?: RouteOptions,
     ) {
       return this.on(method, route, handler, opts);

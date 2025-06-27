@@ -1,7 +1,6 @@
 import { routeToRegExp } from "rou3";
 import { kNotFound } from "./response.ts";
 
-import type { H3 } from "./h3.ts";
 import type { H3Event } from "./event.ts";
 import type { MiddlewareOptions } from "./types/h3.ts";
 import type { EventHandler, Middleware } from "./types/handler.ts";
@@ -11,44 +10,23 @@ export function defineMiddleware(input: Middleware): Middleware {
 }
 
 export function normalizeMiddleware(
-  input: Middleware | H3,
+  input: Middleware,
   opts: MiddlewareOptions & { route?: string } = {},
 ): Middleware {
   const matcher = createMatcher(opts);
-
-  if (typeof input === "function") {
-    if (
-      !matcher &&
-      (input.length > 1 || input.constructor?.name === "AsyncFunction")
-    ) {
-      return input; // Fast path: async or with explicit next() and no matcher filters
+  if (
+    !matcher &&
+    (input.length > 1 || input.constructor?.name === "AsyncFunction")
+  ) {
+    return input; // Fast path: async or with explicit next() and no matcher filters
+  }
+  return (event, next) => {
+    if (matcher && !matcher(event)) {
+      return next();
     }
-    return (event, next) => {
-      if (matcher && !matcher(event)) {
-        return next();
-      }
-      const res = input(event, next);
-      return res === undefined ? next() : res;
-    };
-  }
-  // H3 sub-app
-  if (typeof (input as H3).handler === "function") {
-    return (event, next) => {
-      if (matcher && !matcher(event)) {
-        return next();
-      }
-      const res = (input as H3).handler(event);
-      if (res === kNotFound) {
-        return next();
-      } else if (res instanceof Promise) {
-        return res.then((resolved) =>
-          resolved === kNotFound ? next() : resolved,
-        );
-      }
-      return res === undefined ? next() : res;
-    };
-  }
-  throw new Error(`Invalid middleware: ${input}`);
+    const res = input(event, next);
+    return res === undefined || res === kNotFound ? next() : res;
+  };
 }
 
 function createMatcher(opts: MiddlewareOptions & { route?: string }) {
@@ -93,9 +71,11 @@ export function callMiddleware(
   const fn = middleware[index];
   const next = () => callMiddleware(event, middleware, handler, index + 1);
   const ret = fn(event, next);
-  return ret === undefined
+  return ret === undefined || ret === kNotFound
     ? next()
     : ret instanceof Promise
-      ? ret.then((resolved) => (resolved === undefined ? next() : resolved))
+      ? ret.then((resolved) =>
+          resolved === undefined || resolved === kNotFound ? next() : resolved,
+        )
       : ret;
 }
