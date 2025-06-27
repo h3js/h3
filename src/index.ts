@@ -8,7 +8,6 @@ export type {
   HTTPMethod,
   PreparedResponse,
   RouteOptions,
-  RouteHandler,
   MiddlewareOptions,
   FetchHandler,
 } from "./types/h3.ts";

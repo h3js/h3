@@ -35,7 +35,7 @@ describeMatrix("middleware", (t, { it, expect }) => {
         event.req.headers.has("x-async")
           ? Promise.resolve("Hello World!")
           : "Hello World!",
-      ),
+      ).handler,
       {
         method: "GET",
         match: (event) => !event.req.headers.has("x-skip"),

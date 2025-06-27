@@ -48,8 +48,6 @@ export function definePlugin<T = unknown>(
 
 // --- H3 App ---
 
-export type RouteHandler = EventHandler | { handler: EventHandler };
-
 export type FetchHandler = (req: ServerRequest) => Response | Promise<Response>;
 
 export type RouteOptions = {
@@ -134,8 +132,8 @@ export declare class H3 {
   /**
    * Register a global middleware.
    */
-  use(route: string, handler: Middleware | H3, opts?: MiddlewareOptions): this;
-  use(handler: Middleware | H3, opts?: MiddlewareOptions): this;
+  use(route: string, handler: Middleware, opts?: MiddlewareOptions): this;
+  use(handler: Middleware, opts?: MiddlewareOptions): this;
 
   /**
    * Register a route handler for the specified HTTP method and route.
@@ -143,22 +141,22 @@ export declare class H3 {
   on(
     method: HTTPMethod | Lowercase<HTTPMethod> | "",
     route: string,
-    handler: RouteHandler,
+    handler: EventHandler,
     opts?: RouteOptions,
   ): this;
 
   /**
    * Register a route handler for all HTTP methods.
    */
-  all(route: string, handler: RouteHandler, opts?: RouteOptions): this;
+  all(route: string, handler: EventHandler, opts?: RouteOptions): this;
 
-  get(route: string, handler: RouteHandler, opts?: RouteOptions): this;
-  post(route: string, handler: RouteHandler, opts?: RouteOptions): this;
-  put(route: string, handler: RouteHandler, opts?: RouteOptions): this;
-  delete(route: string, handler: RouteHandler, opts?: RouteOptions): this;
-  patch(route: string, handler: RouteHandler, opts?: RouteOptions): this;
-  head(route: string, handler: RouteHandler, opts?: RouteOptions): this;
-  options(route: string, handler: RouteHandler, opts?: RouteOptions): this;
-  connect(route: string, handler: RouteHandler, opts?: RouteOptions): this;
-  trace(route: string, handler: RouteHandler, opts?: RouteOptions): this;
+  get(route: string, handler: EventHandler, opts?: RouteOptions): this;
+  post(route: string, handler: EventHandler, opts?: RouteOptions): this;
+  put(route: string, handler: EventHandler, opts?: RouteOptions): this;
+  delete(route: string, handler: EventHandler, opts?: RouteOptions): this;
+  patch(route: string, handler: EventHandler, opts?: RouteOptions): this;
+  head(route: string, handler: EventHandler, opts?: RouteOptions): this;
+  options(route: string, handler: EventHandler, opts?: RouteOptions): this;
+  connect(route: string, handler: EventHandler, opts?: RouteOptions): this;
+  trace(route: string, handler: EventHandler, opts?: RouteOptions): this;
 }
