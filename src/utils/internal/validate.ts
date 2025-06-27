@@ -84,11 +84,11 @@ export function validatedRequest<
   }
 
   if (!validators.body) {
-    return req as ServerRequest;
+    return req;
   }
 
   // Create proxy for lazy body validation
-  return new Proxy(req as ServerRequest, {
+  return new Proxy(req, {
     get(_target, prop: keyof ServerRequest) {
       if (validators.body) {
         if (prop === "json") {
