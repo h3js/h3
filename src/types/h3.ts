@@ -71,7 +71,7 @@ export declare class H3 {
   /**
    * @internal
    */
-  _routes?: H3Route[];
+  _routes: H3Route[];
 
   /**
    * H3 instance config.
@@ -123,9 +123,13 @@ export declare class H3 {
   handler(event: H3Event): unknown | Promise<unknown>;
 
   /**
-   * Mount a `.fetch` compatible server (like Hono or Elysia) to the H3 app.
+   * Mount an H3 app or a `.fetch` compatible server (like Hono or Elysia) with a base prefix.
+   *
+   * When mounting a sub-app, all routes will be added with base prefix and global middleware will be added as one prefixed middleware.
+   *
+   * **Note:** Sub-app options and global hooks are not inherited by the mounted app please consider setting them in the main app directly.
    */
-  mount(base: string, input: FetchHandler | { fetch: FetchHandler }): this;
+  mount(base: string, input: FetchHandler | { fetch: FetchHandler } | H3): this;
 
   /**
    * Register a global middleware.

@@ -110,13 +110,32 @@ export const H3Core = /* @__PURE__ */ (() => {
       });
     }
 
-    mount(base: string, input: FetchHandler | { fetch: FetchHandler }): H3Type {
-      const fetchHandler = "fetch" in input ? input.fetch : input;
-      this.all(`${base}/**`, (event) => {
-        const url = new URL(event.url);
-        url.pathname = url.pathname.slice(base.length) || "/";
-        return fetchHandler(new Request(url, event.req));
-      });
+    mount(
+      base: string,
+      input: FetchHandler | { fetch: FetchHandler } | H3Type,
+    ): H3Type {
+      if ("handler" in input) {
+        if (input._middleware.length > 0) {
+          this._middleware.push((event, next) => {
+            return event.url.pathname.startsWith(base)
+              ? callMiddleware(event, input._middleware, next)
+              : next();
+          });
+        }
+        for (const r of input._routes) {
+          this._addRoute({
+            ...r,
+            route: base + r.route,
+          });
+        }
+      } else {
+        const fetchHandler = "fetch" in input ? input.fetch : input;
+        this.all(`${base}/**`, (event) => {
+          const url = new URL(event.url);
+          url.pathname = url.pathname.slice(base.length) || "/";
+          return fetchHandler(new Request(url, event.req));
+        });
+      }
       return this as unknown as H3Type;
     }
 
