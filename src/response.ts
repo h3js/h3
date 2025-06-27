@@ -162,8 +162,9 @@ function prepareResponseBody(
     };
 
     // File
-    if ("name" in val) {
-      const filename = encodeURIComponent(val.name as string);
+    let filename = (val as File).name;
+    if (filename) {
+      filename = encodeURIComponent(filename);
       // Omit the disposition type ("inline" or "attachment") and let the client (browser) decide.
       headers["content-disposition"] =
         `filename="${filename}"; filename*=UTF-8''${filename}`;
