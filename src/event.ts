@@ -99,7 +99,7 @@ export class H3Event<
    *
    */
   get headers(): Headers {
-    return this.req.headers as Headers;
+    return this.req.headers;
   }
 
   /**

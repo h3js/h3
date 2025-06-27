@@ -2,7 +2,6 @@ import { HTTPError } from "../../error.ts";
 
 import type { ServerRequest } from "srvx";
 import type { StandardSchemaV1, InferOutput } from "./standard-schema.ts";
-import type { TypedServerRequest } from "../../types/handler.ts";
 
 export type ValidateResult<T> = T | true | false | void;
 
@@ -65,7 +64,7 @@ export function validatedRequest<
   RequestBody extends StandardSchemaV1,
   RequestHeaders extends StandardSchemaV1,
 >(
-  req: ServerRequest | TypedServerRequest,
+  req: ServerRequest,
   validators: {
     body?: RequestBody;
     headers?: RequestHeaders;
