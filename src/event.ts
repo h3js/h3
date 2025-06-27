@@ -7,6 +7,7 @@ import type {
   EventHandlerRequest,
   TypedServerRequest,
 } from "./types/handler.ts";
+import type { ResponseHeaderMap, TypedHeaders } from "fetchdts";
 
 export class H3Event<
   _RequestT extends EventHandlerRequest = EventHandlerRequest,
@@ -99,7 +100,7 @@ export class H3Event<
    *
    */
   get headers(): Headers {
-    return this.req.headers;
+    return this.req.headers as Headers;
   }
 
   /**

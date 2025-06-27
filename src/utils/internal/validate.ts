@@ -2,6 +2,7 @@ import { HTTPError } from "../../error.ts";
 
 import type { ServerRequest } from "srvx";
 import type { StandardSchemaV1, InferOutput } from "./standard-schema.ts";
+import type { TypedServerRequest } from "../../types/handler.ts";
 
 export type ValidateResult<T> = T | true | false | void;
 
@@ -64,7 +65,7 @@ export function validatedRequest<
   RequestBody extends StandardSchemaV1,
   RequestHeaders extends StandardSchemaV1,
 >(
-  req: ServerRequest,
+  req: ServerRequest | TypedServerRequest,
   validators: {
     body?: RequestBody;
     headers?: RequestHeaders;
@@ -83,11 +84,11 @@ export function validatedRequest<
   }
 
   if (!validators.body) {
-    return req;
+    return req as ServerRequest;
   }
 
   // Create proxy for lazy body validation
-  return new Proxy(req, {
+  return new Proxy(req as ServerRequest, {
     get(_target, prop: keyof ServerRequest) {
       if (validators.body) {
         if (prop === "json") {

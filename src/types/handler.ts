@@ -47,7 +47,7 @@ export type TypedServerRequest<
   _RequestT extends EventHandlerRequest = EventHandlerRequest,
 > = Omit<ServerRequest, "json" | "headers" | "clone"> &
   Pick<
-    TypedRequest<NonNullable<_RequestT["body"]>, Record<string, string>>,
+    TypedRequest<NonNullable<_RequestT["body"]>, ResponseHeaderMap>,
     "json" | "headers" | "clone"
   >;
 

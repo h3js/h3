@@ -127,7 +127,7 @@ export const H3Core = /* @__PURE__ */ (() => {
         this.all(`${base}/**`, (event) => {
           const url = new URL(event.url);
           url.pathname = url.pathname.slice(base.length) || "/";
-          return fetchHandler(new Request(url, event.req));
+          return fetchHandler(new Request(url, event.req as ServerRequest));
         });
       }
       return this as unknown as H3Type;

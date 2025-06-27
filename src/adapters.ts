@@ -9,7 +9,11 @@ import type {
 } from "srvx";
 import type { H3 } from "./h3.ts";
 import type { H3EventContext } from "./types/context.ts";
-import type { EventHandler, EventHandlerResponse } from "./types/handler.ts";
+import type {
+  EventHandler,
+  EventHandlerResponse,
+  TypedServerRequest,
+} from "./types/handler.ts";
 import type { H3Event } from "./event.ts";
 
 export type NodeHandler = (
@@ -36,7 +40,7 @@ export function toWebHandler(
 
 export function fromWebHandler(
   handler: (
-    request: ServerRequest,
+    request: ServerRequest | TypedServerRequest,
     context?: H3EventContext,
   ) => Promise<Response>,
 ): EventHandler {
