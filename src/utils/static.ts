@@ -2,6 +2,39 @@ import type { H3Event } from "../event.ts";
 import { HTTPError } from "../error.ts";
 import { withLeadingSlash, withoutTrailingSlash } from "./internal/path.ts";
 
+const COMMON_MIME_TYPES: Record<string, string> = {
+  ".html": "text/html",
+  ".htm": "text/html",
+  ".css": "text/css",
+  ".js": "text/javascript",
+  ".json": "application/json",
+  ".txt": "text/plain",
+  ".xml": "application/xml",
+
+  ".gif": "image/gif",
+  ".ico": "image/vnd.microsoft.icon",
+  ".jpeg": "image/jpeg",
+  ".jpg": "image/jpeg",
+  ".png": "image/png",
+  ".svg": "image/svg+xml",
+  ".webp": "image/webp",
+
+  ".woff": "font/woff",
+  ".woff2": "font/woff2",
+
+  ".mp4": "video/mp4",
+  ".webm": "video/webm",
+
+  ".zip": "application/zip",
+
+  ".pdf": "application/pdf",
+};
+
+function getMimeType(path: string): string {
+  const ext = path.slice(Math.max(0, path.lastIndexOf("."))).toLowerCase();
+  return COMMON_MIME_TYPES[ext] || "application/octet-stream";
+}
+
 export interface StaticAssetMeta {
   type?: string;
   etag?: string;
@@ -51,6 +84,11 @@ export interface ServeStaticOptions {
    * When set to true, the function will not throw 404 error when the asset meta is not found or meta validation failed
    */
   fallthrough?: boolean;
+
+  /**
+   * Custom MIME type resolver function
+   */
+  getMimeType?: (path: string) => string | undefined;
 }
 
 /**
@@ -146,6 +184,9 @@ export async function serveStatic(
 
   if (meta.type && !event.res.headers.get("content-type")) {
     event.res.headers.set("content-type", meta.type);
+  } else if (!event.res.headers.get("content-type")) {
+    const mimeType = options.getMimeType?.(id) || getMimeType(id);
+    event.res.headers.set("content-type", mimeType);
   }
 
   if (meta.encoding && !event.res.headers.get("content-encoding")) {

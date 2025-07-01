@@ -214,3 +214,54 @@ describeMatrix("serve static with fallthrough", (t, { it, expect }) => {
     expect(await res.json()).toEqual({ fallthroughTest: "passing" });
   });
 });
+
+describeMatrix("serve static MIME types", (t, { it, expect }) => {
+  beforeEach(() => {
+    const serveStaticOptions: ServeStaticOptions = {
+      getContents: vi.fn((id) => `content for ${id}`),
+      getMeta: vi.fn((id) => ({
+        size: 10,
+        path: id,
+      })),
+    };
+
+    t.app.all("/**", (event) => {
+      return serveStatic(event, serveStaticOptions);
+    });
+  });
+
+  it("Sets correct MIME type for CSS", async () => {
+    const res = await t.fetch("/styles.css");
+    expect(res.headers.get("content-type")).toBe("text/css");
+  });
+
+  it("Sets correct MIME type for JavaScript", async () => {
+    const res = await t.fetch("/script.js");
+    expect(res.headers.get("content-type")).toBe("text/javascript");
+  });
+
+  it("Sets correct MIME type for images", async () => {
+    const res = await t.fetch("/image.png");
+    expect(res.headers.get("content-type")).toBe("image/png");
+  });
+
+  it("Uses custom getMimeType function", async () => {
+    const customOptions: ServeStaticOptions = {
+      getContents: vi.fn(() => "content"),
+      getMeta: vi.fn(() => ({ size: 10 })),
+      getMimeType: vi.fn(() => "application/custom"),
+    };
+
+    t.app.all("/custom/**", (event) => {
+      return serveStatic(event, customOptions);
+    });
+
+    const res = await t.fetch("/custom/file.xyz");
+    expect(res.headers.get("content-type")).toBe("application/custom");
+  });
+
+  it("Falls back to octet-stream for unknown extensions", async () => {
+    const res = await t.fetch("/unknown.xyz");
+    expect(res.headers.get("content-type")).toBe("application/octet-stream");
+  });
+});
