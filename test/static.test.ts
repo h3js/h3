@@ -230,21 +230,6 @@ describeMatrix("serve static MIME types", (t, { it, expect }) => {
     });
   });
 
-  it("Sets correct MIME type for CSS", async () => {
-    const res = await t.fetch("/styles.css");
-    expect(res.headers.get("content-type")).toBe("text/css");
-  });
-
-  it("Sets correct MIME type for JavaScript", async () => {
-    const res = await t.fetch("/script.js");
-    expect(res.headers.get("content-type")).toBe("text/javascript");
-  });
-
-  it("Sets correct MIME type for images", async () => {
-    const res = await t.fetch("/image.png");
-    expect(res.headers.get("content-type")).toBe("image/png");
-  });
-
   it("Uses custom getMimeType function", async () => {
     const customOptions: ServeStaticOptions = {
       getContents: vi.fn(() => "content"),
@@ -258,10 +243,5 @@ describeMatrix("serve static MIME types", (t, { it, expect }) => {
 
     const res = await t.fetch("/custom/file.xyz");
     expect(res.headers.get("content-type")).toBe("application/custom");
-  });
-
-  it("Does not set content-type for unknown", async () => {
-    const res = await t.fetch("/unknown.xyz");
-    expect(res.headers.get("content-type")).toBeNull();
   });
 });

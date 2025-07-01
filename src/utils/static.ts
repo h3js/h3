@@ -1,16 +1,7 @@
 import type { H3Event } from "../event.ts";
 import { HTTPError } from "../error.ts";
 import { withLeadingSlash, withoutTrailingSlash } from "./internal/path.ts";
-import { COMMON_MIME_TYPES } from "./internal/mimes.ts";
-
-function getMimeType(path: string): string | undefined {
-  const dotIndex = path.lastIndexOf(".");
-  if (dotIndex === -1) {
-    return undefined;
-  }
-  const ext = path.slice(dotIndex).toLowerCase();
-  return COMMON_MIME_TYPES[ext];
-}
+import { getMimeType, getFileExtension } from "./internal/mimes.ts";
 
 export interface StaticAssetMeta {
   type?: string;
@@ -64,8 +55,10 @@ export interface ServeStaticOptions {
 
   /**
    * Custom MIME type resolver function
+   * @param ext - File extension including dot (e.g., ".css", ".js")
+   * @param url - Full URL path
    */
-  getMimeType?: (path: string) => string | undefined;
+  getMimeType?: (ext: string, url: string) => string | undefined;
 }
 
 /**
@@ -162,7 +155,8 @@ export async function serveStatic(
   if (meta.type && !event.res.headers.get("content-type")) {
     event.res.headers.set("content-type", meta.type);
   } else if (!event.res.headers.get("content-type")) {
-    const mimeType = options.getMimeType?.(id) || getMimeType(id);
+    const ext = getFileExtension(id);
+    const mimeType = ext && (options.getMimeType?.(ext, id) || getMimeType(id));
     if (mimeType) {
       event.res.headers.set("content-type", mimeType);
     }
