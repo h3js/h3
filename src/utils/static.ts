@@ -1,34 +1,7 @@
 import type { H3Event } from "../event.ts";
 import { HTTPError } from "../error.ts";
 import { withLeadingSlash, withoutTrailingSlash } from "./internal/path.ts";
-
-const COMMON_MIME_TYPES: Record<string, string> = {
-  ".html": "text/html",
-  ".htm": "text/html",
-  ".css": "text/css",
-  ".js": "text/javascript",
-  ".json": "application/json",
-  ".txt": "text/plain",
-  ".xml": "application/xml",
-
-  ".gif": "image/gif",
-  ".ico": "image/vnd.microsoft.icon",
-  ".jpeg": "image/jpeg",
-  ".jpg": "image/jpeg",
-  ".png": "image/png",
-  ".svg": "image/svg+xml",
-  ".webp": "image/webp",
-
-  ".woff": "font/woff",
-  ".woff2": "font/woff2",
-
-  ".mp4": "video/mp4",
-  ".webm": "video/webm",
-
-  ".zip": "application/zip",
-
-  ".pdf": "application/pdf",
-};
+import { COMMON_MIME_TYPES } from "./internal/mimes.ts";
 
 function getMimeType(path: string): string {
   const ext = path.slice(Math.max(0, path.lastIndexOf("."))).toLowerCase();
