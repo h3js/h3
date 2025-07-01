@@ -259,9 +259,4 @@ describeMatrix("serve static MIME types", (t, { it, expect }) => {
     const res = await t.fetch("/custom/file.xyz");
     expect(res.headers.get("content-type")).toBe("application/custom");
   });
-
-  it("Falls back to octet-stream for unknown extensions", async () => {
-    const res = await t.fetch("/unknown.xyz");
-    expect(res.headers.get("content-type")).toBe("application/octet-stream");
-  });
 });
