@@ -3,8 +3,12 @@ import { HTTPError } from "../error.ts";
 import { withLeadingSlash, withoutTrailingSlash } from "./internal/path.ts";
 import { COMMON_MIME_TYPES } from "./internal/mimes.ts";
 
-function getMimeType(path: string): string {
-  const ext = path.slice(Math.max(0, path.lastIndexOf("."))).toLowerCase();
+function getMimeType(path: string): string | undefined {
+  const dotIndex = path.lastIndexOf(".");
+  if (dotIndex === -1) {
+    return undefined;
+  }
+  const ext = path.slice(dotIndex).toLowerCase();
   return COMMON_MIME_TYPES[ext];
 }
 
