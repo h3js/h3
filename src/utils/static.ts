@@ -5,7 +5,7 @@ import { COMMON_MIME_TYPES } from "./internal/mimes.ts";
 
 function getMimeType(path: string): string {
   const ext = path.slice(Math.max(0, path.lastIndexOf("."))).toLowerCase();
-  return COMMON_MIME_TYPES[ext] || "application/octet-stream";
+  return COMMON_MIME_TYPES[ext];
 }
 
 export interface StaticAssetMeta {
@@ -159,7 +159,9 @@ export async function serveStatic(
     event.res.headers.set("content-type", meta.type);
   } else if (!event.res.headers.get("content-type")) {
     const mimeType = options.getMimeType?.(id) || getMimeType(id);
-    event.res.headers.set("content-type", mimeType);
+    if (mimeType) {
+      event.res.headers.set("content-type", mimeType);
+    }
   }
 
   if (meta.encoding && !event.res.headers.get("content-encoding")) {
