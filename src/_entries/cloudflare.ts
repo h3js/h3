@@ -9,7 +9,7 @@ export * from "../index.ts";
 /**
  * Serve the H3 app.
  */
-export function serve(app: H3, options?: Omit<ServerOptions, "fetch">): Server {\
+export function serve(app: H3, options?: Omit<ServerOptions, "fetch">): Server {
   freezeApp(app);
   return srvxServe({ fetch: app._fetch, ...options });
 }
