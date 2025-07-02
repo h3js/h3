@@ -1,7 +1,7 @@
 import type { H3Event } from "../event.ts";
 import { HTTPError } from "../error.ts";
 import { withLeadingSlash, withoutTrailingSlash } from "./internal/path.ts";
-import { getMimeType, getExtension } from "./internal/mime.ts";
+import { getType, getExtension } from "./internal/mime.ts";
 
 export interface StaticAssetMeta {
   type?: string;
@@ -58,7 +58,7 @@ export interface ServeStaticOptions {
    * @param ext - File extension including dot (e.g., ".css", ".js")
    * @param url - Full URL path
    */
-  getMimeType?: (ext: string, url: string) => string | undefined;
+  getType?: (ext: string, url: string) => string | undefined;
 }
 
 /**
@@ -157,11 +157,11 @@ export async function serveStatic(
       event.res.headers.set("content-type", meta.type);
     } else {
       const ext = getExtension(id);
-      const mimeType = ext
-        ? (options.getMimeType?.(ext, id) ?? getMimeType(ext))
+      const type = ext
+        ? (options.getType?.(ext, id) ?? getType(ext))
         : undefined;
-      if (mimeType) {
-        event.res.headers.set("content-type", mimeType);
+      if (type) {
+        event.res.headers.set("content-type", type);
       }
     }
   }

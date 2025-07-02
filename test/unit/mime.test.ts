@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getExtension, getMimeType } from "../../src/utils/internal/mime.ts";
+import { getExtension, getType } from "../../src/utils/internal/mime.ts";
 
 describe("getExtension", () => {
   it("returns correct extension for CSS", () => {
@@ -16,16 +16,16 @@ describe("getExtension", () => {
   });
 });
 
-describe("getMimeType", () => {
+describe("getType", () => {
   it("returns correct MIME type for CSS", () => {
-    expect(getMimeType(".css")).toBe("text/css");
+    expect(getType(".css")).toBe("text/css");
   });
 
   it("returns undefined for unknown extensions", () => {
-    expect(getMimeType(".xyz")).toBeUndefined();
+    expect(getType(".xyz")).toBeUndefined();
   });
 
   it("returns undefined for files without extension", () => {
-    expect(getMimeType("")).toBeUndefined();
+    expect(getType("")).toBeUndefined();
   });
 });

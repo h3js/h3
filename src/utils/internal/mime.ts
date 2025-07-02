@@ -38,6 +38,6 @@ export function getExtension(path: string): string | undefined {
   }
 }
 
-export function getMimeType(ext: string | undefined): string | undefined {
+export function getType(ext: string | undefined): string | undefined {
   return ext ? COMMON_MIME_TYPES[ext] : undefined;
 }

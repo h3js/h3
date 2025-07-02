@@ -230,11 +230,11 @@ describeMatrix("serve static MIME types", (t, { it, expect }) => {
     });
   });
 
-  it("Uses custom getMimeType function", async () => {
+  it("Uses custom getType function", async () => {
     const customOptions: ServeStaticOptions = {
       getContents: vi.fn(() => "content"),
       getMeta: vi.fn(() => ({ size: 10 })),
-      getMimeType: vi.fn(() => "application/custom"),
+      getType: vi.fn(() => "application/custom"),
     };
 
     t.app.all("/custom/**", (event) => {
