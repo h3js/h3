@@ -243,9 +243,14 @@ describeMatrix("serve static MIME types", (t, { it, expect }) => {
       return serveStatic(event, customOptions);
     });
 
-    const res = await t.fetch("/custom/file v2.xyz");
+    const res = await t.fetch("/custom/file v2.xyz?query=123");
     expect(res.headers.get("content-type")).toBe("application/custom");
-
     expect(customOptions.getType).toHaveBeenCalledWith(".xyz");
+
+    const res2 = await t.fetch("/custom/file.txt");
+    expect(res2.headers.get("content-type")).toBe("text/plain");
+
+    const res3 = await t.fetch("/custom/file");
+    expect(res3.headers.get("content-type")).toBe(null);
   });
 });
