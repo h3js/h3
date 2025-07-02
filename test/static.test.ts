@@ -234,14 +234,21 @@ describeMatrix("serve static MIME types", (t, { it, expect }) => {
     const customOptions: ServeStaticOptions = {
       getContents: vi.fn(() => "content"),
       getMeta: vi.fn(() => ({ size: 10 })),
-      getType: vi.fn(() => "application/custom"),
+      getType: vi.fn((path, ext) =>
+        ext === ".xyz" ? "application/custom" : undefined,
+      ),
     };
 
     t.app.all("/custom/**", (event) => {
       return serveStatic(event, customOptions);
     });
 
-    const res = await t.fetch("/custom/file.xyz");
+    const res = await t.fetch("/custom/file v2.xyz");
     expect(res.headers.get("content-type")).toBe("application/custom");
+
+    expect(customOptions.getType).toHaveBeenCalledWith(
+      "/custom/file%20v2.xyz",
+      ".xyz",
+    );
   });
 });
