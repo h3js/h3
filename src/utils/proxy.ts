@@ -10,6 +10,7 @@ import {
   rewriteCookieProperty,
 } from "./internal/proxy.ts";
 import { EmptyObject } from "./internal/obj.ts";
+import type { ServerRequest } from "srvx";
 
 export interface ProxyOptions {
   headers?: HeadersInit;
@@ -76,8 +77,8 @@ export async function proxy(
   let response: Response | undefined;
   try {
     response =
-      target[0] === "/" && event.app?.fetch
-        ? await event.app._fetch(target, fetchOptions, { ...event.context })
+      target[0] === "/"
+        ? await event.app!._fetch(createSubRequest(event, target, fetchOptions))
         : await fetch(target, fetchOptions);
   } catch (error) {
     throw new HTTPError({ status: 502, cause: error });
@@ -156,24 +157,32 @@ export function getProxyRequestHeaders(
  */
 export async function fetchWithEvent(
   event: H3Event,
-  req: RequestInfo | URL,
+  url: string,
   init?: RequestInit,
 ): Promise<Response> {
-  if (typeof req !== "string" || req[0] !== "/" || !event.app) {
-    return fetch(req, init);
+  if (url[0] !== "/") {
+    return fetch(url, init);
   }
-
-  return await event.app!._fetch(
-    req,
-    {
+  return event.app!._fetch(
+    createSubRequest(event, url, {
       ...init,
       headers: mergeHeaders(
-        getProxyRequestHeaders(event, {
-          host: typeof req === "string" && req.startsWith("/"),
-        }),
+        getProxyRequestHeaders(event, { host: true }),
         init?.headers,
       ),
-    },
-    { ...event.context },
+    }),
   );
+}
+
+function createSubRequest(
+  event: H3Event,
+  path: string,
+  init: RequestInit,
+): ServerRequest {
+  const url = new URL(path, event.url);
+  const req = new Request(url, init) as ServerRequest;
+  req.runtime = event.req.runtime;
+  req.waitUntil = event.req.waitUntil;
+  req.ip = event.req.ip;
+  return req;
 }
