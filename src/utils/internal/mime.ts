@@ -1,3 +1,4 @@
+// https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/MIME_types/Common_types
 const COMMON_MIME_TYPES: Record<string, string> = {
   ".html": "text/html",
   ".htm": "text/html",
@@ -26,19 +27,17 @@ const COMMON_MIME_TYPES: Record<string, string> = {
   ".pdf": "application/pdf",
 };
 
-export function getFileExtension(path: string): string | undefined {
-  const lastSlash = path.lastIndexOf("/");
-  const filename = path.slice(lastSlash + 1);
-  const dotIndex = filename.lastIndexOf(".");
-
-  if (dotIndex === -1) {
-    return undefined;
+export function getExtension(path: string): string | undefined {
+  const filename = path.split("/").pop();
+  if (!filename) {
+    return;
   }
-
-  return filename.slice(dotIndex).toLowerCase();
+  const separatorIndex = filename.lastIndexOf(".");
+  if (separatorIndex !== -1) {
+    return filename.slice(separatorIndex);
+  }
 }
 
-export function getMimeType(path: string): string | undefined {
-  const ext = getFileExtension(path);
+export function getMimeType(ext: string | undefined): string | undefined {
   return ext ? COMMON_MIME_TYPES[ext] : undefined;
 }
