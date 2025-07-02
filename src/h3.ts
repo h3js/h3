@@ -16,6 +16,8 @@ import type {
 } from "./types/h3.ts";
 import type { ServerRequest } from "srvx";
 
+export type H3Core = H3Type;
+
 export const H3Core = /* @__PURE__ */ (() => {
   // prettier-ignore
   const HTTPMethods = ["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS", "CONNECT", "TRACE" ] as const;
@@ -57,7 +59,7 @@ export const H3Core = /* @__PURE__ */ (() => {
       const request: ServerRequest = toRequest(_req, _init);
 
       // Create a new event instance
-      const event = new H3Event(request, context);
+      const event = new H3Event(request, context, this as unknown as H3Type);
 
       // Execute the handler
       let handlerRes: unknown | Promise<unknown>;

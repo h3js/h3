@@ -7,10 +7,16 @@ import type {
   EventHandlerRequest,
   TypedServerRequest,
 } from "./types/handler.ts";
+import type { H3Core } from "./h3.ts";
 
 export class H3Event<
   _RequestT extends EventHandlerRequest = EventHandlerRequest,
 > {
+  /**
+   * Access to the H3 application instance.
+   */
+  app?: H3Core;
+
   /**
    * Incoming HTTP request info.
    *
@@ -40,9 +46,10 @@ export class H3Event<
    */
   _res?: H3EventResponse;
 
-  constructor(req: ServerRequest, context?: H3EventContext) {
+  constructor(req: ServerRequest, context?: H3EventContext, app?: H3Core) {
     this.context = context || new EmptyObject();
     this.req = req;
+    this.app = app;
     // Parsed URL can be provided by srvx (node) and other runtimes
     const _url = (req as { _url?: URL })._url;
     this.url = _url && _url instanceof URL ? _url : new FastURL(req.url);
