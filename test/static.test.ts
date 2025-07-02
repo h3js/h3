@@ -234,7 +234,7 @@ describeMatrix("serve static MIME types", (t, { it, expect }) => {
     const customOptions: ServeStaticOptions = {
       getContents: vi.fn(() => "content"),
       getMeta: vi.fn(() => ({ size: 10 })),
-      getType: vi.fn((path, ext) =>
+      getType: vi.fn((ext) =>
         ext === ".xyz" ? "application/custom" : undefined,
       ),
     };
@@ -246,9 +246,6 @@ describeMatrix("serve static MIME types", (t, { it, expect }) => {
     const res = await t.fetch("/custom/file v2.xyz");
     expect(res.headers.get("content-type")).toBe("application/custom");
 
-    expect(customOptions.getType).toHaveBeenCalledWith(
-      "/custom/file%20v2.xyz",
-      ".xyz",
-    );
+    expect(customOptions.getType).toHaveBeenCalledWith(".xyz");
   });
 });

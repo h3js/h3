@@ -55,10 +55,9 @@ export interface ServeStaticOptions {
 
   /**
    * Custom MIME type resolver function
-   * @param path - Full URL path in original/encoded format (e.g., "/assets/styles%20v2.css")
    * @param ext - File extension including dot (e.g., ".css", ".js")
    */
-  getType?: (path: string, ext: string) => string | undefined;
+  getType?: (ext: string) => string | undefined;
 }
 
 /**
@@ -157,9 +156,7 @@ export async function serveStatic(
       event.res.headers.set("content-type", meta.type);
     } else {
       const ext = getExtension(id);
-      const type = ext
-        ? (options.getType?.(event.url.pathname, ext) ?? getType(ext))
-        : undefined;
+      const type = ext ? (options.getType?.(ext) ?? getType(ext)) : undefined;
       if (type) {
         event.res.headers.set("content-type", type);
       }
