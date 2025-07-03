@@ -1,35 +1,35 @@
 import { H3, defineRoute } from "h3";
+import { z } from "zod";
 
-// Mock Zod-like schema for demonstration
-// In real usage, you'd import from 'zod', 'valibot', etc.
-const createBookSchema = {
-  "~standard": {
-    version: 1,
-    vendor: "zod",
-    validate: (value) => {
-      // Simple validation for demo
-      if (!value || typeof value !== "object") {
-        return { issues: [{ message: "Invalid input" }] };
-      }
-      if (!value.title || typeof value.title !== "string") {
-        return { issues: [{ message: "Title is required" }] };
-      }
-      return { value, issues: undefined };
-    },
-  },
-};
+// Real Zod schemas for validation
+const createBookSchema = z.object({
+  title: z.string().min(1, "Title is required"),
+  description: z.string().optional(),
+  author: z.string().min(1, "Author is required"),
+  publishedAt: z.string().datetime().optional(),
+  tags: z.array(z.string()).optional(),
+});
 
-const paramsSchema = {
-  "~standard": {
-    version: 1,
-    vendor: "zod",
-    validate: (value) => ({ value, issues: undefined }),
-  },
-};
+const bookParamsSchema = z.object({
+  id: z.string().uuid("Invalid book ID format"),
+});
+
+const bookQuerySchema = z.object({
+  page: z
+    .string()
+    .transform((val) => Number.parseInt(val, 10))
+    .optional(),
+  limit: z
+    .string()
+    .transform((val) => Number.parseInt(val, 10))
+    .optional(),
+  search: z.string().optional(),
+  sortBy: z.enum(["title", "author", "publishedAt"]).optional(),
+});
 
 const app = new H3();
 
-// Register route plugins
+// Register route plugins with real Zod validation
 app.register(
   defineRoute({
     method: "GET",
@@ -38,6 +38,7 @@ app.register(
       return {
         status: "ok",
         timestamp: new Date().toISOString(),
+        version: "1.0.0",
       };
     },
   }),
@@ -47,13 +48,31 @@ app.register(
   defineRoute({
     method: "GET",
     route: "/api/books",
-    meta: { cache: "5m" },
-    handler: async (_event) => {
+    queryParams: bookQuerySchema,
+    meta: { cache: "5m", public: true },
+    handler: async (event) => {
+      // Query params are automatically validated and typed!
+      const query = event.context.query || {};
       return {
         books: [
-          { id: "1", title: "h3 Guide" },
-          { id: "2", title: "Modern Web APIs" },
+          {
+            id: "123e4567-e89b-12d3-a456-426614174000",
+            title: "h3 Guide",
+            author: "h3 Team",
+            publishedAt: "2024-01-15T10:00:00.000Z",
+          },
+          {
+            id: "987fcdeb-51a2-43d1-b2e3-987654321000",
+            title: "Modern Web APIs",
+            author: "Web Developer",
+            publishedAt: "2024-02-20T14:30:00.000Z",
+          },
         ],
+        pagination: {
+          page: query.page || 1,
+          limit: query.limit || 10,
+          total: 2,
+        },
       };
     },
   }),
@@ -65,11 +84,16 @@ app.register(
     route: "/api/books",
     input: createBookSchema,
     meta: { auth: true, rateLimit: 10 },
-    handler: async (_event) => {
-      // Input is automatically validated!
+    handler: async (event) => {
+      // Input is automatically validated and typed!
+      const bookData = event.context.body;
       return {
         message: "Book created successfully!",
-        id: Math.random().toString(36),
+        book: {
+          id: crypto.randomUUID(),
+          ...bookData,
+          createdAt: new Date().toISOString(),
+        },
       };
     },
   }),
@@ -79,7 +103,7 @@ app.register(
   defineRoute({
     method: "GET",
     route: "/api/books/:id",
-    routerParams: paramsSchema,
+    routerParams: bookParamsSchema,
     meta: { public: true },
     middleware: [
       async (event, next) => {
@@ -88,10 +112,38 @@ app.register(
       },
     ],
     handler: async (event) => {
-      // Path params and middleware are handled automatically
+      // Path params are automatically validated and typed!
+      const { id } = event.context.params;
       return {
         message: "Book retrieved",
-        book: { id: event.context.params?.id, title: "Sample Book" },
+        book: {
+          id,
+          title: "Sample Book",
+          author: "Sample Author",
+          publishedAt: "2024-01-01T00:00:00.000Z",
+        },
+      };
+    },
+  }),
+);
+
+app.register(
+  defineRoute({
+    method: "PUT",
+    route: "/api/books/:id",
+    routerParams: bookParamsSchema,
+    input: createBookSchema.partial(), // Allow partial updates
+    meta: { auth: true },
+    handler: async (event) => {
+      const { id } = event.context.params;
+      const updates = event.context.body;
+      return {
+        message: "Book updated successfully",
+        book: {
+          id,
+          ...updates,
+          updatedAt: new Date().toISOString(),
+        },
       };
     },
   }),
@@ -111,6 +163,8 @@ app.register(
     handler: async (_event) => ({
       totalBooks: 42,
       totalUsers: 1337,
+      activeUsers: 128,
+      systemHealth: "good",
     }),
   }),
 );
@@ -119,27 +173,34 @@ app.register(
   defineRoute({
     method: "DELETE",
     route: "/admin/books/:id",
-    routerParams: paramsSchema,
+    routerParams: bookParamsSchema,
     meta: { auth: true, admin: true },
-    handler: async (event) => ({
-      message: `Book ${event.context.params?.id} deleted by admin`,
-    }),
+    handler: async (event) => {
+      const { id } = event.context.params;
+      return {
+        message: `Book ${id} deleted by admin`,
+        deletedAt: new Date().toISOString(),
+      };
+    },
   }),
 );
 
-console.log("🚀 h3 server with defineRoute plugin registration");
+console.log("🚀 h3 server with defineRoute + Zod validation");
 console.log("📚 Try these endpoints:");
 console.log("  GET  /health");
-console.log("  GET  /api/books");
-console.log("  GET  /api/books/123");
-console.log('  POST /api/books (with JSON body: {"title": "My Book"})');
+console.log("  GET  /api/books?page=1&limit=5&search=h3");
+console.log("  GET  /api/books/123e4567-e89b-12d3-a456-426614174000");
+console.log('  POST /api/books (JSON: {"title": "My Book", "author": "Me"})');
+console.log("  PUT  /api/books/123e4567-e89b-12d3-a456-426614174000");
 console.log("  GET  /admin/stats");
-console.log("  DELETE /admin/books/123");
+console.log("  DELETE /admin/books/123e4567-e89b-12d3-a456-426614174000");
 console.log("");
 console.log("✨ Features demonstrated:");
 console.log("  - Plugin-based registration with app.register()");
-console.log("  - Automatic validation with schemas");
+console.log("  - Real Zod validation with TypeScript types");
+console.log("  - Query, body, and route parameter validation");
 console.log("  - Route meta (auth, cache, etc.)");
 console.log("  - Middleware integration");
+console.log("  - Partial updates with Zod .partial()");
 
 export default app;

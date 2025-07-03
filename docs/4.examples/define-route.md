@@ -51,16 +51,25 @@ const createUserRoutePlugin = defineRoute({
   method: "POST",
   route: "/api/users",
 
-  // Validate request body
+  // Validate request body with real Zod schema
   input: z.object({
-    email: z.string().email(),
-    name: z.string().min(2),
-    age: z.number().min(18),
+    email: z.string().email("Invalid email format"),
+    name: z.string().min(2, "Name must be at least 2 characters"),
+    age: z.number().min(18, "Must be at least 18 years old").max(120),
+    role: z.enum(["admin", "user", "moderator"]).default("user"),
   }),
 
   handler: async (event) => {
-    // Body is automatically validated!
-    return { message: "User created successfully!" };
+    // Body is automatically validated and typed!
+    const userData = event.context.body;
+    return {
+      message: "User created successfully!",
+      user: {
+        id: crypto.randomUUID(),
+        ...userData,
+        createdAt: new Date().toISOString(),
+      },
+    };
   },
 });
 
@@ -129,21 +138,44 @@ app.register(booksRoutePlugin);
 ### Step 3: Add features incrementally
 
 ```js
+import { z } from "zod";
+
 const booksRoutePlugin = defineRoute({
   method: "GET",
   route: "/api/books",
 
-  // Add query validation
+  // Add query validation with type coercion
   queryParams: z.object({
-    page: z.string().optional(),
-    limit: z.string().optional(),
+    page: z
+      .string()
+      .transform((val) => parseInt(val, 10))
+      .refine((val) => val > 0, "Page must be positive")
+      .optional(),
+    limit: z
+      .string()
+      .transform((val) => parseInt(val, 10))
+      .refine((val) => val > 0 && val <= 100, "Limit must be 1-100")
+      .optional(),
+    search: z.string().min(1, "Search term cannot be empty").optional(),
+    sortBy: z.enum(["title", "author", "publishedAt"]).default("title"),
   }),
 
   // Add metadata
   meta: { public: true, cache: "5m" },
 
   handler: async (event) => {
-    return { books: [] };
+    const { page = 1, limit = 10, search, sortBy } = event.context.query || {};
+
+    return {
+      books: [
+        { id: "1", title: "h3 Guide", author: "Team" },
+        { id: "2", title: "Web APIs", author: "Developer" },
+      ].filter(
+        (book) =>
+          !search || book.title.toLowerCase().includes(search.toLowerCase()),
+      ),
+      pagination: { page, limit, sortBy },
+    };
   },
 });
 
@@ -155,37 +187,73 @@ app.register(booksRoutePlugin);
 ### API with Complete Validation
 
 ```js
+import { z } from "zod";
+
 const updateBookRoutePlugin = defineRoute({
   method: "PUT",
   route: "/api/books/:bookId",
 
-  // Path validation
+  // Path validation with detailed error messages
   routerParams: z.object({
-    bookId: z.string().uuid(),
+    bookId: z.string().uuid("Invalid book ID format"),
   }),
 
-  // Query validation
+  // Query validation with type transformations
   queryParams: z.object({
-    notify: z.boolean().optional(),
-    reason: z.string().optional(),
+    notify: z
+      .string()
+      .transform((val) => val === "true")
+      .optional(),
+    reason: z
+      .string()
+      .min(1, "Reason cannot be empty")
+      .max(500, "Reason too long")
+      .optional(),
+    version: z
+      .string()
+      .regex(/^\d+\.\d+\.\d+$/, "Invalid version format")
+      .optional(),
   }),
 
-  // Body validation
-  input: z.object({
-    title: z.string().min(1).optional(),
-    description: z.string().optional(),
-    publishedAt: z.date().optional(),
-  }),
+  // Body validation with conditional fields
+  input: z
+    .object({
+      title: z
+        .string()
+        .min(1, "Title is required")
+        .max(200, "Title too long")
+        .optional(),
+      description: z.string().max(2000, "Description too long").optional(),
+      publishedAt: z.string().datetime("Invalid datetime format").optional(),
+      tags: z.array(z.string().min(1)).max(10, "Too many tags").optional(),
+      status: z.enum(["draft", "published", "archived"]).optional(),
+    })
+    .refine(
+      (data) => Object.keys(data).length > 0,
+      "At least one field must be provided for update",
+    ),
 
   // Metadata for your middleware
   meta: {
     auth: true,
     permissions: ["books.write"],
+    rateLimit: 20,
   },
 
   handler: async (event) => {
     // Everything is validated and typed!
-    return { message: "Book updated successfully" };
+    const { bookId } = event.context.params;
+    const updates = event.context.body;
+    const { notify, reason } = event.context.query || {};
+
+    return {
+      message: "Book updated successfully",
+      bookId,
+      updatedFields: Object.keys(updates),
+      notificationSent: notify || false,
+      updateReason: reason,
+      updatedAt: new Date().toISOString(),
+    };
   },
 });
 
@@ -234,27 +302,110 @@ app.register(protectedRoutePlugin);
 You can register multiple routes at once or organize them by feature:
 
 ```js
+import { z } from "zod";
+
+// Shared schemas for consistency
+const userSchema = z.object({
+  email: z.string().email("Invalid email format"),
+  name: z.string().min(2, "Name must be at least 2 characters"),
+  role: z.enum(["admin", "user", "moderator"]).default("user"),
+  avatar: z.string().url().optional(),
+});
+
+const userParamsSchema = z.object({
+  id: z.string().uuid("Invalid user ID format"),
+});
+
+const userQuerySchema = z.object({
+  page: z
+    .string()
+    .transform((val) => parseInt(val, 10))
+    .optional(),
+  role: z.enum(["admin", "user", "moderator"]).optional(),
+  search: z.string().min(1).optional(),
+});
+
 // Feature-based organization
 const userRoutes = [
   defineRoute({
     method: "GET",
     route: "/api/users",
-    handler: () => ({ users: [] }),
+    queryParams: userQuerySchema,
+    meta: { auth: true },
+    handler: (event) => {
+      const { page = 1, role, search } = event.context.query || {};
+      return {
+        users: [
+          {
+            id: "123e4567-e89b-12d3-a456-426614174000",
+            name: "John",
+            email: "john@example.com",
+            role: "admin",
+          },
+          {
+            id: "987fcdeb-51a2-43d1-b2e3-987654321000",
+            name: "Jane",
+            email: "jane@example.com",
+            role: "user",
+          },
+        ].filter(
+          (user) =>
+            (!role || user.role === role) &&
+            (!search || user.name.toLowerCase().includes(search.toLowerCase())),
+        ),
+        pagination: { page, total: 2 },
+      };
+    },
   }),
   defineRoute({
     method: "POST",
     route: "/api/users",
-    input: z.object({
-      email: z.string().email(),
-      name: z.string().min(2),
-    }),
-    handler: () => ({ message: "User created" }),
+    input: userSchema,
+    meta: { auth: true, rateLimit: 10 },
+    handler: (event) => {
+      const userData = event.context.body;
+      return {
+        message: "User created successfully",
+        user: {
+          id: crypto.randomUUID(),
+          ...userData,
+          createdAt: new Date().toISOString(),
+        },
+      };
+    },
   }),
   defineRoute({
     method: "GET",
     route: "/api/users/:id",
-    routerParams: z.object({ id: z.string().uuid() }),
-    handler: () => ({ user: {} }),
+    routerParams: userParamsSchema,
+    meta: { auth: true },
+    handler: (event) => {
+      const { id } = event.context.params;
+      return {
+        user: {
+          id,
+          name: "John Doe",
+          email: "john@example.com",
+          role: "admin",
+          createdAt: "2024-01-01T00:00:00.000Z",
+        },
+      };
+    },
+  }),
+  defineRoute({
+    method: "PUT",
+    route: "/api/users/:id",
+    routerParams: userParamsSchema,
+    input: userSchema.partial(),
+    meta: { auth: true },
+    handler: (event) => {
+      const { id } = event.context.params;
+      const updates = event.context.body;
+      return {
+        message: "User updated successfully",
+        user: { id, ...updates, updatedAt: new Date().toISOString() },
+      };
+    },
   }),
 ];
 
