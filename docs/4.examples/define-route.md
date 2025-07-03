@@ -633,3 +633,207 @@ const createBookRoutePlugin = defineRoute({
 
 app.register(createBookRoutePlugin);
 ```
+
+## Validation Configuration
+
+The `validation` option allows you to control which parts of the route should be validated:
+
+### With Validation
+
+```js
+import { z } from "zod";
+
+// Route with input validation
+const createUserRoute = defineRoute({
+  method: "POST",
+  route: "/api/users",
+  input: z.object({
+    name: z.string().min(1),
+    email: z.string().email(),
+    age: z.number().min(18),
+  }),
+  output: z.object({
+    id: z.string(),
+    name: z.string(),
+    email: z.string(),
+    createdAt: z.date(),
+  }),
+  validation: {
+    input: true,
+    output: true,
+  },
+  handler: async (event) => {
+    const body = await readBody(event);
+    // body is automatically validated and typed
+    return {
+      id: generateId(),
+      name: body.name,
+      email: body.email,
+      createdAt: new Date(),
+    };
+  },
+});
+
+app.register(createUserRoute);
+```
+
+### Conditional Validation
+
+You can control which parts of the route should be validated using the `validation` option:
+
+```js
+// Only validate input, skip output validation
+const updateUserRoute = defineRoute({
+  method: "PUT",
+  route: "/api/users/:id",
+  routerParams: z.object({
+    id: z.string().uuid(),
+  }),
+  input: z.object({
+    name: z.string().optional(),
+    email: z.string().email().optional(),
+  }),
+  validation: {
+    routerParams: true, // Validate route parameters
+    input: true, // Validate request body
+    output: false, // Skip response validation
+  },
+  handler: async (event) => {
+    const { id } = getRouterParams(event);
+    const body = await readBody(event);
+    // Update user logic...
+    return updateUser(id, body);
+  },
+});
+
+app.register(updateUserRoute);
+```
+
+### Performance Mode
+
+For high-performance scenarios, you can disable validation entirely:
+
+```js
+const fastRoute = defineRoute({
+  method: "GET",
+  route: "/api/fast",
+  queryParams: z.object({
+    filter: z.string().optional(),
+  }),
+  validation: {
+    queryParams: false, // Skip query validation
+    output: false, // Skip response validation
+  },
+  handler: (event) => {
+    // Direct access without validation for maximum speed
+    return getFastData();
+  },
+});
+
+app.register(fastRoute);
+```
+
+### Development vs Production
+
+You can conditionally enable validation based on environment:
+
+```js
+const isDev = process.env.NODE_ENV === "development";
+
+const apiRoute = defineRoute({
+  method: "POST",
+  route: "/api/data",
+  input: z.object({
+    data: z.string(),
+  }),
+  validation: {
+    input: true, // Always validate input
+    output: isDev, // Only validate output in development
+  },
+  handler: async (event) => {
+    const { data } = await readBody(event);
+    return {
+      result: processData(data),
+      timestamp: Date.now(),
+    };
+  },
+});
+
+app.register(apiRoute);
+```
+
+### Complex Validation Scenarios
+
+```js
+// API route with selective validation
+const complexRoute = defineRoute({
+  method: "POST",
+  route: "/api/complex/:type/:id",
+  routerParams: z.object({
+    type: z.enum(["user", "product", "order"]),
+    id: z.string().uuid(),
+  }),
+  queryParams: z.object({
+    include: z.string().optional(),
+    format: z.enum(["json", "xml"]).default("json"),
+  }),
+  input: z.object({
+    action: z.enum(["create", "update", "delete"]),
+    data: z.record(z.any()),
+  }),
+  validation: {
+    routerParams: true, // Always validate route params
+    queryParams: false, // Skip query validation for flexibility
+    input: true, // Validate request body
+    output: true, // Validate response structure
+  },
+  handler: async (event) => {
+    const { type, id } = getRouterParams(event);
+    const query = getQuery(event);
+    const { action, data } = await readBody(event);
+
+    // Process based on type and action
+    const result = await processComplexRequest(type, id, action, data, query);
+
+    return {
+      success: true,
+      data: result,
+      meta: {
+        timestamp: Date.now(),
+        version: "1.0.0",
+      },
+    };
+  },
+});
+
+app.register(complexRoute);
+```
+
+## Benefits
+
+- **Type Safety**: Full TypeScript support with automatic type inference
+- **Flexible Validation**: Enable/disable validation per schema type
+- **Performance Control**: Skip validation in production for speed
+- **Developer Experience**: Rich error messages during development
+- **Plugin Architecture**: Clean integration with h3's plugin system
+- **Meta Information**: Route introspection and debugging capabilities
+
+## Default Behavior
+
+By default, all validation is enabled when schemas are provided:
+
+```js
+// This enables all validations by default
+defineRoute({
+  method: "POST",
+  route: "/api/example",
+  input: someSchema,
+  output: someSchema,
+  // validation: { input: true, output: true } // This is the default
+  handler: () => {
+    /* ... */
+  },
+});
+```
+
+To disable specific validations, explicitly set them to `false` in the validation config.

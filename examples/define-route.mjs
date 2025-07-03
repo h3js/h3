@@ -77,8 +77,12 @@ app.register(
     queryParams: bookQuerySchema,
     output: booksListResponseSchema, // Validate response structure
     meta: { cache: "5m", public: true },
+    validation: {
+      queryParams: false, // Skip query validation for performance in public API
+      output: true, // Keep output validation for consistent API responses
+    },
     handler: async (event) => {
-      // Query params are automatically validated and typed!
+      // Query params won't be validated but can still be accessed
       const query = event.context.query || {};
 
       // Response will be validated against output schema
@@ -173,7 +177,13 @@ app.register(
     route: "/api/books/:id",
     routerParams: bookParamsSchema,
     input: createBookSchema.partial(), // Allow partial updates
+    output: successResponseSchema,
     meta: { auth: true },
+    validation: {
+      routerParams: true, // Always validate route parameters for security
+      input: true, // Validate request body
+      output: process.env.NODE_ENV === "development", // Only validate output in dev
+    },
     handler: async (event) => {
       const { id } = event.context.params;
       const updates = event.context.body;
@@ -239,6 +249,8 @@ console.log("✨ Features demonstrated:");
 console.log("  - Plugin-based registration with app.register()");
 console.log("  - Real Zod validation with TypeScript types");
 console.log("  - Input, output, query, and route parameter validation");
+console.log("  - Conditional validation control per schema type");
+console.log("  - Environment-based validation (dev vs production)");
 console.log("  - Response structure validation with output schemas");
 console.log("  - Route meta (auth, cache, etc.)");
 console.log("  - Middleware integration");

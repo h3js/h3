@@ -21,6 +21,12 @@ export interface RouteDefinition {
   handler: (event: H3Event) => any;
   middleware?: Middleware[];
   meta?: Record<string, unknown>;
+  validation?: {
+    routerParams?: boolean;
+    queryParams?: boolean;
+    input?: boolean;
+    output?: boolean;
+  };
 }
 
 /**
@@ -37,6 +43,10 @@ export interface RouteDefinition {
  *   route: '/api/users',
  *   queryParams: z.object({ page: z.string().optional() }),
  *   output: z.object({ users: z.array(z.object({ id: z.string() })) }),
+ *   validation: {
+ *     queryParams: true,
+ *     output: false // Skip output validation
+ *   },
  *   handler: (event) => ({ users: [] })
  * });
  *
@@ -45,9 +55,18 @@ export interface RouteDefinition {
  */
 export function defineRoute(config: RouteDefinition): H3Plugin {
   return (h3: H3) => {
-    // Create base handler function with output validation if specified
+    // Default validation settings - enable all by default
+    const validationConfig = {
+      routerParams: true,
+      queryParams: true,
+      input: true,
+      output: true,
+      ...config.validation,
+    };
+
+    // Create base handler function with conditional output validation
     const createBaseHandler = (baseHandler: (event: H3Event) => any) => {
-      if (config.output) {
+      if (config.output && validationConfig.output) {
         return async (event: H3Event) => {
           const result = await baseHandler(event);
           // Validate response against output schema
@@ -57,16 +76,24 @@ export function defineRoute(config: RouteDefinition): H3Plugin {
       return baseHandler;
     };
 
-    // Create handler with validation using defineValidatedHandler
+    // Determine which schemas to use for validation based on config
+    const bodySchema =
+      config.input && validationConfig.input ? config.input : undefined;
+    const querySchema =
+      config.queryParams && validationConfig.queryParams
+        ? config.queryParams
+        : undefined;
+
+    // Create handler with conditional validation using defineValidatedHandler
     const handler: EventHandler =
-      config.input || config.queryParams
+      bodySchema || querySchema
         ? (defineValidatedHandler({
             middleware: config.middleware,
-            body: config.input,
-            query: config.queryParams,
+            body: bodySchema,
+            query: querySchema,
             handler: createBaseHandler(async (event: H3Event) => {
-              // Handle routerParams validation separately as it's not supported by defineValidatedHandler
-              if (config.routerParams) {
+              // Handle routerParams validation separately if enabled
+              if (config.routerParams && validationConfig.routerParams) {
                 await getValidatedRouterParams(event, config.routerParams);
               }
               return await config.handler(event);
@@ -75,7 +102,7 @@ export function defineRoute(config: RouteDefinition): H3Plugin {
         : (defineValidatedHandler({
             middleware: config.middleware,
             handler: createBaseHandler(async (event: H3Event) => {
-              if (config.routerParams) {
+              if (config.routerParams && validationConfig.routerParams) {
                 await getValidatedRouterParams(event, config.routerParams);
               }
               return await config.handler(event);
@@ -88,6 +115,7 @@ export function defineRoute(config: RouteDefinition): H3Plugin {
       queryParams: config.queryParams,
       input: config.input,
       output: config.output,
+      validation: validationConfig,
       method: config.method,
       route: config.route,
       ...config.meta,
