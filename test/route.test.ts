@@ -13,9 +13,14 @@ const mockSchema: StandardSchemaV1 = {
 };
 
 describe("defineRoute", () => {
-  it("should create a handler that works with app.on", async () => {
+  it("should create a plugin that automatically registers the route", async () => {
     const app = new H3();
-    app.on("GET", "/test", defineRoute({ handler: () => "test response" }));
+    const routePlugin = defineRoute({
+      method: "GET",
+      route: "/test",
+      handler: () => "test response",
+    });
+    app.register(routePlugin);
     const res = await app.fetch("/test");
     expect(await res.text()).toBe("test response");
   });
@@ -23,80 +28,97 @@ describe("defineRoute", () => {
   it("should handle middleware options", async () => {
     const logs: string[] = [];
     const app = new H3();
-    app.on(
-      "POST",
-      "/test",
-      defineRoute({
-        middleware: [
-          async (event, next) => {
-            logs.push("mw");
-            return next();
-          },
-        ],
-        handler: () => "ok",
-      }),
-    );
+    const routePlugin = defineRoute({
+      method: "POST",
+      route: "/test",
+      middleware: [
+        async (event, next) => {
+          logs.push("mw");
+          return next();
+        },
+      ],
+      handler: () => "ok",
+    });
+    app.register(routePlugin);
     const res = await app.fetch("/test", { method: "POST" });
     expect(await res.text()).toBe("ok");
     expect(logs).toEqual(["mw"]);
   });
 
-  it("should work with validation schemas and set meta", async () => {
+  it("should work with validation schemas", async () => {
     const app = new H3();
-    const handler = defineRoute({
+    const routePlugin = defineRoute({
+      method: "POST",
+      route: "/users",
       input: mockSchema,
       routerParams: mockSchema,
       queryParams: mockSchema,
       output: mockSchema,
       handler: () => "user created",
     });
-    app.on("POST", "/users", handler);
+    app.register(routePlugin);
     const res = await app.fetch("/users", { method: "POST" });
     expect(await res.text()).toBe("user created");
-    // Check meta
-    expect(handler.meta).toBeDefined();
-    if (handler.meta) {
-      expect(handler.meta.input).toBe(mockSchema);
-      expect(handler.meta.routerParams).toBe(mockSchema);
-      expect(handler.meta.queryParams).toBe(mockSchema);
-      expect(handler.meta.output).toBe(mockSchema);
-      expect(handler.meta.method).toBeUndefined();
-      expect(handler.meta.route).toBeUndefined();
-    }
   });
 
-  it("should attach meta info for introspection", () => {
-    const handler = defineRoute({
+  it("should register route with meta information", async () => {
+    const app = new H3();
+    const routePlugin = defineRoute({
+      method: "GET",
+      route: "/api/test",
       input: mockSchema,
       routerParams: mockSchema,
       queryParams: mockSchema,
       output: mockSchema,
+      meta: { custom: "value" },
       handler: () => "ok",
     });
-    expect(handler.meta).toBeDefined();
-    if (handler.meta) {
-      // Only check fields that are set
-      expect(handler.meta.input).toBe(mockSchema);
-      expect(handler.meta.routerParams).toBe(mockSchema);
-      expect(handler.meta.queryParams).toBe(mockSchema);
-      expect(handler.meta.output).toBe(mockSchema);
-      expect(handler.meta.method).toBeUndefined();
-      expect(handler.meta.route).toBeUndefined();
-    }
+    app.register(routePlugin);
 
-    // Also test with only input set
-    const handler2 = defineRoute({
-      input: mockSchema,
-      handler: () => "ok",
+    // Check that route was registered
+    const route = app._routes.find(
+      (r) => r.route === "/api/test" && r.method === "GET",
+    );
+    expect(route).toBeDefined();
+    expect(route?.meta).toBeDefined();
+
+    if (route?.meta) {
+      expect(route.meta.input).toBe(mockSchema);
+      expect(route.meta.routerParams).toBe(mockSchema);
+      expect(route.meta.queryParams).toBe(mockSchema);
+      expect(route.meta.output).toBe(mockSchema);
+      expect(route.meta.method).toBe("GET");
+      expect(route.meta.route).toBe("/api/test");
+      expect(route.meta.custom).toBe("value");
+    }
+  });
+
+  it("should handle routes without validation schemas", async () => {
+    const app = new H3();
+    const routePlugin = defineRoute({
+      method: "GET",
+      route: "/simple",
+      handler: () => "simple response",
     });
-    expect(handler2.meta).toBeDefined();
-    if (handler2.meta) {
-      expect(handler2.meta.input).toBe(mockSchema);
-      expect(handler2.meta.routerParams).toBeUndefined();
-      expect(handler2.meta.queryParams).toBeUndefined();
-      expect(handler2.meta.output).toBeUndefined();
-      expect(handler2.meta.method).toBeUndefined();
-      expect(handler2.meta.route).toBeUndefined();
+    app.register(routePlugin);
+
+    const res = await app.fetch("/simple");
+    expect(await res.text()).toBe("simple response");
+
+    // Check that route was registered with correct meta
+    const route = app._routes.find(
+      (r) => r.route === "/simple" && r.method === "GET",
+    );
+    expect(route).toBeDefined();
+    expect(route?.meta).toBeDefined();
+
+    if (route?.meta) {
+      expect(route.meta.method).toBe("GET");
+      expect(route.meta.route).toBe("/simple");
+      expect(route.meta.input).toBeUndefined();
+      expect(route.meta.routerParams).toBeUndefined();
+      expect(route.meta.queryParams).toBeUndefined();
+      expect(route.meta.output).toBeUndefined();
     }
   });
 });

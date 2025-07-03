@@ -4,9 +4,9 @@ icon: ph:arrow-right
 
 # Define Route
 
-> A structured approach to route definition with optional type safety, validation, and seamless h3 integration.
+> A structured approach to route definition with optional type safety, validation, and seamless h3 integration through plugins.
 
-The `defineRoute` function provides a consistent, type-safe way to define routes in h3. It's designed to be simple and compatible with existing h3 patterns while offering powerful validation capabilities.
+The `defineRoute` function provides a consistent, type-safe way to define routes in h3. It returns a plugin that automatically registers the route, making it simple and compatible with existing h3 patterns while offering powerful validation capabilities.
 
 ## Why defineRoute?
 
@@ -17,7 +17,7 @@ In modern applications, you often need:
 - **Route metadata** for authentication, caching, rate limiting
 - **Middleware integration** for cross-cutting concerns
 - **Better developer experience** with IntelliSense and error checking
-- **Seamless integration** with schema libraries like Zod, Valibot, etc.
+- **Modular route registration** with automatic plugin integration
 
 ## Basic Usage
 
@@ -26,7 +26,7 @@ Start simple - `defineRoute` works without any validation schemas:
 ```js
 import { H3, defineRoute } from "h3";
 
-const healthRoute = defineRoute({
+const healthRoutePlugin = defineRoute({
   method: "GET",
   route: "/health",
   handler: async (event) => {
@@ -35,12 +35,7 @@ const healthRoute = defineRoute({
 });
 
 const app = new H3();
-app.on(
-  healthRoute.method,
-  healthRoute.route,
-  healthRoute.handler,
-  healthRoute.options,
-);
+app.register(healthRoutePlugin);
 ```
 
 ## Enhanced Features
@@ -52,7 +47,7 @@ Add automatic validation for request data:
 ```js
 import { z } from "zod";
 
-const createUserRoute = defineRoute({
+const createUserRoutePlugin = defineRoute({
   method: "POST",
   route: "/api/users",
 
@@ -68,6 +63,8 @@ const createUserRoute = defineRoute({
     return { message: "User created successfully!" };
   },
 });
+
+app.register(createUserRoutePlugin);
 ```
 
 ### Route Meta & Middleware
@@ -75,7 +72,7 @@ const createUserRoute = defineRoute({
 Integrate with h3's native meta and middleware systems:
 
 ```js
-const protectedRoute = defineRoute({
+const protectedRoutePlugin = defineRoute({
   method: "GET",
   route: "/api/admin/users",
 
@@ -100,6 +97,8 @@ const protectedRoute = defineRoute({
     return { users: [] };
   },
 });
+
+app.register(protectedRoutePlugin);
 ```
 
 ## Step-by-Step Migration
@@ -113,10 +112,10 @@ app.get("/api/books", async (event) => {
 });
 ```
 
-### Step 2: Convert to defineRoute
+### Step 2: Convert to defineRoute plugin
 
 ```js
-const booksRoute = defineRoute({
+const booksRoutePlugin = defineRoute({
   method: "GET",
   route: "/api/books",
   handler: async (event) => {
@@ -124,18 +123,13 @@ const booksRoute = defineRoute({
   },
 });
 
-app.on(
-  booksRoute.method,
-  booksRoute.route,
-  booksRoute.handler,
-  booksRoute.options,
-);
+app.register(booksRoutePlugin);
 ```
 
 ### Step 3: Add features incrementally
 
 ```js
-const booksRoute = defineRoute({
+const booksRoutePlugin = defineRoute({
   method: "GET",
   route: "/api/books",
 
@@ -152,6 +146,8 @@ const booksRoute = defineRoute({
     return { books: [] };
   },
 });
+
+app.register(booksRoutePlugin);
 ```
 
 ## Real-World Examples
@@ -159,7 +155,7 @@ const booksRoute = defineRoute({
 ### API with Complete Validation
 
 ```js
-const updateBookRoute = defineRoute({
+const updateBookRoutePlugin = defineRoute({
   method: "PUT",
   route: "/api/books/:bookId",
 
@@ -192,6 +188,8 @@ const updateBookRoute = defineRoute({
     return { message: "Book updated successfully" };
   },
 });
+
+app.register(updateBookRoutePlugin);
 ```
 
 ### Global Middleware Integration
@@ -212,79 +210,62 @@ app.use((event) => {
   }
 });
 
-// Register routes
-const publicRoute = defineRoute({
+// Register route plugins
+const publicRoutePlugin = defineRoute({
   method: "GET",
   route: "/public",
   meta: { public: true },
   handler: () => "Public endpoint",
 });
 
-const protectedRoute = defineRoute({
+const protectedRoutePlugin = defineRoute({
   method: "GET",
   route: "/protected",
   meta: { auth: true, rateLimit: 10 },
   handler: () => "Protected endpoint",
 });
 
-app.on(
-  publicRoute.method,
-  publicRoute.route,
-  publicRoute.handler,
-  publicRoute.options,
-);
-app.on(
-  protectedRoute.method,
-  protectedRoute.route,
-  protectedRoute.handler,
-  protectedRoute.options,
-);
+app.register(publicRoutePlugin);
+app.register(protectedRoutePlugin);
 ```
 
-## Registration Methods
+## Multiple Routes Registration
 
-You have two ways to register routes:
-
-### Method 1: Manual registration (Recommended)
+You can register multiple routes at once or organize them by feature:
 
 ```js
-const route = defineRoute({
-  method: "GET",
-  route: "/api/users",
-  handler: () => ({ users: [] }),
-});
+// Feature-based organization
+const userRoutes = [
+  defineRoute({
+    method: "GET",
+    route: "/api/users",
+    handler: () => ({ users: [] }),
+  }),
+  defineRoute({
+    method: "POST",
+    route: "/api/users",
+    input: z.object({
+      email: z.string().email(),
+      name: z.string().min(2),
+    }),
+    handler: () => ({ message: "User created" }),
+  }),
+  defineRoute({
+    method: "GET",
+    route: "/api/users/:id",
+    routerParams: z.object({ id: z.string().uuid() }),
+    handler: () => ({ user: {} }),
+  }),
+];
 
-app.on(route.method, route.route, route.handler, route.options);
-```
-
-### Method 2: createService (alias)
-
-For teams familiar with service-oriented patterns, `createService` provides the exact same functionality:
-
-```js
-import { createService } from "h3";
-
-const userService = createService({
-  method: "GET",
-  route: "/api/users",
-  meta: { service: "user" },
-  handler: async (event) => {
-    return { users: [] };
-  },
-});
-
-app.on(
-  userService.method,
-  userService.route,
-  userService.handler,
-  userService.options,
-);
+// Register all user routes
+userRoutes.forEach((plugin) => app.register(plugin));
 ```
 
 ## Benefits
 
-1. **Seamless Integration**: Works perfectly with h3's existing systems
-2. **Gradual Adoption**: Start without validation, add features when needed
+1. **Automatic Registration**: Plugin-based approach eliminates manual route registration
+2. **Modular Organization**: Group related routes as plugins
 3. **Type Safety**: Full TypeScript support with schema libraries
 4. **Consistent API**: Same pattern across all routes
 5. **Rich Metadata**: Support for auth, caching, rate limiting, etc.
@@ -307,6 +288,7 @@ This implementation addresses the [original feature request](https://github.com/
 - ✅ Structured route definitions
 - ✅ StandardSchema support for validation
 - ✅ Type inference and code consistency
+- ✅ Plugin-based modular registration
 - ✅ Backward compatibility with existing routes
 
 ## Feedback & Discussion
@@ -323,9 +305,9 @@ This feature is actively being developed based on community feedback. Please:
 ## Next Steps
 
 1. Try `defineRoute` in your h3 project
-2. Gradually add validation to your most critical routes
-3. Explore meta and middleware integration
-4. Share your feedback with the h3 community
-5. Help us improve the developer experience
+2. Gradually convert existing routes to plugin-based registration
+3. Add validation to your most critical routes
+4. Explore meta and middleware integration
+5. Share your feedback with the h3 community
 
 The goal is to make h3 even more powerful while keeping it simple and approachable for everyone!

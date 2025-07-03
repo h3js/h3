@@ -73,18 +73,6 @@ export {
 export { defineRoute } from "./utils/route.ts";
 export type { RouteDefinition } from "./utils/route.ts";
 
-export type {
-  Max4Slashes,
-  ServiceHandlerInput,
-  ServiceHandler,
-  RouteSetup,
-  ResolvedRouteDefinition,
-  H3URL,
-  RouteCollection,
-  ExtractRouteInfo,
-  RouteRegistry,
-} from "./types/route.ts";
-
 // Request
 export {
   getRequestHost,
