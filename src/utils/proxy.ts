@@ -11,6 +11,7 @@ import {
 } from "./internal/proxy.ts";
 import { EmptyObject } from "./internal/obj.ts";
 import type { ServerRequest } from "srvx";
+import { Agent } from 'undici';
 
 export interface ProxyOptions {
   headers?: HeadersInit;
@@ -19,8 +20,11 @@ export interface ProxyOptions {
   fetchOptions?: RequestInit & { duplex?: "half" | "full" };
   cookieDomainRewrite?: string | Record<string, string>;
   cookiePathRewrite?: string | Record<string, string>;
+  secure?: boolean;
   onResponse?: (event: H3Event, response: Response) => void;
 }
+
+const unsecureAgent = new Agent({ connect: { rejectUnauthorized: false } });
 
 /**
  * Proxy the incoming request to a target URL.
@@ -55,6 +59,8 @@ export async function proxyRequest(
       method,
       body: requestBody,
       duplex: requestBody ? "half" : undefined,
+      // @ts-ignore
+      dispatcher: opts.secure === false ? unsecureAgent : undefined,
       ...opts.fetchOptions,
       headers: fetchHeaders,
     },

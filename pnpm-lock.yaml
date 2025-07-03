@@ -23,6 +23,9 @@ importers:
       srvx:
         specifier: ^0.8.1
         version: 0.8.1
+      undici:
+        specifier: ^7.11.0
+        version: 7.11.0
     devDependencies:
       '@mitata/counters':
         specifier: ^0.0.8
@@ -77,7 +80,7 @@ importers:
         version: 3.1.2
       h3-nightly:
         specifier: npm:h3-nightly@beta
-        version: 2.0.0-20250702-101518-a09fd14(crossws@0.4.1(srvx@0.8.1))
+        version: 2.0.0-20250702-142007-a8a12f8(crossws@0.4.1(srvx@0.8.1))
       h3-v1:
         specifier: npm:h3@^1.15.3
         version: h3@1.15.3
@@ -1693,8 +1696,8 @@ packages:
   graphemer@1.4.0:
     resolution: {integrity: sha512-EtKwoO6kxCL9WO5xipiHTZlSzBm7WLT627TqC/uVRd0HKmq8NXyebnNYxDoBi7wt8eTWrUrKXCOVaFq9x1kgag==}
 
-  h3-nightly@2.0.0-20250702-101518-a09fd14:
-    resolution: {integrity: sha512-BH1H1LJaNHzwFnq6aEpcCSNC18PkvxnM19ziUIXqazL/3UEDswlhTU7w127/Dl+q1PTv3Y2k6L8ADt6EoHupwg==}
+  h3-nightly@2.0.0-20250702-142007-a8a12f8:
+    resolution: {integrity: sha512-ICOE7Fb2cVJGYJ6dQDXx4cZ/lYUvIE/izdohpCjy5WwI/YO1beuCnkh4sAdsb95Uvmw9UWMOkdSWGpkfN+yxqg==}
     engines: {node: '>=20.11.1'}
     peerDependencies:
       crossws: ^0.4.1
@@ -2443,6 +2446,10 @@ packages:
 
   undici-types@7.8.0:
     resolution: {integrity: sha512-9UJ2xGDvQ43tYyVMpuHlsgApydB8ZKfVYTsLDhXkFL/6gfkp+U8xTGdh8pMJv1SpZna0zxG1DwsKZsreLbXBxw==}
+
+  undici@7.11.0:
+    resolution: {integrity: sha512-heTSIac3iLhsmZhUCjyS3JQEkZELateufzZuBaVM5RHXdSBMb1LPMQf5x+FH7qjsZYDP0ttAc3nnVpUB+wYbOg==}
+    engines: {node: '>=20.18.1'}
 
   unist-util-stringify-position@2.0.3:
     resolution: {integrity: sha512-3faScn5I+hy9VleOq/qNbAd6pAx7iH5jYBMS9I1HgQVijz/4mv5Bvw5iw1sC/90CODiKo81G/ps8AJrISn687g==}
@@ -4042,7 +4049,7 @@ snapshots:
 
   graphemer@1.4.0: {}
 
-  h3-nightly@2.0.0-20250702-101518-a09fd14(crossws@0.4.1(srvx@0.8.1)):
+  h3-nightly@2.0.0-20250702-142007-a8a12f8(crossws@0.4.1(srvx@0.8.1)):
     dependencies:
       cookie-es: 2.0.0
       fetchdts: 0.1.5
@@ -4840,6 +4847,8 @@ snapshots:
   uncrypto@0.1.3: {}
 
   undici-types@7.8.0: {}
+
+  undici@7.11.0: {}
 
   unist-util-stringify-position@2.0.3:
     dependencies:
