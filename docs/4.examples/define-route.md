@@ -462,3 +462,174 @@ This feature is actively being developed based on community feedback. Please:
 5. Share your feedback with the h3 community
 
 The goal is to make h3 even more powerful while keeping it simple and approachable for everyone!
+
+### Output Schema Validation
+
+You can also validate your response data using output schemas:
+
+```js
+import { z } from "zod";
+
+// Define response schemas
+const userResponseSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+  email: z.string().email(),
+  role: z.enum(["admin", "user", "moderator"]),
+  createdAt: z.string().datetime(),
+  avatar: z.string().url().optional(),
+});
+
+const usersListResponseSchema = z.object({
+  users: z.array(userResponseSchema),
+  pagination: z.object({
+    page: z.number().min(1),
+    limit: z.number().min(1),
+    total: z.number().min(0),
+    hasMore: z.boolean(),
+  }),
+  filters: z
+    .object({
+      role: z.enum(["admin", "user", "moderator"]).optional(),
+      search: z.string().optional(),
+    })
+    .optional(),
+});
+
+const getUsersRoutePlugin = defineRoute({
+  method: "GET",
+  route: "/api/users",
+  queryParams: z.object({
+    page: z
+      .string()
+      .transform((val) => parseInt(val, 10))
+      .optional(),
+    limit: z
+      .string()
+      .transform((val) => parseInt(val, 10))
+      .optional(),
+    role: z.enum(["admin", "user", "moderator"]).optional(),
+    search: z.string().min(1).optional(),
+  }),
+  output: usersListResponseSchema, // Validate response structure
+  meta: { auth: true, cache: "1m" },
+
+  handler: async (event) => {
+    const { page = 1, limit = 10, role, search } = event.context.query || {};
+
+    // Your business logic here
+    const users = [
+      {
+        id: "123e4567-e89b-12d3-a456-426614174000",
+        name: "John Doe",
+        email: "john@example.com",
+        role: "admin",
+        createdAt: "2024-01-15T10:00:00.000Z",
+        avatar: "https://example.com/avatar.jpg",
+      },
+      {
+        id: "987fcdeb-51a2-43d1-b2e3-987654321000",
+        name: "Jane Smith",
+        email: "jane@example.com",
+        role: "user",
+        createdAt: "2024-02-20T14:30:00.000Z",
+      },
+    ];
+
+    // Response will be automatically validated against output schema
+    return {
+      users: users.filter(
+        (user) =>
+          (!role || user.role === role) &&
+          (!search || user.name.toLowerCase().includes(search.toLowerCase())),
+      ),
+      pagination: {
+        page,
+        limit,
+        total: users.length,
+        hasMore: page * limit < users.length,
+      },
+      filters: { role, search },
+    };
+  },
+});
+
+app.register(getUsersRoutePlugin);
+```
+
+### API Documentation Generation
+
+Output schemas are particularly useful for generating API documentation:
+
+```js
+import { z } from "zod";
+
+// Error response schema
+const errorResponseSchema = z.object({
+  error: z.object({
+    code: z.string(),
+    message: z.string(),
+    details: z.any().optional(),
+  }),
+  timestamp: z.string().datetime(),
+  path: z.string(),
+});
+
+// Success response with generic data
+const successResponseSchema = <T extends z.ZodType>(dataSchema: T) =>
+  z.object({
+    success: z.literal(true),
+    data: dataSchema,
+    timestamp: z.string().datetime(),
+  });
+
+const createBookRoutePlugin = defineRoute({
+  method: "POST",
+  route: "/api/books",
+  input: z.object({
+    title: z.string().min(1, "Title is required"),
+    author: z.string().min(1, "Author is required"),
+    isbn: z.string().regex(/^\d{13}$/, "Invalid ISBN format"),
+    publishedAt: z.string().datetime().optional(),
+  }),
+  output: successResponseSchema(
+    z.object({
+      id: z.string().uuid(),
+      title: z.string(),
+      author: z.string(),
+      isbn: z.string(),
+      publishedAt: z.string().datetime(),
+      createdAt: z.string().datetime(),
+      updatedAt: z.string().datetime(),
+    })
+  ),
+  meta: {
+    auth: true,
+    rateLimit: 5,
+    description: "Create a new book",
+    tags: ["books", "crud"],
+  },
+
+  handler: async (event) => {
+    const bookData = event.context.body;
+
+    // Your book creation logic
+    const newBook = {
+      id: crypto.randomUUID(),
+      ...bookData,
+      publishedAt: bookData.publishedAt || new Date().toISOString(),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    // Response matches output schema structure
+    return {
+      success: true,
+      data: newBook,
+      timestamp: new Date().toISOString(),
+    };
+  },
+});
+
+app.register(createBookRoutePlugin);
+```

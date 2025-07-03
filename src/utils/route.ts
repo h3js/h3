@@ -5,6 +5,7 @@ import type { H3Plugin, H3 } from "../types/h3.ts";
 import type { StandardSchemaV1 } from "./internal/standard-schema.ts";
 import { defineValidatedHandler } from "../handler.ts";
 import { getValidatedRouterParams } from "./request.ts";
+import { validateData } from "./internal/validate.ts";
 
 /**
  * Route definition interface with h3 integration
@@ -34,7 +35,8 @@ export interface RouteDefinition {
  * const userRoutePlugin = defineRoute({
  *   method: 'GET',
  *   route: '/api/users',
- *   query: z.object({ page: z.string().optional() }),
+ *   queryParams: z.object({ page: z.string().optional() }),
+ *   output: z.object({ users: z.array(z.object({ id: z.string() })) }),
  *   handler: (event) => ({ users: [] })
  * });
  *
@@ -43,6 +45,18 @@ export interface RouteDefinition {
  */
 export function defineRoute(config: RouteDefinition): H3Plugin {
   return (h3: H3) => {
+    // Create base handler function with output validation if specified
+    const createBaseHandler = (baseHandler: (event: H3Event) => any) => {
+      if (config.output) {
+        return async (event: H3Event) => {
+          const result = await baseHandler(event);
+          // Validate response against output schema
+          return await validateData(result, config.output!);
+        };
+      }
+      return baseHandler;
+    };
+
     // Create handler with validation using defineValidatedHandler
     const handler: EventHandler =
       config.input || config.queryParams
@@ -50,22 +64,22 @@ export function defineRoute(config: RouteDefinition): H3Plugin {
             middleware: config.middleware,
             body: config.input,
             query: config.queryParams,
-            handler: async (event: H3Event) => {
+            handler: createBaseHandler(async (event: H3Event) => {
               // Handle routerParams validation separately as it's not supported by defineValidatedHandler
               if (config.routerParams) {
                 await getValidatedRouterParams(event, config.routerParams);
               }
               return await config.handler(event);
-            },
+            }),
           }) as unknown as EventHandler)
         : (defineValidatedHandler({
             middleware: config.middleware,
-            handler: async (event: H3Event) => {
+            handler: createBaseHandler(async (event: H3Event) => {
               if (config.routerParams) {
                 await getValidatedRouterParams(event, config.routerParams);
               }
               return await config.handler(event);
-            },
+            }),
           }) as unknown as EventHandler);
 
     // Attach meta info for introspection
