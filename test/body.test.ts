@@ -304,7 +304,7 @@ describeMatrix("body", (t, { it, expect, describe }) => {
 
     expect(result.status).toBe(400);
     expect(resultJson.statusText).toBe("Bad Request");
-    expect(resultJson.stack[0]).toBe("Error: Invalid JSON body");
+    expect(resultJson.stack[0]).toBe("HTTPError: Invalid JSON body");
   });
 
   describe("readFormDataBody", () => {
