@@ -18,7 +18,11 @@ import type {
   StandardSchemaV1,
 } from "./utils/internal/standard-schema.ts";
 import type { TypedRequest } from "fetchdts";
-import { validatedRequest, validatedURL } from "./utils/internal/validate.ts";
+import {
+  type ValidateError,
+  validatedRequest,
+  validatedURL,
+} from "./utils/internal/validate.ts";
 
 // --- event handler ---
 
@@ -61,8 +65,11 @@ export function defineValidatedHandler<
 >(def: {
   middleware?: Middleware[];
   body?: RequestBody;
+  bodyErrors?: ValidateError;
   headers?: RequestHeaders;
+  headersErrors?: ValidateError;
   query?: RequestQuery;
+  queryErrors?: ValidateError;
   handler: EventHandler<
     {
       body: InferOutput<RequestBody>;
