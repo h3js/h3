@@ -13,7 +13,7 @@ describeMatrix("cookies", (t, { it, expect, describe }) => {
       const result = await t.fetch("/", {
         headers: {
           Cookie: [
-            "Authorization=chunks:3",
+            "Authorization=chunks.3",
             "Authorization.C1=123",
             "Authorization.C2=456",
             "Authorization.C3=789",
@@ -41,35 +41,55 @@ describeMatrix("cookies", (t, { it, expect, describe }) => {
     });
   });
 
-  // describe("setChunkedCookie", () => {
-  //   it("can set-cookie with setChunkedCookie", async () => {
-  //     t.app.get("/", (event) => {
-  //       setChunkedCookie(event, "Authorization", "1234567", {});
-  //       return "200";
-  //     });
-  //     const result = await t.fetch("/");
-  //     expect(result.headers.getSetCookie()).toEqual([
-  //       "Authorization=1234567; Path=/",
-  //     ]);
-  //     expect(await result.text()).toBe("200");
-  //   });
+  describe("setChunkedCookie", () => {
+    it("can set-cookie with setChunkedCookie", async () => {
+      t.app.get("/", (event) => {
+        setChunkedCookie(event, "Authorization", "1234567890ABCDEFGHIJXYZ", {}, 10);
+        return "200";
+      });
+      const result = await t.fetch("/");
+      expect(result.headers.getSetCookie()).toEqual([
+        "Authorization=chunks.3; Path=/",
+        "Authorization.C1=1234567890; Path=/",
+        "Authorization.C2=ABCDEFGHIJ; Path=/",
+        "Authorization.C3=XYZ; Path=/",
+      ]);
+      expect(await result.text()).toBe("200");
+    });
 
-  //   it("can set cookies with the same name but different serializeOptions", async () => {
-  //     t.app.get("/", (event) => {
-  //       setChunkedCookie(event, "Authorization", "1234567", {
-  //         domain: "example1.test",
-  //       });
-  //       setChunkedCookie(event, "Authorization", "7654321", {
-  //         domain: "example2.test",
-  //       });
-  //       return "200";
-  //     });
-  //     const result = await t.fetch("/");
-  //     expect(result.headers.getSetCookie()).toEqual([
-  //       "Authorization=1234567; Domain=example1.test; Path=/",
-  //       "Authorization=7654321; Domain=example2.test; Path=/",
-  //     ]);
-  //     expect(await result.text()).toBe("200");
-  //   });
-  // });
+
+    it("smaller set-cookie removes superfluous chunks", async () => {
+      // set cookie with more chunks
+      t.app.get("/", (event) => {
+        setChunkedCookie(event, "Authorization", "00001000020000300004", {}, 5);
+        return "200";
+      });
+      const result1 = await t.fetch("/");
+      expect(result1.headers.getSetCookie()).toEqual([
+        "Authorization=chunks.4; Path=/",
+        "Authorization.C1=00001; Path=/",
+        "Authorization.C2=00002; Path=/",
+        "Authorization.C3=00003; Path=/",
+        "Authorization.C4=00004; Path=/",
+      ]);
+      expect(await result1.text()).toBe("200");
+
+      // set smaller cookie with fewer chunks, should have deleted superfluous chunks
+      t.app.get("/", (event) => {
+        setChunkedCookie(event, "Authorization", "0000100002", {}, 5);
+        return "200";
+      });
+      const result2 = await t.fetch("/");
+      expect(result2.headers.getSetCookie()).toEqual([
+        "Authorization=chunks.2; Path=/",
+        "Authorization.C1=00001; Path=/",
+        "Authorization.C2=00002; Path=/",
+        "Authorization.C3=; Path=/",
+        "Authorization.C4=; Path=/",
+      ]);
+      expect(await result2.text()).toBe("200");
+
+    });
+
+  });
 });
