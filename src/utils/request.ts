@@ -1,6 +1,6 @@
-import { HTTPError } from "../error.ts";
+import { type ErrorDetails, HTTPError } from "../error.ts";
+import { type ValidateError, validateData } from "./internal/validate.ts";
 import { parseQuery } from "./internal/query.ts";
-import { validateData } from "./internal/validate.ts";
 
 import type {
   StandardSchemaV1,
@@ -30,7 +30,7 @@ export function getQuery<
 export function getValidatedQuery<
   Event extends H3Event,
   S extends StandardSchemaV1<any, any>,
->(event: Event, validate: S): Promise<InferOutput<S>>;
+>(event: Event, validate: S, error?: ValidateError): Promise<InferOutput<S>>;
 export function getValidatedQuery<
   Event extends H3Event,
   OutputT,
@@ -40,6 +40,7 @@ export function getValidatedQuery<
   validate: (
     data: InputT,
   ) => ValidateResult<OutputT> | Promise<ValidateResult<OutputT>>,
+  error?: ErrorDetails | (() => ErrorDetails),
 ): Promise<OutputT>;
 /**
  * Get the query param from the request URL validated with validate function.
@@ -63,10 +64,29 @@ export function getValidatedQuery<
  *     }),
  *   );
  * });
+ * @example
+ * import * as v from "valibot";
+ *
+ * app.get("/", async (event) => {
+ *   const params = await getValidatedQuery(
+ *     event,
+ *     v.object({
+ *       key: v.string(),
+ *     }),
+ *     (issues) => ({
+ *       statusText: "Custom validation error",
+ *       message: v.summarize(issues),
+ *     })
+ *   );
+ * });
  */
-export function getValidatedQuery(event: H3Event, validate: any): Promise<any> {
+export function getValidatedQuery(
+  event: H3Event,
+  validate: any,
+  error?: ValidateError | (() => ErrorDetails),
+): Promise<any> {
   const query = getQuery(event);
-  return validateData(query, validate);
+  return validateData(query, validate, error);
 }
 
 /**
@@ -101,6 +121,7 @@ export function getValidatedRouterParams<
   event: Event,
   validate: S,
   opts?: { decode?: boolean },
+  error?: ValidateError,
 ): Promise<InferOutput<S>>;
 export function getValidatedRouterParams<
   Event extends H3Event,
@@ -112,6 +133,7 @@ export function getValidatedRouterParams<
     data: InputT,
   ) => ValidateResult<OutputT> | Promise<ValidateResult<OutputT>>,
   opts?: { decode?: boolean },
+  error?: ErrorDetails | (() => ErrorDetails),
 ): Promise<OutputT>;
 /**
  * Get matched route params and validate with validate function.
@@ -121,7 +143,7 @@ export function getValidatedRouterParams<
  * You can use a simple function to validate the params object or use a Standard-Schema compatible library like `zod` to define a schema.
  *
  * @example
- * app.get("/", async (event) => {
+ * app.get("/:key", async (event) => {
  *   const params = await getValidatedRouterParams(event, (data) => {
  *     return "key" in data && typeof data.key === "string";
  *   });
@@ -129,7 +151,7 @@ export function getValidatedRouterParams<
  * @example
  * import { z } from "zod";
  *
- * app.get("/", async (event) => {
+ * app.get("/:key", async (event) => {
  *   const params = await getValidatedRouterParams(
  *     event,
  *     z.object({
@@ -137,14 +159,31 @@ export function getValidatedRouterParams<
  *     }),
  *   );
  * });
+ * @example
+ * import * as v from "valibot";
+ *
+ * app.get("/:key", async (event) => {
+ *   const params = await getValidatedRouterParams(
+ *     event,
+ *     v.object({
+ *       key: v.pipe(v.string(), v.picklist(["route-1", "route-2", "route-3"])),
+ *     }),
+ *     { decode: true },
+ *     (issues) => ({
+ *       statusText: "Custom validation error",
+ *       message: v.summarize(issues),
+ *     })
+ *   );
+ * });
  */
 export function getValidatedRouterParams(
   event: H3Event,
   validate: any,
   opts: { decode?: boolean } = {},
+  error?: ValidateError | (() => ErrorDetails),
 ): Promise<any> {
   const routerParams = getRouterParams(event, opts);
-  return validateData(routerParams, validate);
+  return validateData(routerParams, validate, error);
 }
 
 /**

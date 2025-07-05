@@ -5,9 +5,10 @@ import {
   defineLazyEventHandler,
   defineValidatedHandler,
 } from "../src/index.ts";
+import type { ValidateIssues } from "../src/utils/internal/validate.ts";
 
 import type { H3Event } from "../src/event.ts";
-import { z } from "zod";
+import { z } from "zod/v4";
 
 describe("handler.ts", () => {
   describe("defineHandler", () => {
@@ -99,6 +100,39 @@ describe("handler.ts", () => {
         };
       },
     });
+    const handlerCustomError = defineValidatedHandler({
+      body: z.object({
+        name: z.string(),
+        age: z.number().optional().default(20),
+      }),
+      bodyErrors: (issues) => ({
+        status: 500,
+        statusText: "Custom Zod body validation error",
+        message: summarize(issues),
+      }),
+      headers: z.object({
+        "x-token": z.string("Missing required header"),
+      }),
+      headersErrors: (issues) => ({
+        status: 500,
+        statusText: "Custom Zod headers validation error",
+        message: summarize(issues),
+      }),
+      query: z.object({
+        id: z.string().min(3),
+      }),
+      queryErrors: (issues) => ({
+        status: 500,
+        statusText: "Custom Zod query validation error",
+        message: summarize(issues),
+      }),
+      handler: async (event) => {
+        return {
+          body: await event.req.json(),
+          headers: event.req.headers,
+        };
+      },
+    });
 
     it("valid request", async () => {
       const res = await handler.fetch("/?id=123", {
@@ -123,7 +157,7 @@ describe("handler.ts", () => {
         status: 400,
         statusText: "Validation failed",
         message: "Validation failed",
-        data: { issues: [{ expected: "string", received: "number" }] },
+        data: { issues: [{ expected: "string" }] },
       });
       expect(res.status).toBe(400);
     });
@@ -138,9 +172,7 @@ describe("handler.ts", () => {
         statusText: "Validation failed",
         message: "Validation failed",
         data: {
-          issues: [
-            { path: ["x-token"], expected: "string", received: "undefined" },
-          ],
+          issues: [{ path: ["x-token"], expected: "string" }],
         },
       });
       expect(res.status).toBe(400);
@@ -160,12 +192,75 @@ describe("handler.ts", () => {
           issues: [
             {
               path: ["id"],
-              message: "String must contain at least 3 character(s)",
+              message: "Too small: expected string to have >=3 characters",
             },
           ],
         },
       });
       expect(res.status).toBe(400);
     });
+
+    describe("custom error messages", () => {
+      it("invalid body", async () => {
+        const res = await handlerCustomError.fetch("/?id=123", {
+          method: "POST",
+          headers: { "x-token": "abc" },
+          body: JSON.stringify({ name: 123 }),
+        });
+        expect(await res.json()).toMatchObject({
+          status: 500,
+          statusText: "Custom Zod body validation error",
+          message: "- Invalid input: expected string, received number",
+        });
+        expect(res.status).toBe(500);
+      });
+
+      it("invalid headers", async () => {
+        const res = await handlerCustomError.fetch("/?id=123", {
+          method: "POST",
+          body: JSON.stringify({ name: 123 }),
+        });
+        expect(await res.json()).toMatchObject({
+          status: 500,
+          statusText: "Custom Zod headers validation error",
+          message: "- Missing required header",
+        });
+        expect(res.status).toBe(500);
+      });
+
+      it("invalid query", async () => {
+        const res = await handlerCustomError.fetch("/?id=", {
+          method: "POST",
+          headers: { "x-token": "abc" },
+          body: JSON.stringify({ name: "tommy" }),
+        });
+        expect(await res.json()).toMatchObject({
+          status: 500,
+          statusText: "Custom Zod query validation error",
+          message: "- Too small: expected string to have >=3 characters",
+        });
+        expect(res.status).toBe(500);
+      });
+    });
   });
 });
+
+/**
+ * Fork of valibot's `summarize` function.
+ *
+ * LICENSE: MIT
+ * SOURCE: https://github.com/fabian-hiller/valibot/blob/44b2e6499562e19d0a66ade1e25e44087e0d2c16/library/src/methods/summarize/summarize.ts
+ */
+function summarize(issues: ValidateIssues): string {
+  let summary = "";
+
+  for (const issue of issues) {
+    if (summary) {
+      summary += "\n";
+    }
+
+    summary += `- ${issue.message}`;
+  }
+
+  return summary;
+}
