@@ -44,7 +44,13 @@ describeMatrix("cookies", (t, { it, expect, describe }) => {
   describe("setChunkedCookie", () => {
     it("can set-cookie with setChunkedCookie", async () => {
       t.app.get("/", (event) => {
-        setChunkedCookie(event, "Authorization", "1234567890ABCDEFGHIJXYZ", {}, 10);
+        setChunkedCookie(
+          event,
+          "Authorization",
+          "1234567890ABCDEFGHIJXYZ",
+          {},
+          10,
+        );
         return "200";
       });
       const result = await t.fetch("/");
@@ -56,7 +62,6 @@ describeMatrix("cookies", (t, { it, expect, describe }) => {
       ]);
       expect(await result.text()).toBe("200");
     });
-
 
     it("smaller set-cookie removes superfluous chunks", async () => {
       // set smaller cookie with fewer chunks, should have deleted superfluous chunks
@@ -83,8 +88,6 @@ describeMatrix("cookies", (t, { it, expect, describe }) => {
         "Authorization.C2=00002; Path=/",
       ]);
       expect(await result.text()).toBe("200");
-
     });
-
   });
 });
