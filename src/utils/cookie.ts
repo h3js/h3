@@ -9,7 +9,7 @@ import {
 const CHUNKS_PREFIX = "chunks:";
 
 // The limit is approximately 4KB, but may vary by browser and server. We leave some room to be safe.
-const CHUNKS_MAX_LENGTH = 4050;
+const CHUNKS_MAX_LENGTH = 4000;
 
 /**
  * Parse the request to get HTTP Cookie header string and returning an object of all cookie name-value pairs.
@@ -153,6 +153,18 @@ export function setChunkedCookie(
   options?: CookieSerializeOptions,
 ): void {
   const chunkCount = Math.ceil(value.length / CHUNKS_MAX_LENGTH);
+
+  // delete any prior left over chunks if the cookie is updated
+  const previousCookie = getCookie(event, name);
+  if (previousCookie?.startsWith(CHUNKS_PREFIX)) {
+    const previousChunkCount = extractChunkCount(previousCookie);
+    if (previousChunkCount > chunkCount) {
+      for (let i = chunkCount; i <= previousChunkCount; i++) {
+        deleteCookie(event, createChunkCookieName(name, i), options);
+      }
+    }
+  }
+
   if (chunkCount <= 1) {
     // If the value is small enough, just set it as a normal cookie
     setCookie(event, name, value, options);
@@ -163,11 +175,12 @@ export function setChunkedCookie(
   const mainCookieValue = `${CHUNKS_PREFIX}${chunkCount}`;
   setCookie(event, name, mainCookieValue, options);
 
-  // TODO split value into chunks
-  // TODO set cookie per chunk
-  // TODO set main cookie to store how many chunks
-
-  // TODO also delete any prior chunks if the cookie is updated
+  for (let i = 1; i <= chunkCount; i++) {
+    const start = (i - 1) * CHUNKS_MAX_LENGTH;
+    const end = start + CHUNKS_MAX_LENGTH;
+    const chunkValue = value.slice(start, end);
+    setCookie(event, createChunkCookieName(name, i), chunkValue, options);
+  }
 }
 
 /**
@@ -186,10 +199,6 @@ export function deleteChunkedCookie(
 ): void {
   const mainCookie = getCookie(event, name);
   deleteCookie(event, name, serializeOptions);
-
-  if (!mainCookie || !mainCookie.startsWith(CHUNKS_PREFIX)) {
-    return;
-  }
 
   const chunksCount = extractChunkCount(mainCookie);
   if (chunksCount === 0) {
@@ -210,7 +219,11 @@ function _getDistinctCookieKey(name: string, options: Partial<SetCookie>) {
   return [name, options.domain || "", options.path || "/"].join(";");
 }
 
-function extractChunkCount(mainCookie: string): number {
+function extractChunkCount(mainCookie: string | undefined): number {
+  if (!mainCookie || !mainCookie.startsWith(CHUNKS_PREFIX)) {
+    return 0;
+  }
+
   const chunksCount = Number.parseInt(mainCookie.split(CHUNKS_PREFIX)[1]);
   if (Number.isNaN(chunksCount) || chunksCount < 0) {
     return 0;
@@ -218,6 +231,6 @@ function extractChunkCount(mainCookie: string): number {
   return chunksCount;
 }
 
-function createChunkCookieName(name: string, i: number): string {
-  return `${name}.C${i}`;
+function createChunkCookieName(name: string, chunkNumber: number): string {
+  return `${name}.C${chunkNumber}`;
 }
