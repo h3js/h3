@@ -50,10 +50,12 @@ describe("defineRoute", () => {
     const routePlugin = defineRoute({
       method: "POST",
       route: "/users",
-      input: mockSchema,
-      routerParams: mockSchema,
-      queryParams: mockSchema,
-      output: mockSchema,
+      validation: {
+        body: mockSchema,
+        params: mockSchema,
+        query: mockSchema,
+        response: mockSchema,
+      },
       handler: () => "user created",
     });
     app.register(routePlugin);
@@ -66,10 +68,12 @@ describe("defineRoute", () => {
     const routePlugin = defineRoute({
       method: "GET",
       route: "/api/test",
-      input: mockSchema,
-      routerParams: mockSchema,
-      queryParams: mockSchema,
-      output: mockSchema,
+      validation: {
+        body: mockSchema,
+        params: mockSchema,
+        query: mockSchema,
+        response: mockSchema,
+      },
       meta: { custom: "value" },
       handler: () => "ok",
     });
@@ -83,13 +87,13 @@ describe("defineRoute", () => {
     expect(route?.meta).toBeDefined();
 
     if (route?.meta) {
-      expect(route.meta.input).toBe(mockSchema);
-      expect(route.meta.routerParams).toBe(mockSchema);
-      expect(route.meta.queryParams).toBe(mockSchema);
-      expect(route.meta.output).toBe(mockSchema);
-      expect(route.meta.method).toBe("GET");
-      expect(route.meta.route).toBe("/api/test");
-      expect(route.meta.custom).toBe("value");
+      expect((route.meta as any).validation?.body).toBe(mockSchema);
+      expect((route.meta as any).validation?.params).toBe(mockSchema);
+      expect((route.meta as any).validation?.query).toBe(mockSchema);
+      expect((route.meta as any).validation?.response).toBe(mockSchema);
+      expect((route.meta as any).method).toBe("GET");
+      expect((route.meta as any).route).toBe("/api/test");
+      expect((route.meta as any).custom).toBe("value");
     }
   });
 
