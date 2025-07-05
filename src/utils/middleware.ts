@@ -1,8 +1,8 @@
 import { HTTPError } from "../error.ts";
-import { handleResponse } from "../response.ts";
+import { toResponse } from "../response.ts";
 import type { MaybePromise } from "../types/_utils.ts";
 
-import type { H3Event } from "../types/event.ts";
+import type { H3Event } from "../event.ts";
 import type { Middleware } from "../types/handler.ts";
 
 /**
@@ -26,7 +26,7 @@ export function onResponse(
 ): Middleware {
   return async (event, next) => {
     const rawBody = await next();
-    const response = await handleResponse(rawBody, event);
+    const response = await toResponse(rawBody, event);
     const hookResponse = await hook(response, event);
     return hookResponse || response;
   };

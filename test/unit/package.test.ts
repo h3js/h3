@@ -8,6 +8,7 @@ describe("h3 package", () => {
     expect(exportNames).toMatchInlineSnapshot(`
       [
         "H3",
+        "H3Core",
         "H3Error",
         "H3Event",
         "HTTPError",
@@ -90,6 +91,7 @@ describe("h3 package", () => {
         "readBody",
         "readFormData",
         "readFormDataBody",
+        "readMultipartFormData",
         "readRawBody",
         "readValidatedBody",
         "redirect",
@@ -115,6 +117,7 @@ describe("h3 package", () => {
         "toEventHandler",
         "toNodeHandler",
         "toNodeListener",
+        "toResponse",
         "toWebHandler",
         "unsealSession",
         "updateSession",

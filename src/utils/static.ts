@@ -1,6 +1,7 @@
-import type { H3Event } from "../types/event.ts";
+import type { H3Event } from "../event.ts";
 import { HTTPError } from "../error.ts";
 import { withLeadingSlash, withoutTrailingSlash } from "./internal/path.ts";
+import { getType, getExtension } from "./internal/mime.ts";
 
 export interface StaticAssetMeta {
   type?: string;
@@ -51,6 +52,12 @@ export interface ServeStaticOptions {
    * When set to true, the function will not throw 404 error when the asset meta is not found or meta validation failed
    */
   fallthrough?: boolean;
+
+  /**
+   * Custom MIME type resolver function
+   * @param ext - File extension including dot (e.g., ".css", ".js")
+   */
+  getType?: (ext: string) => string | undefined;
 }
 
 /**
@@ -144,8 +151,16 @@ export async function serveStatic(
     return "";
   }
 
-  if (meta.type && !event.res.headers.get("content-type")) {
-    event.res.headers.set("content-type", meta.type);
+  if (!event.res.headers.get("content-type")) {
+    if (meta.type) {
+      event.res.headers.set("content-type", meta.type);
+    } else {
+      const ext = getExtension(id);
+      const type = ext ? (options.getType?.(ext) ?? getType(ext)) : undefined;
+      if (type) {
+        event.res.headers.set("content-type", type);
+      }
+    }
   }
 
   if (meta.encoding && !event.res.headers.get("content-encoding")) {

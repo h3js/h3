@@ -2,7 +2,7 @@ import type { ServerRequest } from "srvx";
 import { H3Event } from "./event.ts";
 import { toRequest } from "./h3.ts";
 import { callMiddleware } from "./middleware.ts";
-import { handleResponse } from "./response.ts";
+import { toResponse } from "./response.ts";
 
 import type {
   EventHandler,
@@ -36,13 +36,14 @@ export function defineHandler(arg1: unknown): EventHandlerWithFetch {
   if (typeof arg1 === "function") {
     return handlerWithFetch(arg1 as EventHandler);
   }
-  const { middleware, handler } = arg1 as EventHandlerObject;
-  if (!middleware?.length) {
-    return handlerWithFetch(handler);
-  }
-  return handlerWithFetch((event) =>
-    callMiddleware(event, middleware, handler),
+  const { middleware, handler, meta } = arg1 as EventHandlerObject;
+  const _handler = handlerWithFetch(
+    middleware?.length
+      ? (event) => callMiddleware(event, middleware, handler)
+      : handler,
   );
+  _handler.meta = meta;
+  return _handler;
 }
 
 type StringHeaders<T> = {
@@ -69,7 +70,7 @@ export function defineValidatedHandler<
     },
     Res
   >;
-}): EventHandler<
+}): EventHandlerWithFetch<
   TypedRequest<InferOutput<RequestBody>, InferOutput<RequestHeaders>>,
   Res
 > {
@@ -95,11 +96,11 @@ function handlerWithFetch<
       _init?: RequestInit,
     ): Promise<Response> => {
       const req = toRequest(_req, _init);
-      const event = new H3Event(req);
+      const event = new H3Event(req) as H3Event<Req>;
       try {
-        return Promise.resolve(handleResponse(handler(event), event));
+        return Promise.resolve(toResponse(handler(event), event));
       } catch (error: any) {
-        return Promise.resolve(handleResponse(error, event));
+        return Promise.resolve(toResponse(error, event));
       }
     },
   });

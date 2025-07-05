@@ -24,7 +24,7 @@ describeMatrix("session", (t, { it, expect }) => {
       }
       return { session };
     });
-    t.app.use(app);
+    t.app.use(app.handler);
   });
 
   it("initiates session", async () => {

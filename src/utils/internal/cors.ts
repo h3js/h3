@@ -1,4 +1,4 @@
-import type { H3Event } from "../../types/event.ts";
+import type { H3Event } from "../../event.ts";
 import type { CorsOptions } from "../cors.ts";
 
 interface ResolvedCorsOptions {

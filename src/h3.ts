@@ -1,31 +1,32 @@
 import { createRouter, addRoute, findRoute } from "rou3";
 import { H3Event } from "./event.ts";
-import { handleResponse, kNotFound } from "./response.ts";
+import { toResponse, kNotFound } from "./response.ts";
 import { callMiddleware, normalizeMiddleware } from "./middleware.ts";
 
-import type { RouterContext } from "rou3";
+import type { RouterContext, MatchedRoute } from "rou3";
 import type { FetchHandler, H3Config, H3Plugin } from "./types/h3.ts";
-import type { H3EventContext } from "./types/event.ts";
+import type { H3EventContext } from "./types/context.ts";
 import type { EventHandler, Middleware } from "./types/handler.ts";
 import type {
   H3Route,
   HTTPMethod,
   H3 as H3Type,
   RouteOptions,
-  RouteHandler,
   MiddlewareOptions,
 } from "./types/h3.ts";
 import type { ServerRequest } from "srvx";
 
-export type H3 = H3Type;
+export type H3Core = H3Type;
 
-export const H3 = /* @__PURE__ */ (() => {
+export const H3Core = /* @__PURE__ */ (() => {
   // prettier-ignore
   const HTTPMethods = ["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS", "CONNECT", "TRACE" ] as const;
 
-  class H3 implements Omit<H3Type, Lowercase<(typeof HTTPMethods)[number]>> {
+  class H3Core
+    implements Omit<H3Type, Lowercase<(typeof HTTPMethods)[number]>>
+  {
     _middleware: Middleware[];
-    _routes?: RouterContext<H3Route>;
+    _routes: H3Route[] = [];
 
     readonly config: H3Config;
 
@@ -58,7 +59,7 @@ export const H3 = /* @__PURE__ */ (() => {
       const request: ServerRequest = toRequest(_req, _init);
 
       // Create a new event instance
-      const event = new H3Event(request, context);
+      const event = new H3Event(request, context, this as unknown as H3Type);
 
       // Execute the handler
       let handlerRes: unknown | Promise<unknown>;
@@ -77,7 +78,7 @@ export const H3 = /* @__PURE__ */ (() => {
       }
 
       // Prepare response
-      return handleResponse(handlerRes, event, this.config);
+      return toResponse(handlerRes, event, this.config);
     }
 
     register(plugin: H3Plugin): H3Type {
@@ -85,10 +86,14 @@ export const H3 = /* @__PURE__ */ (() => {
       return this as unknown as H3Type;
     }
 
+    _findRoute(_event: H3Event): MatchedRoute<H3Route> | void {}
+
+    _addRoute(_route: H3Route): void {
+      this._routes.push(_route);
+    }
+
     handler(event: H3Event): unknown | Promise<unknown> {
-      const route = this._routes
-        ? findRoute(this._routes, event.req.method, event.url.pathname)
-        : undefined;
+      const route = this._findRoute(event);
       if (route) {
         event.context.params = route.params;
         event.context.matchedRoute = route.data;
@@ -101,38 +106,54 @@ export const H3 = /* @__PURE__ */ (() => {
       });
     }
 
-    mount(base: string, input: FetchHandler | { fetch: FetchHandler }): H3Type {
-      const fetchHandler = "fetch" in input ? input.fetch : input;
-      this.all(`${base}/**`, (event) => {
-        const url = new URL(event.url);
-        url.pathname = url.pathname.slice(base.length) || "/";
-        return fetchHandler(new Request(url, event.req));
-      });
+    mount(
+      base: string,
+      input: FetchHandler | { fetch: FetchHandler } | H3Type,
+    ): H3Type {
+      if ("handler" in input) {
+        if (input._middleware.length > 0) {
+          this._middleware.push((event, next) => {
+            return event.url.pathname.startsWith(base)
+              ? callMiddleware(event, input._middleware, next)
+              : next();
+          });
+        }
+        for (const r of input._routes) {
+          this._addRoute({
+            ...r,
+            route: base + r.route,
+          });
+        }
+      } else {
+        const fetchHandler = "fetch" in input ? input.fetch : input;
+        this.all(`${base}/**`, (event) => {
+          const url = new URL(event.url);
+          url.pathname = url.pathname.slice(base.length) || "/";
+          return fetchHandler(new Request(url, event.req));
+        });
+      }
       return this as unknown as H3Type;
     }
 
-    all(route: string, handler: RouteHandler, opts?: RouteOptions): H3Type {
+    all(route: string, handler: EventHandler, opts?: RouteOptions): H3Type {
       return this.on("", route, handler, opts);
     }
 
     on(
       method: HTTPMethod | Lowercase<HTTPMethod> | "",
       route: string,
-      handler: RouteHandler,
+      handler: EventHandler,
       opts?: RouteOptions,
     ): H3Type {
-      if (!this._routes) {
-        this._routes = createRouter();
-      }
       const _method = (method || "").toUpperCase();
-      const _handler = (handler as H3Type)?.handler || handler;
       route = new URL(route, "h://_").pathname;
-      addRoute(this._routes, _method, route, {
+      this._addRoute({
         method: _method as HTTPMethod,
         route,
-        handler: _handler,
+        handler,
         middleware: opts?.middleware,
-      } satisfies H3Route);
+        meta: { ...(handler as EventHandler).meta, ...opts?.meta },
+      });
       return this as unknown as H3Type;
     }
 
@@ -149,25 +170,49 @@ export const H3 = /* @__PURE__ */ (() => {
         opts = arg2 as MiddlewareOptions;
       }
       this._middleware.push(
-        normalizeMiddleware(fn, route ? { ...opts, route } : opts),
+        normalizeMiddleware(
+          fn as Middleware,
+          route ? { ...opts, route } : opts,
+        ),
       );
       return this as unknown as H3Type;
     }
   }
 
   for (const method of HTTPMethods) {
-    (H3 as any).prototype[method.toLowerCase()] = function (
+    (H3Core as any).prototype[method.toLowerCase()] = function (
       this: H3Type,
       route: string,
-      handler: EventHandler | H3Type,
+      handler: EventHandler,
       opts?: RouteOptions,
     ) {
       return this.on(method, route, handler, opts);
     };
   }
 
-  return H3;
-})() as unknown as typeof H3Type;
+  return H3Core;
+})() as unknown as { new (config?: H3Config): H3Type };
+
+export class H3 extends H3Core {
+  /**
+   * @internal
+   */
+  _rou3: RouterContext<H3Route>;
+
+  constructor(config: H3Config = {}) {
+    super(config);
+    this._rou3 = createRouter();
+  }
+
+  override _findRoute(_event: H3Event): MatchedRoute<H3Route> | void {
+    return findRoute(this._rou3, _event.req.method, _event.url.pathname);
+  }
+
+  override _addRoute(_route: H3Route): void {
+    addRoute(this._rou3, _route.method, _route.route!, _route);
+    super._addRoute(_route);
+  }
+}
 
 export function toRequest(
   _request: ServerRequest | URL | string,

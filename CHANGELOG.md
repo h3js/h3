@@ -2,6 +2,86 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## v2.0.0-beta.1
+
+[compare changes](https://github.com/h3js/h3/compare/v2.0.0-beta.0...v2.0.0-beta.1)
+
+### 🚀 Enhancements
+
+- Optional route meta ([#1118](https://github.com/h3js/h3/pull/1118))
+- Add `readMultipartFormData` for backward compatibility ([#1120](https://github.com/h3js/h3/pull/1120))
+- Export `H3Core` ([#1127](https://github.com/h3js/h3/pull/1127))
+- Natively mount h3 as sub-app ([#1129](https://github.com/h3js/h3/pull/1129))
+- Support typed `req.headers` ([#1130](https://github.com/h3js/h3/pull/1130))
+- **serveStatic:** Support default and custom mimes ([#1137](https://github.com/h3js/h3/pull/1137))
+- Expose `H3Event.app` ([#1139](https://github.com/h3js/h3/pull/1139))
+- Freeze app routes and config after server init ([#1140](https://github.com/h3js/h3/pull/1140))
+- **proxy:** Use native `fetch` + `event.app.fetch` ([#1141](https://github.com/h3js/h3/pull/1141))
+
+### 🩹 Fixes
+
+- **isEvent:** Safer check for bun compatibility ([5a984da](https://github.com/h3js/h3/commit/5a984da))
+- **response:** Only add `content-disposition` for `File` with name ([#1133](https://github.com/h3js/h3/pull/1133))
+
+### 💅 Refactors
+
+- Merge `H3Event` with types ([eaeb1e1](https://github.com/h3js/h3/commit/eaeb1e1))
+- ⚠️  Explicit use of handlers or middleware ([#1128](https://github.com/h3js/h3/pull/1128))
+
+### 📖 Documentation
+
+- V2-beta ([#1073](https://github.com/h3js/h3/pull/1073))
+- Add apitally to community integrations ([#1113](https://github.com/h3js/h3/pull/1113))
+- Fix route meta example ([#1124](https://github.com/h3js/h3/pull/1124))
+- Update visualization for dispatch request lifecycle ([#1115](https://github.com/h3js/h3/pull/1115))
+- Fix typo `event.req` is instance of request ([#1125](https://github.com/h3js/h3/pull/1125))
+- Add nested apps section ([#1131](https://github.com/h3js/h3/pull/1131))
+
+### 📦 Build
+
+- Expose `toResponse` util ([febb832](https://github.com/h3js/h3/commit/febb832))
+
+### 🌊 Types
+
+- **defineValidatedHandler:** Return value should be fetchable ([b759670](https://github.com/h3js/h3/commit/b759670))
+
+### 🏡 Chore
+
+- Update playground ([76e791f](https://github.com/h3js/h3/commit/76e791f))
+- Update playground ([dd3cb27](https://github.com/h3js/h3/commit/dd3cb27))
+- Update docs ([ef7a8db](https://github.com/h3js/h3/commit/ef7a8db))
+- Add back build.config ([74c9174](https://github.com/h3js/h3/commit/74c9174))
+- Fix internal typo ([#1109](https://github.com/h3js/h3/pull/1109))
+- Update deps ([6b78d5a](https://github.com/h3js/h3/commit/6b78d5a))
+- Update rou3 to 0.7 ([ba15aaa](https://github.com/h3js/h3/commit/ba15aaa))
+- Update deps ([4a6d71a](https://github.com/h3js/h3/commit/4a6d71a))
+- Update deps ([01d4506](https://github.com/h3js/h3/commit/01d4506))
+- Update deps ([6ca1c1c](https://github.com/h3js/h3/commit/6ca1c1c))
+- Update h3-nightly dep ([84e0420](https://github.com/h3js/h3/commit/84e0420))
+- Update release script ([da374e3](https://github.com/h3js/h3/commit/da374e3))
+
+### ✅ Tests
+
+- Add `h3-compiled` to bench ([57f4ab5](https://github.com/h3js/h3/commit/57f4ab5))
+- Enable sse test for web ([e43571e](https://github.com/h3js/h3/commit/e43571e))
+- Update test ([a09fd14](https://github.com/h3js/h3/commit/a09fd14))
+
+#### ⚠️ Breaking Changes
+
+- ⚠️  Explicit use of handlers or middleware ([#1128](https://github.com/h3js/h3/pull/1128))
+
+### ❤️ Contributors
+
+- Pooya Parsa ([@pi0](https://github.com/pi0))
+- Gene ._. ([@outslept](https://github.com/outslept))
+- Daniel Roe ([@danielroe](https://github.com/danielroe))
+- 87xie ([@87xie](https://github.com/87xie))
+- Wuiyang <wuiyang@live.com>
+- Kricsleo ([@kricsleo](https://github.com/kricsleo))
+- Ckvv ([@ckvv](https://github.com/ckvv))
+- Simon Gurcke ([@itssimon](https://github.com/itssimon))
+- Nils K ([@septatrix](https://github.com/septatrix))
+
 ## v1.12.0
 
 [compare changes](https://github.com/h3js/h3/compare/v1.11.1...v1.12.0)

@@ -3,12 +3,12 @@ import { HTTPError } from "./error.ts";
 import { isJSONSerializable } from "./utils/internal/object.ts";
 
 import type { H3Config } from "./types/h3.ts";
-import type { H3Event } from "./types/event.ts";
+import type { H3Event } from "./event.ts";
 
 export const kNotFound: symbol = /* @__PURE__ */ Symbol.for("h3.notFound");
 export const kHandled: symbol = /* @__PURE__ */ Symbol.for("h3.handled");
 
-export function handleResponse(
+export function toResponse(
   val: unknown,
   event: H3Event,
   config: H3Config = {},
@@ -16,12 +16,12 @@ export function handleResponse(
   if (val && val instanceof Promise) {
     return val
       .catch((error) => error)
-      .then((resolvedVal) => handleResponse(resolvedVal, event, config));
+      .then((resolvedVal) => toResponse(resolvedVal, event, config));
   }
 
   const response = prepareResponse(val, event, config);
   if (response instanceof Promise) {
-    return handleResponse(response, event, config);
+    return toResponse(response, event, config);
   }
 
   const { onResponse } = config;
@@ -162,8 +162,9 @@ function prepareResponseBody(
     };
 
     // File
-    if ("name" in val) {
-      const filename = encodeURIComponent(val.name as string);
+    let filename = (val as File).name;
+    if (filename) {
+      filename = encodeURIComponent(filename);
       // Omit the disposition type ("inline" or "attachment") and let the client (browser) decide.
       headers["content-disposition"] =
         `filename="${filename}"; filename*=UTF-8''${filename}`;

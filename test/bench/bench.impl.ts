@@ -1,3 +1,4 @@
+import { compileRouter } from "rou3/compiler";
 import * as _h3src from "../../src/index.ts";
 import * as _h3v1 from "h3-v1";
 import * as _h3nightly from "h3-nightly";
@@ -8,6 +9,7 @@ type AppFetch = (req: Request) => Response | Promise<Response>;
 export function createInstances(): Array<[string, AppFetch]> {
   return [
     ["h3", h3(_h3src)],
+    ["h3-compiled", h3(_h3src, true)],
     ["h3-nightly", h3(_h3nightly as any)],
     ["h3-middleware", h3Middleware(_h3src)],
     // ["h3-v1", h3v1()],
@@ -16,7 +18,7 @@ export function createInstances(): Array<[string, AppFetch]> {
   ] as const;
 }
 
-export function h3(lib: typeof _h3src): AppFetch {
+export function h3(lib: typeof _h3src, compiled?: boolean): AppFetch {
   const app = new lib.H3()
     .get("/", () => "Hi")
     .get("/id/:id", (event) => {
@@ -25,6 +27,10 @@ export function h3(lib: typeof _h3src): AppFetch {
       return `${event.context.params!.id} ${name}`;
     })
     .post("/json", (event) => event.req.json());
+  if (compiled) {
+    const findRoute = compileRouter(app._rou3);
+    app._findRoute = (event) => findRoute(event.req.method, event.url.pathname);
+  }
   return app.fetch;
 }
 

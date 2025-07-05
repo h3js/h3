@@ -29,9 +29,7 @@ describeMatrix("sse", (t, { it, expect }) => {
     });
   });
 
-  // TODO: Investigate issues with web target
-
-  it.skipIf(t.target === "web")("streams events", async () => {
+  it("streams events", async () => {
     const res = await t.fetch("/sse");
     expect(res.status).toBe(200);
     expect(res.headers.get("Content-Type")).toBe("text/event-stream");
@@ -39,7 +37,7 @@ describeMatrix("sse", (t, { it, expect }) => {
     expect(messages.length).toBe(3);
   });
 
-  it.skipIf(t.target === "web")("streams events", async () => {
+  it("streams events", async () => {
     const res = await t.fetch("/sse?includeMeta=true");
     expect(res.status).toBe(200);
     expect(res.headers.get("Content-Type")).toBe("text/event-stream");

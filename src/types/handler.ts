@@ -1,14 +1,18 @@
 import type { ServerRequest } from "srvx";
-import type { MaybePromise } from "./_utils.ts";
-import type { H3Event } from "./event.ts";
 import type { TypedRequest, TypedResponse, ResponseHeaderMap } from "fetchdts";
+import type { H3Event } from "../event.ts";
+import type { MaybePromise } from "./_utils.ts";
+import type { H3RouteMeta } from "./h3.ts";
 
 //  --- event handler ---
 
-export type EventHandler<
+export interface EventHandler<
   _RequestT extends EventHandlerRequest = EventHandlerRequest,
   _ResponseT extends EventHandlerResponse = EventHandlerResponse,
-> = (event: H3Event<_RequestT>) => _ResponseT;
+> {
+  (event: H3Event<_RequestT>): _ResponseT;
+  meta?: H3RouteMeta;
+}
 
 export type EventHandlerFetch<T extends Response | TypedResponse = Response> = (
   req: ServerRequest | URL | string,
@@ -21,6 +25,7 @@ export interface EventHandlerObject<
 > {
   handler: EventHandler<_RequestT, _ResponseT>;
   middleware?: Middleware[];
+  meta?: H3RouteMeta;
 }
 
 export interface EventHandlerRequest {
@@ -42,7 +47,10 @@ export type TypedServerRequest<
   _RequestT extends EventHandlerRequest = EventHandlerRequest,
 > = Omit<ServerRequest, "json" | "headers" | "clone"> &
   Pick<
-    TypedRequest<NonNullable<_RequestT["body"]>, Record<string, string>>,
+    TypedRequest<
+      NonNullable<_RequestT["body"]>,
+      Record<keyof ResponseHeaderMap, string>
+    >,
     "json" | "headers" | "clone"
   >;
 
