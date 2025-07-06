@@ -1,5 +1,9 @@
 import { type ErrorDetails, HTTPError } from "../error.ts";
-import { type ValidateError, validateData } from "./internal/validate.ts";
+import {
+  type ValidateIssues,
+  type ValidateError,
+  validateData,
+} from "./internal/validate.ts";
 import { parseURLEncodedBody } from "./internal/body.ts";
 
 import type { H3Event } from "../event.ts";
@@ -52,7 +56,11 @@ export async function readBody<
 export async function readValidatedBody<
   Event extends H3Event,
   S extends StandardSchemaV1,
->(event: Event, validate: S, error?: ValidateError): Promise<InferOutput<S>>;
+>(
+  event: Event,
+  validate: S,
+  options?: { onError?: (issues: ValidateIssues) => ErrorDetails },
+): Promise<InferOutput<S>>;
 export async function readValidatedBody<
   Event extends H3Event,
   OutputT,
@@ -62,7 +70,9 @@ export async function readValidatedBody<
   validate: (
     data: InputT,
   ) => ValidateResult<OutputT> | Promise<ValidateResult<OutputT>>,
-  error?: ErrorDetails | (() => ErrorDetails),
+  options?: {
+    onError?: () => ErrorDetails;
+  },
 ): Promise<OutputT>;
 /**
  * Tries to read the request body via `readBody`, then uses the provided validation schema or function and either throws a validation error or returns the result.
@@ -95,16 +105,18 @@ export async function readValidatedBody<
  *       name: v.pipe(v.string(), v.minLength(3), v.maxLength(20)),
  *       age: v.pipe(v.number(), v.integer(), v.minValue(1)),
  *     }),
- *     (issues) => ({
- *       statusText: "Custom validation error",
- *       message: v.summarize(issues),
- *     }),
+ *     {
+ *       onError: (issues) => ({
+ *         statusText: "Custom validation error",
+ *         message: v.summarize(issues),
+ *       }),
+ *     },
  *   );
  * });
  *
  * @param event The H3Event passed by the handler.
  * @param validate The function to use for body validation. It will be called passing the read request body. If the result is not false, the parsed body will be returned.
- * @param error Optional error details or a function that returns error details if validation fails. If not provided, a default error will be thrown.
+ * @param options Optional options. If provided, the `onError` function will be called with the validation issues if validation fails.
  * @throws If the validation function returns `false` or throws, a validation error will be thrown.
  * @return {*} The `Object`, `Array`, `String`, `Number`, `Boolean`, or `null` value corresponding to the request JSON body.
  * @see {readBody}
@@ -112,8 +124,10 @@ export async function readValidatedBody<
 export async function readValidatedBody(
   event: H3Event,
   validate: any,
-  error?: ValidateError,
+  options?: {
+    onError?: ValidateError;
+  },
 ): Promise<any> {
   const _body = await readBody(event);
-  return validateData(_body, validate, error);
+  return validateData(_body, validate, options);
 }

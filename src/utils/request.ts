@@ -1,5 +1,9 @@
 import { type ErrorDetails, HTTPError } from "../error.ts";
-import { type ValidateError, validateData } from "./internal/validate.ts";
+import {
+  type ValidateIssues,
+  type ValidateError,
+  validateData,
+} from "./internal/validate.ts";
 import { parseQuery } from "./internal/query.ts";
 
 import type {
@@ -30,7 +34,11 @@ export function getQuery<
 export function getValidatedQuery<
   Event extends H3Event,
   S extends StandardSchemaV1<any, any>,
->(event: Event, validate: S, error?: ValidateError): Promise<InferOutput<S>>;
+>(
+  event: Event,
+  validate: S,
+  options?: { onError?: (issues: ValidateIssues) => ErrorDetails },
+): Promise<InferOutput<S>>;
 export function getValidatedQuery<
   Event extends H3Event,
   OutputT,
@@ -40,7 +48,9 @@ export function getValidatedQuery<
   validate: (
     data: InputT,
   ) => ValidateResult<OutputT> | Promise<ValidateResult<OutputT>>,
-  error?: ErrorDetails | (() => ErrorDetails),
+  options?: {
+    onError?: () => ErrorDetails;
+  },
 ): Promise<OutputT>;
 /**
  * Get the query param from the request URL validated with validate function.
@@ -73,20 +83,31 @@ export function getValidatedQuery<
  *     v.object({
  *       key: v.string(),
  *     }),
- *     (issues) => ({
- *       statusText: "Custom validation error",
- *       message: v.summarize(issues),
- *     })
+ *     {
+ *       onError: (issues) => ({
+ *         statusText: "Custom validation error",
+ *         message: v.summarize(issues),
+ *       }),
+ *     },
  *   );
  * });
+ *
+ * @param event The H3Event passed by the handler.
+ * @param validate The function to use for query validation. It will be called passing the read request query. If the result is not false, the parsed query will be returned.
+ * @param options Optional options. If provided, the `onError` function will be called with the validation issues if validation fails.
+ * @throws If the validation function returns `false` or throws, a validation error will be thrown.
+ * @return {*} The `Object`, `Array`, `String`, `Number`, `Boolean`, or `null` value corresponding to the request query.
+ * @see {getQuery}
  */
 export function getValidatedQuery(
   event: H3Event,
   validate: any,
-  error?: ValidateError | (() => ErrorDetails),
+  options?: {
+    onError?: ValidateError;
+  },
 ): Promise<any> {
   const query = getQuery(event);
-  return validateData(query, validate, error);
+  return validateData(query, validate, options);
 }
 
 /**
@@ -120,8 +141,10 @@ export function getValidatedRouterParams<
 >(
   event: Event,
   validate: S,
-  opts?: { decode?: boolean },
-  error?: ValidateError,
+  options?: {
+    decode?: boolean;
+    onError?: (issues: ValidateIssues) => ErrorDetails;
+  },
 ): Promise<InferOutput<S>>;
 export function getValidatedRouterParams<
   Event extends H3Event,
@@ -132,8 +155,10 @@ export function getValidatedRouterParams<
   validate: (
     data: InputT,
   ) => ValidateResult<OutputT> | Promise<ValidateResult<OutputT>>,
-  opts?: { decode?: boolean },
-  error?: ErrorDetails | (() => ErrorDetails),
+  options?: {
+    decode?: boolean;
+    onError?: () => ErrorDetails;
+  },
 ): Promise<OutputT>;
 /**
  * Get matched route params and validate with validate function.
@@ -168,22 +193,34 @@ export function getValidatedRouterParams<
  *     v.object({
  *       key: v.pipe(v.string(), v.picklist(["route-1", "route-2", "route-3"])),
  *     }),
- *     { decode: true },
- *     (issues) => ({
- *       statusText: "Custom validation error",
- *       message: v.summarize(issues),
- *     })
+ *     {
+ *       decode: true,
+ *       onError: (issues) => ({
+ *         statusText: "Custom validation error",
+ *         message: v.summarize(issues),
+ *       }),
+ *     },
  *   );
  * });
+ *
+ * @param event The H3Event passed by the handler.
+ * @param validate The function to use for router params validation. It will be called passing the read request router params. If the result is not false, the parsed router params will be returned.
+ * @param options Optional options. If provided, the `onError` function will be called with the validation issues if validation fails.
+ * @throws If the validation function returns `false` or throws, a validation error will be thrown.
+ * @return {*} The `Object`, `Array`, `String`, `Number`, `Boolean`, or `null` value corresponding to the request router params.
+ * @see {getRouterParams}
  */
 export function getValidatedRouterParams(
   event: H3Event,
   validate: any,
-  opts: { decode?: boolean } = {},
-  error?: ValidateError | (() => ErrorDetails),
+  options: {
+    decode?: boolean;
+    onError?: ValidateError;
+  } = {},
 ): Promise<any> {
-  const routerParams = getRouterParams(event, opts);
-  return validateData(routerParams, validate, error);
+  const { decode, ...opts } = options;
+  const routerParams = getRouterParams(event, { decode });
+  return validateData(routerParams, validate, opts);
 }
 
 /**

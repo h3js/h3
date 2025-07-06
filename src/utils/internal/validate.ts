@@ -18,7 +18,7 @@ export type ValidateFunction<
 
 export type ValidateIssues = ReadonlyArray<Issue>;
 export type ValidateError =
-  | ErrorDetails
+  | (() => ErrorDetails)
   | ((issues: ValidateIssues) => ErrorDetails);
 
 /**
@@ -33,30 +33,33 @@ export type ValidateError =
 export async function validateData<Schema extends StandardSchemaV1>(
   data: unknown,
   fn: Schema,
-  error?: ValidateError,
+  options?: {
+    onError?: (issues: ValidateIssues) => ErrorDetails;
+  },
 ): Promise<InferOutput<Schema>>;
 export async function validateData<T>(
   data: unknown,
   fn: (data: unknown) => ValidateResult<T> | Promise<ValidateResult<T>>,
-  error?: ErrorDetails | (() => ErrorDetails),
+  options?: {
+    onError?: () => ErrorDetails;
+  },
 ): Promise<T>;
 export async function validateData<T>(
   data: unknown,
   fn: ValidateFunction<T>,
-  error?: ValidateError | (() => ErrorDetails),
+  options?: {
+    onError?: ValidateError;
+  },
 ): Promise<T> {
   if ("~standard" in fn) {
     const result = await fn["~standard"].validate(data);
     if (result.issues) {
-      const errorDetails =
-        typeof error === "function"
-          ? error(result.issues)
-          : error || {
-              message: "Validation failed",
-              // eslint-disable-next-line unicorn/no-useless-fallback-in-spread
-              ...(error || {}),
-              issues: result.issues,
-            };
+      const errorDetails = options?.onError
+        ? options.onError(result.issues)
+        : {
+            message: "Validation failed",
+            issues: result.issues,
+          };
 
       throw createValidationError(errorDetails);
     }
@@ -66,14 +69,11 @@ export async function validateData<T>(
   try {
     const res = await fn(data);
     if (res === false) {
-      const errorDetails =
-        typeof error === "function"
-          ? (error as () => ErrorDetails)()
-          : error || {
-              message: "Validation failed",
-              // eslint-disable-next-line unicorn/no-useless-fallback-in-spread
-              ...(error || {}),
-            };
+      const errorDetails = options?.onError
+        ? (options.onError as () => ErrorDetails)()
+        : {
+            message: "Validation failed",
+          };
 
       throw createValidationError(errorDetails);
     }
@@ -96,9 +96,9 @@ export function validatedRequest<
   req: ServerRequest,
   validators: {
     body?: RequestBody;
-    bodyErrors?: ValidateError;
+    bodyErrors?: (issues: ValidateIssues) => ErrorDetails;
     headers?: RequestHeaders;
-    headersErrors?: ValidateError;
+    headersErrors?: (issues: ValidateIssues) => ErrorDetails;
   },
 ): ServerRequest {
   // Validate Headers
@@ -129,13 +129,12 @@ export function validatedRequest<
               .then((data) => validators.body!["~standard"].validate(data))
               .then((result) => {
                 if (result.issues) {
-                  const errorDetails =
-                    typeof validators.bodyErrors === "function"
-                      ? validators.bodyErrors(result.issues)
-                      : validators.bodyErrors || {
-                          message: "Validation failed",
-                          issues: result.issues,
-                        };
+                  const errorDetails = validators.bodyErrors
+                    ? validators.bodyErrors(result.issues)
+                    : {
+                        message: "Validation failed",
+                        issues: result.issues,
+                      };
 
                   throw createValidationError(errorDetails);
                 }
@@ -157,7 +156,7 @@ export function validatedURL(
   url: URL,
   validators: {
     query?: StandardSchemaV1;
-    queryErrors?: ValidateError;
+    queryErrors?: (issues: ValidateIssues) => ErrorDetails;
   },
 ): URL {
   if (!validators.query) {
@@ -182,20 +181,19 @@ function syncValidate<T = unknown>(
   type: string,
   data: unknown,
   fn: StandardSchemaV1<T>,
-  error?: ValidateError,
+  error?: (issues: ValidateIssues) => ErrorDetails,
 ): T {
   const result = fn["~standard"].validate(data);
   if (result instanceof Promise) {
     throw new TypeError(`Asynchronous validation is not supported for ${type}`);
   }
   if (result.issues) {
-    const errorDetails =
-      typeof error === "function"
-        ? error(result.issues)
-        : error || {
-            message: "Validation failed",
-            issues: result.issues,
-          };
+    const errorDetails = error
+      ? error(result.issues)
+      : {
+          message: "Validation failed",
+          issues: result.issues,
+        };
 
     throw createValidationError(errorDetails);
   }
