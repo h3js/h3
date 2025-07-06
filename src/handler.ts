@@ -68,11 +68,11 @@ export function defineValidatedHandler<
       body?: RequestBody;
       headers?: RequestHeaders;
       query?: RequestQuery;
+      onError?: (
+        issues: ValidateIssues,
+        source: "headers" | "body" | "query",
+      ) => ErrorDetails;
     };
-    onValidationError?: (
-      issues: ValidateIssues,
-      source: "headers" | "body" | "query",
-    ) => ErrorDetails;
     handler: EventHandler<
       {
         body: InferOutput<RequestBody>;

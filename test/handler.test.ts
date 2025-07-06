@@ -103,22 +103,24 @@ describe("handler.ts", () => {
       },
     });
     const handlerCustomError = defineValidatedHandler({
-      body: z.object({
-        name: z.string(),
-        age: z.number().optional().default(20),
-      }),
-      headers: z.object({
-        "x-token": z.string("Missing required header"),
-      }),
-      query: z.object({
-        id: z.string().min(3),
-      }),
-      onValidationError: (issues, source) => {
-        return {
-          status: 500,
-          statusText: `Custom Zod ${source} validation error`,
-          message: summarize(issues),
-        };
+      validate: {
+        body: z.object({
+          name: z.string(),
+          age: z.number().optional().default(20),
+        }),
+        headers: z.object({
+          "x-token": z.string("Missing required header"),
+        }),
+        query: z.object({
+          id: z.string().min(3),
+        }),
+        onError: (issues, source) => {
+          return {
+            status: 500,
+            statusText: `Custom Zod ${source} validation error`,
+            message: summarize(issues),
+          };
+        },
       },
       handler: async (event) => {
         return {

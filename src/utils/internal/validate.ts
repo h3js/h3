@@ -97,7 +97,7 @@ export function validatedRequest<
   validate: {
     body?: RequestBody;
     headers?: RequestHeaders;
-    onValidationError?: (
+    onError?: (
       issues: ValidateIssues,
       source: "headers" | "body",
     ) => ErrorDetails;
@@ -109,7 +109,7 @@ export function validatedRequest<
       "headers",
       Object.fromEntries(req.headers.entries()),
       validate.headers as StandardSchemaV1<Record<string, string>>,
-      validators.onValidationError,
+      validate.onError,
     );
     for (const [key, value] of Object.entries(validatedheaders)) {
       req.headers.set(key, value);
@@ -129,10 +129,10 @@ export function validatedRequest<
             req
               .json()
               .then((data) => validate.body!["~standard"].validate(data))
-              .then((result) =>
+              .then((result) => {
                 if (result.issues) {
-                  const errorDetails = validators.onValidationError
-                    ? validators.onValidationError(result.issues, "body")
+                  const errorDetails = validate.onError
+                    ? validate.onError(result.issues, "body")
                     : {
                         message: "Validation failed",
                         issues: result.issues,
@@ -142,7 +142,7 @@ export function validatedRequest<
                 }
 
                 return result.value;
-              );
+              });
         } else if (reqBodyKeys.has(prop)) {
           throw new TypeError(
             `Cannot access .${prop} on request with JSON validation enabled. Use .json() instead.`,
@@ -158,10 +158,7 @@ export function validatedURL(
   url: URL,
   validate: {
     query?: StandardSchemaV1;
-    onValidationError?: (
-      issues: ValidateIssues,
-      source: "query",
-    ) => ErrorDetails;
+    onError?: (issues: ValidateIssues, source: "query") => ErrorDetails;
   },
 ): URL {
   if (!validate.query) {
@@ -172,7 +169,7 @@ export function validatedURL(
     "query",
     Object.fromEntries(url.searchParams.entries()),
     validate.query as StandardSchemaV1<Record<string, string>>,
-    validators.onValidationError,
+    validate.onError,
   );
 
   for (const [key, value] of Object.entries(validatedQuery)) {
@@ -186,15 +183,15 @@ function syncValidate<Source extends "headers" | "query", T = unknown>(
   type: Source,
   data: unknown,
   fn: StandardSchemaV1<T>,
-  error?: (issues: ValidateIssues, source: Source) => ErrorDetails,
+  onError?: (issues: ValidateIssues, source: Source) => ErrorDetails,
 ): T {
   const result = fn["~standard"].validate(data);
   if (result instanceof Promise) {
     throw new TypeError(`Asynchronous validation is not supported for ${type}`);
   }
   if (result.issues) {
-    const errorDetails = error
-      ? error(result.issues, type)
+    const errorDetails = onError
+      ? onError(result.issues, type)
       : {
           message: "Validation failed",
           issues: result.issues,
