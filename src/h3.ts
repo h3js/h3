@@ -81,6 +81,9 @@ export const H3Core = /* @__PURE__ */ (() => {
       return toResponse(handlerRes, event, this.config);
     }
 
+    /**
+     * Immediately register an H3 plugin.
+     */
     register(plugin: H3Plugin): H3Type {
       plugin(this as unknown as H3Type);
       return this as unknown as H3Type;

@@ -94,7 +94,7 @@ export function validatedRequest<
   RequestHeaders extends StandardSchemaV1,
 >(
   req: ServerRequest,
-  validators: {
+  validate: {
     body?: RequestBody;
     headers?: RequestHeaders;
     onValidationError?: (
@@ -104,11 +104,11 @@ export function validatedRequest<
   },
 ): ServerRequest {
   // Validate Headers
-  if (validators.headers) {
+  if (validate.headers) {
     const validatedheaders = syncValidate(
       "headers",
       Object.fromEntries(req.headers.entries()),
-      validators.headers as StandardSchemaV1<Record<string, string>>,
+      validate.headers as StandardSchemaV1<Record<string, string>>,
       validators.onValidationError,
     );
     for (const [key, value] of Object.entries(validatedheaders)) {
@@ -116,20 +116,20 @@ export function validatedRequest<
     }
   }
 
-  if (!validators.body) {
+  if (!validate.body) {
     return req;
   }
 
   // Create proxy for lazy body validation
   return new Proxy(req, {
     get(_target, prop: keyof ServerRequest) {
-      if (validators.body) {
+      if (validate.body) {
         if (prop === "json") {
           return () =>
             req
               .json()
-              .then((data) => validators.body!["~standard"].validate(data))
-              .then((result) => {
+              .then((data) => validate.body!["~standard"].validate(data))
+              .then((result) =>
                 if (result.issues) {
                   const errorDetails = validators.onValidationError
                     ? validators.onValidationError(result.issues, "body")
@@ -142,7 +142,7 @@ export function validatedRequest<
                 }
 
                 return result.value;
-              });
+              );
         } else if (reqBodyKeys.has(prop)) {
           throw new TypeError(
             `Cannot access .${prop} on request with JSON validation enabled. Use .json() instead.`,
@@ -156,7 +156,7 @@ export function validatedRequest<
 
 export function validatedURL(
   url: URL,
-  validators: {
+  validate: {
     query?: StandardSchemaV1;
     onValidationError?: (
       issues: ValidateIssues,
@@ -164,14 +164,14 @@ export function validatedURL(
     ) => ErrorDetails;
   },
 ): URL {
-  if (!validators.query) {
+  if (!validate.query) {
     return url;
   }
 
   const validatedQuery = syncValidate(
     "query",
     Object.fromEntries(url.searchParams.entries()),
-    validators.query as StandardSchemaV1<Record<string, string>>,
+    validate.query as StandardSchemaV1<Record<string, string>>,
     validators.onValidationError,
   );
 
