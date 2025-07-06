@@ -63,7 +63,6 @@ export interface RouteDefinition {
  */
 export function defineRoute(def: RouteDefinition): H3Plugin {
   const handler = defineValidatedHandler(def) as any;
-  handler.meta = def.meta;
   return (h3: H3) => {
     h3.on(def.method, def.route, handler);
   };
