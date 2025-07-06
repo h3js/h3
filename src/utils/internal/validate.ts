@@ -65,36 +65,36 @@ export function validatedRequest<
   RequestHeaders extends StandardSchemaV1,
 >(
   req: ServerRequest,
-  validators: {
+  validate: {
     body?: RequestBody;
     headers?: RequestHeaders;
   },
 ): ServerRequest {
   // Validate Headers
-  if (validators.headers) {
+  if (validate.headers) {
     const validatedheaders = syncValidate(
       "headers",
       Object.fromEntries(req.headers.entries()),
-      validators.headers as StandardSchemaV1<Record<string, string>>,
+      validate.headers as StandardSchemaV1<Record<string, string>>,
     );
     for (const [key, value] of Object.entries(validatedheaders)) {
       req.headers.set(key, value);
     }
   }
 
-  if (!validators.body) {
+  if (!validate.body) {
     return req;
   }
 
   // Create proxy for lazy body validation
   return new Proxy(req, {
     get(_target, prop: keyof ServerRequest) {
-      if (validators.body) {
+      if (validate.body) {
         if (prop === "json") {
           return () =>
             req
               .json()
-              .then((data) => validators.body!["~standard"].validate(data))
+              .then((data) => validate.body!["~standard"].validate(data))
               .then((result) =>
                 result.issues
                   ? Promise.reject(createValidationError(result))
@@ -113,18 +113,18 @@ export function validatedRequest<
 
 export function validatedURL(
   url: URL,
-  validators: {
+  validate: {
     query?: StandardSchemaV1;
   },
 ): URL {
-  if (!validators.query) {
+  if (!validate.query) {
     return url;
   }
 
   const validatedQuery = syncValidate(
     "query",
     Object.fromEntries(url.searchParams.entries()),
-    validators.query as StandardSchemaV1<Record<string, string>>,
+    validate.query as StandardSchemaV1<Record<string, string>>,
   );
 
   for (const [key, value] of Object.entries(validatedQuery)) {

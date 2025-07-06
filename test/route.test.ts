@@ -62,7 +62,9 @@ describe("defineRoute", () => {
     const routePlugin = defineRoute({
       method: "POST",
       route: "/users",
-      query: z.object({ id: z.string().uuid() }),
+      validate: {
+        query: z.object({ id: z.string().uuid() }),
+      },
       handler: () => "user created",
     });
     app.register(routePlugin);

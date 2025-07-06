@@ -59,15 +59,17 @@ describe("types", () => {
 
     it("typed via validated event handler", () => {
       defineValidatedHandler({
-        body: z.object({
-          id: z.string(),
-        }),
-        headers: z.object({
-          "x-thing": z.string(),
-        }),
-        query: z.object({
-          search: z.string().optional(),
-        }),
+        validate: {
+          body: z.object({
+            id: z.string(),
+          }),
+          headers: z.object({
+            "x-thing": z.string(),
+          }),
+          query: z.object({
+            search: z.string().optional(),
+          }),
+        },
         async handler(event) {
           const query = getQuery(event);
           expectTypeOf(query.search).not.toBeAny();

@@ -34,11 +34,12 @@ export interface RouteDefinition {
   meta?: Record<string, unknown>;
 
   // Validation schemas
-  // TODO: Support response and router params validation in defineValidatedHandler
-  // TODO: (breaking change) use `validate` namespace
-  body?: StandardSchemaV1;
-  headers?: StandardSchemaV1;
-  query?: StandardSchemaV1;
+  // TODO: Support generics for better typing `handler` input
+  validate?: {
+    body?: StandardSchemaV1;
+    headers?: StandardSchemaV1;
+    query?: StandardSchemaV1;
+  };
 }
 
 /**
@@ -50,9 +51,10 @@ export interface RouteDefinition {
  *
  * const userRoute = defineRoute({
  *    method: 'POST',
- *    route: '/api/users/:id',
- *    query: z.object({ id: z.string().uuid() }),
- *    body: z.object({ name: z.string() }),
+ *    validate: {
+ *      query: z.object({ id: z.string().uuid() }),
+ *      body: z.object({ name: z.string() }),
+ *    },
  *    handler: (event) => {
  *      return { success: true };
  *    }

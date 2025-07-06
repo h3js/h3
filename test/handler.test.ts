@@ -82,16 +82,18 @@ describe("handler.ts", () => {
 
   describe("defineValidatedHandler", () => {
     const handler = defineValidatedHandler({
-      body: z.object({
-        name: z.string(),
-        age: z.number().optional().default(20),
-      }),
-      headers: z.object({
-        "x-token": z.string(),
-      }),
-      query: z.object({
-        id: z.string().min(3),
-      }),
+      validate: {
+        body: z.object({
+          name: z.string(),
+          age: z.number().optional().default(20),
+        }),
+        headers: z.object({
+          "x-token": z.string(),
+        }),
+        query: z.object({
+          id: z.string().min(3),
+        }),
+      },
       handler: async (event) => {
         return {
           body: await event.req.json(),

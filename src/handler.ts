@@ -59,9 +59,11 @@ export function defineValidatedHandler<
   Res extends EventHandlerResponse = EventHandlerResponse,
 >(
   def: Omit<EventHandlerObject, "handler"> & {
-    body?: RequestBody;
-    headers?: RequestHeaders;
-    query?: RequestQuery;
+    validate?: {
+      body?: RequestBody;
+      headers?: RequestHeaders;
+      query?: RequestQuery;
+    };
     handler: EventHandler<
       {
         body: InferOutput<RequestBody>;
@@ -74,11 +76,20 @@ export function defineValidatedHandler<
   TypedRequest<InferOutput<RequestBody>, InferOutput<RequestHeaders>>,
   Res
 > {
+  if (!def.validate) {
+    return defineHandler(def) as any;
+  }
   return defineHandler({
     ...def,
     handler: (event) => {
-      (event as any) /* readonly */.req = validatedRequest(event.req, def);
-      (event as any) /* readonly */.url = validatedURL(event.url, def);
+      (event as any) /* readonly */.req = validatedRequest(
+        event.req,
+        def.validate!,
+      );
+      (event as any) /* readonly */.url = validatedURL(
+        event.url,
+        def.validate!,
+      );
       return def.handler(event as any);
     },
   }) as any;
