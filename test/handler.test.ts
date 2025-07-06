@@ -114,7 +114,7 @@ describe("handler.ts", () => {
         query: z.object({
           id: z.string().min(3),
         }),
-        onError: (issues, source) => {
+        onError: ({ issues }, source) => {
           return {
             status: 500,
             statusText: `Custom Zod ${source} validation error`,

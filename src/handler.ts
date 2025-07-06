@@ -13,16 +13,13 @@ import type {
   EventHandlerWithFetch,
 } from "./types/handler.ts";
 import type {
-  InferOutput,
   StandardSchemaV1,
+  FailureResult,
+  InferOutput,
 } from "./utils/internal/standard-schema.ts";
 import type { TypedRequest } from "fetchdts";
 import type { ErrorDetails } from "./error.ts";
-import {
-  type ValidateIssues,
-  validatedRequest,
-  validatedURL,
-} from "./utils/internal/validate.ts";
+import { validatedRequest, validatedURL } from "./utils/internal/validate.ts";
 
 // --- event handler ---
 
@@ -69,7 +66,7 @@ export function defineValidatedHandler<
       headers?: RequestHeaders;
       query?: RequestQuery;
       onError?: (
-        issues: ValidateIssues,
+        result: FailureResult,
         source: "headers" | "body" | "query",
       ) => ErrorDetails;
     };

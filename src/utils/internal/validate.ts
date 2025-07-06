@@ -3,6 +3,7 @@ import { type ErrorDetails, HTTPError } from "../../error.ts";
 import type { ServerRequest } from "srvx";
 import type {
   StandardSchemaV1,
+  FailureResult,
   InferOutput,
   Issue,
 } from "./standard-schema.ts";
@@ -19,7 +20,7 @@ export type ValidateFunction<
 export type ValidateIssues = ReadonlyArray<Issue>;
 export type ValidateError =
   | (() => ErrorDetails)
-  | ((issues: ValidateIssues) => ErrorDetails);
+  | ((result: FailureResult) => ErrorDetails);
 
 /**
  * Validates the given data using the provided validation function.
@@ -34,7 +35,7 @@ export async function validateData<Schema extends StandardSchemaV1>(
   data: unknown,
   fn: Schema,
   options?: {
-    onError?: (issues: ValidateIssues) => ErrorDetails;
+    onError?: (result: FailureResult) => ErrorDetails;
   },
 ): Promise<InferOutput<Schema>>;
 export async function validateData<T>(
@@ -55,7 +56,7 @@ export async function validateData<T>(
     const result = await fn["~standard"].validate(data);
     if (result.issues) {
       const errorDetails = options?.onError
-        ? options.onError(result.issues)
+        ? options.onError(result)
         : {
             message: "Validation failed",
             issues: result.issues,
@@ -98,7 +99,7 @@ export function validatedRequest<
     body?: RequestBody;
     headers?: RequestHeaders;
     onError?: (
-      issues: ValidateIssues,
+      result: FailureResult,
       source: "headers" | "body",
     ) => ErrorDetails;
   },
@@ -132,7 +133,7 @@ export function validatedRequest<
               .then((result) => {
                 if (result.issues) {
                   const errorDetails = validate.onError
-                    ? validate.onError(result.issues, "body")
+                    ? validate.onError(result, "body")
                     : {
                         message: "Validation failed",
                         issues: result.issues,
@@ -158,7 +159,7 @@ export function validatedURL(
   url: URL,
   validate: {
     query?: StandardSchemaV1;
-    onError?: (issues: ValidateIssues, source: "query") => ErrorDetails;
+    onError?: (result: FailureResult, source: "query") => ErrorDetails;
   },
 ): URL {
   if (!validate.query) {
@@ -183,7 +184,7 @@ function syncValidate<Source extends "headers" | "query", T = unknown>(
   type: Source,
   data: unknown,
   fn: StandardSchemaV1<T>,
-  onError?: (issues: ValidateIssues, source: Source) => ErrorDetails,
+  onError?: (result: FailureResult, source: Source) => ErrorDetails,
 ): T {
   const result = fn["~standard"].validate(data);
   if (result instanceof Promise) {
@@ -191,7 +192,7 @@ function syncValidate<Source extends "headers" | "query", T = unknown>(
   }
   if (result.issues) {
     const errorDetails = onError
-      ? onError(result.issues, type)
+      ? onError(result, type)
       : {
           message: "Validation failed",
           issues: result.issues,

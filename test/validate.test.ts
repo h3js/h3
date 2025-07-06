@@ -74,7 +74,7 @@ describeMatrix("validate", (t, { it, describe, expect }) => {
 
       t.app.post("/custom-error-zod", async (event) => {
         const data = await readValidatedBody(event, zodValidate, {
-          onError: (issues) => ({
+          onError: ({ issues }) => ({
             status: 500,
             statusText: "Custom Zod validation error",
             message: summarize(issues),
@@ -226,7 +226,7 @@ describeMatrix("validate", (t, { it, describe, expect }) => {
 
       t.app.get("/custom-error-zod", async (event) => {
         const data = await getValidatedQuery(event, zodValidate, {
-          onError: (issues) => ({
+          onError: ({ issues }) => ({
             status: 500,
             statusText: "Custom Zod validation error",
             message: summarize(issues),
@@ -335,7 +335,7 @@ describeMatrix("validate", (t, { it, describe, expect }) => {
 
       t.app.get("/custom-error-zod/:id", async (event) => {
         const data = await getValidatedRouterParams(event, zodParamValidate, {
-          onError: (issues) => ({
+          onError: ({ issues }) => ({
             status: 500,
             statusText: "Custom Zod validation error",
             message: summarize(issues),

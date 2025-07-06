@@ -1,9 +1,5 @@
 import { type ErrorDetails, HTTPError } from "../error.ts";
-import {
-  type ValidateIssues,
-  type ValidateError,
-  validateData,
-} from "./internal/validate.ts";
+import { type ValidateError, validateData } from "./internal/validate.ts";
 import { parseURLEncodedBody } from "./internal/body.ts";
 
 import type { H3Event } from "../event.ts";
@@ -11,6 +7,7 @@ import type { InferEventInput } from "../types/handler.ts";
 import type { ValidateResult } from "./internal/validate.ts";
 import type {
   StandardSchemaV1,
+  FailureResult,
   InferOutput,
 } from "./internal/standard-schema.ts";
 
@@ -59,7 +56,7 @@ export async function readValidatedBody<
 >(
   event: Event,
   validate: S,
-  options?: { onError?: (issues: ValidateIssues) => ErrorDetails },
+  options?: { onError?: (result: FailureResult) => ErrorDetails },
 ): Promise<InferOutput<S>>;
 export async function readValidatedBody<
   Event extends H3Event,

@@ -1,13 +1,10 @@
 import { type ErrorDetails, HTTPError } from "../error.ts";
-import {
-  type ValidateIssues,
-  type ValidateError,
-  validateData,
-} from "./internal/validate.ts";
+import { type ValidateError, validateData } from "./internal/validate.ts";
 import { parseQuery } from "./internal/query.ts";
 
 import type {
   StandardSchemaV1,
+  FailureResult,
   InferOutput,
 } from "./internal/standard-schema.ts";
 import type { ValidateResult } from "./internal/validate.ts";
@@ -37,7 +34,7 @@ export function getValidatedQuery<
 >(
   event: Event,
   validate: S,
-  options?: { onError?: (issues: ValidateIssues) => ErrorDetails },
+  options?: { onError?: (result: FailureResult) => ErrorDetails },
 ): Promise<InferOutput<S>>;
 export function getValidatedQuery<
   Event extends H3Event,
@@ -143,7 +140,7 @@ export function getValidatedRouterParams<
   validate: S,
   options?: {
     decode?: boolean;
-    onError?: (issues: ValidateIssues) => ErrorDetails;
+    onError?: (result: FailureResult) => ErrorDetails;
   },
 ): Promise<InferOutput<S>>;
 export function getValidatedRouterParams<
