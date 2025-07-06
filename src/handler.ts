@@ -18,8 +18,9 @@ import type {
   StandardSchemaV1,
 } from "./utils/internal/standard-schema.ts";
 import type { TypedRequest } from "fetchdts";
+import type { ErrorDetails } from "./error.ts";
 import {
-  type ValidateError,
+  type ValidateIssues,
   validatedRequest,
   validatedURL,
 } from "./utils/internal/validate.ts";
@@ -65,11 +66,13 @@ export function defineValidatedHandler<
 >(def: {
   middleware?: Middleware[];
   body?: RequestBody;
-  bodyErrors?: ValidateError;
   headers?: RequestHeaders;
-  headersErrors?: ValidateError;
   query?: RequestQuery;
-  queryErrors?: ValidateError;
+  validationErrors?: {
+    body?: (issues: ValidateIssues) => ErrorDetails;
+    headers?: (issues: ValidateIssues) => ErrorDetails;
+    query?: (issues: ValidateIssues) => ErrorDetails;
+  };
   handler: EventHandler<
     {
       body: InferOutput<RequestBody>;

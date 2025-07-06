@@ -96,9 +96,12 @@ export function validatedRequest<
   req: ServerRequest,
   validators: {
     body?: RequestBody;
-    bodyErrors?: (issues: ValidateIssues) => ErrorDetails;
     headers?: RequestHeaders;
-    headersErrors?: (issues: ValidateIssues) => ErrorDetails;
+    validationErrors?: {
+      body?: (issues: ValidateIssues) => ErrorDetails;
+      headers?: (issues: ValidateIssues) => ErrorDetails;
+      query?: (issues: ValidateIssues) => ErrorDetails;
+    };
   },
 ): ServerRequest {
   // Validate Headers
@@ -107,7 +110,7 @@ export function validatedRequest<
       "headers",
       Object.fromEntries(req.headers.entries()),
       validators.headers as StandardSchemaV1<Record<string, string>>,
-      validators.headersErrors,
+      validators.validationErrors?.headers,
     );
     for (const [key, value] of Object.entries(validatedheaders)) {
       req.headers.set(key, value);
@@ -129,8 +132,8 @@ export function validatedRequest<
               .then((data) => validators.body!["~standard"].validate(data))
               .then((result) => {
                 if (result.issues) {
-                  const errorDetails = validators.bodyErrors
-                    ? validators.bodyErrors(result.issues)
+                  const errorDetails = validators.validationErrors?.body
+                    ? validators.validationErrors.body(result.issues)
                     : {
                         message: "Validation failed",
                         issues: result.issues,
@@ -156,7 +159,9 @@ export function validatedURL(
   url: URL,
   validators: {
     query?: StandardSchemaV1;
-    queryErrors?: (issues: ValidateIssues) => ErrorDetails;
+    validationErrors?: {
+      query?: (issues: ValidateIssues) => ErrorDetails;
+    };
   },
 ): URL {
   if (!validators.query) {
@@ -167,7 +172,7 @@ export function validatedURL(
     "query",
     Object.fromEntries(url.searchParams.entries()),
     validators.query as StandardSchemaV1<Record<string, string>>,
-    validators.queryErrors,
+    validators.validationErrors?.query,
   );
 
   for (const [key, value] of Object.entries(validatedQuery)) {

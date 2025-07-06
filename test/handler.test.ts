@@ -105,27 +105,29 @@ describe("handler.ts", () => {
         name: z.string(),
         age: z.number().optional().default(20),
       }),
-      bodyErrors: (issues) => ({
-        status: 500,
-        statusText: "Custom Zod body validation error",
-        message: summarize(issues),
-      }),
       headers: z.object({
         "x-token": z.string("Missing required header"),
-      }),
-      headersErrors: (issues) => ({
-        status: 500,
-        statusText: "Custom Zod headers validation error",
-        message: summarize(issues),
       }),
       query: z.object({
         id: z.string().min(3),
       }),
-      queryErrors: (issues) => ({
-        status: 500,
-        statusText: "Custom Zod query validation error",
-        message: summarize(issues),
-      }),
+      validationErrors: {
+        body: (issues) => ({
+          status: 500,
+          statusText: "Custom Zod body validation error",
+          message: summarize(issues),
+        }),
+        headers: (issues) => ({
+          status: 500,
+          statusText: "Custom Zod headers validation error",
+          message: summarize(issues),
+        }),
+        query: (issues) => ({
+          status: 500,
+          statusText: "Custom Zod query validation error",
+          message: summarize(issues),
+        }),
+      },
       handler: async (event) => {
         return {
           body: await event.req.json(),
