@@ -11,7 +11,6 @@ import type {
   EventHandlerResponse,
   DynamicEventHandler,
   EventHandlerWithFetch,
-  Middleware,
 } from "./types/handler.ts";
 import type {
   InferOutput,
