@@ -97,11 +97,10 @@ export function validatedRequest<
   validators: {
     body?: RequestBody;
     headers?: RequestHeaders;
-    validationErrors?: {
-      body?: (issues: ValidateIssues) => ErrorDetails;
-      headers?: (issues: ValidateIssues) => ErrorDetails;
-      query?: (issues: ValidateIssues) => ErrorDetails;
-    };
+    onValidationError?: (
+      issues: ValidateIssues,
+      source: "headers" | "body",
+    ) => ErrorDetails;
   },
 ): ServerRequest {
   // Validate Headers
@@ -110,7 +109,7 @@ export function validatedRequest<
       "headers",
       Object.fromEntries(req.headers.entries()),
       validators.headers as StandardSchemaV1<Record<string, string>>,
-      validators.validationErrors?.headers,
+      validators.onValidationError,
     );
     for (const [key, value] of Object.entries(validatedheaders)) {
       req.headers.set(key, value);
@@ -132,8 +131,8 @@ export function validatedRequest<
               .then((data) => validators.body!["~standard"].validate(data))
               .then((result) => {
                 if (result.issues) {
-                  const errorDetails = validators.validationErrors?.body
-                    ? validators.validationErrors.body(result.issues)
+                  const errorDetails = validators.onValidationError
+                    ? validators.onValidationError(result.issues, "body")
                     : {
                         message: "Validation failed",
                         issues: result.issues,
@@ -159,9 +158,10 @@ export function validatedURL(
   url: URL,
   validators: {
     query?: StandardSchemaV1;
-    validationErrors?: {
-      query?: (issues: ValidateIssues) => ErrorDetails;
-    };
+    onValidationError?: (
+      issues: ValidateIssues,
+      source: "query",
+    ) => ErrorDetails;
   },
 ): URL {
   if (!validators.query) {
@@ -172,7 +172,7 @@ export function validatedURL(
     "query",
     Object.fromEntries(url.searchParams.entries()),
     validators.query as StandardSchemaV1<Record<string, string>>,
-    validators.validationErrors?.query,
+    validators.onValidationError,
   );
 
   for (const [key, value] of Object.entries(validatedQuery)) {
@@ -182,11 +182,11 @@ export function validatedURL(
   return url;
 }
 
-function syncValidate<T = unknown>(
-  type: string,
+function syncValidate<Source extends "headers" | "query", T = unknown>(
+  type: Source,
   data: unknown,
   fn: StandardSchemaV1<T>,
-  error?: (issues: ValidateIssues) => ErrorDetails,
+  error?: (issues: ValidateIssues, source: Source) => ErrorDetails,
 ): T {
   const result = fn["~standard"].validate(data);
   if (result instanceof Promise) {
@@ -194,7 +194,7 @@ function syncValidate<T = unknown>(
   }
   if (result.issues) {
     const errorDetails = error
-      ? error(result.issues)
+      ? error(result.issues, type)
       : {
           message: "Validation failed",
           issues: result.issues,
