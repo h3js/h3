@@ -27,6 +27,7 @@ describe("h3 package", () => {
         "createEventStream",
         "createRouter",
         "defaultContentType",
+        "defineBodySizeLimitPlugin",
         "defineEventHandler",
         "defineHandler",
         "defineLazyEventHandler",
