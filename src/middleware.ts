@@ -15,7 +15,7 @@ export function normalizeMiddleware(
 ): Middleware {
   const matcher = createMatcher(opts);
   const hasMeta = opts.meta && Object.keys(opts.meta).length > 0;
-  
+
   if (
     !matcher &&
     !hasMeta &&
@@ -23,21 +23,21 @@ export function normalizeMiddleware(
   ) {
     return input; // Fast path: async or with explicit next() and no matcher filters
   }
-  
+
   return (event, next) => {
     if (matcher && !matcher(event)) {
       return next();
     }
-    
+
     // Add meta to event context if provided
     if (hasMeta) {
       event.context.matchedMiddleware = event.context.matchedMiddleware || [];
       event.context.matchedMiddleware.push({
         route: opts.route,
-        meta: opts.meta
+        meta: opts.meta,
       });
     }
-    
+
     const res = input(event, next);
     return res === undefined || res === kNotFound ? next() : res;
   };

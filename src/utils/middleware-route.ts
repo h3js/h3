@@ -56,7 +56,9 @@ export interface MiddlewareRouteDefinition {
  * app.register(authMiddleware);
  * ```
  */
-export function defineMiddlewareRoute(def: MiddlewareRouteDefinition): H3Plugin {
+export function defineMiddlewareRoute(
+  def: MiddlewareRouteDefinition,
+): H3Plugin {
   const middleware = defineMiddleware(def.handler);
 
   return (h3: H3) => {
@@ -65,9 +67,9 @@ export function defineMiddlewareRoute(def: MiddlewareRouteDefinition): H3Plugin 
         match: (event: H3Event) => {
           const method = event.req.method.toUpperCase();
           return def.methods!.includes(method as HTTPMethod);
-        }
+        },
       }),
-      ...(def.meta && { meta: def.meta })
+      ...(def.meta && { meta: def.meta }),
     };
 
     if (def.path) {
