@@ -22,9 +22,9 @@ export function sanitizeStatusCode(
     return defaultStatusCode;
   }
   if (typeof statusCode === "string") {
-    statusCode = Number.parseInt(statusCode, 10);
+    statusCode = +statusCode;
   }
-  if (statusCode < 100 || statusCode > 999) {
+  if (statusCode < 100 || statusCode > 599) {
     return defaultStatusCode;
   }
   return statusCode;

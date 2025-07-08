@@ -1,4 +1,4 @@
-import type { H3Event } from "../types/event.ts";
+import type { H3Event } from "../event.ts";
 import { EventStream } from "./internal/event-stream.ts";
 
 export interface EventStreamOptions {

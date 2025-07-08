@@ -1,4 +1,4 @@
-import type { H3Event } from "../types/event.ts";
+import type { H3Event } from "../event.ts";
 
 export interface CacheConditions {
   modifiedTime?: string | Date;

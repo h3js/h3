@@ -1,4 +1,4 @@
-import { bench, summary, run } from "mitata";
+import { bench, summary, compact, run } from "mitata";
 import { requests } from "./input.ts";
 import { createInstances } from "./bench.impl.ts";
 
@@ -6,21 +6,23 @@ const runAll = process.argv.includes("--all");
 
 const instances = createInstances();
 
-summary(async () => {
-  for (const [name, _fetch] of instances) {
-    bench(name, async () => {
-      await Promise.all(
-        requests.map((request) =>
-          _fetch(
-            new Request(`http://localhost${request.path}`, {
-              method: request.method,
-              body: request.body,
-            }),
+compact(() => {
+  summary(() => {
+    for (const [name, _fetch] of instances) {
+      bench(name, async () => {
+        await Promise.all(
+          requests.map((request) =>
+            _fetch(
+              new Request(`http://localhost${request.path}`, {
+                method: request.method,
+                body: request.body,
+              }),
+            ),
           ),
-        ),
-      );
-    });
-  }
+        );
+      });
+    }
+  });
 });
 
 if (runAll) {

@@ -1,4 +1,4 @@
-import { createError } from "../error.ts";
+import { HTTPError } from "../error.ts";
 import { parseQuery } from "./internal/query.ts";
 import { validateData } from "./internal/validate.ts";
 
@@ -7,7 +7,7 @@ import type {
   InferOutput,
 } from "./internal/standard-schema.ts";
 import type { ValidateResult } from "./internal/validate.ts";
-import type { H3Event } from "../types/event.ts";
+import type { H3Event } from "../event.ts";
 import type { InferEventInput } from "../types/handler.ts";
 import type { HTTPMethod } from "../types/h3.ts";
 
@@ -44,7 +44,7 @@ export function getValidatedQuery<
 /**
  * Get the query param from the request URL validated with validate function.
  *
- * You can use a simple function to validate the query object or a library like `zod` to define a schema.
+ * You can use a simple function to validate the query object or use a Standard-Schema compatible library like `zod` to define a schema.
  *
  * @example
  * app.get("/", async (event) => {
@@ -60,7 +60,7 @@ export function getValidatedQuery<
  *     event,
  *     z.object({
  *       key: z.string(),
- *     }).parse,
+ *     }),
  *   );
  * });
  */
@@ -118,7 +118,7 @@ export function getValidatedRouterParams<
  *
  * If `decode` option is `true`, it will decode the matched route params using `decodeURI`.
  *
- * You can use a simple function to validate the params object or a library like `zod` to define a schema.
+ * You can use a simple function to validate the params object or use a Standard-Schema compatible library like `zod` to define a schema.
  *
  * @example
  * app.get("/", async (event) => {
@@ -134,7 +134,7 @@ export function getValidatedRouterParams<
  *     event,
  *     z.object({
  *       key: z.string(),
- *     }).parse,
+ *     }),
  *   );
  * });
  */
@@ -220,10 +220,7 @@ export function assertMethod(
   allowHead?: boolean,
 ): void {
   if (!isMethod(event, expected, allowHead)) {
-    throw createError({
-      statusCode: 405,
-      statusMessage: "HTTP method is not allowed.",
-    });
+    throw new HTTPError({ status: 405 });
   }
 }
 

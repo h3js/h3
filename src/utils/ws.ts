@@ -1,4 +1,4 @@
-import { defineEventHandler } from "../handler.ts";
+import { defineHandler } from "../handler.ts";
 
 import type { Hooks as WSHooks } from "crossws";
 import type { EventHandler } from "../types/handler.ts";
@@ -18,7 +18,7 @@ export function defineWebSocket(hooks: Partial<WSHooks>): Partial<WSHooks> {
  * @see https://h3.dev/guide/websocket
  */
 export function defineWebSocketHandler(hooks: Partial<WSHooks>): EventHandler {
-  return defineEventHandler(() => {
+  return defineHandler(() => {
     return Object.assign(
       new Response("WebSocket upgrade is required.", {
         status: 426,

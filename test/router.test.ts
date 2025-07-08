@@ -20,7 +20,7 @@ describeMatrix("router", (t, { it, expect, describe }) => {
   it("Multiple Routers", async () => {
     const secondRouter = new H3().get("/router2", () => "router2");
 
-    t.app.use(secondRouter);
+    t.app.use(secondRouter.handler);
 
     const res1 = await t.fetch("/");
     expect(await res1.text()).toEqual("Hello");
@@ -84,7 +84,7 @@ describeMatrix("router", (t, { it, expect, describe }) => {
       router = new H3()
         .get("/preemptive/test", () => "Test")
         .get("/preemptive/undefined", () => undefined);
-      t.app.all("/**", router);
+      t.app.all("/**", router.handler);
     });
 
     it("Handle /test", async () => {
@@ -94,9 +94,9 @@ describeMatrix("router", (t, { it, expect, describe }) => {
 
     it("Handle /404", async () => {
       const res = await t.fetch("/preemptive/404");
-      expect(JSON.parse(await res.text())).toMatchObject({
-        statusCode: 404,
-        statusMessage: expect.stringMatching(
+      expect(await res.json()).toMatchObject({
+        status: 404,
+        message: expect.stringMatching(
           /Cannot find any route matching \[GET\] http:\/\/localhost[:\d]*\/preemptive\/404/,
         ),
       });
@@ -120,7 +120,7 @@ describeMatrix("router", (t, { it, expect, describe }) => {
           expect(getRouterParams(event)).toMatchObject({ name: "string" });
           return "200";
         });
-        t.app.use(router);
+        t.app.use(router.handler);
         const result = await t.fetch("/test/params/string");
 
         expect(await result.text()).toBe("200");
@@ -133,7 +133,7 @@ describeMatrix("router", (t, { it, expect, describe }) => {
           });
           return "200";
         });
-        t.app.use(router);
+        t.app.use(router.handler);
         const result = await t.fetch("/test/params/string with space");
 
         expect(await result.text()).toBe("200");
@@ -160,7 +160,7 @@ describeMatrix("router", (t, { it, expect, describe }) => {
           expect(getRouterParam(event, "name")).toEqual("string");
           return "200";
         });
-        t.app.use(router);
+        t.app.use(router.handler);
         const result = await t.fetch("/test/params/string");
 
         expect(await result.text()).toBe("200");
@@ -173,7 +173,7 @@ describeMatrix("router", (t, { it, expect, describe }) => {
           );
           return "200";
         });
-        t.app.use(router);
+        t.app.use(router.handler);
         const result = await t.fetch("/test/params/string with space");
 
         expect(await result.text()).toBe("200");
@@ -204,7 +204,7 @@ describeMatrix("router", (t, { it, expect, describe }) => {
           });
           return "200";
         });
-        t.app.use(router);
+        t.app.use(router.handler);
         const result = await t.fetch("/test/path");
 
         expect(await result.text()).toBe("200");

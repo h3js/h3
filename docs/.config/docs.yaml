@@ -1,10 +1,8 @@
 # yaml-language-server: $schema=https://unpkg.com/undocs/schema/config.json
-name: h3
+name: H3
 url: https://h3.dev
-shortDescription: The Web Framework for Modern JavaScript Era
-description:
-  H(TTP) server framework built for high performance and portability running
-  in any JavaScript runtime.
+shortDescription: Universal, Tiny, and Fast Servers
+description: H(TTP) server framework built on top of web standards for high performance and composability.
 
 themeColor: amber
 automd: true
@@ -25,35 +23,28 @@ sponsors:
 landing:
   heroLinks:
     playOnline:
-      label: "Play Online"
-      icon: "i-simple-icons-lightning"
-      to: "https://stackblitz.com/github/h3js/h3/tree/main/playground"
+      label: "Try Online"
+      icon: "simple-icons:stackblitz"
+      to: "https://stackblitz.com/github/h3js/h3/tree/main/playground?file=server.mjs"
+  heroCode:
+    lang: "js"
+    title: "server.mjs"
+    content: |
+      import { H3, serve } from "h3"
+
+      const app = new H3().get("/", () => "⚡️ Tadaa!")
+
+      serve(app)
   contributors: true
-  featuresTitle: "The Web Framework for Modern JavaScript Era"
   features:
-    # Runtime Agnostic
     - title: "Runtime Agnostic"
-      description: "Your code will seamlessly work on any JavaScript runtime including Node.js, Bun, and Deno powered by [srvx](https://srvx.h3.dev)."
-      icon: "i-material-symbols-lock-open-right-outline-rounded"
+      description: "Seamlessly works with any JavaScript runtime, including [Deno](https://deno.com/), [Bun](https://bun.sh/), [Node.js](https://nodejs.org), Workers, and more. Based on Web Standards and powered by [Srvx](https://srvx.h3.dev)."
+      icon: "clarity:success-standard-line"
 
-    # Router
-    - title: "Fast Router"
-      description: "Fast Route matching powered by [rou3](https://github.com/h3js/rou3)."
-      icon: "i-fa-tree"
+    - title: "Tiny, Composable and Fast"
+      description: "Small core, with low latency and minimal bundle impact. Designed with composability and maximum compatibility in mind."
+      icon: "devicon-plain:fastapi"
 
-    # Tree-shakable
-    - title: "Small and Tree-shakable"
-      description: "h3 core is super lightweight and tree-shakable, Only what you use will be included in the the final bundle."
-      icon: "i-material-symbols-potted-plant-outline"
-
-    # Composable
-    - title: "Composable"
-      description: "Expand your server and add capabilities. Your codebase will scale with your project."
-      icon: "i-fa-puzzle-piece"
-
-    # Type Friendly
-    - title: "Type Friendly"
-      description: "Codebase fully written in TypeScript with strongly typed utils."
-      icon: "i-mdi-language-typescript"
-      to: ""
-      target: "_blank"
+    - title: "Ergonomic and Safe API"
+      description: "Carefully crafted, ergonomic, and strongly-typed APIs with dozens of tree-shakeable built-in utilities."
+      icon: "hugeicons:happy"

@@ -1,6 +1,6 @@
 {
   "name": "h3",
-  "version": "2.0.0-beta.0",
+  "version": "2.0.0-beta.1",
   "description": "Minimal H(TTP) framework built for high performance and portability.",
   "homepage": "https://h3.dev",
   "repository": "h3js/h3",
@@ -9,15 +9,28 @@
   "type": "module",
   "exports": {
     "./package.json": "./package.json",
-    ".": "./dist/index.mjs"
+    ".": {
+      "deno": "./dist/_entries/deno.mjs",
+      "bun": "./dist/_entries/bun.mjs",
+      "workerd": "./dist/_entries/cloudflare.mjs",
+      "browser": "./dist/_entries/service-worker.mjs",
+      "node": "./dist/_entries/node.mjs",
+      "default": "./dist/_entries/generic.mjs"
+    },
+    "./deno": "./dist/_entries/deno.mjs",
+    "./bun": "./dist/_entries/bun.mjs",
+    "./cloudflare": "./dist/_entries/cloudflare.mjs",
+    "./service-worker": "./dist/_entries/service-worker.mjs",
+    "./node": "./dist/_entries/node.mjs",
+    "./generic": "./dist/_entries/generic.mjs"
   },
-  "types": "./dist/index.d.mts",
+  "types": "./dist/_entries/generic.d.mts",
   "files": [
     "dist"
   ],
   "scripts": {
-    "bench:bun": "bun run ./test/bench/h3.mjs",
-    "bench:node": "node --expose-gc --allow-natives-syntax ./test/bench/h3.mjs",
+    "bench:bun": "bun run ./test/bench/bench.ts",
+    "bench:node": "pnpm node-ts --expose-gc --allow-natives-syntax ./test/bench/bench.ts",
     "build": "obuild",
     "dev": "vitest",
     "lint": "eslint --cache . && prettier -c src test examples docs",
@@ -27,7 +40,7 @@
     "play:node": "pnpm node-ts test/fixture/node.ts",
     "play:plain": "pnpm node-ts test/fixture/plain.ts",
     "play:web": "pnpm node-ts test/fixture/web.ts",
-    "release": "pnpm test && pnpm build && changelogen --publish --publishTag 2x --prerelease && git push --follow-tags",
+    "release": "pnpm test && pnpm build && changelogen --release --prerelease --publish --publishTag beta && git push --follow-tags",
     "test": "pnpm lint && pnpm test:types && vitest --run --coverage",
     "test:types": "tsc --noEmit --skipLibCheck"
   },
@@ -36,46 +49,50 @@
   },
   "dependencies": {
     "cookie-es": "^2.0.0",
-    "rou3": "^0.6.2",
-    "srvx": "^0.7.2"
+    "fetchdts": "^0.1.5",
+    "rou3": "^0.7.3",
+    "srvx": "^0.8.1"
   },
   "devDependencies": {
     "@mitata/counters": "^0.0.8",
     "@types/connect": "^3.4.38",
-    "@types/express": "^5.0.2",
-    "@types/node": "^22.15.22",
-    "@types/react": "^19.1.6",
-    "@types/react-dom": "^19.1.5",
-    "@vitest/coverage-v8": "^3.1.4",
+    "@types/express": "^5.0.3",
+    "@types/node": "^24.0.10",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "@vitest/coverage-v8": "^3.2.4",
     "automd": "^0.4.0",
     "changelogen": "^0.6.1",
     "connect": "^3.7.0",
     "crossws": "^0.4.1",
+    "elysia": "^1.3.5",
     "esbuild": "^0.25.5",
-    "eslint": "^9.27.0",
-    "eslint-config-unjs": "^0.4.2",
+    "eslint": "^9.30.1",
+    "eslint-config-unjs": "^0.5.0",
     "express": "^5.1.0",
     "get-port-please": "^3.1.2",
-    "h3-nightly": "^1.15.2-20250418-133010-0c9b276",
+    "h3-nightly": "npm:h3-nightly@beta",
     "h3-v1": "npm:h3@^1.15.3",
+    "hono": "^4.8.3",
     "mitata": "^1.0.34",
     "obuild": "^0.2.1",
-    "prettier": "^3.5.3",
+    "prettier": "^3.6.2",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "typescript": "^5.8.3",
-    "vitest": "^3.1.4",
-    "zod": "^3.25.30"
+    "vite": "^7.0.0",
+    "vitest": "^3.2.4",
+    "zod": "^3.25.67"
   },
   "peerDependencies": {
-    "crossws": "^0.2.4"
+    "crossws": "^0.4.1"
   },
   "peerDependenciesMeta": {
     "crossws": {
       "optional": true
     }
   },
-  "packageManager": "pnpm@10.11.0",
+  "packageManager": "pnpm@10.12.4",
   "engines": {
     "node": ">=20.11.1"
   }

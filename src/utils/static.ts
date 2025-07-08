@@ -1,6 +1,7 @@
-import type { H3Event } from "../types/event.ts";
-import { createError } from "../error.ts";
+import type { H3Event } from "../event.ts";
+import { HTTPError } from "../error.ts";
 import { withLeadingSlash, withoutTrailingSlash } from "./internal/path.ts";
+import { getType, getExtension } from "./internal/mime.ts";
 
 export interface StaticAssetMeta {
   type?: string;
@@ -51,6 +52,12 @@ export interface ServeStaticOptions {
    * When set to true, the function will not throw 404 error when the asset meta is not found or meta validation failed
    */
   fallthrough?: boolean;
+
+  /**
+   * Custom MIME type resolver function
+   * @param ext - File extension including dot (e.g., ".css", ".js")
+   */
+  getType?: (ext: string) => string | undefined;
 }
 
 /**
@@ -76,10 +83,7 @@ export async function serveStatic(
       return;
     }
     event.res.headers.set("allow", "GET, HEAD");
-    throw createError({
-      statusMessage: "Method Not Allowed",
-      statusCode: 405,
-    });
+    throw new HTTPError({ status: 405 });
   }
 
   const originalId = decodeURI(
@@ -117,19 +121,7 @@ export async function serveStatic(
     if (options.fallthrough) {
       return;
     }
-    throw createError({ statusCode: 404 });
-  }
-
-  if (meta.etag && !event.res.headers.has("etag")) {
-    event.res.headers.set("etag", meta.etag);
-  }
-
-  const ifNotMatch =
-    meta.etag && event.req.headers.get("if-none-match") === meta.etag;
-  if (ifNotMatch) {
-    event.res.status = 304;
-    event.res.statusText = "Not Modified";
-    return "";
+    throw new HTTPError({ statusCode: 404 });
   }
 
   if (meta.mtime) {
@@ -147,8 +139,28 @@ export async function serveStatic(
     }
   }
 
-  if (meta.type && !event.res.headers.get("content-type")) {
-    event.res.headers.set("content-type", meta.type);
+  if (meta.etag && !event.res.headers.has("etag")) {
+    event.res.headers.set("etag", meta.etag);
+  }
+
+  const ifNotMatch =
+    meta.etag && event.req.headers.get("if-none-match") === meta.etag;
+  if (ifNotMatch) {
+    event.res.status = 304;
+    event.res.statusText = "Not Modified";
+    return "";
+  }
+
+  if (!event.res.headers.get("content-type")) {
+    if (meta.type) {
+      event.res.headers.set("content-type", meta.type);
+    } else {
+      const ext = getExtension(id);
+      const type = ext ? (options.getType?.(ext) ?? getType(ext)) : undefined;
+      if (type) {
+        event.res.headers.set("content-type", type);
+      }
+    }
   }
 
   if (meta.encoding && !event.res.headers.get("content-encoding")) {

@@ -1,60 +1,62 @@
 import { routeToRegExp } from "rou3";
 import { kNotFound } from "./response.ts";
 
-import type { H3 } from "./h3.ts";
-import type { H3Event } from "./types/event.ts";
-import type {
-  EventHandler,
-  Middleware,
-  MiddlewareOptions,
-} from "./types/handler.ts";
+import type { H3Event } from "./event.ts";
+import type { MiddlewareOptions } from "./types/h3.ts";
+import type { EventHandler, Middleware } from "./types/handler.ts";
 
-export function defineMiddleware(
-  input: Middleware | H3,
-  opts: MiddlewareOptions = {},
+export function defineMiddleware(input: Middleware): Middleware {
+  return input;
+}
+
+export function normalizeMiddleware(
+  input: Middleware,
+  opts: MiddlewareOptions & { route?: string } = {},
 ): Middleware {
-  const fn: Middleware = normalizeMiddleware(input);
-  if (!opts?.method && !opts?.route) {
-    return fn;
+  const matcher = createMatcher(opts);
+  if (
+    !matcher &&
+    (input.length > 1 || input.constructor?.name === "AsyncFunction")
+  ) {
+    return input; // Fast path: async or with explicit next() and no matcher filters
   }
-  const routeMatcher = opts?.route ? routeToRegExp(opts.route) : undefined;
-  const method = opts?.method?.toUpperCase();
-  const match: (event: H3Event) => boolean = (event) => {
+  return (event, next) => {
+    if (matcher && !matcher(event)) {
+      return next();
+    }
+    const res = input(event, next);
+    return res === undefined || res === kNotFound ? next() : res;
+  };
+}
+
+function createMatcher(opts: MiddlewareOptions & { route?: string }) {
+  if (!opts.route && !opts.method && !opts.match) {
+    return undefined;
+  }
+  const routeMatcher = opts.route ? routeToRegExp(opts.route) : undefined;
+  const method = opts.method?.toUpperCase();
+  return (event: H3Event) => {
     if (method && event.req.method !== method) {
       return false;
     }
-    if (opts?.match && !opts.match(event)) {
+    if (opts.match && !opts.match(event)) {
       return false;
     }
-    return routeMatcher ? routeMatcher.test(event.url.pathname) : true;
-  };
-  return Object.assign(fn, { match });
-}
-
-function normalizeMiddleware(input: Middleware | H3): Middleware {
-  if (typeof input === "function") {
-    if (input.length > 1 || input.constructor?.name === "AsyncFunction") {
-      return input;
+    if (!routeMatcher) {
+      return true;
     }
-    return (event, next) => {
-      const res = input(event, next);
-      return res === undefined ? next() : res;
-    };
-  }
-  if (typeof (input as H3).handler === "function") {
-    return (event, next) => {
-      const res = (input as H3).handler(event);
-      if (res === kNotFound) {
-        return next();
-      } else if (res instanceof Promise) {
-        return res.then((resolved) =>
-          resolved === kNotFound ? next() : resolved,
-        );
-      }
-      return res === undefined ? next() : res;
-    };
-  }
-  throw new Error(`Invalid middleware: ${input}`);
+    const match = event.url.pathname.match(routeMatcher);
+    if (!match) {
+      return false;
+    }
+    if (match.groups) {
+      event.context.middlewareParams = {
+        ...event.context.middlewareParams,
+        ...match.groups,
+      };
+    }
+    return true;
+  };
 }
 
 export function callMiddleware(
@@ -67,14 +69,13 @@ export function callMiddleware(
     return handler(event);
   }
   const fn = middleware[index];
-  if (fn.match && !fn.match(event)) {
-    return callMiddleware(event, middleware, handler, index + 1);
-  }
   const next = () => callMiddleware(event, middleware, handler, index + 1);
   const ret = fn(event, next);
-  return ret === undefined
+  return ret === undefined || ret === kNotFound
     ? next()
     : ret instanceof Promise
-      ? ret.then((resolved) => (resolved === undefined ? next() : resolved))
+      ? ret.then((resolved) =>
+          resolved === undefined || resolved === kNotFound ? next() : resolved,
+        )
       : ret;
 }

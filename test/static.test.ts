@@ -214,3 +214,43 @@ describeMatrix("serve static with fallthrough", (t, { it, expect }) => {
     expect(await res.json()).toEqual({ fallthroughTest: "passing" });
   });
 });
+
+describeMatrix("serve static MIME types", (t, { it, expect }) => {
+  beforeEach(() => {
+    const serveStaticOptions: ServeStaticOptions = {
+      getContents: vi.fn((id) => `content for ${id}`),
+      getMeta: vi.fn((id) => ({
+        size: 10,
+        path: id,
+      })),
+    };
+
+    t.app.all("/**", (event) => {
+      return serveStatic(event, serveStaticOptions);
+    });
+  });
+
+  it("Uses custom getType function", async () => {
+    const customOptions: ServeStaticOptions = {
+      getContents: vi.fn(() => "content"),
+      getMeta: vi.fn(() => ({ size: 10 })),
+      getType: vi.fn((ext) =>
+        ext === ".xyz" ? "application/custom" : undefined,
+      ),
+    };
+
+    t.app.all("/custom/**", (event) => {
+      return serveStatic(event, customOptions);
+    });
+
+    const res = await t.fetch("/custom/file v2.xyz?query=123");
+    expect(res.headers.get("content-type")).toBe("application/custom");
+    expect(customOptions.getType).toHaveBeenCalledWith(".xyz");
+
+    const res2 = await t.fetch("/custom/file.txt");
+    expect(res2.headers.get("content-type")).toBe("text/plain");
+
+    const res3 = await t.fetch("/custom/file");
+    expect(res3.headers.get("content-type")).toBe(null);
+  });
+});

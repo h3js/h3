@@ -1,12 +1,13 @@
 {
   "name": "h3-playground",
   "private": true,
+  "type": "module",
   "scripts": {
-    "start": "listhen ./app.ts",
-    "dev": "listhen -w ./app.ts"
+    "start": "node --watch ./server.mjs",
+    "bun": "bun --watch server.mjs",
+    "deno": "deno --watch -A server.mjs"
   },
   "dependencies": {
-    "h3": "latest",
-    "listhen": "latest"
+    "h3": "v2.0.0-beta.0"
   }
 }

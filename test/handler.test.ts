@@ -1,18 +1,29 @@
 import { describe, it, expect, vi } from "vitest";
 import {
-  defineEventHandler,
+  defineHandler,
   dynamicEventHandler,
   defineLazyEventHandler,
+  defineValidatedHandler,
 } from "../src/index.ts";
 
-import type { H3Event } from "../src/types/event.ts";
+import type { H3Event } from "../src/event.ts";
+import { z } from "zod";
 
 describe("handler.ts", () => {
-  describe("defineEventHandler", () => {
+  describe("defineHandler", () => {
     it("should return the handler function when passed a function", () => {
       const handler = vi.fn();
-      const eventHandler = defineEventHandler(handler);
+      const eventHandler = defineHandler(handler);
       expect(eventHandler).toBe(handler);
+    });
+
+    it("object syntax", () => {
+      const handler = vi.fn();
+      const middleware = [vi.fn()];
+      const eventHandler = defineHandler({ handler, middleware });
+      eventHandler({} as H3Event);
+      expect(middleware[0]).toHaveBeenCalled();
+      expect(handler).toHaveBeenCalled();
     });
   });
 
@@ -66,6 +77,97 @@ describe("handler.ts", () => {
       await expect(lazyEventHandler(mockEvent)).rejects.toThrow(
         "Invalid lazy handler result. It should be a function:",
       );
+    });
+  });
+
+  describe("defineValidatedHandler", () => {
+    const handler = defineValidatedHandler({
+      validate: {
+        body: z.object({
+          name: z.string(),
+          age: z.number().optional().default(20),
+        }),
+        headers: z.object({
+          "x-token": z.string(),
+        }),
+        query: z.object({
+          id: z.string().min(3),
+        }),
+      },
+      handler: async (event) => {
+        return {
+          body: await event.req.json(),
+          headers: event.req.headers,
+        };
+      },
+    });
+
+    it("valid request", async () => {
+      const res = await handler.fetch("/?id=123", {
+        method: "POST",
+        headers: { "x-token": "abc" },
+        body: JSON.stringify({ name: "tommy" }),
+      });
+      // expect(res.status).toBe(200);
+      expect(await res.json()).toMatchObject({
+        body: { name: "tommy", age: 20 },
+        headers: {},
+      });
+    });
+
+    it("invalid body", async () => {
+      const res = await handler.fetch("/?id=123", {
+        method: "POST",
+        headers: { "x-token": "abc" },
+        body: JSON.stringify({ name: 123 }),
+      });
+      expect(await res.json()).toMatchObject({
+        status: 400,
+        statusText: "Validation failed",
+        message: "Validation failed",
+        data: { issues: [{ expected: "string", received: "number" }] },
+      });
+      expect(res.status).toBe(400);
+    });
+
+    it("invalid headers", async () => {
+      const res = await handler.fetch("/?id=123", {
+        method: "POST",
+        body: JSON.stringify({ name: 123 }),
+      });
+      expect(await res.json()).toMatchObject({
+        status: 400,
+        statusText: "Validation failed",
+        message: "Validation failed",
+        data: {
+          issues: [
+            { path: ["x-token"], expected: "string", received: "undefined" },
+          ],
+        },
+      });
+      expect(res.status).toBe(400);
+    });
+
+    it("invalid query", async () => {
+      const res = await handler.fetch("/?id=", {
+        method: "POST",
+        headers: { "x-token": "abc" },
+        body: JSON.stringify({ name: "tommy" }),
+      });
+      expect(await res.json()).toMatchObject({
+        status: 400,
+        statusText: "Validation failed",
+        message: "Validation failed",
+        data: {
+          issues: [
+            {
+              path: ["id"],
+              message: "String must contain at least 3 character(s)",
+            },
+          ],
+        },
+      });
+      expect(res.status).toBe(400);
     });
   });
 });

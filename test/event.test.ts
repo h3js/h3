@@ -1,4 +1,5 @@
-import { readBody } from "../src/index.ts";
+import { vi } from "vitest";
+import { mockEvent, readBody } from "../src/index.ts";
 import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("event", (t, { it, expect }) => {
@@ -90,5 +91,12 @@ describeMatrix("event", (t, { it, expect }) => {
     const result = await t.fetch("/?url=https://example.com");
 
     expect(await result.text()).toBe("200");
+  });
+
+  it("event.waitUntil", () => {
+    const event = mockEvent("/");
+    event.req.waitUntil = vi.fn();
+    event.waitUntil(Promise.resolve("done"));
+    expect(event.req.waitUntil).toHaveBeenCalledWith(Promise.resolve("done"));
   });
 });

@@ -1,6 +1,6 @@
 import { createReadStream } from "node:fs";
 import { readFile } from "node:fs/promises";
-import { readBody } from "../src/index.ts";
+import { readBody, readMultipartFormData } from "../src/index.ts";
 import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("body", (t, { it, expect, describe }) => {
@@ -303,8 +303,8 @@ describeMatrix("body", (t, { it, expect, describe }) => {
     const resultJson = (await result.json()) as any;
 
     expect(result.status).toBe(400);
-    expect(resultJson.statusMessage).toBe("Bad Request");
-    expect(resultJson.stack[0]).toBe("Error: Invalid JSON body");
+    expect(resultJson.statusText).toBe("Bad Request");
+    expect(resultJson.stack[0]).toBe("HTTPError: Invalid JSON body");
   });
 
   describe("readFormDataBody", () => {
@@ -327,6 +327,52 @@ describeMatrix("body", (t, { it, expect, describe }) => {
 
       expect(result.status).toBe(200);
       expect(await result.json()).toMatchObject({ user: "john" });
+    });
+
+    it("parses multipart form data", async () => {
+      t.app.all("/api/*", async (event) => {
+        const multipartFormData = await readMultipartFormData(event);
+
+        expect(multipartFormData[0].name).toBe("baz");
+        expect(multipartFormData[0].data instanceof Uint8Array).toBe(true);
+        expect(new TextDecoder().decode(multipartFormData[0].data)).toBe(
+          "other",
+        );
+
+        expect(multipartFormData[1].name).toBe("号楼电表数据模版.xlsx");
+        expect(multipartFormData[1].data instanceof Uint8Array).toBe(true);
+        expect(new TextDecoder().decode(multipartFormData[1].data)).toBe(
+          "something",
+        );
+
+        return multipartFormData.map((part) => ({
+          ...part,
+          data: new TextDecoder().decode(part.data),
+        }));
+      });
+
+      const result = await t.fetch("/api/test", {
+        method: "POST",
+        headers: {
+          "content-type":
+            "multipart/form-data; boundary=---------------------------12537827810750053901680552518",
+        },
+        body: '-----------------------------12537827810750053901680552518\r\nContent-Disposition: form-data; name="baz"\r\n\r\nother\r\n-----------------------------12537827810750053901680552518\r\nContent-Disposition: form-data; name="号楼电表数据模版.xlsx"\r\n\r\nsomething\r\n-----------------------------12537827810750053901680552518--\r\n',
+      });
+
+      expect(result.status).toBe(200);
+      expect(await result.json()).toMatchInlineSnapshot(`
+        [
+          {
+            "data": "other",
+            "name": "baz",
+          },
+          {
+            "data": "something",
+            "name": "号楼电表数据模版.xlsx",
+          },
+        ]
+      `);
     });
   });
 });

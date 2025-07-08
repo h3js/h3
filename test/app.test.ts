@@ -1,5 +1,8 @@
-import { Readable } from "node:stream";
-import { createError, fromNodeHandler } from "../src/index.ts";
+import {
+  Readable as NodeStreamReadable,
+  Transform as NodeStreamTransoform,
+} from "node:stream";
+import { HTTPError, fromNodeHandler } from "../src/index.ts";
 import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("app", (t, { it, expect }) => {
@@ -101,7 +104,7 @@ describeMatrix("app", (t, { it, expect }) => {
 
   it.runIf(t.target === "node")("Node.js Readable Stream", async () => {
     t.app.use(() => {
-      return new Readable({
+      return new NodeStreamReadable({
         read() {
           this.push(Buffer.from("<h1>Hello world!</h1>", "utf8"));
           this.push(null);
@@ -115,33 +118,32 @@ describeMatrix("app", (t, { it, expect }) => {
   });
 
   // TODO: investigate issues with stream errors on srvx
-  // it.runIf(t.target === "node")(
-  //   "Node.js Readable Stream with Error",
-  //   async () => {
-  //     t.app.use(() => {
-  //       return new Readable({
-  //         read() {
-  //           this.push(Buffer.from("123", "utf8"));
-  //           this.push(null);
-  //         },
-  //       }).pipe(
-  //         new Transform({
-  //           transform(_chunk, _encoding, callback) {
-  //             const err = createError({
-  //               statusCode: 500,
-  //               statusText: "test",
-  //             });
-  //             setTimeout(() => callback(err), 0);
-  //           },
-  //         }),
-  //       );
-  //     });
-  //     // const res = await t.fetch("/");
-  //     expect(async () => await t.fetch("/")).toThrowError();
-  //     // expect(res.status).toBe(500);
-  //     // expect(JSON.parse(await res.text()).statusMessage).toBe("test");
-  //   },
-  // );
+  it.runIf(/* t.target === "node" */ false)(
+    "Node.js Readable Stream with Error",
+    async () => {
+      t.app.use(() => {
+        return new NodeStreamReadable({
+          read() {
+            this.push(Buffer.from("123", "utf8"));
+            this.push(null);
+          },
+        }).pipe(
+          new NodeStreamTransoform({
+            transform(_chunk, _encoding, callback) {
+              const err = new HTTPError({
+                statusCode: 500,
+                statusText: "test",
+              });
+              setTimeout(() => callback(err), 0);
+            },
+          }),
+        );
+      });
+      const res = await t.fetch("/");
+      expect(res.status).toBe(500);
+      expect(JSON.parse(await res.text()).statusMessage).toBe("test");
+    },
+  );
 
   it("Web Stream", async () => {
     t.app.use(() => {
@@ -156,24 +158,24 @@ describeMatrix("app", (t, { it, expect }) => {
     const res = await t.fetch("/");
 
     expect(await res.text()).toBe("<h1>Hello world!</h1>");
-    // expect(res.headers.get("transfer-encoding")).toBe("chunked"); // TODO: h3 should add this header
+    if (t.target === "node") {
+      // In Web API, we cannot determine protocol and connection type
+      expect(res.headers.get("transfer-encoding")).toBe("chunked");
+    }
   });
 
   it("Web Stream with Error", async () => {
     t.app.use(() => {
       return new ReadableStream({
         start() {
-          throw createError({
-            statusCode: 500,
-            statusText: "test",
-          });
+          throw new HTTPError({ status: 500, statusText: "test" });
         },
       });
     });
     const res = await t.fetch("/");
 
     expect(res.status).toBe(500);
-    expect(JSON.parse(await res.text()).statusMessage).toBe("test");
+    expect(JSON.parse(await res.text()).statusText).toBe("test");
   });
 
   it("can return text directly", async () => {
@@ -202,7 +204,7 @@ describeMatrix("app", (t, { it, expect }) => {
   });
 
   it("can chain .use calls", async () => {
-    t.app.get("/1", () => "prefix1").use(() => "prefix2", { route: "/2" });
+    t.app.get("/1", () => "prefix1").use("/2", () => "prefix2");
     const res = await t.fetch("/2");
 
     expect(await res.text()).toBe("prefix2");

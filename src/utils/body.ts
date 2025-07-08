@@ -1,8 +1,8 @@
-import { createError } from "../error.ts";
+import { HTTPError } from "../error.ts";
 import { validateData } from "./internal/validate.ts";
 import { parseURLEncodedBody } from "./internal/body.ts";
 
-import type { H3Event } from "../types/event.ts";
+import type { H3Event } from "../event.ts";
 import type { InferEventInput } from "../types/handler.ts";
 import type { ValidateResult } from "./internal/validate.ts";
 import type {
@@ -41,9 +41,9 @@ export async function readBody<
   try {
     return JSON.parse(text) as _T;
   } catch {
-    throw createError({
-      statusCode: 400,
-      statusMessage: "Bad Request",
+    throw new HTTPError({
+      status: 400,
+      statusText: "Bad Request",
       message: "Invalid JSON body",
     });
   }
@@ -64,9 +64,9 @@ export async function readValidatedBody<
   ) => ValidateResult<OutputT> | Promise<ValidateResult<OutputT>>,
 ): Promise<OutputT>;
 /**
- * Tries to read the request body via `readBody`, then uses the provided validation function and either throws a validation error or returns the result.
+ * Tries to read the request body via `readBody`, then uses the provided validation schema or function and either throws a validation error or returns the result.
  *
- * You can use a simple function to validate the body or use a library like `zod` to define a schema.
+ * You can use a simple function to validate the body or use a Standard-Schema compatible library like `zod` to define a schema.
  *
  * @example
  * app.get("/", async (event) => {
@@ -78,8 +78,11 @@ export async function readValidatedBody<
  * import { z } from "zod";
  *
  * app.get("/", async (event) => {
- *   const objectSchema = z.object();
- *   const body = await readValidatedBody(event, objectSchema.safeParse);
+ *   const objectSchema = z.object({
+ *     name: z.string().min(3).max(20),
+ *     age: z.number({ coerce: true }).positive().int(),
+ *   });
+ *   const body = await readValidatedBody(event, objectSchema);
  * });
  *
  * @param event The H3Event passed by the handler.

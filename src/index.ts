@@ -2,17 +2,24 @@
 
 export type {
   H3Config,
+  H3Plugin,
   H3Route,
+  H3RouteMeta,
   HTTPMethod,
   PreparedResponse,
+  RouteOptions,
+  MiddlewareOptions,
+  FetchHandler,
 } from "./types/h3.ts";
 
-export { H3, serve } from "./h3.ts";
+export { definePlugin } from "./types/h3.ts";
+
+export { H3Core, H3 } from "./h3.ts";
 
 // Event
 
-export type { H3Event, H3EventContext } from "./types/event.ts";
-
+export type { H3EventContext } from "./types/context.ts";
+export { H3Event } from "./event.ts";
 export { isEvent, mockEvent } from "./utils/event.ts";
 
 // Handler and Middleware
@@ -25,20 +32,27 @@ export type {
   InferEventInput,
   LazyEventHandler,
   Middleware,
-  MiddlewareOptions,
+  EventHandlerObject,
 } from "./types/handler.ts";
 
 export {
-  defineEventHandler,
+  defineHandler,
   defineLazyEventHandler,
   dynamicEventHandler,
+  defineValidatedHandler,
 } from "./handler.ts";
 
 export { defineMiddleware } from "./middleware.ts";
 
+// Response
+
+export { toResponse } from "./response.ts";
+
 // Error
 
-export { type H3Error, createError, isError } from "./error.ts";
+export type { ErrorDetails, ErrorBody, ErrorInput } from "./error.ts";
+
+export { HTTPError } from "./error.ts";
 
 // Adapters
 
@@ -54,6 +68,10 @@ export {
 } from "./adapters.ts";
 
 // ------ Utils ------
+
+// Route
+export { defineRoute } from "./utils/route.ts";
+export type { RouteDefinition } from "./utils/route.ts";
 
 // Request
 export {
@@ -76,7 +94,11 @@ export {
   redirect,
   iterable,
   noContent,
+  html,
 } from "./utils/response.ts";
+
+// Middleware
+export { onError, onRequest, onResponse } from "./utils/middleware.ts";
 
 // Proxy
 export {
@@ -143,6 +165,13 @@ export {
   isCorsOriginAllowed,
   isPreflightRequest,
 } from "./utils/cors.ts";
+
+// Auth
+export {
+  type BasicAuthOptions,
+  requireBasicAuth,
+  basicAuth,
+} from "./utils/auth.ts";
 
 // Fingerprint
 export {

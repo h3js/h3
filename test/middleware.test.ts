@@ -1,7 +1,7 @@
 import { beforeEach } from "vitest";
 import { describeMatrix } from "./_setup.ts";
 import { H3 } from "../src/h3.ts";
-import { defineEventHandler } from "../src/handler.ts";
+import { defineHandler } from "../src/handler.ts";
 
 describeMatrix("middleware", (t, { it, expect }) => {
   beforeEach(() => {
@@ -30,37 +30,39 @@ describeMatrix("middleware", (t, { it, expect }) => {
     });
 
     t.app.use(
+      "/test/**",
       new H3().all("/test", (event) =>
         event.req.headers.has("x-async")
           ? Promise.resolve("Hello World!")
           : "Hello World!",
-      ),
+      ).handler,
       {
         method: "GET",
-        route: "/test/**",
         match: (event) => !event.req.headers.has("x-skip"),
       },
     );
 
     t.app.get(
       "/**",
-      defineEventHandler(
-        (event) => {
-          return {
-            log: event.context._middleware.join(" > "),
-          };
-        },
-        [
+      defineHandler({
+        middleware: [
           (event) => {
             event.context._middleware.push(`route (define)`);
           },
         ],
-      ),
-      [
-        (event) => {
-          event.context._middleware.push(`route (register)`);
+        handler: (event) => {
+          return {
+            log: event.context._middleware.join(" > "),
+          };
         },
-      ],
+      }),
+      {
+        middleware: [
+          (event) => {
+            event.context._middleware.push(`route (register)`);
+          },
+        ],
+      },
     );
   });
 
@@ -114,12 +116,5 @@ describeMatrix("middleware", (t, { it, expect }) => {
     const response = await t.app.fetch("/test/...");
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ log: expect.any(String) });
-  });
-
-  it("mounting invalid middleware", async () => {
-    const app = new H3();
-    expect(() => app.use({} as any)).toThrowError(
-      "Invalid middleware: [object Object]",
-    );
   });
 });

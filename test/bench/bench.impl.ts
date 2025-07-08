@@ -1,115 +1,48 @@
+import { compileRouter } from "rou3/compiler";
 import * as _h3src from "../../src/index.ts";
 import * as _h3v1 from "h3-v1";
-// import * as _h3nightly from "h3-nightly";
+import * as _h3nightly from "h3-nightly";
 import { EmptyObject } from "../../src/utils/internal/obj.ts";
 
 type AppFetch = (req: Request) => Response | Promise<Response>;
 
 export function createInstances(): Array<[string, AppFetch]> {
   return [
-    // ["h3", h3(_h3src)],
-    // ["h3-nightly", h3(_h3nightly as any)],
-    ["h3-res", h3(_h3src, true)],
-    // ["h3-nightly-res", h3(_h3nightly as any, true)],
-    // ["h3-middleware", h3Middleware(_h3src)],
+    ["h3", h3(_h3src)],
+    ["h3-compiled", h3(_h3src, true)],
+    ["h3-nightly", h3(_h3nightly as any)],
+    ["h3-middleware", h3Middleware(_h3src)],
     // ["h3-v1", h3v1()],
     // ["std", std()],
     // ["fastest", fastest()],
   ] as const;
 }
 
-export function h3(lib: typeof _h3src, useRes?: boolean): AppFetch {
-  const app = new lib.H3();
-
-  if (useRes) {
-    // [GET] /
-    app.get("/", () => new Response("Hi"));
-
-    // [GET] /id/:id
-    app.get("/id/:id", (event) => {
-      const name = lib.getQuery(event).name;
-      return new Response(`${event.context.params!.id} ${name}`, {
-        headers: {
-          "x-powered-by": "benchmark",
-        },
-      });
-    });
-
-    // [POST] /json
-    app.post("/json", (event) =>
-      (
-        event.req ||
-        (event as unknown as { request: Request }) /* nightly */.request
-      )
-        .json()
-        .then(
-          (jsonBody) =>
-            new Response(JSON.stringify(jsonBody), {
-              headers: {
-                "content-type": "application/json; charset=utf-8",
-              },
-            }),
-        ),
-    );
-  } else {
-    // [GET] /
-    app.get("/", () => "Hi");
-
-    // [GET] /id/:id
-    app.get("/id/:id", (event) => {
-      if ((event as any).response?.setHeader) {
-        // mightly
-        (event as any).response.setHeader("x-powered-by", "benchmark");
-      } else {
-        event.res.headers.set("x-powered-by", "benchmark");
-      }
-      // const name = event.query.get("name");
-      const name = lib.getQuery(event).name;
+export function h3(lib: typeof _h3src, compiled?: boolean): AppFetch {
+  const app = new lib.H3()
+    .get("/", () => "Hi")
+    .get("/id/:id", (event) => {
+      event.res.headers.set("x-powered-by", "benchmark");
+      const name = event.url.searchParams.get("name");
       return `${event.context.params!.id} ${name}`;
-    });
-
-    // [POST] /json
-    app.post("/json", (event) =>
-      (
-        event.req ||
-        (event as unknown as { request: Request }) /* nightly */.request
-      ).json(),
-    );
+    })
+    .post("/json", (event) => event.req.json());
+  if (compiled) {
+    const findRoute = compileRouter(app._rou3);
+    app._findRoute = (event) => findRoute(event.req.method, event.url.pathname);
   }
-
   return app.fetch;
 }
 
 export function h3Middleware(lib: typeof _h3src): AppFetch {
-  const app = new lib.H3();
-
-  // Global middleware
-  app.use(() => {});
-  app.use(() => Promise.resolve());
-
-  // [GET] /
-  app.use(() => "Hi", { route: "/" });
-
-  // [GET] /id/:id
-  app.use(
-    (event) => {
+  const app = new lib.H3()
+    .use("/", () => new Response("Hi"))
+    .use("/id/:id", (event) => {
       event.res.headers.set("x-powered-by", "benchmark");
-      const name = lib.getQuery(event).name;
-      return `${event.context.params!.id} ${name}`;
-    },
-    { route: "/id/:id" },
-  );
-
-  // [POST] /json
-  app.use(
-    (event) =>
-      (
-        event.req ||
-        (event as unknown as { request: Request }) /* nightly */.request
-      ).json(),
-    { route: "/json" },
-  );
-
+      const name = event.url.searchParams.get("name");
+      return `${event.context.middlewareParams!.id} ${name}`;
+    })
+    .use("/json", (event) => event.req.json());
   return app.fetch;
 }
 

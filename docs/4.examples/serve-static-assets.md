@@ -6,7 +6,7 @@ icon: ph:arrow-right
 
 > Serve static assets such as HTML, images, CSS, JavaScript, etc.
 
-h3 can serve static assets such as HTML, images, CSS, JavaScript, etc.
+H3 can serve static assets such as HTML, images, CSS, JavaScript, etc.
 
 To serve a static directory, you can use the `serveStatic` utility.
 
@@ -32,7 +32,7 @@ This does not serve any files yet. You need to implement the `getContents` and `
 - `getContents` is used to read the contents of a file. It should return a `Promise` that resolves to the contents of the file or `undefined` if the file does not exist.
 - `getMeta` is used to get the metadata of a file. It should return a `Promise` that resolves to the metadata of the file or `undefined` if the file does not exist.
 
-They are separated to allow h3 to respond to `HEAD` requests without reading the contents of the file and to use the `Last-Modified` header.
+They are separated to allow H3 to respond to `HEAD` requests without reading the contents of the file and to use the `Last-Modified` header.
 
 ## Read files
 

@@ -1,26 +1,22 @@
-import type { H3EventContext, H3Event } from "../types/event.ts";
+import type { H3Event } from "../event.ts";
+
 import { splitSetCookieString } from "cookie-es";
-import { sanitizeStatusMessage, sanitizeStatusCode } from "./sanitize.ts";
-import { createError } from "../error.ts";
+import { sanitizeStatusMessage } from "./sanitize.ts";
+import { HTTPError } from "../error.ts";
 import {
   PayloadMethods,
-  getFetch,
   ignoredHeaders,
   mergeHeaders,
   rewriteCookieProperty,
 } from "./internal/proxy.ts";
 import { EmptyObject } from "./internal/obj.ts";
+import type { ServerRequest } from "srvx";
 
 export interface ProxyOptions {
   headers?: HeadersInit;
   forwardHeaders?: string[];
   filterHeaders?: string[];
-  fetchOptions?: RequestInit & { duplex?: "half" | "full" } & {
-    ignoreResponseError?: boolean;
-  };
-  fetch?: typeof fetch;
-  sendStream?: boolean;
-  streamRequest?: boolean;
+  fetchOptions?: RequestInit & { duplex?: "half" | "full" };
   cookieDomainRewrite?: string | Record<string, string>;
   cookiePathRewrite?: string | Record<string, string>;
   onResponse?: (event: H3Event, response: Response) => void;
@@ -35,16 +31,9 @@ export async function proxyRequest(
   opts: ProxyOptions = {},
 ): Promise<BodyInit | undefined | null> {
   // Request Body
-  let body;
-  let duplex: "half" | "full" | undefined;
-  if (PayloadMethods.has(event.req.method)) {
-    if (opts.streamRequest) {
-      body = event.req.body;
-      duplex = "half";
-    } else {
-      body = await event.req.arrayBuffer();
-    }
-  }
+  const requestBody = PayloadMethods.has(event.req.method)
+    ? event.req.body
+    : undefined;
 
   // Method
   const method = opts.fetchOptions?.method || event.req.method;
@@ -64,8 +53,8 @@ export async function proxyRequest(
     ...opts,
     fetchOptions: {
       method,
-      body,
-      duplex,
+      body: requestBody,
+      duplex: requestBody ? "half" : undefined,
       ...opts.fetchOptions,
       headers: fetchHeaders,
     },
@@ -80,21 +69,20 @@ export async function proxy(
   target: string,
   opts: ProxyOptions = {},
 ): Promise<BodyInit | undefined | null> {
+  const fetchOptions: RequestInit = {
+    headers: opts.headers as HeadersInit,
+    ...opts.fetchOptions,
+  };
+
   let response: Response | undefined;
   try {
-    response = await getFetch(opts.fetch)(target, {
-      headers: opts.headers as HeadersInit,
-      ignoreResponseError: true, // make $ofetch.raw transparent
-      ...opts.fetchOptions,
-    });
+    response =
+      target[0] === "/"
+        ? await event.app!._fetch(createSubRequest(event, target, fetchOptions))
+        : await fetch(target, fetchOptions);
   } catch (error) {
-    throw createError({
-      status: 502,
-      statusMessage: "Bad Gateway",
-      cause: error,
-    });
+    throw new HTTPError({ status: 502, cause: error });
   }
-  event.res.status = sanitizeStatusCode(response.status, event.res.status);
   event.res.statusText = sanitizeStatusMessage(response.statusText);
 
   const cookies: string[] = [];
@@ -136,17 +124,6 @@ export async function proxy(
     await opts.onResponse(event, response);
   }
 
-  // Directly send consumed _data
-  if ((response as any)._data !== undefined) {
-    return (response as any)._data;
-  }
-
-  // Send at once
-  if (opts.sendStream === false) {
-    return new Uint8Array(await response.arrayBuffer());
-  }
-
-  // Send as stream
   return response.body;
 }
 
@@ -178,26 +155,34 @@ export function getProxyRequestHeaders(
 /**
  * Make a fetch request with the event's context and headers.
  */
-export function fetchWithEvent<
-  T = unknown,
-  _R = unknown,
-  F extends (req: RequestInfo | URL, opts?: any) => any = typeof fetch,
->(
+export async function fetchWithEvent(
   event: H3Event,
-  req: RequestInfo | URL,
-  init?: RequestInit & { context?: H3EventContext },
-  options?: { fetch: F },
-): unknown extends T ? ReturnType<F> : T {
-  return getFetch(options?.fetch)(req, {
-    ...init,
-    context: init?.context || event.context,
-    headers: mergeHeaders(
-      getProxyRequestHeaders(event, {
-        host: typeof req === "string" && req.startsWith("/"),
-      }),
-      init?.headers,
-    ),
-  } satisfies RequestInit & {
-    context?: H3EventContext;
-  });
+  url: string,
+  init?: RequestInit,
+): Promise<Response> {
+  if (url[0] !== "/") {
+    return fetch(url, init);
+  }
+  return event.app!._fetch(
+    createSubRequest(event, url, {
+      ...init,
+      headers: mergeHeaders(
+        getProxyRequestHeaders(event, { host: true }),
+        init?.headers,
+      ),
+    }),
+  );
+}
+
+function createSubRequest(
+  event: H3Event,
+  path: string,
+  init: RequestInit,
+): ServerRequest {
+  const url = new URL(path, event.url);
+  const req = new Request(url, init) as ServerRequest;
+  req.runtime = event.req.runtime;
+  req.waitUntil = event.req.waitUntil;
+  req.ip = event.req.ip;
+  return req;
 }

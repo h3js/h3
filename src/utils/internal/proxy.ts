@@ -15,18 +15,6 @@ export const ignoredHeaders: Set<string> = new Set([
   "accept",
 ]);
 
-export function getFetch<T = typeof fetch>(_fetch?: T): T {
-  if (_fetch) {
-    return _fetch;
-  }
-  if (globalThis.fetch) {
-    return globalThis.fetch as T;
-  }
-  throw new Error(
-    "fetch is not available. Try importing `node-fetch-native/polyfill` for Node.js.",
-  );
-}
-
 export function rewriteCookieProperty(
   header: string,
   map: string | Record<string, string>,

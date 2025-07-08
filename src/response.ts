@@ -1,32 +1,32 @@
 import { FastResponse } from "srvx";
-import { createError, type H3Error } from "./error.ts";
+import { HTTPError } from "./error.ts";
 import { isJSONSerializable } from "./utils/internal/object.ts";
 
 import type { H3Config } from "./types/h3.ts";
-import type { H3Event } from "./types/event.ts";
+import type { H3Event } from "./event.ts";
 
 export const kNotFound: symbol = /* @__PURE__ */ Symbol.for("h3.notFound");
 export const kHandled: symbol = /* @__PURE__ */ Symbol.for("h3.handled");
 
-export function handleResponse(
+export function toResponse(
   val: unknown,
   event: H3Event,
-  config: H3Config,
+  config: H3Config = {},
 ): Response | Promise<Response> {
   if (val && val instanceof Promise) {
     return val
       .catch((error) => error)
-      .then((resolvedVal) => handleResponse(resolvedVal, event, config));
+      .then((resolvedVal) => toResponse(resolvedVal, event, config));
   }
 
   const response = prepareResponse(val, event, config);
   if (response instanceof Promise) {
-    return handleResponse(response, event, config);
+    return toResponse(response, event, config);
   }
 
-  const { onBeforeResponse } = config;
-  return onBeforeResponse
-    ? Promise.resolve(onBeforeResponse(event, response)).then(() => response)
+  const { onResponse } = config;
+  return onResponse
+    ? Promise.resolve(onResponse(response, event)).then(() => response)
     : response;
 }
 
@@ -41,14 +41,22 @@ function prepareResponse(
   }
 
   if (val === kNotFound) {
-    val = createError({
-      statusCode: 404,
-      statusMessage: `Cannot find any route matching [${event.req.method}] ${event.url}`,
+    val = new HTTPError({
+      status: 404,
+      message: `Cannot find any route matching [${event.req.method}] ${event.url}`,
     });
   }
 
   if (val && val instanceof Error) {
-    const error = createError(val); // todo: flag unhandled
+    const isHTTPError = HTTPError.isError(val);
+    const error = isHTTPError ? (val as HTTPError) : new HTTPError(val);
+    if (!isHTTPError) {
+      // @ts-expect-error unhandled is readonly for public interface
+      error.unhandled = true;
+      if (val?.stack) {
+        error.stack = val.stack;
+      }
+    }
     const { onError } = config;
     return onError && !nested
       ? Promise.resolve(onError(error, event))
@@ -154,8 +162,9 @@ function prepareResponseBody(
     };
 
     // File
-    if ("name" in val) {
-      const filename = encodeURIComponent(val.name as string);
+    let filename = (val as File).name;
+    if (filename) {
+      filename = encodeURIComponent(filename);
       // Omit the disposition type ("inline" or "attachment") and let the client (browser) decide.
       headers["content-disposition"] =
         `filename="${filename}"; filename*=UTF-8''${filename}`;
@@ -186,27 +195,25 @@ function nullBody(
   )
 }
 
-function errorResponse(error: H3Error, debug?: boolean): Response {
+function errorResponse(error: HTTPError, debug?: boolean): Response {
   return new FastResponse(
     JSON.stringify(
       {
-        statusCode: error.statusCode,
-        statusMessage: error.statusMessage,
-        data: error.data,
+        ...error.toJSON(),
         stack:
           debug && error.stack
             ? error.stack.split("\n").map((l) => l.trim())
             : undefined,
       },
-      null,
-      2,
+      undefined,
+      debug ? 2 : undefined,
     ),
     {
-      status: error.statusCode,
-      statusText: error.statusMessage,
-      headers: {
-        "content-type": "application/json; charset=utf-8",
-      },
+      status: error.status,
+      statusText: error.statusText,
+      headers: error.headers
+        ? mergeHeaders(jsonHeaders, error.headers)
+        : jsonHeaders,
     },
   );
 }

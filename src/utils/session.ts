@@ -11,7 +11,7 @@ import {
 import { EmptyObject } from "./internal/obj.ts";
 import { kGetSession } from "./internal/session.ts";
 
-import type { H3Event } from "../types/event.ts";
+import type { H3Event } from "../event.ts";
 import type { CookieSerializeOptions } from "cookie-es";
 import type { SealOptions } from "./internal/iron-crypto.ts";
 
