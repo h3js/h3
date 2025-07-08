@@ -80,6 +80,7 @@ export const H3 = /* @__PURE__ */ (() => {
           handlerRes = this.handler(event);
         }
       } catch (error: any) {
+        console.error(error);
         handlerRes = Promise.reject(error);
       }
 
