@@ -44,7 +44,7 @@ describe("benchmark", () => {
 
   it("bundle size (defineHandler)", async () => {
     const code = /* js */ `
-      import { defineHandler } from "h3";
+      import { defineHandler } from "../../src/index.ts";
       const handler = defineHandler({});
     `;
     const bundle = await getBundleSize(code);
