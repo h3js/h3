@@ -29,11 +29,15 @@ export async function readBody<
   _T = InferEventInput<"body", _Event, T>,
 >(event: _Event): Promise<undefined | _T> {
   const text = await event.req.text();
+  const contentType = event.req.headers.get("content-type") || "";
+
+  if (contentType.startsWith("multipart/form-data"))
+    return Object.fromEntries(await event.req.formData()) as _T;
+
   if (!text) {
     return undefined;
   }
 
-  const contentType = event.req.headers.get("content-type") || "";
   if (contentType.startsWith("application/x-www-form-urlencoded")) {
     return parseURLEncodedBody(text) as _T;
   }
