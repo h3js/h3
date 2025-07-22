@@ -28,11 +28,12 @@ export async function readBody<
   _Event extends H3Event = H3Event,
   _T = InferEventInput<"body", _Event, T>,
 >(event: _Event): Promise<undefined | _T> {
-  const text = await event.req.text();
   const contentType = event.req.headers.get("content-type") || "";
 
   if (contentType.startsWith("multipart/form-data"))
     return Object.fromEntries(await event.req.formData()) as _T;
+
+  const text = await event.req.text();
 
   if (!text) {
     return undefined;
