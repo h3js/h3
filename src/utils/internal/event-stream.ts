@@ -1,5 +1,6 @@
 import type { H3Event } from "../../event.ts";
 import type {
+  EventStreamChunk,
   EventStreamMessage,
   EventStreamOptions,
 } from "../event-stream.ts";
@@ -62,20 +63,24 @@ export class EventStream {
     await this._sendEvent(message);
   }
 
-  private async _sendEvent(message: EventStreamMessage) {
+  pushComment(comment: string): Promise<void> {
+    return this._sendEvent({ comment });
+  }
+
+  private async _sendEvent(message: EventStreamChunk) {
     if (this._writerIsClosed) {
       return;
     }
     if (this._paused && !this._unsentData) {
-      this._unsentData = formatEventStreamMessage(message);
+      this._unsentData = formatEventStreamChunk(message);
       return;
     }
     if (this._paused) {
-      this._unsentData += formatEventStreamMessage(message);
+      this._unsentData += formatEventStreamChunk(message);
       return;
     }
     await this._writer
-      .write(this._encoder.encode(formatEventStreamMessage(message)))
+      .write(this._encoder.encode(formatEventStreamChunk(message)))
       .catch();
   }
 
@@ -157,6 +162,17 @@ export function isEventStream(input: unknown): input is EventStream {
     return false;
   }
   return input instanceof EventStream;
+}
+
+export function formatEventStreamChunk(chunk: EventStreamChunk): string {
+  if ("comment" in chunk) {
+    return formatEventStreamComment(chunk.comment);
+  }
+  return formatEventStreamMessage(chunk);
+}
+
+export function formatEventStreamComment(comment: string): string {
+  return `: ${comment}\n\n`;
 }
 
 export function formatEventStreamMessage(message: EventStreamMessage): string {

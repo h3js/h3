@@ -20,6 +20,12 @@ export interface EventStreamMessage {
   data: string;
 }
 
+export interface EventStreamComment {
+  comment: string;
+}
+
+export type EventStreamChunk = EventStreamMessage | EventStreamComment;
+
 /**
  * Initialize an EventStream instance for creating [server sent events](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events)
  *
