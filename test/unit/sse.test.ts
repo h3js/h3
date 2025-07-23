@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
 import {
-  formatEventStreamChunk,
   formatEventStreamComment,
   formatEventStreamMessage,
   formatEventStreamMessages,
@@ -24,13 +23,6 @@ describe("sse (unit)", () => {
     expect(result2).toEqual(
       `id: 1\nevent: custom-event\nretry: 10\ndata: hello world\n\n`,
     );
-  });
-
-  it("properly formats sse chunks", () => {
-    const result1 = formatEventStreamChunk({ comment: "hello world" });
-    expect(result1).toEqual(`: hello world\n\n`);
-    const result2 = formatEventStreamChunk({ data: "hello world" });
-    expect(result2).toEqual(`data: hello world\n\n`);
   });
 
   it("properly formats multiple sse messages", () => {
