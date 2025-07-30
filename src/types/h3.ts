@@ -13,7 +13,15 @@ import type { H3Event } from "../event.ts";
 export type HTTPMethod =  "GET" | "HEAD" | "PATCH" | "POST" | "PUT" | "DELETE" | "CONNECT" | "OPTIONS" | "TRACE";
 
 export interface H3Config {
+  /**
+   * When enabled, H3 displays debugging stack traces in HTTP responses (potentially dangerous for production!).
+   */
   debug?: boolean;
+
+  /**
+   * When enabled, H3 console errors for unhandled exceptions will not be displayed.
+   */
+  silent?: boolean;
 
   plugins?: H3Plugin[];
 

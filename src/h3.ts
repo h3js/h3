@@ -74,7 +74,6 @@ export const H3Core = /* @__PURE__ */ (() => {
           handlerRes = this.handler(event);
         }
       } catch (error: any) {
-        console.error(error);
         handlerRes = Promise.reject(error);
       }
 
