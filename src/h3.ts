@@ -34,20 +34,16 @@ export const H3Core = /* @__PURE__ */ (() => {
       this._middleware = [];
       this.config = config;
       this.fetch = this.fetch.bind(this);
-      this._fetch = this._fetch.bind(this);
+      this.request = this.request.bind(this);
       this.handler = this.handler.bind(this);
       config.plugins?.forEach((plugin) => plugin(this as unknown as H3Type));
     }
 
-    fetch(request: ServerRequest | URL | string): Promise<Response> {
-      try {
-        return Promise.resolve(this._fetch(request));
-      } catch (error: any) {
-        return Promise.reject(error);
-      }
+    fetch(request: ServerRequest | URL | string): Response | Promise<Response> {
+      return this.request(request);
     }
 
-    _fetch(
+    request(
       _req: ServerRequest | URL | string,
       _init?: RequestInit,
       context?: H3EventContext,

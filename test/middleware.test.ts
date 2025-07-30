@@ -75,7 +75,7 @@ describeMatrix("middleware", (t, { it, expect }) => {
   });
 
   it("should run all middleware in order", async () => {
-    const response = await t.app.fetch("/");
+    const response = await t.app.request("/");
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({
       log: "(event) > async (event) > async (event, next) > async (event, next) (passthrough) > (event, next) > route (register) > route (define)",
@@ -84,7 +84,7 @@ describeMatrix("middleware", (t, { it, expect }) => {
   });
 
   it("intercepted middleware", async () => {
-    const response = await t.app._fetch("/", {
+    const response = await t.app.request("/", {
       headers: { "x-intercept1": "1" },
     });
     expect(response.status).toBe(200);
@@ -92,11 +92,11 @@ describeMatrix("middleware", (t, { it, expect }) => {
   });
 
   it("routed middleware", async () => {
-    const response = await t.app.fetch("/test/");
+    const response = await t.app.request("/test/");
     expect(response.status).toBe(200);
     expect(await response.text()).toBe("Hello World!");
 
-    const response2 = await t.app._fetch("/test/", {
+    const response2 = await t.app.request("/test/", {
       headers: { "x-async": "1" },
     });
     expect(response2.status).toBe(200);
@@ -106,7 +106,7 @@ describeMatrix("middleware", (t, { it, expect }) => {
   it("middleware filters", async () => {
     expect(
       (
-        await t.app._fetch("/test", {
+        await t.app.request("/test", {
           method: "POST",
         })
       ).status,
@@ -114,7 +114,7 @@ describeMatrix("middleware", (t, { it, expect }) => {
 
     expect(
       await (
-        await t.app._fetch("/test", {
+        await t.app.request("/test", {
           headers: { "x-skip": "1" },
         })
       ).text(),
@@ -122,7 +122,7 @@ describeMatrix("middleware", (t, { it, expect }) => {
   });
 
   it("routed middleware (fallback to main)", async () => {
-    const response = await t.app.fetch("/test/...");
+    const response = await t.app.request("/test/...");
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ log: expect.any(String) });
   });

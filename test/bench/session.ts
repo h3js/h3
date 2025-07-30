@@ -26,17 +26,17 @@ const apps = (
         id: session.id,
         ctr: session.data.ctr,
       };
-    })._fetch,
+    }).request,
   ] as const;
 });
 
 // Quick test
-for (const [name, _fetch] of apps) {
+for (const [name, request] of apps) {
   for (let i = 0; i < 128; i++) {
-    const res = await _fetch("/");
+    const res = await request("/");
     const cookie = res.headers.getSetCookie()[0] || "";
     const session1 = await res.json();
-    const res2 = await _fetch("/", {
+    const res2 = await request("/", {
       headers: {
         cookie,
       },
@@ -49,11 +49,11 @@ for (const [name, _fetch] of apps) {
 }
 
 summary(async () => {
-  for (const [name, _fetch] of apps) {
+  for (const [name, request] of apps) {
     bench(name, async () => {
-      const res = await _fetch("/");
+      const res = await request("/");
       const cookie = res.headers.getSetCookie()[0] || "";
-      await _fetch("/", {
+      await request("/", {
         headers: {
           cookie,
         },
