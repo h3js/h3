@@ -33,7 +33,7 @@ When using Node.js, H3 uses a compatibility layer ([💥 srvx](https://srvx.h3.d
 
 Access to the native `event.node.{req,res}` is only available when running server in Node.js runtime.
 
-`event.web` is renamed to `event.req` (instance of web [Response](https://developer.mozilla.org/en-US/docs/Web/API/Response)).
+`event.web` is renamed to `event.req` (instance of web [Request](https://developer.mozilla.org/en-US/docs/Web/API/Request)).
 
 ## Response Handling
 

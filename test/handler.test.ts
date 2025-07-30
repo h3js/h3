@@ -3,9 +3,11 @@ import {
   defineHandler,
   dynamicEventHandler,
   defineLazyEventHandler,
+  defineValidatedHandler,
 } from "../src/index.ts";
 
-import type { H3Event } from "../src/types/event.ts";
+import type { H3Event } from "../src/event.ts";
+import { z } from "zod";
 
 describe("handler.ts", () => {
   describe("defineHandler", () => {
@@ -75,6 +77,95 @@ describe("handler.ts", () => {
       await expect(lazyEventHandler(mockEvent)).rejects.toThrow(
         "Invalid lazy handler result. It should be a function:",
       );
+    });
+  });
+
+  describe("defineValidatedHandler", () => {
+    const handler = defineValidatedHandler({
+      validate: {
+        body: z.object({
+          name: z.string(),
+          age: z.number().optional().default(20),
+        }),
+        headers: z.object({
+          "x-token": z.string(),
+        }),
+        query: z.object({
+          id: z.string().min(3),
+        }),
+      },
+      handler: async (event) => {
+        return {
+          body: await event.req.json(),
+          headers: event.req.headers,
+        };
+      },
+    });
+
+    it("valid request", async () => {
+      const res = await handler.fetch("/?id=123", {
+        method: "POST",
+        headers: { "x-token": "abc" },
+        body: JSON.stringify({ name: "tommy" }),
+      });
+      // expect(res.status).toBe(200);
+      expect(await res.json()).toMatchObject({
+        body: { name: "tommy", age: 20 },
+        headers: {},
+      });
+    });
+
+    it("invalid body", async () => {
+      const res = await handler.fetch("/?id=123", {
+        method: "POST",
+        headers: { "x-token": "abc" },
+        body: JSON.stringify({ name: 123 }),
+      });
+      expect(await res.json()).toMatchObject({
+        status: 400,
+        statusText: "Validation failed",
+        message: "Validation failed",
+        data: { issues: [{ expected: "string" }] },
+      });
+      expect(res.status).toBe(400);
+    });
+
+    it("invalid headers", async () => {
+      const res = await handler.fetch("/?id=123", {
+        method: "POST",
+        body: JSON.stringify({ name: 123 }),
+      });
+      expect(await res.json()).toMatchObject({
+        status: 400,
+        statusText: "Validation failed",
+        message: "Validation failed",
+        data: {
+          issues: [{ path: ["x-token"], expected: "string" }],
+        },
+      });
+      expect(res.status).toBe(400);
+    });
+
+    it("invalid query", async () => {
+      const res = await handler.fetch("/?id=", {
+        method: "POST",
+        headers: { "x-token": "abc" },
+        body: JSON.stringify({ name: "tommy" }),
+      });
+      expect(await res.json()).toMatchObject({
+        status: 400,
+        statusText: "Validation failed",
+        message: "Validation failed",
+        data: {
+          issues: [
+            {
+              path: ["id"],
+              message: "Too small: expected string to have >=3 characters",
+            },
+          ],
+        },
+      });
+      expect(res.status).toBe(400);
     });
   });
 });

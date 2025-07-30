@@ -24,6 +24,24 @@ describe("benchmark", () => {
     expect(bundle.gzipSize).toBeLessThanOrEqual(4000); // <4kb
   });
 
+  it("bundle size (H3Core)", async () => {
+    const code = /* js */ `
+      import { H3Core } from "../../src/index.ts";
+      const app = new H3Core();
+    `;
+    const bundle = await getBundleSize(code);
+    if (inspect) {
+      return;
+    }
+    if (process.env.DEBUG) {
+      console.log(
+        `Bundle size (H3Core): ${bundle.bytes} (gzip: ${bundle.gzipSize})`,
+      );
+    }
+    expect(bundle.bytes).toBeLessThanOrEqual(8000); // <8kb
+    expect(bundle.gzipSize).toBeLessThanOrEqual(3500); // <3.5kb
+  });
+
   it("bundle size (defineHandler)", async () => {
     const code = /* js */ `
       import { defineHandler } from "h3";
@@ -38,7 +56,7 @@ describe("benchmark", () => {
         `Bundle size (defineHandler): ${bundle.bytes} (gzip: ${bundle.gzipSize})`,
       );
     }
-    expect(bundle.bytes).toBeLessThanOrEqual(5300); // <5.3kb
+    expect(bundle.bytes).toBeLessThanOrEqual(5400); // <5.4kb
     expect(bundle.gzipSize).toBeLessThanOrEqual(2200); // <2.2kb
   });
 });

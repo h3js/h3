@@ -1,8 +1,8 @@
-import type { ServerRequest } from "srvx/types";
+import type { ServerRequest } from "srvx";
 import { H3Event } from "./event.ts";
 import { toRequest } from "./h3.ts";
 import { callMiddleware } from "./middleware.ts";
-import { handleResponse } from "./response.ts";
+import { toResponse } from "./response.ts";
 
 import type {
   EventHandler,
@@ -12,6 +12,12 @@ import type {
   DynamicEventHandler,
   EventHandlerWithFetch,
 } from "./types/handler.ts";
+import type {
+  InferOutput,
+  StandardSchemaV1,
+} from "./utils/internal/standard-schema.ts";
+import type { TypedRequest } from "fetchdts";
+import { validatedRequest, validatedURL } from "./utils/internal/validate.ts";
 
 // --- event handler ---
 
@@ -29,13 +35,64 @@ export function defineHandler(arg1: unknown): EventHandlerWithFetch {
   if (typeof arg1 === "function") {
     return handlerWithFetch(arg1 as EventHandler);
   }
-  const { middleware, handler } = arg1 as EventHandlerObject;
-  if (!middleware?.length) {
-    return handlerWithFetch(handler);
-  }
-  return handlerWithFetch((event) =>
-    callMiddleware(event, middleware, handler),
+  const { middleware, handler, meta } = arg1 as EventHandlerObject;
+  const _handler = handlerWithFetch(
+    middleware?.length
+      ? (event) => callMiddleware(event, middleware, handler)
+      : handler,
   );
+  _handler.meta = meta;
+  return _handler;
+}
+
+type StringHeaders<T> = {
+  [K in keyof T]: Extract<T[K], string>;
+};
+
+/**
+ * @experimental defineValidatedHandler is an experimental feature and API may change.
+ */
+export function defineValidatedHandler<
+  RequestBody extends StandardSchemaV1,
+  RequestHeaders extends StandardSchemaV1,
+  RequestQuery extends StandardSchemaV1,
+  Res extends EventHandlerResponse = EventHandlerResponse,
+>(
+  def: Omit<EventHandlerObject, "handler"> & {
+    validate?: {
+      body?: RequestBody;
+      headers?: RequestHeaders;
+      query?: RequestQuery;
+    };
+    handler: EventHandler<
+      {
+        body: InferOutput<RequestBody>;
+        query: StringHeaders<InferOutput<RequestQuery>>;
+      },
+      Res
+    >;
+  },
+): EventHandlerWithFetch<
+  TypedRequest<InferOutput<RequestBody>, InferOutput<RequestHeaders>>,
+  Res
+> {
+  if (!def.validate) {
+    return defineHandler(def) as any;
+  }
+  return defineHandler({
+    ...def,
+    handler: (event) => {
+      (event as any) /* readonly */.req = validatedRequest(
+        event.req,
+        def.validate!,
+      );
+      (event as any) /* readonly */.url = validatedURL(
+        event.url,
+        def.validate!,
+      );
+      return def.handler(event as any);
+    },
+  }) as any;
 }
 
 // --- handler .fetch ---
@@ -50,13 +107,11 @@ function handlerWithFetch<
       _init?: RequestInit,
     ): Promise<Response> => {
       const req = toRequest(_req, _init);
-      const event = new H3Event(req);
+      const event = new H3Event(req) as H3Event<Req>;
       try {
-        return Promise.resolve(handler(event)).then((rawRes) =>
-          handleResponse(rawRes, event),
-        );
+        return Promise.resolve(toResponse(handler(event), event));
       } catch (error: any) {
-        return Promise.reject(error);
+        return Promise.resolve(toResponse(error, event));
       }
     },
   });

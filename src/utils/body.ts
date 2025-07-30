@@ -2,7 +2,7 @@ import { HTTPError } from "../error.ts";
 import { validateData } from "./internal/validate.ts";
 import { parseURLEncodedBody } from "./internal/body.ts";
 
-import type { H3Event } from "../types/event.ts";
+import type { H3Event } from "../event.ts";
 import type { InferEventInput } from "../types/handler.ts";
 import type { ValidateResult } from "./internal/validate.ts";
 import type {

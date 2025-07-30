@@ -1,5 +1,5 @@
 import type { CookieSerializeOptions, SetCookie } from "cookie-es";
-import type { H3Event } from "../types/event.ts";
+import type { H3Event } from "../event.ts";
 import {
   parse as parseCookie,
   serialize as serializeCookie,

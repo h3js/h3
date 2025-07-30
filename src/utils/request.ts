@@ -7,7 +7,7 @@ import type {
   InferOutput,
 } from "./internal/standard-schema.ts";
 import type { ValidateResult } from "./internal/validate.ts";
-import type { H3Event } from "../types/event.ts";
+import type { H3Event } from "../event.ts";
 import type { InferEventInput } from "../types/handler.ts";
 import type { HTTPMethod } from "../types/h3.ts";
 

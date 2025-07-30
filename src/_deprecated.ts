@@ -11,7 +11,7 @@ import { withBase } from "./utils/base.ts";
 import { sanitizeStatusCode, sanitizeStatusMessage } from "./utils/sanitize.ts";
 
 import type { NodeHandler, NodeMiddleware } from "./adapters.ts";
-import type { H3Event } from "./types/event.ts";
+import type { H3Event } from "./event.ts";
 import type { EventHandler } from "./types/handler.ts";
 import type { H3Config } from "./types/h3.ts";
 import type {
@@ -95,6 +95,31 @@ export async function readFormDataBody(event: H3Event): Promise<FormData> {
 /** @deprecated Please use `event.req.formData()` */
 export const readFormData: (event: H3Event) => Promise<FormData> =
   readFormDataBody;
+
+/** @deprecated Please use `event.req.formData()` */
+export async function readMultipartFormData(event: H3Event): Promise<
+  Array<{
+    data: Uint8Array;
+    name?: string;
+    filename?: string;
+    type?: string;
+  }>
+> {
+  const formData = await event.req.formData();
+
+  return Promise.all(
+    [...formData.entries()].map(async ([key, value]) => {
+      return value instanceof Blob
+        ? {
+            name: key,
+            type: value.type,
+            filename: value.name,
+            data: await value.bytes(),
+          }
+        : { name: key, data: new TextEncoder().encode(value) };
+    }),
+  );
+}
 
 /** @deprecated Please use `event.req.body` */
 export function getBodyStream(

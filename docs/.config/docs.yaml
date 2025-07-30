@@ -23,9 +23,9 @@ sponsors:
 landing:
   heroLinks:
     playOnline:
-      label: "Play Online"
-      icon: "i-simple-icons-lightning"
-      to: "https://stackblitz.com/github/h3js/h3/tree/main/playground"
+      label: "Try Online"
+      icon: "simple-icons:stackblitz"
+      to: "https://stackblitz.com/github/h3js/h3/tree/main/playground?file=server.mjs"
   heroCode:
     lang: "js"
     title: "server.mjs"
