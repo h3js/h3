@@ -11,5 +11,5 @@ export * from "../index.ts";
  */
 export function serve(app: H3, options?: Omit<ServerOptions, "fetch">): Server {
   freezeApp(app);
-  return srvxServe({ fetch: app._fetch, ...options }) as Server;
+  return srvxServe({ fetch: app.fetch, ...options }) as Server;
 }

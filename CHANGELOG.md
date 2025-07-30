@@ -2,6 +2,47 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## v2.0.0-beta.2
+
+[compare changes](https://github.com/h3js/h3/compare/v2.0.0-beta.1...v2.0.0-beta.2)
+
+### 🚀 Enhancements
+
+- Experimental `defineRoute` ([#1143](https://github.com/h3js/h3/pull/1143))
+- **middleware:** Allow passthrough response without enforcing explicit return ([#1174](https://github.com/h3js/h3/pull/1174))
+- Log unhandled errors ([#1152](https://github.com/h3js/h3/pull/1152))
+
+### 🩹 Fixes
+
+- **proxy:** ⚠️  Only inherit runtime context for sub-requests ([#1142](https://github.com/h3js/h3/pull/1142))
+- Safer `HTTPError` check ([#1145](https://github.com/h3js/h3/pull/1145))
+- **defineValidatedHandler:** Accept all `EventHandlerObject` props ([#1147](https://github.com/h3js/h3/pull/1147))
+- Change "h://_" to "http://_" ([90226b8](https://github.com/h3js/h3/commit/90226b8))
+
+### 📖 Documentation
+
+- Fix noContent example ([#1171](https://github.com/h3js/h3/pull/1171))
+
+### 🏡 Chore
+
+- Update deps ([256e29d](https://github.com/h3js/h3/commit/256e29d))
+
+### ✅ Tests
+
+- Update snapshot ([8d52a83](https://github.com/h3js/h3/commit/8d52a83))
+
+#### ⚠️ Breaking Changes
+
+- **proxy:** ⚠️  Only inherit runtime context for sub-requests ([#1142](https://github.com/h3js/h3/pull/1142))
+
+### ❤️ Contributors
+
+- Huseeiin ([@huseeiin](https://github.com/huseeiin))
+- Kricsleo ([@kricsleo](https://github.com/kricsleo))
+- Pooya Parsa ([@pi0](https://github.com/pi0))
+- Shun Git <kwokshungit@gmail.com>
+- Wind <hi@productdevbook.com>
+
 ## v2.0.0-beta.1
 
 [compare changes](https://github.com/h3js/h3/compare/v2.0.0-beta.0...v2.0.0-beta.1)

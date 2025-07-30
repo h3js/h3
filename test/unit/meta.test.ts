@@ -12,7 +12,7 @@ describe("meta", () => {
       }),
       { meta: { registerMeta: true } },
     );
-    expect(await app.fetch("/").then((res) => res.json())).toMatchObject({
+    expect(await (await app.request("/")).json()).toMatchObject({
       fromHandler: true,
       registerMeta: true,
     });

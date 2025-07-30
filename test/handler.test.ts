@@ -9,6 +9,7 @@ import type { ValidateIssues } from "../src/utils/internal/validate.ts";
 
 import type { H3Event } from "../src/event.ts";
 import { z } from "zod/v4";
+import { toRequest } from "../src/h3.ts";
 
 describe("handler.ts", () => {
   describe("defineHandler", () => {
@@ -131,11 +132,13 @@ describe("handler.ts", () => {
     });
 
     it("valid request", async () => {
-      const res = await handler.fetch("/?id=123", {
-        method: "POST",
-        headers: { "x-token": "abc" },
-        body: JSON.stringify({ name: "tommy" }),
-      });
+      const res = await handler.fetch(
+        toRequest("/?id=123", {
+          method: "POST",
+          headers: { "x-token": "abc" },
+          body: JSON.stringify({ name: "tommy" }),
+        }),
+      );
       // expect(res.status).toBe(200);
       expect(await res.json()).toMatchObject({
         body: { name: "tommy", age: 20 },
@@ -144,11 +147,13 @@ describe("handler.ts", () => {
     });
 
     it("invalid body", async () => {
-      const res = await handler.fetch("/?id=123", {
-        method: "POST",
-        headers: { "x-token": "abc" },
-        body: JSON.stringify({ name: 123 }),
-      });
+      const res = await handler.fetch(
+        toRequest("/?id=123", {
+          method: "POST",
+          headers: { "x-token": "abc" },
+          body: JSON.stringify({ name: 123 }),
+        }),
+      );
       expect(await res.json()).toMatchObject({
         status: 400,
         statusText: "Validation failed",
@@ -159,10 +164,12 @@ describe("handler.ts", () => {
     });
 
     it("invalid headers", async () => {
-      const res = await handler.fetch("/?id=123", {
-        method: "POST",
-        body: JSON.stringify({ name: 123 }),
-      });
+      const res = await handler.fetch(
+        toRequest("/?id=123", {
+          method: "POST",
+          body: JSON.stringify({ name: 123 }),
+        }),
+      );
       expect(await res.json()).toMatchObject({
         status: 400,
         statusText: "Validation failed",
@@ -175,11 +182,13 @@ describe("handler.ts", () => {
     });
 
     it("invalid query", async () => {
-      const res = await handler.fetch("/?id=", {
-        method: "POST",
-        headers: { "x-token": "abc" },
-        body: JSON.stringify({ name: "tommy" }),
-      });
+      const res = await handler.fetch(
+        toRequest("/?id=", {
+          method: "POST",
+          headers: { "x-token": "abc" },
+          body: JSON.stringify({ name: "tommy" }),
+        }),
+      );
       expect(await res.json()).toMatchObject({
         status: 400,
         statusText: "Validation failed",
