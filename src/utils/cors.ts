@@ -150,9 +150,9 @@ export function appendCorsHeaders(event: H3Event, options: CorsOptions): void {
 export function handleCors(event: H3Event, options: CorsOptions): false | "" {
   const _options = resolveCorsOptions(options);
   if (isPreflightRequest(event)) {
-    appendCorsPreflightHeaders(event, options);
+    appendCorsPreflightHeaders(event, _options);
     return noContent(event, _options.preflight.statusCode);
   }
-  appendCorsHeaders(event, options);
+  appendCorsHeaders(event, _options);
   return false;
 }
