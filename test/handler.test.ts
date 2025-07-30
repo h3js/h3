@@ -207,11 +207,13 @@ describe("handler.ts", () => {
 
     describe("custom error messages", () => {
       it("invalid body", async () => {
-        const res = await handlerCustomError.fetch("/?id=123", {
-          method: "POST",
-          headers: { "x-token": "abc" },
-          body: JSON.stringify({ name: 123 }),
-        });
+        const res = await handlerCustomError.fetch(
+          toRequest("/?id=123", {
+            method: "POST",
+            headers: { "x-token": "abc" },
+            body: JSON.stringify({ name: 123 }),
+          }),
+        );
         expect(await res.json()).toMatchObject({
           status: 500,
           statusText: "Custom Zod body validation error",
@@ -221,10 +223,12 @@ describe("handler.ts", () => {
       });
 
       it("invalid headers", async () => {
-        const res = await handlerCustomError.fetch("/?id=123", {
-          method: "POST",
-          body: JSON.stringify({ name: 123 }),
-        });
+        const res = await handlerCustomError.fetch(
+          toRequest("/?id=123", {
+            method: "POST",
+            body: JSON.stringify({ name: 123 }),
+          }),
+        );
         expect(await res.json()).toMatchObject({
           status: 500,
           statusText: "Custom Zod headers validation error",
@@ -234,11 +238,13 @@ describe("handler.ts", () => {
       });
 
       it("invalid query", async () => {
-        const res = await handlerCustomError.fetch("/?id=", {
-          method: "POST",
-          headers: { "x-token": "abc" },
-          body: JSON.stringify({ name: "tommy" }),
-        });
+        const res = await handlerCustomError.fetch(
+          toRequest("/?id=", {
+            method: "POST",
+            headers: { "x-token": "abc" },
+            body: JSON.stringify({ name: "tommy" }),
+          }),
+        );
         expect(await res.json()).toMatchObject({
           status: 500,
           statusText: "Custom Zod query validation error",
