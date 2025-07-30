@@ -40,7 +40,7 @@ export const H3Core = /* @__PURE__ */ (() => {
     }
 
     fetch(request: ServerRequest): Response | Promise<Response> {
-      return this.request(request);
+      return this._request(request);
     }
 
     request(
@@ -48,9 +48,13 @@ export const H3Core = /* @__PURE__ */ (() => {
       _init?: RequestInit,
       context?: H3EventContext,
     ): Response | Promise<Response> {
-      // Convert the request to a Request object
-      const request: ServerRequest = toRequest(_req, _init);
+      return this._request(toRequest(_req, _init), context);
+    }
 
+    _request(
+      request: ServerRequest,
+      context?: H3EventContext,
+    ): Response | Promise<Response> {
       // Create a new event instance
       const event = new H3Event(request, context, this as unknown as H3Type);
 
