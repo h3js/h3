@@ -125,7 +125,7 @@ describe("handler.ts", () => {
         status: 400,
         statusText: "Validation failed",
         message: "Validation failed",
-        data: { issues: [{ expected: "string", received: "number" }] },
+        data: { issues: [{ expected: "string" }] },
       });
       expect(res.status).toBe(400);
     });
@@ -140,9 +140,7 @@ describe("handler.ts", () => {
         statusText: "Validation failed",
         message: "Validation failed",
         data: {
-          issues: [
-            { path: ["x-token"], expected: "string", received: "undefined" },
-          ],
+          issues: [{ path: ["x-token"], expected: "string" }],
         },
       });
       expect(res.status).toBe(400);
@@ -162,7 +160,7 @@ describe("handler.ts", () => {
           issues: [
             {
               path: ["id"],
-              message: "String must contain at least 3 character(s)",
+              message: "Too small: expected string to have >=3 characters",
             },
           ],
         },

@@ -150,7 +150,7 @@ export const H3Core = /* @__PURE__ */ (() => {
       opts?: RouteOptions,
     ): H3Type {
       const _method = (method || "").toUpperCase();
-      route = new URL(route, "h://_").pathname;
+      route = new URL(route, "http://_").pathname;
       this._addRoute({
         method: _method as HTTPMethod,
         route,

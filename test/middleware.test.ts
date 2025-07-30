@@ -24,6 +24,11 @@ describeMatrix("middleware", (t, { it, expect }) => {
       return value;
     });
 
+    t.app.use(async (event, next) => {
+      event.context._middleware.push(`async (event, next) (passthrough)`);
+      await next();
+    });
+
     t.app.use((event, next) => {
       event.context._middleware.push(`(event, next)`);
       return next();
@@ -42,6 +47,7 @@ describeMatrix("middleware", (t, { it, expect }) => {
       },
     );
 
+    let count = 0;
     t.app.get(
       "/**",
       defineHandler({
@@ -51,7 +57,9 @@ describeMatrix("middleware", (t, { it, expect }) => {
           },
         ],
         handler: (event) => {
+          count++;
           return {
+            count,
             log: event.context._middleware.join(" > "),
           };
         },
@@ -70,7 +78,8 @@ describeMatrix("middleware", (t, { it, expect }) => {
     const response = await t.app.fetch("/");
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({
-      log: "(event) > async (event) > async (event, next) > (event, next) > route (register) > route (define)",
+      log: "(event) > async (event) > async (event, next) > async (event, next) (passthrough) > (event, next) > route (register) > route (define)",
+      count: 1,
     });
   });
 
