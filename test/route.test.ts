@@ -29,7 +29,7 @@ describe("defineRoute", () => {
       handler: () => "ok",
     });
     app.register(routePlugin);
-    const res = await app.fetch("/test", { method: "POST" });
+    const res = await app._fetch("/test", { method: "POST" });
     expect(await res.text()).toBe("ok");
     expect(res.headers.get("X-Middleware")).toBe("works");
   });
@@ -68,7 +68,7 @@ describe("defineRoute", () => {
       handler: () => "user created",
     });
     app.register(routePlugin);
-    const res = await app.fetch("/users", { method: "POST" });
+    const res = await app._fetch("/users", { method: "POST" });
     expect(await res.json()).toMatchObject({
       status: 400,
       statusText: "Validation failed",

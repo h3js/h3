@@ -63,7 +63,7 @@ function setupWebTest(opts: TestOptions = {}): TestContext {
         headers.set("Host", "localhost");
       }
       return Promise.resolve(
-        ctx.app.fetch(input, {
+        ctx.app._fetch(input, {
           ...init,
           headers,
         }),

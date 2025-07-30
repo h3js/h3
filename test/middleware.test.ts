@@ -84,7 +84,7 @@ describeMatrix("middleware", (t, { it, expect }) => {
   });
 
   it("intercepted middleware", async () => {
-    const response = await t.app.fetch("/", {
+    const response = await t.app._fetch("/", {
       headers: { "x-intercept1": "1" },
     });
     expect(response.status).toBe(200);
@@ -96,7 +96,7 @@ describeMatrix("middleware", (t, { it, expect }) => {
     expect(response.status).toBe(200);
     expect(await response.text()).toBe("Hello World!");
 
-    const response2 = await t.app.fetch("/test/", {
+    const response2 = await t.app._fetch("/test/", {
       headers: { "x-async": "1" },
     });
     expect(response2.status).toBe(200);
@@ -106,7 +106,7 @@ describeMatrix("middleware", (t, { it, expect }) => {
   it("middleware filters", async () => {
     expect(
       (
-        await t.app.fetch("/test", {
+        await t.app._fetch("/test", {
           method: "POST",
         })
       ).status,
@@ -114,7 +114,7 @@ describeMatrix("middleware", (t, { it, expect }) => {
 
     expect(
       await (
-        await t.app.fetch("/test", {
+        await t.app._fetch("/test", {
           headers: { "x-skip": "1" },
         })
       ).text(),

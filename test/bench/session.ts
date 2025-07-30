@@ -26,7 +26,7 @@ const apps = (
         id: session.id,
         ctr: session.data.ctr,
       };
-    }).fetch,
+    })._fetch,
   ] as const;
 });
 
