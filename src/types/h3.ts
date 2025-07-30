@@ -66,6 +66,7 @@ export type RouteOptions = {
 export type MiddlewareOptions = {
   method?: string;
   match?: (event: H3Event) => boolean;
+  meta?: H3RouteMeta;
 };
 
 export declare class H3 {
