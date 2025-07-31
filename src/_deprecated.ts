@@ -144,7 +144,7 @@ export function sendStream(
 }
 
 /** @deprecated Please use `return noContent(event)` */
-export const sendNoContent: (event: H3Event, code?: number) => "" = noContent;
+export const sendNoContent: (event: H3Event, code?: number) => Response = noContent;
 
 /** @deprecated Please use `return redirect(event, code)` */
 export const sendRedirect: (
