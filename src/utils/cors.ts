@@ -147,7 +147,7 @@ export function appendCorsHeaders(event: H3Event, options: CorsOptions): void {
  *   // Your code here
  * });
  */
-export function handleCors(event: H3Event, options: CorsOptions): false | "" {
+export function handleCors(event: H3Event, options: CorsOptions): false | Response {
   const _options = resolveCorsOptions(options);
   if (isPreflightRequest(event)) {
     appendCorsPreflightHeaders(event, options);
