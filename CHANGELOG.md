@@ -2,6 +2,27 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## v2.0.0-beta.3
+
+[compare changes](https://github.com/h3js/h3/compare/v2.0.0-beta.2...v2.0.0-beta.3)
+
+### 🚀 Enhancements
+
+- ⚠️  `app.request` ([#1176](https://github.com/h3js/h3/pull/1176))
+
+### 💅 Refactors
+
+- ⚠️  Only accept `req` for `H3` and `EventHandlerWithFetch` fetch ([#1096](https://github.com/h3js/h3/pull/1096))
+
+#### ⚠️ Breaking Changes
+
+- ⚠️  `app.request` ([#1176](https://github.com/h3js/h3/pull/1176))
+- ⚠️  Only accept `req` for `H3` and `EventHandlerWithFetch` fetch ([#1096](https://github.com/h3js/h3/pull/1096))
+
+### ❤️ Contributors
+
+- Pooya Parsa <pyapar@gmail.com>
+
 ## v2.0.0-beta.2
 
 [compare changes](https://github.com/h3js/h3/compare/v2.0.0-beta.1...v2.0.0-beta.2)

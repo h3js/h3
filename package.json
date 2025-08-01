@@ -1,6 +1,6 @@
 {
   "name": "h3",
-  "version": "2.0.0-beta.2",
+  "version": "2.0.0-beta.3",
   "description": "Minimal H(TTP) framework built for high performance and portability.",
   "homepage": "https://h3.dev",
   "repository": "h3js/h3",
