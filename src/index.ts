@@ -42,6 +42,8 @@ export {
   defineValidatedHandler,
 } from "./handler.ts";
 
+export { jsonRpcHandler } from "./utils/json-rpc.ts";
+
 export { defineMiddleware } from "./middleware.ts";
 
 // Response
