@@ -2,7 +2,6 @@ import type { H3Event } from "../event.ts";
 import { defineHandler } from "../handler.ts";
 import type { EventHandler } from "../types/handler.ts";
 import { HTTPError } from "../error.ts";
-import { readBody } from "./body.ts";
 
 /**
  * JSON-RPC 2.0 Interfaces based on the specification.
@@ -112,13 +111,12 @@ export function defineJsonRpcHandler<T = unknown, D = unknown>(
 
     let hasErrored = false;
     let error = undefined;
-    const body = await readBody<JsonRpcRequest<T> | JsonRpcRequest<T>[]>(
-      event,
-    ).catch((error_) => {
-      hasErrored = true;
-      error = error_;
-      return undefined;
-    });
+    const body = await event.req.json()
+      .catch((error_) => {
+        hasErrored = true;
+        error = error_;
+        return undefined;
+      }) as JsonRpcRequest<T> | JsonRpcRequest<T>[] | undefined;
 
     if (hasErrored || !body) {
       return sendJsonRpcError(null, PARSE_ERROR, "Parse error", error);
