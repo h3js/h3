@@ -11,7 +11,7 @@ import { HTTPError } from "../error.ts";
 /**
  * JSON-RPC 2.0 Request object.
  */
-interface JsonRpcRequest<I = unknown> {
+export interface JsonRpcRequest<I = unknown> {
   jsonrpc: "2.0";
   method: string;
   params?: I;
@@ -21,7 +21,7 @@ interface JsonRpcRequest<I = unknown> {
 /**
  * JSON-RPC 2.0 Error object.
  */
-interface JsonRpcError {
+export interface JsonRpcError {
   code: number;
   message: string;
   data?: any;
@@ -30,7 +30,7 @@ interface JsonRpcError {
 /**
  * JSON-RPC 2.0 Response object.
  */
-type JsonRpcResponse<O = unknown> =
+export type JsonRpcResponse<O = unknown> =
   | {
       jsonrpc: "2.0";
       id: string | number | null;
@@ -49,11 +49,7 @@ type JsonRpcResponse<O = unknown> =
  * It receives the parameters from the request and the original H3Event.
  */
 export type JsonRpcMethodHandler<I = unknown, O = I> = (
-  data: {
-    method: string;
-    params?: I;
-    id: string | number | null | undefined;
-  },
+  data: JsonRpcRequest<I>,
   event: H3Event,
 ) => O | Promise<O>;
 
@@ -182,7 +178,7 @@ export function defineJsonRpcHandler(methods: JsonRpcMethodMap): EventHandler {
         );
       }
 
-      const { id, method, params } = req;
+      const { jsonrpc, id, method, params } = req;
       const handler = methods[method];
 
       // If the method is not found, return an error.
@@ -196,7 +192,7 @@ export function defineJsonRpcHandler(methods: JsonRpcMethodMap): EventHandler {
 
       // Execute the method handler.
       try {
-        const result = await handler({ id, method, params }, event);
+        const result = await handler({ jsonrpc, id, method, params }, event);
 
         // For notifications, we don't send a response.
         if (id !== undefined && id !== null) {
