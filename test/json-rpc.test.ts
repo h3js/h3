@@ -1,8 +1,8 @@
-import { jsonRpcHandler } from "../src/index.ts";
+import { defineJsonRpcHandler } from "../src/index.ts";
 import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("json-rpc", (t, { it, expect }) => {
-  const eventHandler = jsonRpcHandler({
+  const eventHandler = defineJsonRpcHandler({
     test: (params, event) => {
       return `Recieved ${params} on path ${event.url.pathname}`;
     },

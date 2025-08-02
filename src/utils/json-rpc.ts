@@ -84,7 +84,7 @@ export type JsonRpcMethodMap<T = unknown, D = unknown> = Record<
  * @param methods A map of RPC method names to their handler functions.
  * @returns An H3 EventHandler.
  */
-export function jsonRpcHandler<T = unknown, D = unknown>(
+export function defineJsonRpcHandler<T = unknown, D = unknown>(
   methods: JsonRpcMethodMap<T, D>,
 ): EventHandler {
   return defineHandler(async (event: H3Event) => {

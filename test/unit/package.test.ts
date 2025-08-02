@@ -80,7 +80,7 @@ describe("h3 package", () => {
         "isMethod",
         "isPreflightRequest",
         "iterable",
-        "jsonRpcHandler",
+        "defineJsonRpcHandler",
         "lazyEventHandler",
         "mockEvent",
         "noContent",
