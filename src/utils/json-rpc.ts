@@ -30,17 +30,19 @@ interface JsonRpcError {
 /**
  * JSON-RPC 2.0 Response object.
  */
-type JsonRpcResponse<O = unknown> = {
-  jsonrpc: "2.0";
-  id: string | number | null;
-  result: O;
-  error?: undefined;
-} | {
-  jsonrpc: "2.0";
-  id: string | number | null;
-  error: JsonRpcError;
-  result?: undefined;
-}
+type JsonRpcResponse<O = unknown> =
+  | {
+      jsonrpc: "2.0";
+      id: string | number | null;
+      result: O;
+      error?: undefined;
+    }
+  | {
+      jsonrpc: "2.0";
+      id: string | number | null;
+      error: JsonRpcError;
+      result?: undefined;
+    };
 
 /**
  * A function that handles a JSON-RPC method call.
