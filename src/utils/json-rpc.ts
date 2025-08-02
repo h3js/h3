@@ -138,7 +138,36 @@ export function defineJsonRpcHandler<T = unknown, D = unknown>(
       return undefined;
     })) as JsonRpcRequest<T> | JsonRpcRequest<T>[] | undefined;
 
-    if (hasErrored || !body) {
+    // Protect against prototype pollution
+    function hasUnsafeKeys(obj: any): boolean {
+      if (obj && typeof obj === "object") {
+        for (const key of Object.keys(obj)) {
+          if (
+            key === "__proto__" ||
+            key === "constructor" ||
+            key === "prototype"
+          ) {
+            return true;
+          }
+          if (
+            typeof obj[key] === "object" &&
+            obj[key] !== null &&
+            hasUnsafeKeys(obj[key])
+          ) {
+            return true;
+          }
+        }
+      }
+      return false;
+    }
+
+    if (
+      hasErrored ||
+      !body ||
+      (Array.isArray(body)
+        ? body.some((element) => hasUnsafeKeys(element))
+        : hasUnsafeKeys(body))
+    ) {
       return sendJsonRpcError(null, PARSE_ERROR, "Parse error", error);
     }
 
