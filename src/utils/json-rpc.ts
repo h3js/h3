@@ -111,12 +111,11 @@ export function defineJsonRpcHandler<T = unknown, D = unknown>(
 
     let hasErrored = false;
     let error = undefined;
-    const body = await event.req.json()
-      .catch((error_) => {
-        hasErrored = true;
-        error = error_;
-        return undefined;
-      }) as JsonRpcRequest<T> | JsonRpcRequest<T>[] | undefined;
+    const body = (await event.req.json().catch((error_) => {
+      hasErrored = true;
+      error = error_;
+      return undefined;
+    })) as JsonRpcRequest<T> | JsonRpcRequest<T>[] | undefined;
 
     if (hasErrored || !body) {
       return sendJsonRpcError(null, PARSE_ERROR, "Parse error", error);
