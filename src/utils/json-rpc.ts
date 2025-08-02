@@ -60,10 +60,7 @@ export type JsonRpcMethodHandler<I = unknown, O = I> = (
 /**
  * A map of method names to their corresponding handler functions.
  */
-export type JsonRpcMethodMap<I = unknown, O = I> = Record<
-  string,
-  JsonRpcMethodHandler<I, O>
->;
+export type JsonRpcMethodMap = Record<string, JsonRpcMethodHandler>;
 
 // Official JSON-RPC 2.0 error codes.
 /**
@@ -104,9 +101,7 @@ const INTERNAL_ERROR = -32_603;
  *   },
  * }));
  */
-export function defineJsonRpcHandler<T = unknown, D = unknown>(
-  methods: JsonRpcMethodMap<T, D>,
-): EventHandler {
+export function defineJsonRpcHandler(methods: JsonRpcMethodMap): EventHandler {
   return defineHandler(async (event: H3Event) => {
     // JSON-RPC requests must be POST.
     if (event.req.method !== "POST") {
@@ -122,7 +117,7 @@ export function defineJsonRpcHandler<T = unknown, D = unknown>(
       code: number,
       message: string,
       data?: any,
-    ): JsonRpcResponse<D> => {
+    ): JsonRpcResponse => {
       const error: JsonRpcError = { code, message };
       if (data) {
         error.data = data;
@@ -136,7 +131,7 @@ export function defineJsonRpcHandler<T = unknown, D = unknown>(
       hasErrored = true;
       error = error_;
       return undefined;
-    })) as JsonRpcRequest<T> | JsonRpcRequest<T>[] | undefined;
+    })) as JsonRpcRequest | JsonRpcRequest[] | undefined;
 
     // Protect against prototype pollution
     function hasUnsafeKeys(obj: any): boolean {
@@ -172,12 +167,12 @@ export function defineJsonRpcHandler<T = unknown, D = unknown>(
     }
 
     const isBatch = Array.isArray(body);
-    const requests: JsonRpcRequest<T>[] = isBatch ? body : [body];
+    const requests: JsonRpcRequest[] = isBatch ? body : [body];
 
     // Processes a single JSON-RPC request.
     const processRequest = async (
-      req: JsonRpcRequest<T>,
-    ): Promise<JsonRpcResponse<D> | undefined> => {
+      req: JsonRpcRequest,
+    ): Promise<JsonRpcResponse | undefined> => {
       // Validate the request object.
       if (req.jsonrpc !== "2.0" || typeof req.method !== "string") {
         return sendJsonRpcError(
@@ -235,7 +230,7 @@ export function defineJsonRpcHandler<T = unknown, D = unknown>(
 
     // Filter out undefined results from notifications.
     const finalResponses = responses.filter(
-      (r): r is JsonRpcResponse<D> => r !== undefined,
+      (r): r is JsonRpcResponse => r !== undefined,
     );
 
     event.res.headers.set("Content-Type", "application/json");
