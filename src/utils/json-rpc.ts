@@ -15,7 +15,7 @@ interface JsonRpcRequest<T = unknown> {
   jsonrpc: "2.0";
   method: string;
   params?: T;
-  id?: string | number | null;
+  id?: string | number | null | undefined;
 }
 
 /**
@@ -65,7 +65,11 @@ const INTERNAL_ERROR = -32_603;
  * It receives the parameters from the request and the original H3Event.
  */
 export type JsonRpcMethodHandler<T = unknown, D = unknown> = (
-  params: T,
+  data: {
+    method: string;
+    params?: T;
+    id: string | number | null | undefined;
+  },
   event: H3Event,
 ) => D | Promise<D>;
 
@@ -82,6 +86,16 @@ export type JsonRpcMethodMap<T = unknown, D = unknown> = Record<
  *
  * @param methods A map of RPC method names to their handler functions.
  * @returns An H3 EventHandler.
+ *
+ * @example
+ * app.post("/rpc", defineJsonRpcHandler({
+ *   echo: ({ params }, event) => {
+ *     return `Recieved \`${params}\` on path \`${event.url.pathname}\``;
+ *   },
+ *   sum: ({ params }, event) => {
+ *     return params.a + params.b;
+ *   },
+ * }));
  */
 export function defineJsonRpcHandler<T = unknown, D = unknown>(
   methods: JsonRpcMethodMap<T, D>,
@@ -151,7 +165,7 @@ export function defineJsonRpcHandler<T = unknown, D = unknown>(
 
       // Execute the method handler.
       try {
-        const result = await handler(params || ({} as T), event);
+        const result = await handler({ id, method, params }, event);
 
         // For notifications, we don't send a response.
         if (id !== undefined && id !== null) {

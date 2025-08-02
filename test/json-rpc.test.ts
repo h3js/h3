@@ -3,7 +3,7 @@ import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("json-rpc", (t, { it, expect }) => {
   const eventHandler = defineJsonRpcHandler({
-    test: (params, event) => {
+    echo: ({ params }, event) => {
       return `Recieved ${params} on path ${event.url.pathname}`;
     },
   });
@@ -13,7 +13,7 @@ describeMatrix("json-rpc", (t, { it, expect }) => {
       method: "POST",
       body: JSON.stringify({
         jsonrpc: "2.0",
-        method: "test",
+        method: "echo",
         params: "Hello World",
         id: 1,
       }),
@@ -32,7 +32,7 @@ describeMatrix("json-rpc", (t, { it, expect }) => {
       method: "POST",
       body: JSON.stringify({
         jsonrpc: "2.0",
-        method: "test",
+        method: "echo",
         params: "Hello World",
         // No ID for notification
       }),
@@ -48,7 +48,7 @@ describeMatrix("json-rpc", (t, { it, expect }) => {
       method: "POST",
       body: JSON.stringify({
         jsonrpc: "1.0", // Invalid version
-        method: "test",
+        method: "echo",
         // Missing params
         id: 1,
       }),
