@@ -11,10 +11,10 @@ import { HTTPError } from "../error.ts";
 /**
  * JSON-RPC 2.0 Request object.
  */
-interface JsonRpcRequest<T = unknown> {
+interface JsonRpcRequest<I = unknown> {
   jsonrpc: "2.0";
   method: string;
-  params?: T;
+  params?: I;
   id?: string | number | null | undefined;
 }
 
@@ -30,12 +30,38 @@ interface JsonRpcError {
 /**
  * JSON-RPC 2.0 Response object.
  */
-interface JsonRpcResponse<D = unknown> {
+type JsonRpcResponse<O = unknown> = {
   jsonrpc: "2.0";
-  result?: D;
-  error?: JsonRpcError;
   id: string | number | null;
+  result: O;
+  error?: undefined;
+} | {
+  jsonrpc: "2.0";
+  id: string | number | null;
+  error: JsonRpcError;
+  result?: undefined;
 }
+
+/**
+ * A function that handles a JSON-RPC method call.
+ * It receives the parameters from the request and the original H3Event.
+ */
+export type JsonRpcMethodHandler<I = unknown, O = I> = (
+  data: {
+    method: string;
+    params?: I;
+    id: string | number | null | undefined;
+  },
+  event: H3Event,
+) => O | Promise<O>;
+
+/**
+ * A map of method names to their corresponding handler functions.
+ */
+export type JsonRpcMethodMap<I = unknown, O = I> = Record<
+  string,
+  JsonRpcMethodHandler<I, O>
+>;
 
 // Official JSON-RPC 2.0 error codes.
 /**
@@ -59,27 +85,6 @@ const INVALID_PARAMS = -32_602;
  */
 const INTERNAL_ERROR = -32_603;
 // -32_000 to -32_099 	Reserved for implementation-defined server-errors.
-
-/**
- * A function that handles a JSON-RPC method call.
- * It receives the parameters from the request and the original H3Event.
- */
-export type JsonRpcMethodHandler<T = unknown, D = unknown> = (
-  data: {
-    method: string;
-    params?: T;
-    id: string | number | null | undefined;
-  },
-  event: H3Event,
-) => D | Promise<D>;
-
-/**
- * A map of method names to their corresponding handler functions.
- */
-export type JsonRpcMethodMap<T = unknown, D = unknown> = Record<
-  string,
-  JsonRpcMethodHandler<T, D>
->;
 
 /**
  * Creates an H3 event handler that implements the JSON-RPC 2.0 specification.
