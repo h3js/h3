@@ -22,7 +22,7 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
     error: () => {
       throw new Error("Handler error");
     },
-    unsafe: () => {
+    constructor: () => {
       return "ok";
     },
   });
@@ -136,16 +136,14 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
         }),
       });
       const json = await result.json();
-      expect(json).toMatchInlineSnapshot(`
-        {
-          "error": {
-            "code": -32600,
-            "message": "Invalid Request",
-          },
-          "id": 5,
-          "jsonrpc": "2.0",
-        }
-      `);
+      expect(json).toEqual({
+        error: {
+          code: -32_600,
+          message: "Invalid Request",
+        },
+        id: 5,
+        jsonrpc: "2.0",
+      });
     });
 
     it("should handle handler errors and map to JSON-RPC error", async () => {
@@ -159,17 +157,15 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
         }),
       });
       const json = await result.json();
-      expect(json).toMatchInlineSnapshot(`
-        {
-          "error": {
-            "code": -32603,
-            "data": {},
-            "message": "Internal error",
-          },
-          "id": 4,
-          "jsonrpc": "2.0",
-        }
-      `);
+      expect(json).toEqual({
+        error: {
+          code: -32_603,
+          data: {},
+          message: "Internal error",
+        },
+        id: 4,
+        jsonrpc: "2.0",
+      });
     });
 
     it("should return error for method not found", async () => {
@@ -208,38 +204,37 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
         body: "{ invalid json }",
       });
       const json = await result.json();
-      expect(json).toMatchInlineSnapshot(`
-        {
-          "error": {
-            "code": -32700,
-            "data": {},
-            "message": "Parse error",
-          },
-          "id": null,
-          "jsonrpc": "2.0",
-        }
-      `);
+      expect(json).toEqual({
+        error: {
+          code: -32_700,
+          data: {},
+          message: "Parse error",
+        },
+        id: null,
+        jsonrpc: "2.0",
+      });
     });
 
-    it("should return parse error for unsafe keys", async () => {
+    it("should return parse error for constructor keys", async () => {
       t.app.all("/json-rpc", eventHandler);
       const result = await t.fetch("/json-rpc", {
         method: "POST",
         body: JSON.stringify({
           jsonrpc: "2.0",
-          method: "unsafe",
-          params: { __proto__: {} },
+          method: "constructor",
+          params: { constructor: {} },
           id: 3,
         }),
       });
       const json = await result.json();
-      expect(json).toMatchInlineSnapshot(`
-        {
-          "id": 3,
-          "jsonrpc": "2.0",
-          "result": "ok",
-        }
-      `);
+      expect(json).toEqual({
+        id: null,
+        jsonrpc: "2.0",
+        error: {
+          code: -32_700,
+          message: "Parse error",
+        },
+      });
     });
   });
 });

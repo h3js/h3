@@ -1,6 +1,10 @@
+import type {
+  EventHandler,
+  EventHandlerRequest,
+  Middleware,
+} from "../types/handler.ts";
 import type { H3Event } from "../event.ts";
 import { defineHandler } from "../handler.ts";
-import type { EventHandler } from "../types/handler.ts";
 import { HTTPError } from "../error.ts";
 
 /**
@@ -97,8 +101,13 @@ const INTERNAL_ERROR = -32_603;
  *   },
  * }));
  */
-export function defineJsonRpcHandler(methods: JsonRpcMethodMap): EventHandler {
-  return defineHandler(async (event: H3Event) => {
+export function defineJsonRpcHandler<
+  RequestT extends EventHandlerRequest = EventHandlerRequest,
+>(
+  methods: JsonRpcMethodMap,
+  middleware?: Middleware[],
+): EventHandler<RequestT> {
+  const handler = async (event: H3Event) => {
     // JSON-RPC requests must be POST.
     if (event.req.method !== "POST") {
       throw new HTTPError({
@@ -106,20 +115,6 @@ export function defineJsonRpcHandler(methods: JsonRpcMethodMap): EventHandler {
         message: "Method Not Allowed",
       });
     }
-
-    // Helper to construct and return a JSON-RPC error response.
-    const sendJsonRpcError = (
-      id: string | number | null,
-      code: number,
-      message: string,
-      data?: any,
-    ): JsonRpcResponse => {
-      const error: JsonRpcError = { code, message };
-      if (data) {
-        error.data = data;
-      }
-      return { jsonrpc: "2.0", id, error };
-    };
 
     let hasErrored = false;
     let error = undefined;
@@ -159,7 +154,7 @@ export function defineJsonRpcHandler(methods: JsonRpcMethodMap): EventHandler {
         ? body.some((element) => hasUnsafeKeys(element))
         : hasUnsafeKeys(body))
     ) {
-      return sendJsonRpcError(null, PARSE_ERROR, "Parse error", error);
+      return createJsonRpcError(null, PARSE_ERROR, "Parse error", error);
     }
 
     const isBatch = Array.isArray(body);
@@ -171,7 +166,7 @@ export function defineJsonRpcHandler(methods: JsonRpcMethodMap): EventHandler {
     ): Promise<JsonRpcResponse | undefined> => {
       // Validate the request object.
       if (req.jsonrpc !== "2.0" || typeof req.method !== "string") {
-        return sendJsonRpcError(
+        return createJsonRpcError(
           req.id ?? null,
           INVALID_REQUEST,
           "Invalid Request",
@@ -185,7 +180,7 @@ export function defineJsonRpcHandler(methods: JsonRpcMethodMap): EventHandler {
       if (!handler) {
         // But only if it's not a notification.
         if (id !== undefined && id !== null) {
-          return sendJsonRpcError(id, METHOD_NOT_FOUND, "Method not found");
+          return createJsonRpcError(id, METHOD_NOT_FOUND, "Method not found");
         }
         return undefined;
       }
@@ -214,7 +209,7 @@ export function defineJsonRpcHandler(methods: JsonRpcMethodMap): EventHandler {
               ? INVALID_PARAMS
               : INTERNAL_ERROR;
 
-          return sendJsonRpcError(id, errorCode, statusMessage, h3Error.data);
+          return createJsonRpcError(id, errorCode, statusMessage, h3Error.data);
         }
         return undefined;
       }
@@ -246,5 +241,24 @@ export function defineJsonRpcHandler(methods: JsonRpcMethodMap): EventHandler {
     // For a single request, return the single response object.
     // For a batch request, return the array of response objects.
     return isBatch ? finalResponses : finalResponses[0];
+  };
+
+  return defineHandler<RequestT>({
+    handler,
+    middleware,
   });
 }
+
+// Helper to construct and return a JSON-RPC error response.
+const createJsonRpcError = (
+  id: string | number | null,
+  code: number,
+  message: string,
+  data?: any,
+): JsonRpcResponse => {
+  const error: JsonRpcError = { code, message };
+  if (data) {
+    error.data = data;
+  }
+  return { jsonrpc: "2.0", id, error };
+};
