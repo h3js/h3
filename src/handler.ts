@@ -1,6 +1,5 @@
 import type { ServerRequest } from "srvx";
 import { H3Event } from "./event.ts";
-import { toRequest } from "./h3.ts";
 import { callMiddleware } from "./middleware.ts";
 import { toResponse } from "./response.ts";
 
@@ -11,7 +10,6 @@ import type {
   EventHandlerResponse,
   DynamicEventHandler,
   EventHandlerWithFetch,
-  Middleware,
 } from "./types/handler.ts";
 import type {
   InferOutput,
@@ -58,27 +56,39 @@ export function defineValidatedHandler<
   RequestHeaders extends StandardSchemaV1,
   RequestQuery extends StandardSchemaV1,
   Res extends EventHandlerResponse = EventHandlerResponse,
->(def: {
-  middleware?: Middleware[];
-  body?: RequestBody;
-  headers?: RequestHeaders;
-  query?: RequestQuery;
-  handler: EventHandler<
-    {
-      body: InferOutput<RequestBody>;
-      query: StringHeaders<InferOutput<RequestQuery>>;
-    },
-    Res
-  >;
-}): EventHandlerWithFetch<
+>(
+  def: Omit<EventHandlerObject, "handler"> & {
+    validate?: {
+      body?: RequestBody;
+      headers?: RequestHeaders;
+      query?: RequestQuery;
+    };
+    handler: EventHandler<
+      {
+        body: InferOutput<RequestBody>;
+        query: StringHeaders<InferOutput<RequestQuery>>;
+      },
+      Res
+    >;
+  },
+): EventHandlerWithFetch<
   TypedRequest<InferOutput<RequestBody>, InferOutput<RequestHeaders>>,
   Res
 > {
+  if (!def.validate) {
+    return defineHandler(def) as any;
+  }
   return defineHandler({
-    middleware: def.middleware,
+    ...def,
     handler: (event) => {
-      (event as any) /* readonly */.req = validatedRequest(event.req, def);
-      (event as any) /* readonly */.url = validatedURL(event.url, def);
+      (event as any) /* readonly */.req = validatedRequest(
+        event.req,
+        def.validate!,
+      );
+      (event as any) /* readonly */.url = validatedURL(
+        event.url,
+        def.validate!,
+      );
       return def.handler(event as any);
     },
   }) as any;
@@ -91,11 +101,13 @@ function handlerWithFetch<
   Res = EventHandlerResponse,
 >(handler: EventHandler<Req, Res>): EventHandlerWithFetch<Req, Res> {
   return Object.assign(handler, {
-    fetch: (
-      _req: ServerRequest | URL | string,
-      _init?: RequestInit,
-    ): Promise<Response> => {
-      const req = toRequest(_req, _init);
+    fetch: (req: ServerRequest | URL | string): Promise<Response> => {
+      if (typeof req === "string") {
+        req = new URL(req, "http://_");
+      }
+      if (req instanceof URL) {
+        req = new Request(req);
+      }
       const event = new H3Event(req) as H3Event<Req>;
       try {
         return Promise.resolve(toResponse(handler(event), event));

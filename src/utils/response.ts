@@ -11,7 +11,7 @@ import {
  * Respond with an empty payload.<br>
  *
  * @example
- * app.get("/", () => noContent());
+ * app.get("/", (event) => noContent(event));
  *
  * @param event H3 event
  * @param code status code to be send. By default, it is `204 No Content`.

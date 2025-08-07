@@ -34,30 +34,27 @@ export const H3Core = /* @__PURE__ */ (() => {
       this._middleware = [];
       this.config = config;
       this.fetch = this.fetch.bind(this);
-      this._fetch = this._fetch.bind(this);
+      this.request = this.request.bind(this);
       this.handler = this.handler.bind(this);
       config.plugins?.forEach((plugin) => plugin(this as unknown as H3Type));
     }
 
-    fetch(
-      request: ServerRequest | URL | string,
-      options?: RequestInit,
-    ): Promise<Response> {
-      try {
-        return Promise.resolve(this._fetch(request, options));
-      } catch (error: any) {
-        return Promise.reject(error);
-      }
+    fetch(request: ServerRequest): Response | Promise<Response> {
+      return this._request(request);
     }
 
-    _fetch(
+    request(
       _req: ServerRequest | URL | string,
       _init?: RequestInit,
       context?: H3EventContext,
     ): Response | Promise<Response> {
-      // Convert the request to a Request object
-      const request: ServerRequest = toRequest(_req, _init);
+      return this._request(toRequest(_req, _init), context);
+    }
 
+    _request(
+      request: ServerRequest,
+      context?: H3EventContext,
+    ): Response | Promise<Response> {
       // Create a new event instance
       const event = new H3Event(request, context, this as unknown as H3Type);
 
@@ -81,6 +78,9 @@ export const H3Core = /* @__PURE__ */ (() => {
       return toResponse(handlerRes, event, this.config);
     }
 
+    /**
+     * Immediately register an H3 plugin.
+     */
     register(plugin: H3Plugin): H3Type {
       plugin(this as unknown as H3Type);
       return this as unknown as H3Type;
@@ -146,7 +146,7 @@ export const H3Core = /* @__PURE__ */ (() => {
       opts?: RouteOptions,
     ): H3Type {
       const _method = (method || "").toUpperCase();
-      route = new URL(route, "h://_").pathname;
+      route = new URL(route, "http://_").pathname;
       this._addRoute({
         method: _method as HTTPMethod,
         route,

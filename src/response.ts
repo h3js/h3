@@ -57,6 +57,9 @@ function prepareResponse(
         error.stack = val.stack;
       }
     }
+    if (error.unhandled && !config.silent) {
+      console.error(error);
+    }
     const { onError } = config;
     return onError && !nested
       ? Promise.resolve(onError(error, event))

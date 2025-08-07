@@ -16,7 +16,6 @@ export interface EventHandler<
 
 export type EventHandlerFetch<T extends Response | TypedResponse = Response> = (
   req: ServerRequest | URL | string,
-  init?: RequestInit,
 ) => Promise<T>;
 
 export interface EventHandlerObject<

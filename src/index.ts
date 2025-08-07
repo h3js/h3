@@ -69,6 +69,10 @@ export {
 
 // ------ Utils ------
 
+// Route
+export { defineRoute } from "./utils/route.ts";
+export type { RouteDefinition } from "./utils/route.ts";
+
 // Request
 export {
   getRequestHost,

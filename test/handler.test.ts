@@ -8,6 +8,7 @@ import {
 
 import type { H3Event } from "../src/event.ts";
 import { z } from "zod";
+import { toRequest } from "../src/h3.ts";
 
 describe("handler.ts", () => {
   describe("defineHandler", () => {
@@ -82,16 +83,18 @@ describe("handler.ts", () => {
 
   describe("defineValidatedHandler", () => {
     const handler = defineValidatedHandler({
-      body: z.object({
-        name: z.string(),
-        age: z.number().optional().default(20),
-      }),
-      headers: z.object({
-        "x-token": z.string(),
-      }),
-      query: z.object({
-        id: z.string().min(3),
-      }),
+      validate: {
+        body: z.object({
+          name: z.string(),
+          age: z.number().optional().default(20),
+        }),
+        headers: z.object({
+          "x-token": z.string(),
+        }),
+        query: z.object({
+          id: z.string().min(3),
+        }),
+      },
       handler: async (event) => {
         return {
           body: await event.req.json(),
@@ -101,11 +104,13 @@ describe("handler.ts", () => {
     });
 
     it("valid request", async () => {
-      const res = await handler.fetch("/?id=123", {
-        method: "POST",
-        headers: { "x-token": "abc" },
-        body: JSON.stringify({ name: "tommy" }),
-      });
+      const res = await handler.fetch(
+        toRequest("/?id=123", {
+          method: "POST",
+          headers: { "x-token": "abc" },
+          body: JSON.stringify({ name: "tommy" }),
+        }),
+      );
       // expect(res.status).toBe(200);
       expect(await res.json()).toMatchObject({
         body: { name: "tommy", age: 20 },
@@ -114,44 +119,48 @@ describe("handler.ts", () => {
     });
 
     it("invalid body", async () => {
-      const res = await handler.fetch("/?id=123", {
-        method: "POST",
-        headers: { "x-token": "abc" },
-        body: JSON.stringify({ name: 123 }),
-      });
+      const res = await handler.fetch(
+        toRequest("/?id=123", {
+          method: "POST",
+          headers: { "x-token": "abc" },
+          body: JSON.stringify({ name: 123 }),
+        }),
+      );
       expect(await res.json()).toMatchObject({
         status: 400,
         statusText: "Validation failed",
         message: "Validation failed",
-        data: { issues: [{ expected: "string", received: "number" }] },
+        data: { issues: [{ expected: "string" }] },
       });
       expect(res.status).toBe(400);
     });
 
     it("invalid headers", async () => {
-      const res = await handler.fetch("/?id=123", {
-        method: "POST",
-        body: JSON.stringify({ name: 123 }),
-      });
+      const res = await handler.fetch(
+        toRequest("/?id=123", {
+          method: "POST",
+          body: JSON.stringify({ name: 123 }),
+        }),
+      );
       expect(await res.json()).toMatchObject({
         status: 400,
         statusText: "Validation failed",
         message: "Validation failed",
         data: {
-          issues: [
-            { path: ["x-token"], expected: "string", received: "undefined" },
-          ],
+          issues: [{ path: ["x-token"], expected: "string" }],
         },
       });
       expect(res.status).toBe(400);
     });
 
     it("invalid query", async () => {
-      const res = await handler.fetch("/?id=", {
-        method: "POST",
-        headers: { "x-token": "abc" },
-        body: JSON.stringify({ name: "tommy" }),
-      });
+      const res = await handler.fetch(
+        toRequest("/?id=", {
+          method: "POST",
+          headers: { "x-token": "abc" },
+          body: JSON.stringify({ name: "tommy" }),
+        }),
+      );
       expect(await res.json()).toMatchObject({
         status: 400,
         statusText: "Validation failed",
@@ -160,7 +169,7 @@ describe("handler.ts", () => {
           issues: [
             {
               path: ["id"],
-              message: "String must contain at least 3 character(s)",
+              message: "Too small: expected string to have >=3 characters",
             },
           ],
         },
