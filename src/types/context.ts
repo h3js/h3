@@ -1,5 +1,5 @@
 import type { Session } from "../utils/session.ts";
-import type { H3Route } from "./h3.ts";
+import type { H3Route, H3RouteMeta } from "./h3.ts";
 
 export interface H3EventContext extends Record<string, any> {
   /* Matched router parameters */
@@ -14,6 +14,16 @@ export interface H3EventContext extends Record<string, any> {
    * @experimental The object structure may change in non-major version.
    */
   matchedRoute?: H3Route;
+
+  /**
+   * Matched middleware with their metadata
+   *
+   * @experimental The object structure may change in non-major version.
+   */
+  matchedMiddleware?: Array<{
+    route?: string;
+    meta?: H3RouteMeta;
+  }>;
 
   /* Cached session data */
   sessions?: Record<string, Session>;
