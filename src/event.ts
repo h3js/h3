@@ -44,7 +44,7 @@ export class H3Event<
   /**
    * @internal
    */
-  _res?: H3EventResponse;
+  #res?: H3EventResponse;
 
   constructor(req: ServerRequest, context?: H3EventContext, app?: H3Core) {
     this.context = context || new EmptyObject();
@@ -59,10 +59,10 @@ export class H3Event<
    * Prepared HTTP response.
    */
   get res(): H3EventResponse {
-    if (!this._res) {
-      this._res = new H3EventResponse();
+    if (!this.#res) {
+      this.#res = new H3EventResponse();
     }
-    return this._res;
+    return this.#res;
   }
 
   /**
@@ -133,11 +133,11 @@ export class H3Event<
 class H3EventResponse {
   status?: number;
   statusText?: string;
-  _headers?: Headers;
+  #headers?: Headers;
   get headers(): Headers {
-    if (!this._headers) {
-      this._headers = new Headers();
+    if (!this.#headers) {
+      this.#headers = new Headers();
     }
-    return this._headers;
+    return this.#headers;
   }
 }
