@@ -1,5 +1,5 @@
-import { HTTPError } from "../error.ts";
-import { validateData } from "./internal/validate.ts";
+import { type ErrorDetails, HTTPError } from "../error.ts";
+import { type ValidateError, validateData } from "./internal/validate.ts";
 import { parseURLEncodedBody } from "./internal/body.ts";
 
 import type { H3Event } from "../event.ts";
@@ -7,6 +7,7 @@ import type { InferEventInput } from "../types/handler.ts";
 import type { ValidateResult } from "./internal/validate.ts";
 import type {
   StandardSchemaV1,
+  FailureResult,
   InferOutput,
 } from "./internal/standard-schema.ts";
 
@@ -52,7 +53,11 @@ export async function readBody<
 export async function readValidatedBody<
   Event extends H3Event,
   S extends StandardSchemaV1,
->(event: Event, validate: S): Promise<InferOutput<S>>;
+>(
+  event: Event,
+  validate: S,
+  options?: { onError?: (result: FailureResult) => ErrorDetails },
+): Promise<InferOutput<S>>;
 export async function readValidatedBody<
   Event extends H3Event,
   OutputT,
@@ -62,6 +67,9 @@ export async function readValidatedBody<
   validate: (
     data: InputT,
   ) => ValidateResult<OutputT> | Promise<ValidateResult<OutputT>>,
+  options?: {
+    onError?: () => ErrorDetails;
+  },
 ): Promise<OutputT>;
 /**
  * Tries to read the request body via `readBody`, then uses the provided validation schema or function and either throws a validation error or returns the result.
@@ -69,7 +77,7 @@ export async function readValidatedBody<
  * You can use a simple function to validate the body or use a Standard-Schema compatible library like `zod` to define a schema.
  *
  * @example
- * app.get("/", async (event) => {
+ * app.post("/", async (event) => {
  *   const body = await readValidatedBody(event, (body) => {
  *     return typeof body === "object" && body !== null;
  *   });
@@ -77,16 +85,35 @@ export async function readValidatedBody<
  * @example
  * import { z } from "zod";
  *
- * app.get("/", async (event) => {
+ * app.post("/", async (event) => {
  *   const objectSchema = z.object({
  *     name: z.string().min(3).max(20),
  *     age: z.number({ coerce: true }).positive().int(),
  *   });
  *   const body = await readValidatedBody(event, objectSchema);
  * });
+ * @example
+ * import * as v from "valibot";
+ *
+ * app.post("/", async (event) => {
+ *   const body = await readValidatedBody(
+ *     event,
+ *     v.object({
+ *       name: v.pipe(v.string(), v.minLength(3), v.maxLength(20)),
+ *       age: v.pipe(v.number(), v.integer(), v.minValue(1)),
+ *     }),
+ *     {
+ *       onError: (issues) => ({
+ *         statusText: "Custom validation error",
+ *         message: v.summarize(issues),
+ *       }),
+ *     },
+ *   );
+ * });
  *
  * @param event The H3Event passed by the handler.
  * @param validate The function to use for body validation. It will be called passing the read request body. If the result is not false, the parsed body will be returned.
+ * @param options Optional options. If provided, the `onError` function will be called with the validation issues if validation fails.
  * @throws If the validation function returns `false` or throws, a validation error will be thrown.
  * @return {*} The `Object`, `Array`, `String`, `Number`, `Boolean`, or `null` value corresponding to the request JSON body.
  * @see {readBody}
@@ -94,7 +121,10 @@ export async function readValidatedBody<
 export async function readValidatedBody(
   event: H3Event,
   validate: any,
+  options?: {
+    onError?: ValidateError;
+  },
 ): Promise<any> {
   const _body = await readBody(event);
-  return validateData(_body, validate);
+  return validateData(_body, validate, options);
 }
