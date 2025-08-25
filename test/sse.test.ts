@@ -7,6 +7,7 @@ describeMatrix("sse", (t, { it, expect }) => {
   beforeEach(() => {
     t.app.get("/sse", (event) => {
       const includeMeta = event.url.searchParams.get("includeMeta") === "true";
+      const sendComment = event.url.searchParams.get("sendComment") === "true";
       const eventStream = createEventStream(event);
       let counter = 0;
       const clear = setInterval(() => {
@@ -15,7 +16,9 @@ describeMatrix("sse", (t, { it, expect }) => {
           eventStream.close();
           return; // TODO: eventStream.push should auto disable after close!
         }
-        if (includeMeta) {
+        if (sendComment) {
+          eventStream.pushComment("hello world");
+        } else if (includeMeta) {
           eventStream.push({
             id: String(counter),
             event: "custom-event",
@@ -43,5 +46,15 @@ describeMatrix("sse", (t, { it, expect }) => {
     expect(res.headers.get("Content-Type")).toBe("text/event-stream");
     const messages = (await res.text()).split("\n\n").filter(Boolean);
     expect(messages.length).toBe(3);
+  });
+
+  it("streams comment events", async () => {
+    const res = await t.fetch("/sse?sendComment=true");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toBe("text/event-stream");
+    const messages = (await res.text()).split("\n\n").filter(Boolean);
+    expect(messages.length).toBe(3);
+    const expected = Array.from({ length: 3 }).fill(": hello world");
+    expect(messages).toEqual(expected);
   });
 });
