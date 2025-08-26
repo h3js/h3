@@ -48,6 +48,8 @@ export const H3Core = /* @__PURE__ */ (() => {
       _init?: RequestInit,
       context?: H3EventContext,
     ): Response | Promise<Response> {
+      if (typeof _req === "string" && !URL.canParse(_req))
+        _req = new URL(_req, "http://_").pathname;
       return this._request(toRequest(_req, _init), context);
     }
 
