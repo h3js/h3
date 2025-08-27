@@ -30,7 +30,7 @@
   ],
   "scripts": {
     "bench:bun": "bun run ./test/bench/bench.ts",
-    "bench:node": "pnpm --expose-gc --allow-natives-syntax ./test/bench/bench.ts",
+    "bench:node": "node --expose-gc --allow-natives-syntax ./test/bench/bench.ts",
     "build": "obuild",
     "dev": "vitest",
     "lint": "eslint --cache . && prettier -c src test examples docs",
