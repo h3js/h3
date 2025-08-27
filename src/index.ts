@@ -117,6 +117,8 @@ export {
 
 // Body
 export { readBody, readValidatedBody } from "./utils/body.ts";
+export { defineBodySizeLimitPlugin } from "./utils/body-limit.ts";
+export type { BodySizeLimitOptions } from "./utils/body-limit.ts";
 
 // Cookie
 export {
