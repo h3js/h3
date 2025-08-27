@@ -11,9 +11,10 @@ import {
 import { EmptyObject } from "./internal/obj.ts";
 import { kGetSession } from "./internal/session.ts";
 
-import type { H3Event } from "../event.ts";
+import type { H3Event, HTTPEvent } from "../event.ts";
 import type { CookieSerializeOptions } from "cookie-es";
 import type { SealOptions } from "./internal/iron-crypto.ts";
+import type { H3EventContext } from "../types/context.ts";
 
 type SessionDataT = Record<string, any>;
 
@@ -55,7 +56,7 @@ export interface SessionConfig {
  *
  */
 export async function useSession<T extends SessionData = SessionData>(
-  event: H3Event,
+  event: HTTPEvent,
   config: SessionConfig,
 ): Promise<SessionManager<T>> {
   // Create a synced wrapper around the session
@@ -63,10 +64,12 @@ export async function useSession<T extends SessionData = SessionData>(
   await getSession(event, config); // Force init
   const sessionManager = {
     get id() {
-      return event.context.sessions?.[sessionName]?.id;
+      const context = event.req.context as H3EventContext;
+      return context?.sessions?.[sessionName]?.id;
     },
     get data() {
-      return (event.context.sessions?.[sessionName]?.data || {}) as T;
+      const context = event.req.context as H3EventContext;
+      return (context.sessions?.[sessionName]?.data || {}) as T;
     },
     update: async (update: SessionUpdate<T>) => {
       await updateSession<T>(event, config, update);
@@ -84,17 +87,19 @@ export async function useSession<T extends SessionData = SessionData>(
  * Get the session for the current request.
  */
 export async function getSession<T extends SessionData = SessionData>(
-  event: H3Event,
+  event: HTTPEvent,
   config: SessionConfig,
 ): Promise<Session<T>> {
   const sessionName = config.name || DEFAULT_SESSION_NAME;
 
+  const context = event.req.context as H3EventContext;
+
   // Return existing session if available
-  if (!event.context.sessions) {
-    event.context.sessions = new EmptyObject();
+  if (!context.sessions) {
+    context.sessions = new EmptyObject();
   }
   // Wait for existing session to load
-  const existingSession = event.context.sessions![sessionName] as Session<T>;
+  const existingSession = context.sessions![sessionName] as Session<T>;
   if (existingSession) {
     return existingSession[kGetSession] || existingSession;
   }
@@ -105,7 +110,7 @@ export async function getSession<T extends SessionData = SessionData>(
     createdAt: 0,
     data: new EmptyObject(),
   };
-  event.context.sessions![sessionName] = session;
+  context.sessions![sessionName] = session;
 
   // Try to load session
   let sealedSession: string | undefined;
@@ -130,10 +135,10 @@ export async function getSession<T extends SessionData = SessionData>(
       .catch(() => {})
       .then((unsealed) => {
         Object.assign(session, unsealed);
-        delete event.context.sessions![sessionName][kGetSession];
+        delete context.sessions![sessionName][kGetSession];
         return session as Session<T>;
       });
-    event.context.sessions![sessionName][kGetSession] = promise;
+    context.sessions![sessionName][kGetSession] = promise;
     await promise;
   }
 
@@ -156,15 +161,16 @@ type SessionUpdate<T extends SessionData = SessionData> =
  * Update the session data for the current request.
  */
 export async function updateSession<T extends SessionData = SessionData>(
-  event: H3Event,
+  event: HTTPEvent,
   config: SessionConfig,
   update?: SessionUpdate<T>,
 ): Promise<Session<T>> {
   const sessionName = config.name || DEFAULT_SESSION_NAME;
 
   // Access current session
+  const context = event.req.context as H3EventContext;
   const session: Session<T> =
-    (event.context.sessions?.[sessionName] as Session<T>) ||
+    (context.sessions?.[sessionName] as Session<T>) ||
     (await getSession<T>(event, config));
 
   // Update session data if provided
@@ -176,9 +182,9 @@ export async function updateSession<T extends SessionData = SessionData>(
   }
 
   // Seal and store in cookie
-  if (config.cookie !== false) {
+  if (config.cookie !== false && (event as H3Event).res) {
     const sealed = await sealSession(event, config);
-    setCookie(event, sessionName, sealed, {
+    setCookie(event as H3Event, sessionName, sealed, {
       ...DEFAULT_SESSION_COOKIE,
       expires: config.maxAge
         ? new Date(session.createdAt + config.maxAge * 1000)
@@ -194,14 +200,15 @@ export async function updateSession<T extends SessionData = SessionData>(
  * Encrypt and sign the session data for the current request.
  */
 export async function sealSession<T extends SessionData = SessionData>(
-  event: H3Event,
+  event: HTTPEvent,
   config: SessionConfig,
 ): Promise<string> {
   const sessionName = config.name || DEFAULT_SESSION_NAME;
 
   // Access current session
+  const context = event.req.context as H3EventContext;
   const session: Session<T> =
-    (event.context.sessions?.[sessionName] as Session<T>) ||
+    (context.sessions?.[sessionName] as Session<T>) ||
     (await getSession<T>(event, config));
 
   const sealed = await seal(session, config.password, {
@@ -217,7 +224,7 @@ export async function sealSession<T extends SessionData = SessionData>(
  * Decrypt and verify the session data for the current request.
  */
 export async function unsealSession(
-  _event: H3Event,
+  _event: HTTPEvent,
   config: SessionConfig,
   sealed: string,
 ): Promise<Partial<Session>> {
@@ -239,16 +246,19 @@ export async function unsealSession(
  * Clear the session data for the current request.
  */
 export function clearSession(
-  event: H3Event,
+  event: HTTPEvent,
   config: Partial<SessionConfig>,
 ): Promise<void> {
+  const context = event.req.context as H3EventContext;
   const sessionName = config.name || DEFAULT_SESSION_NAME;
-  if (event.context.sessions?.[sessionName]) {
-    delete event.context.sessions![sessionName];
+  if (context.sessions?.[sessionName]) {
+    delete context.sessions![sessionName];
   }
-  setCookie(event, sessionName, "", {
-    ...DEFAULT_SESSION_COOKIE,
-    ...config.cookie,
-  });
+  if ((event as H3Event).res && config.cookie !== false) {
+    setCookie(event as H3Event, sessionName, "", {
+      ...DEFAULT_SESSION_COOKIE,
+      ...config.cookie,
+    });
+  }
   return Promise.resolve();
 }

@@ -7,7 +7,7 @@ import type {
   InferOutput,
 } from "./internal/standard-schema.ts";
 import type { ValidateResult } from "./internal/validate.ts";
-import type { H3Event } from "../event.ts";
+import type { H3Event, HTTPEvent } from "../event.ts";
 import type { InferEventInput } from "../types/handler.ts";
 import type { HTTPMethod } from "../types/h3.ts";
 
@@ -21,18 +21,19 @@ import type { HTTPMethod } from "../types/h3.ts";
  */
 export function getQuery<
   T,
-  Event extends H3Event = H3Event,
+  Event extends H3Event | HTTPEvent = HTTPEvent,
   _T = Exclude<InferEventInput<"query", Event, T>, undefined>,
 >(event: Event): _T {
-  return parseQuery(event.url.search.slice(1)) as _T;
+  const url = (event as H3Event).url || new URL(event.req.url);
+  return parseQuery(url.search.slice(1)) as _T;
 }
 
 export function getValidatedQuery<
-  Event extends H3Event,
+  Event extends HTTPEvent,
   S extends StandardSchemaV1<any, any>,
 >(event: Event, validate: S): Promise<InferOutput<S>>;
 export function getValidatedQuery<
-  Event extends H3Event,
+  Event extends HTTPEvent,
   OutputT,
   InputT = InferEventInput<"query", Event, OutputT>,
 >(
@@ -64,7 +65,10 @@ export function getValidatedQuery<
  *   );
  * });
  */
-export function getValidatedQuery(event: H3Event, validate: any): Promise<any> {
+export function getValidatedQuery(
+  event: HTTPEvent,
+  validate: any,
+): Promise<any> {
   const query = getQuery(event);
   return validateData(query, validate);
 }
@@ -80,11 +84,13 @@ export function getValidatedQuery(event: H3Event, validate: any): Promise<any> {
  * });
  */
 export function getRouterParams(
-  event: H3Event,
+  event: HTTPEvent,
   opts: { decode?: boolean } = {},
 ): NonNullable<H3Event["context"]["params"]> {
   // Fallback object needs to be returned in case router is not used (#149)
-  let params = event.context.params || {};
+  let params = (event.req.context?.params || {}) as NonNullable<
+    H3Event["context"]["params"]
+  >;
   if (opts.decode) {
     params = { ...params };
     for (const key in params) {
@@ -95,7 +101,7 @@ export function getRouterParams(
 }
 
 export function getValidatedRouterParams<
-  Event extends H3Event,
+  Event extends HTTPEvent,
   S extends StandardSchemaV1,
 >(
   event: Event,
@@ -103,7 +109,7 @@ export function getValidatedRouterParams<
   opts?: { decode?: boolean },
 ): Promise<InferOutput<S>>;
 export function getValidatedRouterParams<
-  Event extends H3Event,
+  Event extends HTTPEvent,
   OutputT,
   InputT = InferEventInput<"routerParams", Event, OutputT>,
 >(
@@ -139,7 +145,7 @@ export function getValidatedRouterParams<
  * });
  */
 export function getValidatedRouterParams(
-  event: H3Event,
+  event: HTTPEvent,
   validate: any,
   opts: { decode?: boolean } = {},
 ): Promise<any> {
@@ -158,7 +164,7 @@ export function getValidatedRouterParams(
  * });
  */
 export function getRouterParam(
-  event: H3Event,
+  event: HTTPEvent,
   name: string,
   opts: { decode?: boolean } = {},
 ): string | undefined {
@@ -182,7 +188,7 @@ export function getRouterParam(
  * });
  */
 export function isMethod(
-  event: H3Event,
+  event: HTTPEvent,
   expected: HTTPMethod | HTTPMethod[],
   allowHead?: boolean,
 ): boolean {
@@ -215,7 +221,7 @@ export function isMethod(
  * });
  */
 export function assertMethod(
-  event: H3Event,
+  event: HTTPEvent,
   expected: HTTPMethod | HTTPMethod[],
   allowHead?: boolean,
 ): void {
@@ -237,7 +243,7 @@ export function assertMethod(
  * });
  */
 export function getRequestHost(
-  event: H3Event,
+  event: HTTPEvent,
   opts: { xForwardedHost?: boolean } = {},
 ): string {
   if (opts.xForwardedHost) {
@@ -263,7 +269,7 @@ export function getRequestHost(
  * });
  */
 export function getRequestProtocol(
-  event: H3Event,
+  event: HTTPEvent | H3Event,
   opts: { xForwardedProto?: boolean } = {},
 ): "http" | "https" | (string & {}) {
   if (opts.xForwardedProto !== false) {
@@ -275,7 +281,8 @@ export function getRequestProtocol(
       return "http";
     }
   }
-  return event.url.protocol.slice(0, -1);
+  const url = (event as H3Event).url || new URL(event.req.url);
+  return url.protocol.slice(0, -1);
 }
 
 /**
@@ -291,10 +298,10 @@ export function getRequestProtocol(
  * });
  */
 export function getRequestURL(
-  event: H3Event,
+  event: HTTPEvent | H3Event,
   opts: { xForwardedHost?: boolean; xForwardedProto?: boolean } = {},
 ): URL {
-  const url = new URL(event.url);
+  const url = new URL((event as H3Event).url || event.req.url);
   url.protocol = getRequestProtocol(event, opts);
   if (opts.xForwardedHost) {
     const host = getRequestHost(event, opts);
@@ -321,7 +328,7 @@ export function getRequestURL(
  * });
  */
 export function getRequestIP(
-  event: H3Event,
+  event: HTTPEvent,
   opts: {
     /**
      * Use the X-Forwarded-For HTTP header set by proxies.
@@ -340,5 +347,7 @@ export function getRequestIP(
     }
   }
 
-  return event.context.clientAddress || event.req.ip || undefined;
+  return (
+    (event.req.context?.clientAddress as string) || event.req.ip || undefined
+  );
 }

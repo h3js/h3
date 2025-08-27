@@ -1,4 +1,4 @@
-import { H3Event } from "../event.ts";
+import { H3Event, type HTTPEvent } from "../event.ts";
 import type { H3EventContext } from "../types/context.ts";
 
 /**
@@ -9,6 +9,15 @@ import type { H3EventContext } from "../types/context.ts";
  */
 export function isEvent(input: any): input is H3Event {
   return input instanceof H3Event || input?.constructor?.__is_event__;
+}
+
+/**
+ * Checks if the input is an H3Event-compatible object.
+ * @param input - The input to check.
+ * @returns True if the input is is { req: Request }
+ */
+export function isHTTPEvent(input: any): input is HTTPEvent {
+  return input?.req instanceof Request;
 }
 
 export function mockEvent(

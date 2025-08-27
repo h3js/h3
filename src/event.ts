@@ -9,9 +9,21 @@ import type {
 } from "./types/handler.ts";
 import type { H3Core } from "./h3.ts";
 
-export class H3Event<
+export interface HTTPEvent<
   _RequestT extends EventHandlerRequest = EventHandlerRequest,
 > {
+  /**
+   * Incoming HTTP request info.
+   *
+   * [MDN Reference](https://developer.mozilla.org/en-US/docs/Web/API/Request)
+   */
+  req: TypedServerRequest<_RequestT>;
+}
+
+export class H3Event<
+  _RequestT extends EventHandlerRequest = EventHandlerRequest,
+> implements HTTPEvent<_RequestT>
+{
   /**
    * Access to the H3 application instance.
    */
