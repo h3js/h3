@@ -1,4 +1,4 @@
-import type { H3Event } from "../event.ts";
+import type { H3Event, HTTPEvent } from "../event.ts";
 import { noContent } from "./response.ts";
 import {
   createAllowHeaderHeaders,
@@ -79,7 +79,7 @@ export interface CorsOptions {
 /**
  * Check if the incoming request is a CORS preflight request.
  */
-export function isPreflightRequest(event: H3Event): boolean {
+export function isPreflightRequest(event: HTTPEvent): boolean {
   const origin = event.req.headers.get("origin");
   const accessControlRequestMethod = event.req.headers.get(
     "access-control-request-method",
@@ -147,7 +147,10 @@ export function appendCorsHeaders(event: H3Event, options: CorsOptions): void {
  *   // Your code here
  * });
  */
-export function handleCors(event: H3Event, options: CorsOptions): false | "" {
+export function handleCors(
+  event: H3Event,
+  options: CorsOptions,
+): false | Response {
   const _options = resolveCorsOptions(options);
   if (isPreflightRequest(event)) {
     appendCorsPreflightHeaders(event, options);
