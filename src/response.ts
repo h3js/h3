@@ -13,20 +13,25 @@ export function toResponse(
   event: H3Event,
   config: H3Config = {},
 ): Response | Promise<Response> {
-  if (val && val instanceof Promise) {
-    return val
-      .catch((error) => error)
-      .then((resolvedVal) => toResponse(resolvedVal, event, config));
+  if (typeof (val as PromiseLike<unknown>)?.then === "function") {
+    return (
+      (val as Promise<unknown>).catch?.((error) => error) ||
+      Promise.resolve(val)
+    ).then((resolvedVal) =>
+      toResponse(resolvedVal, event, config),
+    ) as Promise<Response>;
   }
 
   const response = prepareResponse(val, event, config);
-  if (response instanceof Promise) {
+  if (typeof (response as PromiseLike<Response>)?.then === "function") {
     return toResponse(response, event, config);
   }
 
   const { onResponse } = config;
   return onResponse
-    ? Promise.resolve(onResponse(response, event)).then(() => response)
+    ? Promise.resolve(onResponse(response as Response, event)).then(
+        () => response,
+      )
     : response;
 }
 
@@ -141,7 +146,7 @@ function prepareResponseBody(
   // Buffer (should be before JSON)
   if (val instanceof Uint8Array) {
     event.res.headers.set("content-length", val.byteLength.toString());
-    return { body: val };
+    return { body: val as BufferSource };
   }
 
   // JSON

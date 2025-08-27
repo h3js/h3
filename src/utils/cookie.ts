@@ -1,5 +1,5 @@
 import type { CookieSerializeOptions, SetCookie } from "cookie-es";
-import type { H3Event } from "../event.ts";
+import type { H3Event, HTTPEvent } from "../event.ts";
 import {
   parse as parseCookie,
   serialize as serializeCookie,
@@ -8,26 +8,26 @@ import {
 
 /**
  * Parse the request to get HTTP Cookie header string and returning an object of all cookie name-value pairs.
- * @param event {H3Event} H3 event or req passed by h3 handler
+ * @param event {HTTPEvent} H3 event or req passed by h3 handler
  * @returns Object of cookie name-value pairs
  * ```ts
  * const cookies = parseCookies(event)
  * ```
  */
-export function parseCookies(event: H3Event): Record<string, string> {
+export function parseCookies(event: HTTPEvent): Record<string, string> {
   return parseCookie(event.req.headers.get("cookie") || "");
 }
 
 /**
  * Get a cookie value by name.
- * @param event {H3Event} H3 event or req passed by h3 handler
+ * @param event {HTTPEvent} H3 event or req passed by h3 handler
  * @param name Name of the cookie to get
  * @returns {*} Value of the cookie (String or undefined)
  * ```ts
  * const authorization = getCookie(request, 'Authorization')
  * ```
  */
-export function getCookie(event: H3Event, name: string): string | undefined {
+export function getCookie(event: HTTPEvent, name: string): string | undefined {
   return parseCookies(event)[name];
 }
 
