@@ -33,7 +33,7 @@ export function getCookie(event: HTTPEvent, name: string): string | undefined {
 
 /**
  * Set a cookie value by name.
- * @param event {HTTPEvent} H3 event or res passed by h3 handler
+ * @param event {H3Event} H3 event or res passed by h3 handler
  * @param name Name of the cookie to set
  * @param value Value of the cookie to set
  * @param options {CookieSerializeOptions} Options for serializing the cookie
@@ -78,7 +78,7 @@ export function setCookie(
 
 /**
  * Remove a cookie by name.
- * @param event {HTTPEvent} H3 event or res passed by h3 handler
+ * @param event {H3Event} H3 event or res passed by h3 handler
  * @param name Name of the cookie to delete
  * @param serializeOptions {CookieSerializeOptions} Cookie options
  * ```ts
