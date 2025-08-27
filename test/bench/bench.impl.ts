@@ -9,9 +9,9 @@ type AppFetch = (req: Request) => Response | Promise<Response>;
 export function createInstances(): Array<[string, AppFetch]> {
   return [
     ["h3", h3(_h3src)],
-    ["h3-compiled", h3(_h3src, true)],
+    // ["h3-compiled", h3(_h3src, true)],
     ["h3-nightly", h3(_h3nightly as any)],
-    ["h3-middleware", h3Middleware(_h3src)],
+    // ["h3-middleware", h3Middleware(_h3src)],
     // ["h3-v1", h3v1()],
     // ["std", std()],
     // ["fastest", fastest()],
