@@ -98,6 +98,6 @@ describeMatrix("session", (t, { it, expect }) => {
     expect(cookieNames).toMatchObject(["h3-test", "h3-test.1", "h3-test.2"]);
 
     const body = await res.json();
-    expect(body.data.token).toBe(token);
+    expect(body.session.data.token).toBe(token);
   });
 });
