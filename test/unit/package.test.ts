@@ -77,6 +77,7 @@ describe("h3 package", () => {
         "isCorsOriginAllowed",
         "isError",
         "isEvent",
+        "isHTTPEvent",
         "isMethod",
         "isPreflightRequest",
         "iterable",

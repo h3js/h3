@@ -12,9 +12,9 @@ export function isEvent(input: any): input is H3Event {
 }
 
 /**
- * Checks if the input is an H3Event-compatible object.
+ * Checks if the input is an object with `{ req: Request }` signature.
  * @param input - The input to check.
- * @returns True if the input is is { req: Request }
+ * @returns True if the input is is `{ req: Request }`
  */
 export function isHTTPEvent(input: any): input is HTTPEvent {
   return input?.req instanceof Request;
