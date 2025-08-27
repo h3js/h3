@@ -28,9 +28,11 @@ export type NodeMiddleware = (
  */
 export function toWebHandler(
   app: H3,
-): (request: ServerRequest, context?: H3Event) => Promise<Response> {
+): (request: ServerRequest, context?: H3EventContext) => Promise<Response> {
   return (request, context) => {
-    return Promise.resolve(app.request(request, undefined, context));
+    return Promise.resolve(
+      app.request(request, undefined, context || request.context),
+    );
   };
 }
 
