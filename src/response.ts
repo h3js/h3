@@ -146,7 +146,7 @@ function prepareResponseBody(
   // Buffer (should be before JSON)
   if (val instanceof Uint8Array) {
     event.res.headers.set("content-length", val.byteLength.toString());
-    return { body: val };
+    return { body: val as BufferSource };
   }
 
   // JSON
