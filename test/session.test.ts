@@ -82,7 +82,7 @@ describeMatrix("session", (t, { it, expect }) => {
     });
   });
 
-  it.only("stores large data in chunks", async () => {
+  it("stores large data in chunks", async () => {
     const token = Array.from({ length: 5000 /* ~4k + one more */ })
       .fill("x")
       .join("");
