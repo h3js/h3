@@ -3,7 +3,7 @@ import {
   unseal,
   defaults as sealDefaults,
 } from "./internal/iron-crypto.ts";
-import { getCookie, setCookie } from "./cookie.ts";
+import { getChunkedCookie, setChunkedCookie } from "./cookie.ts";
 import {
   DEFAULT_SESSION_NAME,
   DEFAULT_SESSION_COOKIE,
@@ -43,7 +43,7 @@ export interface SessionConfig {
   /** default is h3 */
   name?: string;
   /** Default is secure, httpOnly, / */
-  cookie?: false | CookieSerializeOptions;
+  cookie?: false | (CookieSerializeOptions & { chunkMaxLength?: number });
   /** Default is x-h3-session / x-{name}-session */
   sessionHeader?: false | string;
   seal?: SealOptions;
@@ -128,7 +128,7 @@ export async function getSession<T extends SessionData = SessionData>(
   }
   // Fallback to cookies
   if (!sealedSession) {
-    sealedSession = getCookie(event, sessionName);
+    sealedSession = getChunkedCookie(event, sessionName);
   }
   if (sealedSession) {
     // Unseal session data from cookie
@@ -185,7 +185,7 @@ export async function updateSession<T extends SessionData = SessionData>(
   // Seal and store in cookie
   if (config.cookie !== false && (event as H3Event).res) {
     const sealed = await sealSession(event, config);
-    setCookie(event as H3Event, sessionName, sealed, {
+    setChunkedCookie(event as H3Event, sessionName, sealed, {
       ...DEFAULT_SESSION_COOKIE,
       expires: config.maxAge
         ? new Date(session.createdAt + config.maxAge * 1000)
@@ -256,7 +256,7 @@ export function clearSession(
     delete context.sessions![sessionName];
   }
   if ((event as H3Event).res && config.cookie !== false) {
-    setCookie(event as H3Event, sessionName, "", {
+    setChunkedCookie(event as H3Event, sessionName, "", {
       ...DEFAULT_SESSION_COOKIE,
       ...config.cookie,
     });
