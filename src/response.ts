@@ -14,12 +14,12 @@ export function toResponse(
   config: H3Config = {},
 ): Response | Promise<Response> {
   if (typeof (val as PromiseLike<unknown>)?.then === "function") {
-    const promise = (val as Promise<unknown> | PromiseLike<unknown>).then(
-      (resolvedVal) => toResponse(resolvedVal, event, config),
-    );
-    return typeof (promise as Promise<Response>)?.catch === "function"
-      ? (promise as Promise<Response>)
-      : Promise.resolve(promise);
+    return (
+      (val as Promise<unknown>).catch?.((error) => error) ||
+      Promise.resolve(val)
+    ).then((resolvedVal) =>
+      toResponse(resolvedVal, event, config),
+    ) as Promise<Response>;
   }
 
   const response = prepareResponse(val, event, config);
