@@ -4,7 +4,6 @@ import {
   setCookie,
   getChunkedCookie,
   setChunkedCookie,
-  CHUNKED_COOKIE,
 } from "../src/utils/cookie.ts";
 import { describeMatrix } from "./_setup.ts";
 
@@ -115,6 +114,8 @@ describeMatrix("cookies", (t, { it, expect, describe }) => {
   });
 
   describeMatrix("chunked", (t, { it, expect, describe }) => {
+    const CHUNKED_COOKIE = "__chunked__";
+
     describe("getChunkedCookie", () => {
       it("can parse cookie that is chunked", async () => {
         t.app.get("/", (event) => {

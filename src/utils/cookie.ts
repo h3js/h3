@@ -6,7 +6,7 @@ import {
   parseSetCookie,
 } from "cookie-es";
 
-export const CHUNKED_COOKIE = "__chunked__";
+const CHUNKED_COOKIE = "__chunked__";
 
 // The limit is approximately 4KB, but may vary by browser and server. We leave some room to be safe.
 const CHUNKS_MAX_LENGTH = 4000;
