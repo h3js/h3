@@ -119,14 +119,14 @@ export function getChunkedCookie(
     return mainCookie;
   }
 
-  const chunksCount = extractChunkCount(mainCookie);
+  const chunksCount = getChunkedCookieCount(mainCookie);
   if (chunksCount === 0) {
     return undefined;
   }
 
   const chunks = [];
   for (let i = 1; i <= chunksCount; i++) {
-    const chunk = getCookie(event, createChunkCookieName(name, i));
+    const chunk = getCookie(event, chunkCookieName(name, i));
     if (!chunk) {
       return undefined;
     }
@@ -158,10 +158,10 @@ export function setChunkedCookie(
   // delete any prior left over chunks if the cookie is updated
   const previousCookie = getCookie(event, name);
   if (previousCookie?.startsWith(CHUNKED_COOKIE)) {
-    const previousChunkCount = extractChunkCount(previousCookie);
+    const previousChunkCount = getChunkedCookieCount(previousCookie);
     if (previousChunkCount > chunkCount) {
       for (let i = chunkCount; i <= previousChunkCount; i++) {
-        deleteCookie(event, createChunkCookieName(name, i), options);
+        deleteCookie(event, chunkCookieName(name, i), options);
       }
     }
   }
@@ -180,7 +180,7 @@ export function setChunkedCookie(
     const start = (i - 1) * chunksMaxLength;
     const end = start + chunksMaxLength;
     const chunkValue = value.slice(start, end);
-    setCookie(event, createChunkCookieName(name, i), chunkValue, options);
+    setCookie(event, chunkCookieName(name, i), chunkValue, options);
   }
 }
 
@@ -201,13 +201,11 @@ export function deleteChunkedCookie(
   const mainCookie = getCookie(event, name);
   deleteCookie(event, name, serializeOptions);
 
-  const chunksCount = extractChunkCount(mainCookie);
-  if (chunksCount === 0) {
-    return;
-  }
-
-  for (let i = 1; i <= chunksCount; i++) {
-    deleteCookie(event, createChunkCookieName(name, i), serializeOptions);
+  const chunksCount = getChunkedCookieCount(mainCookie);
+  if (chunksCount >= 0) {
+    for (let i = 0; i < chunksCount; i++) {
+      deleteCookie(event, chunkCookieName(name, i + 1), serializeOptions);
+    }
   }
 }
 
@@ -220,18 +218,13 @@ function _getDistinctCookieKey(name: string, options: Partial<SetCookie>) {
   return [name, options.domain || "", options.path || "/"].join(";");
 }
 
-function extractChunkCount(mainCookie: string | undefined): number {
-  if (!mainCookie || !mainCookie.startsWith(CHUNKED_COOKIE)) {
-    return 0;
+function getChunkedCookieCount(cookie: string | undefined): number {
+  if (!cookie?.startsWith(CHUNKED_COOKIE)) {
+    return Number.NaN;
   }
-
-  const chunksCount = Number.parseInt(mainCookie.split(CHUNKED_COOKIE)[1]);
-  if (Number.isNaN(chunksCount) || chunksCount < 0) {
-    return 0;
-  }
-  return chunksCount;
+  return Number.parseInt(cookie.slice(CHUNKED_COOKIE.length));
 }
 
-function createChunkCookieName(name: string, chunkNumber: number): string {
+function chunkCookieName(name: string, chunkNumber: number): string {
   return `${name}.${chunkNumber}`;
 }
