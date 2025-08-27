@@ -47,7 +47,7 @@ export class H3Event<
   _res?: H3EventResponse;
 
   constructor(req: ServerRequest, context?: H3EventContext, app?: H3Core) {
-    this.context = context || new EmptyObject();
+    this.context = context || req.context || new EmptyObject();
     this.req = req;
     this.app = app;
     // Parsed URL can be provided by srvx (node) and other runtimes
