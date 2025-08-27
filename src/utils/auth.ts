@@ -1,6 +1,6 @@
-import { HTTPError } from "../index.ts";
+import { getEventContext, HTTPError } from "../index.ts";
 
-import type { HTTPEvent, Middleware } from "../index.ts";
+import type { H3EventContext, HTTPEvent, Middleware } from "../index.ts";
 
 type _BasicAuthOptions = {
   /**
@@ -75,8 +75,8 @@ export async function requireBasicAuth(
     throw autheFailed(event, opts?.realm);
   }
 
-  event.req.context ??= {};
-  event.req.context.basicAuth = { username, password, realm: opts.realm };
+  const context = getEventContext<H3EventContext>(event);
+  context.basicAuth = { username, password, realm: opts.realm };
 
   return true;
 }

@@ -15,6 +15,7 @@ import type { H3Event, HTTPEvent } from "../event.ts";
 import type { CookieSerializeOptions } from "cookie-es";
 import type { SealOptions } from "./internal/iron-crypto.ts";
 import type { H3EventContext } from "../types/context.ts";
+import { getEventContext } from "./event.ts";
 
 type SessionDataT = Record<string, any>;
 
@@ -64,11 +65,11 @@ export async function useSession<T extends SessionData = SessionData>(
   await getSession(event, config); // Force init
   const sessionManager = {
     get id() {
-      const context = event.req.context as H3EventContext;
+      const context = getEventContext<H3EventContext>(event);
       return context?.sessions?.[sessionName]?.id;
     },
     get data() {
-      const context = event.req.context as H3EventContext;
+      const context = getEventContext<H3EventContext>(event);
       return (context.sessions?.[sessionName]?.data || {}) as T;
     },
     update: async (update: SessionUpdate<T>) => {
@@ -92,7 +93,7 @@ export async function getSession<T extends SessionData = SessionData>(
 ): Promise<Session<T>> {
   const sessionName = config.name || DEFAULT_SESSION_NAME;
 
-  const context = event.req.context as H3EventContext;
+  const context = getEventContext<H3EventContext>(event);
 
   // Return existing session if available
   if (!context.sessions) {
@@ -168,7 +169,7 @@ export async function updateSession<T extends SessionData = SessionData>(
   const sessionName = config.name || DEFAULT_SESSION_NAME;
 
   // Access current session
-  const context = event.req.context as H3EventContext;
+  const context = getEventContext<H3EventContext>(event);
   const session: Session<T> =
     (context.sessions?.[sessionName] as Session<T>) ||
     (await getSession<T>(event, config));
@@ -206,7 +207,7 @@ export async function sealSession<T extends SessionData = SessionData>(
   const sessionName = config.name || DEFAULT_SESSION_NAME;
 
   // Access current session
-  const context = event.req.context as H3EventContext;
+  const context = getEventContext<H3EventContext>(event);
   const session: Session<T> =
     (context.sessions?.[sessionName] as Session<T>) ||
     (await getSession<T>(event, config));
@@ -249,7 +250,7 @@ export function clearSession(
   event: HTTPEvent,
   config: Partial<SessionConfig>,
 ): Promise<void> {
-  const context = event.req.context as H3EventContext;
+  const context = getEventContext<H3EventContext>(event);
   const sessionName = config.name || DEFAULT_SESSION_NAME;
   if (context.sessions?.[sessionName]) {
     delete context.sessions![sessionName];

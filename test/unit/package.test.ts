@@ -48,6 +48,7 @@ describe("h3 package", () => {
         "fromWebHandler",
         "getBodyStream",
         "getCookie",
+        "getEventContext",
         "getHeader",
         "getHeaders",
         "getMethod",

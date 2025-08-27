@@ -20,7 +20,12 @@ export { H3Core, H3 } from "./h3.ts";
 
 export type { H3EventContext } from "./types/context.ts";
 export { H3Event, type HTTPEvent } from "./event.ts";
-export { isEvent, isHTTPEvent, mockEvent } from "./utils/event.ts";
+export {
+  isEvent,
+  isHTTPEvent,
+  mockEvent,
+  getEventContext,
+} from "./utils/event.ts";
 
 // Handler and Middleware
 

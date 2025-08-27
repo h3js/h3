@@ -10,6 +10,8 @@ import type { ValidateResult } from "./internal/validate.ts";
 import type { H3Event, HTTPEvent } from "../event.ts";
 import type { InferEventInput } from "../types/handler.ts";
 import type { HTTPMethod } from "../types/h3.ts";
+import { getEventContext } from "./event.ts";
+import type { H3EventContext } from "../types/context.ts";
 
 /**
  * Get parsed query string object from the request URL.
@@ -88,7 +90,8 @@ export function getRouterParams(
   opts: { decode?: boolean } = {},
 ): NonNullable<H3Event["context"]["params"]> {
   // Fallback object needs to be returned in case router is not used (#149)
-  let params = (event.req.context?.params || {}) as NonNullable<
+  const context = getEventContext<H3EventContext>(event);
+  let params = (context.params || {}) as NonNullable<
     H3Event["context"]["params"]
   >;
   if (opts.decode) {
