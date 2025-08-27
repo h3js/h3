@@ -103,7 +103,7 @@ export function deleteCookie(
 
 /**
  * Get a chunked cookie value by name. Will join chunks together.
- * @param event {H3Event} H3 event or req passed by h3 handler
+ * @param event {HTTPEvent} { req: Request }
  * @param name Name of the cookie to get
  * @returns {*} Value of the cookie (String or undefined)
  * ```ts
@@ -111,7 +111,7 @@ export function deleteCookie(
  * ```
  */
 export function getChunkedCookie(
-  event: H3Event,
+  event: HTTPEvent,
   name: string,
 ): string | undefined {
   const mainCookie = getCookie(event, name);
