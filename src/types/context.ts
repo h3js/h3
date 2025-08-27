@@ -1,7 +1,8 @@
 import type { Session } from "../utils/session.ts";
 import type { H3Route } from "./h3.ts";
+import type { ServerRequestContext } from "srvx";
 
-export interface H3EventContext extends Record<string, any> {
+export interface H3EventContext extends ServerRequestContext {
   /* Matched router parameters */
   params?: Record<string, string>;
 
