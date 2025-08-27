@@ -140,13 +140,18 @@ export function getProxyRequestHeaders(
 ): Record<string, string> {
   const headers = new EmptyObject();
   for (const [name, value] of event.req.headers.entries()) {
-    if (
-      opts?.forwardHeaders?.includes(name) ||
-      (opts?.filterHeaders && !opts.filterHeaders.includes(name)) ||
-      !ignoredHeaders.has(name) ||
-      (name === "host" && opts?.host)
-    ) {
+    if (opts?.filterHeaders?.includes(name)) {
+      continue;
+    }
+
+    if (opts?.forwardHeaders?.includes(name)) {
       headers[name] = value;
+      continue;
+    }
+
+    if (!ignoredHeaders.has(name) || (name === "host" && opts?.host)) {
+      headers[name] = value;
+      continue;
     }
   }
   return headers;

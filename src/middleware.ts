@@ -85,8 +85,8 @@ export function callMiddleware(
   const ret = fn(event, next);
   return ret === undefined || ret === kNotFound
     ? next()
-    : ret instanceof Promise
-      ? ret.then((resolved) =>
+    : typeof (ret as PromiseLike<unknown>)?.then === "function"
+      ? (ret as PromiseLike<unknown>).then((resolved) =>
           resolved === undefined || resolved === kNotFound ? next() : resolved,
         )
       : ret;

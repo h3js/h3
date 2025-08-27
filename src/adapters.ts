@@ -10,7 +10,6 @@ import type {
 import type { H3 } from "./h3.ts";
 import type { H3EventContext } from "./types/context.ts";
 import type { EventHandler, EventHandlerResponse } from "./types/handler.ts";
-import type { H3Event } from "./event.ts";
 
 export type NodeHandler = (
   req: NodeServerRequest,
@@ -28,9 +27,11 @@ export type NodeMiddleware = (
  */
 export function toWebHandler(
   app: H3,
-): (request: ServerRequest, context?: H3Event) => Promise<Response> {
+): (request: ServerRequest, context?: H3EventContext) => Promise<Response> {
   return (request, context) => {
-    return Promise.resolve(app.request(request, undefined, context));
+    return Promise.resolve(
+      app.request(request, undefined, context || request.context),
+    );
   };
 }
 

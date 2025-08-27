@@ -37,6 +37,16 @@ describeMatrix("app", (t, { it, expect }) => {
     expect(await resSymbol.text()).toMatch("Symbol(test)");
   });
 
+  it("can return thenable", async () => {
+    t.app.get("/api", () => {
+      const p = Promise.resolve("value");
+      // eslint-disable-next-line unicorn/no-thenable
+      return { then: p.then.bind(p) };
+    });
+    const res = await t.fetch("/api");
+    expect(await res.text()).toEqual("value");
+  });
+
   it("can return Response directly", async () => {
     t.app.use(
       () =>

@@ -66,7 +66,7 @@ export const H3Core = /* @__PURE__ */ (() => {
         if (this.config.onRequest) {
           const hookRes = this.config.onRequest(event);
           handlerRes =
-            hookRes instanceof Promise
+            typeof hookRes?.then === "function"
               ? hookRes.then(() => this.handler(event))
               : this.handler(event);
         } else {
