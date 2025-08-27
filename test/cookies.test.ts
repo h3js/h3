@@ -157,19 +157,15 @@ describeMatrix("cookies", (t, { it, expect, describe }) => {
     describe("setChunkedCookie", () => {
       it("can set-cookie with setChunkedCookie", async () => {
         t.app.get("/", (event) => {
-          setChunkedCookie(
-            event,
-            "Authorization",
-            "1234567890ABCDEFGHIJXYZ",
-            {},
-            10,
-          );
+          setChunkedCookie(event, "Authorization", "1234567890ABCDEFGHIJXYZ", {
+            chunkMaxLength: 10,
+          });
           return "200";
         });
         const result = await t.fetch("/");
         expect(result.headers.getSetCookie()).toMatchInlineSnapshot(`
           [
-            "Authorization=__h3.chunked.3; Path=/",
+            "Authorization=__chunked__3; Path=/",
             "Authorization.1=1234567890; Path=/",
             "Authorization.2=ABCDEFGHIJ; Path=/",
             "Authorization.3=XYZ; Path=/",
@@ -181,7 +177,9 @@ describeMatrix("cookies", (t, { it, expect, describe }) => {
       it("smaller set-cookie removes superfluous chunks", async () => {
         // set smaller cookie with fewer chunks, should have deleted superfluous chunks
         t.app.get("/", (event) => {
-          setChunkedCookie(event, "Authorization", "0000100002", {}, 5);
+          setChunkedCookie(event, "Authorization", "0000100002", {
+            chunkMaxLength: 5,
+          });
           return "200";
         });
         const result = await t.fetch("/", {
@@ -199,7 +197,7 @@ describeMatrix("cookies", (t, { it, expect, describe }) => {
           [
             "Authorization.3=; Max-Age=0; Path=/",
             "Authorization.4=; Max-Age=0; Path=/",
-            "Authorization=__h3.chunked.2; Path=/",
+            "Authorization=__chunked__2; Path=/",
             "Authorization.1=00001; Path=/",
             "Authorization.2=00002; Path=/",
           ]

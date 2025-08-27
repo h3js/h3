@@ -6,7 +6,7 @@ import {
   parseSetCookie,
 } from "cookie-es";
 
-export const CHUNKED_COOKIE = "__h3.chunked.";
+export const CHUNKED_COOKIE = "__chunked__";
 
 // The limit is approximately 4KB, but may vary by browser and server. We leave some room to be safe.
 const CHUNKS_MAX_LENGTH = 4000;
@@ -150,10 +150,10 @@ export function setChunkedCookie(
   event: H3Event,
   name: string,
   value: string,
-  options?: CookieSerializeOptions,
-  chunksMaxLength: number = CHUNKS_MAX_LENGTH,
+  options?: CookieSerializeOptions & { chunkMaxLength?: number },
 ): void {
-  const chunkCount = Math.ceil(value.length / chunksMaxLength);
+  const chunkMaxLength = options?.chunkMaxLength || CHUNKS_MAX_LENGTH;
+  const chunkCount = Math.ceil(value.length / chunkMaxLength);
 
   // delete any prior left over chunks if the cookie is updated
   const previousCookie = getCookie(event, name);
@@ -177,8 +177,8 @@ export function setChunkedCookie(
   setCookie(event, name, mainCookieValue, options);
 
   for (let i = 1; i <= chunkCount; i++) {
-    const start = (i - 1) * chunksMaxLength;
-    const end = start + chunksMaxLength;
+    const start = (i - 1) * chunkMaxLength;
+    const end = start + chunkMaxLength;
     const chunkValue = value.slice(start, end);
     setCookie(event, chunkCookieName(name, i), chunkValue, options);
   }
