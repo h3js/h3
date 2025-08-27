@@ -2,7 +2,7 @@ import { HTTPError } from "../error.ts";
 import { validateData } from "./internal/validate.ts";
 import { parseURLEncodedBody } from "./internal/body.ts";
 
-import type { H3Event } from "../event.ts";
+import type { HTTPEvent } from "../event.ts";
 import type { InferEventInput } from "../types/handler.ts";
 import type { ValidateResult } from "./internal/validate.ts";
 import type {
@@ -25,7 +25,7 @@ import type {
  */
 export async function readBody<
   T,
-  _Event extends H3Event = H3Event,
+  _Event extends HTTPEvent = HTTPEvent,
   _T = InferEventInput<"body", _Event, T>,
 >(event: _Event): Promise<undefined | _T> {
   const text = await event.req.text();
@@ -50,11 +50,11 @@ export async function readBody<
 }
 
 export async function readValidatedBody<
-  Event extends H3Event,
+  Event extends HTTPEvent,
   S extends StandardSchemaV1,
 >(event: Event, validate: S): Promise<InferOutput<S>>;
 export async function readValidatedBody<
-  Event extends H3Event,
+  Event extends HTTPEvent,
   OutputT,
   InputT = InferEventInput<"body", Event, OutputT>,
 >(
@@ -85,14 +85,14 @@ export async function readValidatedBody<
  *   const body = await readValidatedBody(event, objectSchema);
  * });
  *
- * @param event The H3Event passed by the handler.
+ * @param event The HTTPEvent passed by the handler.
  * @param validate The function to use for body validation. It will be called passing the read request body. If the result is not false, the parsed body will be returned.
  * @throws If the validation function returns `false` or throws, a validation error will be thrown.
  * @return {*} The `Object`, `Array`, `String`, `Number`, `Boolean`, or `null` value corresponding to the request JSON body.
  * @see {readBody}
  */
 export async function readValidatedBody(
-  event: H3Event,
+  event: HTTPEvent,
   validate: any,
 ): Promise<any> {
   const _body = await readBody(event);

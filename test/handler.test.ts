@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import {
+  toRequest,
   defineHandler,
   dynamicEventHandler,
   defineLazyEventHandler,
@@ -8,7 +9,6 @@ import {
 
 import type { H3Event } from "../src/event.ts";
 import { z } from "zod";
-import { toRequest } from "../src/h3.ts";
 
 describe("handler.ts", () => {
   describe("defineHandler", () => {

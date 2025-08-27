@@ -9,9 +9,21 @@ import type {
 } from "./types/handler.ts";
 import type { H3Core } from "./h3.ts";
 
-export class H3Event<
+export interface HTTPEvent<
   _RequestT extends EventHandlerRequest = EventHandlerRequest,
 > {
+  /**
+   * Incoming HTTP request info.
+   *
+   * [MDN Reference](https://developer.mozilla.org/en-US/docs/Web/API/Request)
+   */
+  req: TypedServerRequest<_RequestT>;
+}
+
+export class H3Event<
+  _RequestT extends EventHandlerRequest = EventHandlerRequest,
+> implements HTTPEvent<_RequestT>
+{
   /**
    * Access to the H3 application instance.
    */
@@ -47,7 +59,7 @@ export class H3Event<
   #res?: H3EventResponse;
 
   constructor(req: ServerRequest, context?: H3EventContext, app?: H3Core) {
-    this.context = context || new EmptyObject();
+    this.context = context || req.context || new EmptyObject();
     this.req = req;
     this.app = app;
     // Parsed URL can be provided by srvx (node) and other runtimes
