@@ -6,7 +6,7 @@ import {
   parseSetCookie,
 } from "cookie-es";
 
-const CHUNKS_PREFIX = "chunks.";
+export const CHUNKED_COOKIE = "__h3.chunked.";
 
 // The limit is approximately 4KB, but may vary by browser and server. We leave some room to be safe.
 const CHUNKS_MAX_LENGTH = 4000;
@@ -115,7 +115,7 @@ export function getChunkedCookie(
   name: string,
 ): string | undefined {
   const mainCookie = getCookie(event, name);
-  if (!mainCookie || !mainCookie.startsWith(CHUNKS_PREFIX)) {
+  if (!mainCookie || !mainCookie.startsWith(CHUNKED_COOKIE)) {
     return mainCookie;
   }
 
@@ -157,7 +157,7 @@ export function setChunkedCookie(
 
   // delete any prior left over chunks if the cookie is updated
   const previousCookie = getCookie(event, name);
-  if (previousCookie?.startsWith(CHUNKS_PREFIX)) {
+  if (previousCookie?.startsWith(CHUNKED_COOKIE)) {
     const previousChunkCount = extractChunkCount(previousCookie);
     if (previousChunkCount > chunkCount) {
       for (let i = chunkCount; i <= previousChunkCount; i++) {
@@ -173,7 +173,7 @@ export function setChunkedCookie(
   }
 
   // If the value is too large, we need to chunk it
-  const mainCookieValue = `${CHUNKS_PREFIX}${chunkCount}`;
+  const mainCookieValue = `${CHUNKED_COOKIE}${chunkCount}`;
   setCookie(event, name, mainCookieValue, options);
 
   for (let i = 1; i <= chunkCount; i++) {
@@ -221,11 +221,11 @@ function _getDistinctCookieKey(name: string, options: Partial<SetCookie>) {
 }
 
 function extractChunkCount(mainCookie: string | undefined): number {
-  if (!mainCookie || !mainCookie.startsWith(CHUNKS_PREFIX)) {
+  if (!mainCookie || !mainCookie.startsWith(CHUNKED_COOKIE)) {
     return 0;
   }
 
-  const chunksCount = Number.parseInt(mainCookie.split(CHUNKS_PREFIX)[1]);
+  const chunksCount = Number.parseInt(mainCookie.split(CHUNKED_COOKIE)[1]);
   if (Number.isNaN(chunksCount) || chunksCount < 0) {
     return 0;
   }
@@ -233,5 +233,5 @@ function extractChunkCount(mainCookie: string | undefined): number {
 }
 
 function createChunkCookieName(name: string, chunkNumber: number): string {
-  return `${name}.C${chunkNumber}`;
+  return `${name}.${chunkNumber}`;
 }

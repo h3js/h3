@@ -4,6 +4,7 @@ import {
   setCookie,
   getChunkedCookie,
   setChunkedCookie,
+  CHUNKED_COOKIE,
 } from "../src/utils/cookie.ts";
 import { describeMatrix } from "./_setup.ts";
 
@@ -125,10 +126,10 @@ describeMatrix("cookies", (t, { it, expect, describe }) => {
         const result = await t.fetch("/", {
           headers: {
             Cookie: [
-              "Authorization=chunks.3",
-              "Authorization.C1=123",
-              "Authorization.C2=456",
-              "Authorization.C3=789",
+              `Authorization=${CHUNKED_COOKIE}3`,
+              "Authorization.1=123",
+              "Authorization.2=456",
+              "Authorization.3=789",
             ].join("; "),
           },
         });
@@ -166,12 +167,14 @@ describeMatrix("cookies", (t, { it, expect, describe }) => {
           return "200";
         });
         const result = await t.fetch("/");
-        expect(result.headers.getSetCookie()).toEqual([
-          "Authorization=chunks.3; Path=/",
-          "Authorization.C1=1234567890; Path=/",
-          "Authorization.C2=ABCDEFGHIJ; Path=/",
-          "Authorization.C3=XYZ; Path=/",
-        ]);
+        expect(result.headers.getSetCookie()).toMatchInlineSnapshot(`
+          [
+            "Authorization=__h3.chunked.3; Path=/",
+            "Authorization.1=1234567890; Path=/",
+            "Authorization.2=ABCDEFGHIJ; Path=/",
+            "Authorization.3=XYZ; Path=/",
+          ]
+        `);
         expect(await result.text()).toBe("200");
       });
 
@@ -184,21 +187,23 @@ describeMatrix("cookies", (t, { it, expect, describe }) => {
         const result = await t.fetch("/", {
           headers: {
             Cookie: [
-              "Authorization=chunks.4; Path=/",
-              "Authorization.C1=00001; Path=/",
-              "Authorization.C2=00002; Path=/",
-              "Authorization.C3=00003; Path=/",
-              "Authorization.C4=00004; Path=/",
+              `Authorization=${CHUNKED_COOKIE}4; Path=/`,
+              "Authorization.1=00001; Path=/",
+              "Authorization.2=00002; Path=/",
+              "Authorization.3=00003; Path=/",
+              "Authorization.4=00004; Path=/",
             ].join("; "),
           },
         });
-        expect(result.headers.getSetCookie()).toEqual([
-          "Authorization.C3=; Max-Age=0; Path=/",
-          "Authorization.C4=; Max-Age=0; Path=/",
-          "Authorization=chunks.2; Path=/",
-          "Authorization.C1=00001; Path=/",
-          "Authorization.C2=00002; Path=/",
-        ]);
+        expect(result.headers.getSetCookie()).toMatchInlineSnapshot(`
+          [
+            "Authorization.3=; Max-Age=0; Path=/",
+            "Authorization.4=; Max-Age=0; Path=/",
+            "Authorization=__h3.chunked.2; Path=/",
+            "Authorization.1=00001; Path=/",
+            "Authorization.2=00002; Path=/",
+          ]
+        `);
         expect(await result.text()).toBe("200");
       });
     });
