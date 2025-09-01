@@ -5,11 +5,12 @@ import {
   toNodeHandler,
 } from "./adapters.ts";
 import { defineHandler, defineLazyEventHandler } from "./handler.ts";
-import { proxy, type ProxyOptions } from "./utils/proxy.ts";
+import { proxy } from "./utils/proxy.ts";
 import { H3 } from "./h3.ts";
 import { withBase } from "./utils/base.ts";
 import { sanitizeStatusCode, sanitizeStatusMessage } from "./utils/sanitize.ts";
 
+import type { ProxyOptions } from "./utils/proxy.ts";
 import type { NodeHandler, NodeMiddleware } from "./adapters.ts";
 import type { H3Event } from "./event.ts";
 import type { EventHandler } from "./types/handler.ts";
