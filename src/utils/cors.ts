@@ -128,7 +128,7 @@ export function appendCorsHeaders(event: H3Event, options: CorsOptions): void {
  *
  * If the incoming request is a CORS preflight request, it will append the CORS preflight headers and send a 204 response.
  *
- * If return value is `true`, the request is handled and no further action is needed.
+ * If return value is not `false`, the request is handled and no further action is needed.
  *
  * @example
  * const app = new H3();
@@ -141,7 +141,7 @@ export function appendCorsHeaders(event: H3Event, options: CorsOptions): void {
  *     },
  *     methods: "*",
  *   });
- *   if (corsRes) {
+ *   if (corsRes !== false) {
  *     return corsRes;
  *   }
  *   // Your code here
