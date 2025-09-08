@@ -3,7 +3,12 @@ import { defineHandler } from "../handler.ts";
 import type { Hooks as WSHooks } from "crossws";
 import type { EventHandler } from "../types/handler.ts";
 
-export type { Hooks, Peer, AdapterInternal, Message } from "crossws";
+export type { 
+  Hooks as WSHooks,
+  Peer as WSPeer,
+  AdapterInternal as WSAdapterInteral,
+  Message as WSMessage 
+} from "crossws";
 
 /**
  * Define WebSocket hooks.
