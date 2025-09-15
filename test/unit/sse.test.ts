@@ -1,10 +1,16 @@
 import { describe, it, expect } from "vitest";
 import {
+  formatEventStreamComment,
   formatEventStreamMessage,
   formatEventStreamMessages,
 } from "../../src/utils/internal/event-stream.ts";
 
 describe("sse (unit)", () => {
+  it("properly formats sse comments", () => {
+    const result = formatEventStreamComment("hello world");
+    expect(result).toEqual(`: hello world\n\n`);
+  });
+
   it("properly formats sse messages", () => {
     const result = formatEventStreamMessage({ data: "hello world" });
     expect(result).toEqual(`data: hello world\n\n`);

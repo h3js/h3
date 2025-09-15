@@ -1,6 +1,6 @@
 import type { ServerRequest } from "srvx";
 import type { TypedRequest, TypedResponse, ResponseHeaderMap } from "fetchdts";
-import type { H3Event } from "../event.ts";
+import type { H3Event, HTTPEvent } from "../event.ts";
 import type { MaybePromise } from "./_utils.ts";
 import type { H3RouteMeta } from "./h3.ts";
 
@@ -72,6 +72,6 @@ export interface DynamicEventHandler extends EventHandlerWithFetch {
 
 export type InferEventInput<
   Key extends keyof EventHandlerRequest,
-  Event extends H3Event,
+  Event extends HTTPEvent,
   T,
-> = void extends T ? (Event extends H3Event<infer E> ? E[Key] : never) : T;
+> = void extends T ? (Event extends HTTPEvent<infer E> ? E[Key] : never) : T;

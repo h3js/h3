@@ -10,27 +10,29 @@ describeMatrix("middleware", (t, { it, expect }) => {
         return "Intercepted 1";
       }
       event.context._middleware = [];
-      event.context._middleware.push(`(event)`);
+      (event.context._middleware as string[]).push(`(event)`);
     });
 
     t.app.use(async (event) => {
-      event.context._middleware.push(`async (event)`);
+      (event.context._middleware as string[]).push(`async (event)`);
       await Promise.resolve();
     });
 
     t.app.use(async (event, next) => {
-      event.context._middleware.push(`async (event, next)`);
+      (event.context._middleware as string[]).push(`async (event, next)`);
       const value = await next();
       return value;
     });
 
     t.app.use(async (event, next) => {
-      event.context._middleware.push(`async (event, next) (passthrough)`);
+      (event.context._middleware as string[]).push(
+        `async (event, next) (passthrough)`,
+      );
       await next();
     });
 
     t.app.use((event, next) => {
-      event.context._middleware.push(`(event, next)`);
+      (event.context._middleware as string[]).push(`(event, next)`);
       return next();
     });
 
@@ -53,21 +55,21 @@ describeMatrix("middleware", (t, { it, expect }) => {
       defineHandler({
         middleware: [
           (event) => {
-            event.context._middleware.push(`route (define)`);
+            (event.context._middleware as string[]).push(`route (define)`);
           },
         ],
         handler: (event) => {
           count++;
           return {
             count,
-            log: event.context._middleware.join(" > "),
+            log: (event.context._middleware as string[]).join(" > "),
           };
         },
       }),
       {
         middleware: [
           (event) => {
-            event.context._middleware.push(`route (register)`);
+            (event.context._middleware as string[]).push(`route (register)`);
           },
         ],
       },
