@@ -188,6 +188,16 @@ export {
 // WebSocket
 export { defineWebSocketHandler, defineWebSocket } from "./utils/ws.ts";
 
+// JSON-RPC
+export type {
+  JsonRpcRequest,
+  JsonRpcResponse,
+  JsonRpcError,
+  JsonRpcMethodHandler,
+  JsonRpcMethodMap,
+} from "./utils/json-rpc.ts";
+export { defineJsonRpcHandler } from "./utils/json-rpc.ts";
+
 // ---- Deprecated ----
 
 export * from "./_deprecated.ts";
