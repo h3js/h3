@@ -21,7 +21,7 @@ describeMatrix("event response", (t, { it, describe, expect }) => {
 
       expect(await webResponseToPlain(res)).toMatchObject({
         status: 200,
-        statusText: "",
+        statusText: "OK",
         body: "text",
         headers:
           t.target === "web"
@@ -76,7 +76,7 @@ describeMatrix("event response", (t, { it, describe, expect }) => {
 
       expect(await webResponseToPlain(res)).toMatchObject({
         status: 204,
-        statusText: "",
+        statusText: "No Content",
         body: "",
         headers: {},
       });
