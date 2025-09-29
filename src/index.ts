@@ -186,8 +186,12 @@ export {
 } from "./utils/fingerprint.ts";
 
 // WebSocket
-export type { WebSocketHooks, WebSocketPeer, WebSocketAdapterInteral, WebSocketMessage } from "./utils/ws.ts";
 export { defineWebSocketHandler, defineWebSocket } from "./utils/ws.ts";
+export type {
+  WebSocketHooks,
+  WebSocketPeer,
+  WebSocketMessage,
+} from "./utils/ws.ts";
 
 // ---- Deprecated ----
 
