@@ -1,4 +1,4 @@
-import type { H3Event } from "../event.ts";
+import type { HTTPEvent } from "../event.ts";
 import { getRequestIP } from "./request.ts";
 
 export interface RequestFingerprintOptions {
@@ -28,7 +28,7 @@ export interface RequestFingerprintOptions {
  * @experimental Behavior of this utility might change in the future versions
  */
 export async function getRequestFingerprint(
-  event: H3Event,
+  event: HTTPEvent,
   opts: RequestFingerprintOptions = {},
 ): Promise<string | null> {
   const fingerprint: unknown[] = [];
@@ -44,7 +44,7 @@ export async function getRequestFingerprint(
   }
 
   if (opts.url === true) {
-    fingerprint.push(event.url.href);
+    fingerprint.push(event.req.url);
   }
 
   if (opts.userAgent === true) {

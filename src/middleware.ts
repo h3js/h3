@@ -69,12 +69,24 @@ export function callMiddleware(
     return handler(event);
   }
   const fn = middleware[index];
-  const next = () => callMiddleware(event, middleware, handler, index + 1);
+
+  let nextCalled: undefined | boolean;
+  let nextResult: unknown;
+
+  const next = () => {
+    if (nextCalled) {
+      return nextResult;
+    }
+    nextCalled = true;
+    nextResult = callMiddleware(event, middleware, handler, index + 1);
+    return nextResult;
+  };
+
   const ret = fn(event, next);
   return ret === undefined || ret === kNotFound
     ? next()
-    : ret instanceof Promise
-      ? ret.then((resolved) =>
+    : typeof (ret as PromiseLike<unknown>)?.then === "function"
+      ? (ret as PromiseLike<unknown>).then((resolved) =>
           resolved === undefined || resolved === kNotFound ? next() : resolved,
         )
       : ret;

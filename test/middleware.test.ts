@@ -10,22 +10,29 @@ describeMatrix("middleware", (t, { it, expect }) => {
         return "Intercepted 1";
       }
       event.context._middleware = [];
-      event.context._middleware.push(`(event)`);
+      (event.context._middleware as string[]).push(`(event)`);
     });
 
     t.app.use(async (event) => {
-      event.context._middleware.push(`async (event)`);
+      (event.context._middleware as string[]).push(`async (event)`);
       await Promise.resolve();
     });
 
     t.app.use(async (event, next) => {
-      event.context._middleware.push(`async (event, next)`);
+      (event.context._middleware as string[]).push(`async (event, next)`);
       const value = await next();
       return value;
     });
 
+    t.app.use(async (event, next) => {
+      (event.context._middleware as string[]).push(
+        `async (event, next) (passthrough)`,
+      );
+      await next();
+    });
+
     t.app.use((event, next) => {
-      event.context._middleware.push(`(event, next)`);
+      (event.context._middleware as string[]).push(`(event, next)`);
       return next();
     });
 
@@ -42,24 +49,27 @@ describeMatrix("middleware", (t, { it, expect }) => {
       },
     );
 
+    let count = 0;
     t.app.get(
       "/**",
       defineHandler({
         middleware: [
           (event) => {
-            event.context._middleware.push(`route (define)`);
+            (event.context._middleware as string[]).push(`route (define)`);
           },
         ],
         handler: (event) => {
+          count++;
           return {
-            log: event.context._middleware.join(" > "),
+            count,
+            log: (event.context._middleware as string[]).join(" > "),
           };
         },
       }),
       {
         middleware: [
           (event) => {
-            event.context._middleware.push(`route (register)`);
+            (event.context._middleware as string[]).push(`route (register)`);
           },
         ],
       },
@@ -67,15 +77,16 @@ describeMatrix("middleware", (t, { it, expect }) => {
   });
 
   it("should run all middleware in order", async () => {
-    const response = await t.app.fetch("/");
+    const response = await t.app.request("/");
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({
-      log: "(event) > async (event) > async (event, next) > (event, next) > route (register) > route (define)",
+      log: "(event) > async (event) > async (event, next) > async (event, next) (passthrough) > (event, next) > route (register) > route (define)",
+      count: 1,
     });
   });
 
   it("intercepted middleware", async () => {
-    const response = await t.app.fetch("/", {
+    const response = await t.app.request("/", {
       headers: { "x-intercept1": "1" },
     });
     expect(response.status).toBe(200);
@@ -83,11 +94,11 @@ describeMatrix("middleware", (t, { it, expect }) => {
   });
 
   it("routed middleware", async () => {
-    const response = await t.app.fetch("/test/");
+    const response = await t.app.request("/test/");
     expect(response.status).toBe(200);
     expect(await response.text()).toBe("Hello World!");
 
-    const response2 = await t.app.fetch("/test/", {
+    const response2 = await t.app.request("/test/", {
       headers: { "x-async": "1" },
     });
     expect(response2.status).toBe(200);
@@ -97,7 +108,7 @@ describeMatrix("middleware", (t, { it, expect }) => {
   it("middleware filters", async () => {
     expect(
       (
-        await t.app.fetch("/test", {
+        await t.app.request("/test", {
           method: "POST",
         })
       ).status,
@@ -105,7 +116,7 @@ describeMatrix("middleware", (t, { it, expect }) => {
 
     expect(
       await (
-        await t.app.fetch("/test", {
+        await t.app.request("/test", {
           headers: { "x-skip": "1" },
         })
       ).text(),
@@ -113,7 +124,7 @@ describeMatrix("middleware", (t, { it, expect }) => {
   });
 
   it("routed middleware (fallback to main)", async () => {
-    const response = await t.app.fetch("/test/...");
+    const response = await t.app.request("/test/...");
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ log: expect.any(String) });
   });

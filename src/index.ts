@@ -19,8 +19,13 @@ export { H3Core, H3 } from "./h3.ts";
 // Event
 
 export type { H3EventContext } from "./types/context.ts";
-export { H3Event } from "./event.ts";
-export { isEvent, mockEvent } from "./utils/event.ts";
+export { H3Event, type HTTPEvent } from "./event.ts";
+export {
+  isEvent,
+  isHTTPEvent,
+  mockEvent,
+  getEventContext,
+} from "./utils/event.ts";
 
 // Handler and Middleware
 
@@ -75,6 +80,7 @@ export type { RouteDefinition } from "./utils/route.ts";
 
 // Request
 export {
+  toRequest,
   getRequestHost,
   getRequestIP,
   getRequestProtocol,
@@ -181,6 +187,11 @@ export {
 
 // WebSocket
 export { defineWebSocketHandler, defineWebSocket } from "./utils/ws.ts";
+export type {
+  WebSocketHooks,
+  WebSocketPeer,
+  WebSocketMessage,
+} from "./utils/ws.ts";
 
 // ---- Deprecated ----
 

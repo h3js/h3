@@ -2,6 +2,114 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## v2.0.0-beta.4
+
+[compare changes](https://github.com/h3js/h3/compare/v2.0.0-beta.3...v2.0.0-beta.4)
+
+### 🚀 Enhancements
+
+- Support thenable values ([#1193](https://github.com/h3js/h3/pull/1193))
+- Inherit `req.context` and `ServerRequestContext` types ([#1194](https://github.com/h3js/h3/pull/1194))
+- `HTTPEvent` for more agnostic usage ([#1195](https://github.com/h3js/h3/pull/1195))
+- Export `toRequest` ([55a2c9b](https://github.com/h3js/h3/commit/55a2c9b))
+- Support chunked cookies and use for session ([#1102](https://github.com/h3js/h3/pull/1102))
+- **EventStream:** Support comment event ([#1169](https://github.com/h3js/h3/pull/1169))
+
+### 🩹 Fixes
+
+- Use `H3RouteMeta` in `RouteDefinition` type ([#1181](https://github.com/h3js/h3/pull/1181))
+- **proxy:** Fix proxy headers filter ([#1188](https://github.com/h3js/h3/pull/1188))
+- Return a `Response` for no-content ([#1177](https://github.com/h3js/h3/pull/1177))
+
+### 📖 Documentation
+
+- Update logo to cube style ([#1183](https://github.com/h3js/h3/pull/1183))
+
+### 🏡 Chore
+
+- **docs:** Lowercase `srvx` ([#1186](https://github.com/h3js/h3/pull/1186))
+- Use native node typescript support ([#1191](https://github.com/h3js/h3/pull/1191))
+- Update benchmarks ([b3ede4e](https://github.com/h3js/h3/commit/b3ede4e))
+- Update deps ([4af9fd7](https://github.com/h3js/h3/commit/4af9fd7))
+- Fix type issues related to `BufferSource` ([9040219](https://github.com/h3js/h3/commit/9040219))
+
+### ✅ Tests
+
+- Add test for `app.request(unicode)` ([1f874ee](https://github.com/h3js/h3/commit/1f874ee))
+
+### ❤️ Contributors
+
+- Hugo Muller ([@HugoMuller](https://github.com/HugoMuller))
+- David De Sloovere ([@DavidDeSloovere](https://github.com/DavidDeSloovere))
+- Pooya Parsa ([@pi0](https://github.com/pi0))
+- Shun Git <kwokshungit@gmail.com>
+- Kricsleo ([@kricsleo](https://github.com/kricsleo))
+- Abeer0 ([@iiio2](https://github.com/iiio2))
+- Sébastien Chopin <seb@nuxtjs.com>
+- Lucas Nørgård ([@luxass](https://github.com/luxass))
+
+## v2.0.0-beta.3
+
+[compare changes](https://github.com/h3js/h3/compare/v2.0.0-beta.2...v2.0.0-beta.3)
+
+### 🚀 Enhancements
+
+- ⚠️  `app.request` ([#1176](https://github.com/h3js/h3/pull/1176))
+
+### 💅 Refactors
+
+- ⚠️  Only accept `req` for `H3` and `EventHandlerWithFetch` fetch ([#1096](https://github.com/h3js/h3/pull/1096))
+
+#### ⚠️ Breaking Changes
+
+- ⚠️  `app.request` ([#1176](https://github.com/h3js/h3/pull/1176))
+- ⚠️  Only accept `req` for `H3` and `EventHandlerWithFetch` fetch ([#1096](https://github.com/h3js/h3/pull/1096))
+
+### ❤️ Contributors
+
+- Pooya Parsa <pyapar@gmail.com>
+
+## v2.0.0-beta.2
+
+[compare changes](https://github.com/h3js/h3/compare/v2.0.0-beta.1...v2.0.0-beta.2)
+
+### 🚀 Enhancements
+
+- Experimental `defineRoute` ([#1143](https://github.com/h3js/h3/pull/1143))
+- **middleware:** Allow passthrough response without enforcing explicit return ([#1174](https://github.com/h3js/h3/pull/1174))
+- Log unhandled errors ([#1152](https://github.com/h3js/h3/pull/1152))
+
+### 🩹 Fixes
+
+- **proxy:** ⚠️  Only inherit runtime context for sub-requests ([#1142](https://github.com/h3js/h3/pull/1142))
+- Safer `HTTPError` check ([#1145](https://github.com/h3js/h3/pull/1145))
+- **defineValidatedHandler:** Accept all `EventHandlerObject` props ([#1147](https://github.com/h3js/h3/pull/1147))
+- Change "h://_" to "http://_" ([90226b8](https://github.com/h3js/h3/commit/90226b8))
+
+### 📖 Documentation
+
+- Fix noContent example ([#1171](https://github.com/h3js/h3/pull/1171))
+
+### 🏡 Chore
+
+- Update deps ([256e29d](https://github.com/h3js/h3/commit/256e29d))
+
+### ✅ Tests
+
+- Update snapshot ([8d52a83](https://github.com/h3js/h3/commit/8d52a83))
+
+#### ⚠️ Breaking Changes
+
+- **proxy:** ⚠️  Only inherit runtime context for sub-requests ([#1142](https://github.com/h3js/h3/pull/1142))
+
+### ❤️ Contributors
+
+- Huseeiin ([@huseeiin](https://github.com/huseeiin))
+- Kricsleo ([@kricsleo](https://github.com/kricsleo))
+- Pooya Parsa ([@pi0](https://github.com/pi0))
+- Shun Git <kwokshungit@gmail.com>
+- Wind <hi@productdevbook.com>
+
 ## v2.0.0-beta.1
 
 [compare changes](https://github.com/h3js/h3/compare/v2.0.0-beta.0...v2.0.0-beta.1)

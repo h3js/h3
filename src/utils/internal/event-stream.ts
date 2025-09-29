@@ -62,6 +62,23 @@ export class EventStream {
     await this._sendEvent(message);
   }
 
+  async pushComment(comment: string): Promise<void> {
+    if (this._writerIsClosed) {
+      return;
+    }
+    if (this._paused && !this._unsentData) {
+      this._unsentData = formatEventStreamComment(comment);
+      return;
+    }
+    if (this._paused) {
+      this._unsentData += formatEventStreamComment(comment);
+      return;
+    }
+    await this._writer
+      .write(this._encoder.encode(formatEventStreamComment(comment)))
+      .catch();
+  }
+
   private async _sendEvent(message: EventStreamMessage) {
     if (this._writerIsClosed) {
       return;
@@ -157,6 +174,10 @@ export function isEventStream(input: unknown): input is EventStream {
     return false;
   }
   return input instanceof EventStream;
+}
+
+export function formatEventStreamComment(comment: string): string {
+  return `: ${comment}\n\n`;
 }
 
 export function formatEventStreamMessage(message: EventStreamMessage): string {

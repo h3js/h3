@@ -3,6 +3,7 @@ import { H3Event } from "./event.ts";
 import { toResponse, kNotFound } from "./response.ts";
 import { callMiddleware, normalizeMiddleware } from "./middleware.ts";
 
+import type { ServerRequest } from "srvx";
 import type { RouterContext, MatchedRoute } from "rou3";
 import type { FetchHandler, H3Config, H3Plugin } from "./types/h3.ts";
 import type { H3EventContext } from "./types/context.ts";
@@ -14,7 +15,8 @@ import type {
   RouteOptions,
   MiddlewareOptions,
 } from "./types/h3.ts";
-import type { ServerRequest } from "srvx";
+
+import { toRequest } from "./utils/request.ts";
 
 export type H3Core = H3Type;
 
@@ -34,30 +36,27 @@ export const H3Core = /* @__PURE__ */ (() => {
       this._middleware = [];
       this.config = config;
       this.fetch = this.fetch.bind(this);
-      this._fetch = this._fetch.bind(this);
+      this.request = this.request.bind(this);
       this.handler = this.handler.bind(this);
       config.plugins?.forEach((plugin) => plugin(this as unknown as H3Type));
     }
 
-    fetch(
-      request: ServerRequest | URL | string,
-      options?: RequestInit,
-    ): Promise<Response> {
-      try {
-        return Promise.resolve(this._fetch(request, options));
-      } catch (error: any) {
-        return Promise.reject(error);
-      }
+    fetch(request: ServerRequest): Response | Promise<Response> {
+      return this._request(request);
     }
 
-    _fetch(
+    request(
       _req: ServerRequest | URL | string,
       _init?: RequestInit,
       context?: H3EventContext,
     ): Response | Promise<Response> {
-      // Convert the request to a Request object
-      const request: ServerRequest = toRequest(_req, _init);
+      return this._request(toRequest(_req, _init), context);
+    }
 
+    _request(
+      request: ServerRequest,
+      context?: H3EventContext,
+    ): Response | Promise<Response> {
       // Create a new event instance
       const event = new H3Event(request, context, this as unknown as H3Type);
 
@@ -67,7 +66,7 @@ export const H3Core = /* @__PURE__ */ (() => {
         if (this.config.onRequest) {
           const hookRes = this.config.onRequest(event);
           handlerRes =
-            hookRes instanceof Promise
+            typeof hookRes?.then === "function"
               ? hookRes.then(() => this.handler(event))
               : this.handler(event);
         } else {
@@ -215,24 +214,4 @@ export class H3 extends H3Core {
     addRoute(this._rou3, _route.method, _route.route!, _route);
     super._addRoute(_route);
   }
-}
-
-export function toRequest(
-  _request: ServerRequest | URL | string,
-  _init?: RequestInit,
-): ServerRequest {
-  if (typeof _request === "string") {
-    let url = _request;
-    if (url[0] === "/") {
-      const headers = _init?.headers ? new Headers(_init.headers) : undefined;
-      const host = headers?.get("host") || "localhost";
-      const proto =
-        headers?.get("x-forwarded-proto") === "https" ? "https" : "http";
-      url = `${proto}://${host}${url}`;
-    }
-    return new Request(url, _init);
-  } else if (_init || _request instanceof URL) {
-    return new Request(_request, _init);
-  }
-  return _request;
 }
