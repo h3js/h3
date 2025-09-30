@@ -14,15 +14,12 @@ export interface EventHandler<
   meta?: H3RouteMeta;
 }
 
-export type EventHandlerFetch<T extends Response | TypedResponse = Response> = (
-  req: ServerRequest | URL | string,
-) => Promise<T>;
-
 export interface EventHandlerObject<
   _RequestT extends EventHandlerRequest = EventHandlerRequest,
   _ResponseT extends EventHandlerResponse = EventHandlerResponse,
 > {
-  handler: EventHandler<_RequestT, _ResponseT>;
+  handler?: EventHandler<_RequestT, _ResponseT>;
+  fetch?: FetchHandler;
   middleware?: Middleware[];
   meta?: H3RouteMeta;
 }
@@ -35,13 +32,6 @@ export interface EventHandlerRequest {
 
 export type EventHandlerResponse<T = unknown> = T | Promise<T>;
 
-export type EventHandlerWithFetch<
-  _RequestT extends EventHandlerRequest = EventHandlerRequest,
-  _ResponseT extends EventHandlerResponse = EventHandlerResponse,
-> = EventHandler<_RequestT, _ResponseT> & {
-  fetch: EventHandlerFetch<TypedResponse<_ResponseT, ResponseHeaderMap>>;
-};
-
 export type TypedServerRequest<
   _RequestT extends EventHandlerRequest = EventHandlerRequest,
 > = Omit<ServerRequest, "json" | "headers" | "clone"> &
@@ -52,6 +42,22 @@ export type TypedServerRequest<
     >,
     "json" | "headers" | "clone"
   >;
+
+// --- fetchable ---
+
+export type FetchHandler = (req: ServerRequest) => Response | Promise<Response>;
+export type FetchableObject = { fetch: FetchHandler };
+
+export type EventHandlerWithFetch<
+  _RequestT extends EventHandlerRequest = EventHandlerRequest,
+  _ResponseT extends EventHandlerResponse = EventHandlerResponse,
+> = EventHandler<_RequestT, _ResponseT> & {
+  fetch: EventHandlerFetch<TypedResponse<_ResponseT, ResponseHeaderMap>>;
+};
+
+export type EventHandlerFetch<T extends Response | TypedResponse = Response> = (
+  req: ServerRequest | URL | string,
+) => Promise<T>;
 
 //  --- middleware ---
 

@@ -30,18 +30,24 @@ export function defineHandler<
   Res = EventHandlerResponse,
 >(def: EventHandlerObject<Req, Res>): EventHandlerWithFetch<Req, Res>;
 
-export function defineHandler(arg1: unknown): EventHandlerWithFetch {
-  if (typeof arg1 === "function") {
-    return handlerWithFetch(arg1 as EventHandler);
+export function defineHandler(
+  input: EventHandler | EventHandlerObject,
+): EventHandlerWithFetch {
+  if (typeof input === "function") {
+    return handlerWithFetch(input as EventHandler);
   }
-  const { middleware, handler, meta } = arg1 as EventHandlerObject;
-  const _handler = handlerWithFetch(
-    middleware?.length
-      ? (event) => callMiddleware(event, middleware, handler)
-      : handler,
+  const handler: EventHandler =
+    input.handler ||
+    (input.fetch ? (event) => input.fetch!(event.req) : () => {});
+
+  return Object.assign(
+    handlerWithFetch(
+      input.middleware?.length
+        ? (event) => callMiddleware(event, input.middleware!, handler)
+        : handler,
+    ),
+    input,
   );
-  _handler.meta = meta;
-  return _handler;
 }
 
 type StringHeaders<T> = {
@@ -100,6 +106,9 @@ function handlerWithFetch<
   Req extends EventHandlerRequest = EventHandlerRequest,
   Res = EventHandlerResponse,
 >(handler: EventHandler<Req, Res>): EventHandlerWithFetch<Req, Res> {
+  if ("fetch" in handler) {
+    return handler as EventHandlerWithFetch<Req, Res>;
+  }
   return Object.assign(handler, {
     fetch: (req: ServerRequest | URL | string): Promise<Response> => {
       if (typeof req === "string") {

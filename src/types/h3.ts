@@ -1,8 +1,8 @@
 import type { H3EventContext } from "./context.ts";
-import type { EventHandler, Middleware } from "./handler.ts";
+import type { EventHandler, FetchableObject, Middleware } from "./handler.ts";
 import type { HTTPError } from "../error.ts";
 import type { MaybePromise } from "./_utils.ts";
-import type { ServerRequest } from "srvx";
+import type { FetchHandler, ServerRequest } from "srvx";
 import type { MatchedRoute } from "rou3";
 import type { H3Event } from "../event.ts";
 
@@ -44,7 +44,7 @@ export interface H3Route {
   handler: EventHandler;
 }
 
-// --- H3 Pluins ---
+// --- H3 Plugins ---
 
 export type H3Plugin = (h3: H3) => void;
 
@@ -56,7 +56,7 @@ export function definePlugin<T = unknown>(
 
 // --- H3 App ---
 
-export type FetchHandler = (req: ServerRequest) => Response | Promise<Response>;
+export type RouteHandler = EventHandler | FetchableObject;
 
 export type RouteOptions = {
   middleware?: Middleware[];
@@ -152,22 +152,26 @@ export declare class H3 {
   on(
     method: HTTPMethod | Lowercase<HTTPMethod> | "",
     route: string,
-    handler: EventHandler,
+    handler: RouteHandler,
     opts?: RouteOptions,
   ): this;
 
   /**
    * Register a route handler for all HTTP methods.
    */
-  all(route: string, handler: EventHandler, opts?: RouteOptions): this;
+  all(route: string, handler: RouteHandler, opts?: RouteOptions): this;
 
-  get(route: string, handler: EventHandler, opts?: RouteOptions): this;
-  post(route: string, handler: EventHandler, opts?: RouteOptions): this;
-  put(route: string, handler: EventHandler, opts?: RouteOptions): this;
-  delete(route: string, handler: EventHandler, opts?: RouteOptions): this;
-  patch(route: string, handler: EventHandler, opts?: RouteOptions): this;
-  head(route: string, handler: EventHandler, opts?: RouteOptions): this;
-  options(route: string, handler: EventHandler, opts?: RouteOptions): this;
-  connect(route: string, handler: EventHandler, opts?: RouteOptions): this;
-  trace(route: string, handler: EventHandler, opts?: RouteOptions): this;
+  get(route: string, handler: RouteHandler, opts?: RouteOptions): this;
+  post(
+    route: string,
+    handler: EventHandler | FetchableObject,
+    opts?: RouteOptions,
+  ): this;
+  put(route: string, handler: RouteHandler, opts?: RouteOptions): this;
+  delete(route: string, handler: RouteHandler, opts?: RouteOptions): this;
+  patch(route: string, handler: RouteHandler, opts?: RouteOptions): this;
+  head(route: string, handler: RouteHandler, opts?: RouteOptions): this;
+  options(route: string, handler: RouteHandler, opts?: RouteOptions): this;
+  connect(route: string, handler: RouteHandler, opts?: RouteOptions): this;
+  trace(route: string, handler: RouteHandler, opts?: RouteOptions): this;
 }

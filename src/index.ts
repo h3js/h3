@@ -9,7 +9,7 @@ export type {
   PreparedResponse,
   RouteOptions,
   MiddlewareOptions,
-  FetchHandler,
+  RouteHandler,
 } from "./types/h3.ts";
 
 export { definePlugin } from "./types/h3.ts";
@@ -38,6 +38,8 @@ export type {
   LazyEventHandler,
   Middleware,
   EventHandlerObject,
+  FetchHandler,
+  FetchableObject,
 } from "./types/handler.ts";
 
 export {

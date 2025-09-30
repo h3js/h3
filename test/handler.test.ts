@@ -18,13 +18,23 @@ describe("handler.ts", () => {
       expect(eventHandler).toBe(handler);
     });
 
-    it("object syntax", () => {
+    it("object syntax (h3 handler)", () => {
       const handler = vi.fn();
       const middleware = [vi.fn()];
       const eventHandler = defineHandler({ handler, middleware });
       eventHandler({} as H3Event);
       expect(middleware[0]).toHaveBeenCalled();
       expect(handler).toHaveBeenCalled();
+    });
+
+    it("object syntax (fetchable)", () => {
+      const fetchHandler = vi.fn();
+      const middleware = [vi.fn()];
+      const eventHandler = defineHandler({ fetch: fetchHandler, middleware });
+      eventHandler({} as H3Event);
+      expect(eventHandler.fetch).toBe(fetchHandler);
+      expect(middleware[0]).toHaveBeenCalled();
+      expect(fetchHandler).toHaveBeenCalled();
     });
   });
 
