@@ -162,11 +162,7 @@ export declare class H3 {
   all(route: string, handler: RouteHandler, opts?: RouteOptions): this;
 
   get(route: string, handler: RouteHandler, opts?: RouteOptions): this;
-  post(
-    route: string,
-    handler: EventHandler | FetchableObject,
-    opts?: RouteOptions,
-  ): this;
+  post(route: string, handler: RouteHandler, opts?: RouteOptions): this;
   put(route: string, handler: RouteHandler, opts?: RouteOptions): this;
   delete(route: string, handler: RouteHandler, opts?: RouteOptions): this;
   patch(route: string, handler: RouteHandler, opts?: RouteOptions): this;
