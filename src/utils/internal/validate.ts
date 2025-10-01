@@ -1,7 +1,12 @@
-import { HTTPError } from "../../error.ts";
+import { type ErrorDetails, HTTPError } from "../../error.ts";
 
 import type { ServerRequest } from "srvx";
-import type { StandardSchemaV1, InferOutput } from "./standard-schema.ts";
+import type {
+  StandardSchemaV1,
+  FailureResult,
+  InferOutput,
+  Issue,
+} from "./standard-schema.ts";
 
 export type ValidateResult<T> = T | true | false | void;
 
@@ -12,33 +17,52 @@ export type ValidateFunction<
   | Schema
   | ((data: unknown) => ValidateResult<T> | Promise<ValidateResult<T>>);
 
+export type ValidateIssues = ReadonlyArray<Issue>;
+export type ValidateError =
+  | (() => ErrorDetails)
+  | ((result: FailureResult) => ErrorDetails);
+
 /**
  * Validates the given data using the provided validation function.
  * @template T The expected type of the validated data.
  * @param data The data to validate.
  * @param fn The validation schema or function to use - can be async.
+ * @param error Optional error details or a function that returns error details if validation fails.
  * @returns A Promise that resolves with the validated data if it passes validation, meaning the validation function does not throw and returns a value other than false.
  * @throws {ValidationError} If the validation function returns false or throws an error.
  */
 export async function validateData<Schema extends StandardSchemaV1>(
   data: unknown,
   fn: Schema,
+  options?: {
+    onError?: (result: FailureResult) => ErrorDetails;
+  },
 ): Promise<InferOutput<Schema>>;
 export async function validateData<T>(
   data: unknown,
   fn: (data: unknown) => ValidateResult<T> | Promise<ValidateResult<T>>,
+  options?: {
+    onError?: () => ErrorDetails;
+  },
 ): Promise<T>;
 export async function validateData<T>(
   data: unknown,
   fn: ValidateFunction<T>,
+  options?: {
+    onError?: ValidateError;
+  },
 ): Promise<T> {
   if ("~standard" in fn) {
     const result = await fn["~standard"].validate(data);
     if (result.issues) {
-      throw createValidationError({
-        message: "Validation failed",
-        issues: result.issues,
-      });
+      const errorDetails = options?.onError
+        ? options.onError(result)
+        : {
+            message: "Validation failed",
+            issues: result.issues,
+          };
+
+      throw createValidationError(errorDetails);
     }
     return result.value;
   }
@@ -46,7 +70,13 @@ export async function validateData<T>(
   try {
     const res = await fn(data);
     if (res === false) {
-      throw createValidationError({ message: "Validation failed" });
+      const errorDetails = options?.onError
+        ? (options.onError as () => ErrorDetails)()
+        : {
+            message: "Validation failed",
+          };
+
+      throw createValidationError(errorDetails);
     }
     if (res === true) {
       return data as T;
@@ -68,6 +98,10 @@ export function validatedRequest<
   validate: {
     body?: RequestBody;
     headers?: RequestHeaders;
+    onError?: (
+      result: FailureResult,
+      source: "headers" | "body",
+    ) => ErrorDetails;
   },
 ): ServerRequest {
   // Validate Headers
@@ -76,6 +110,7 @@ export function validatedRequest<
       "headers",
       Object.fromEntries(req.headers.entries()),
       validate.headers as StandardSchemaV1<Record<string, string>>,
+      validate.onError,
     );
     for (const [key, value] of Object.entries(validatedheaders)) {
       req.headers.set(key, value);
@@ -95,11 +130,20 @@ export function validatedRequest<
             req
               .json()
               .then((data) => validate.body!["~standard"].validate(data))
-              .then((result) =>
-                result.issues
-                  ? Promise.reject(createValidationError(result))
-                  : result.value,
-              );
+              .then((result) => {
+                if (result.issues) {
+                  const errorDetails = validate.onError
+                    ? validate.onError(result, "body")
+                    : {
+                        message: "Validation failed",
+                        issues: result.issues,
+                      };
+
+                  throw createValidationError(errorDetails);
+                }
+
+                return result.value;
+              });
         } else if (reqBodyKeys.has(prop)) {
           throw new TypeError(
             `Cannot access .${prop} on request with JSON validation enabled. Use .json() instead.`,
@@ -115,6 +159,7 @@ export function validatedURL(
   url: URL,
   validate: {
     query?: StandardSchemaV1;
+    onError?: (result: FailureResult, source: "query") => ErrorDetails;
   },
 ): URL {
   if (!validate.query) {
@@ -125,6 +170,7 @@ export function validatedURL(
     "query",
     Object.fromEntries(url.searchParams.entries()),
     validate.query as StandardSchemaV1<Record<string, string>>,
+    validate.onError,
   );
 
   for (const [key, value] of Object.entries(validatedQuery)) {
@@ -134,29 +180,37 @@ export function validatedURL(
   return url;
 }
 
-function syncValidate<T = unknown>(
-  type: string,
+function syncValidate<Source extends "headers" | "query", T = unknown>(
+  type: Source,
   data: unknown,
   fn: StandardSchemaV1<T>,
+  onError?: (result: FailureResult, source: Source) => ErrorDetails,
 ): T {
   const result = fn["~standard"].validate(data);
   if (result instanceof Promise) {
     throw new TypeError(`Asynchronous validation is not supported for ${type}`);
   }
   if (result.issues) {
-    throw createValidationError({
-      issues: result.issues,
-    });
+    const errorDetails = onError
+      ? onError(result, type)
+      : {
+          message: "Validation failed",
+          issues: result.issues,
+        };
+
+    throw createValidationError(errorDetails);
   }
   return result.value;
 }
 
-function createValidationError(validateError?: any) {
-  return new HTTPError({
-    status: 400,
-    statusText: "Validation failed",
-    message: validateError?.message,
-    data: validateError,
-    cause: validateError,
-  });
+function createValidationError(validateError?: HTTPError | any) {
+  return HTTPError.isError(validateError)
+    ? validateError
+    : new HTTPError({
+        status: validateError?.status || 400,
+        statusText: validateError?.statusText || "Validation failed",
+        message: validateError?.message,
+        data: validateError,
+        cause: validateError,
+      });
 }
