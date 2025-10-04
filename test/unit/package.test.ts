@@ -88,7 +88,6 @@ describe("h3 package", () => {
         "lazyEventHandler",
         "mockEvent",
         "noContent",
-        "normalizeMiddleware",
         "onError",
         "onRequest",
         "onResponse",
