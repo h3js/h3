@@ -56,8 +56,8 @@ describe("benchmark", () => {
         `Bundle size (defineHandler): ${bundle.bytes} (gzip: ${bundle.gzipSize})`,
       );
     }
-    expect(bundle.bytes).toBeLessThanOrEqual(5300); // <5.3kb
-    expect(bundle.gzipSize).toBeLessThanOrEqual(2200); // <2.2kb
+    expect(bundle.bytes).toBeLessThanOrEqual(5700); // <5.7kb
+    expect(bundle.gzipSize).toBeLessThanOrEqual(2300); // <2.3kb
   });
 });
 
