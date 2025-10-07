@@ -11,7 +11,7 @@ import type { Middleware } from "../types/handler.ts";
 export function onRequest(
   hook: (event: H3Event) => void | Promise<void>,
 ): Middleware {
-  return async (event) => {
+  return async function _onRequestMiddleware(event) {
     await hook(event);
   };
 }
@@ -24,7 +24,7 @@ export function onRequest(
 export function onResponse(
   hook: (response: Response, event: H3Event) => MaybePromise<void | Response>,
 ): Middleware {
-  return async (event, next) => {
+  return async function _onResponseMiddleware(event, next) {
     const rawBody = await next();
     const response = await toResponse(rawBody, event);
     const hookResponse = await hook(response, event);

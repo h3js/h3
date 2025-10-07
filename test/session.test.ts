@@ -81,4 +81,23 @@ describeMatrix("session", (t, { it, expect }) => {
       sessions: [1, 2, 3].map(() => ({ id: "1", data: { foo: "bar" } })),
     });
   });
+
+  it("stores large data in chunks", async () => {
+    const token = Array.from({ length: 5000 /* ~4k + one more */ })
+      .fill("x")
+      .join("");
+    const res = await t.fetch("/", {
+      method: "POST",
+      headers: { Cookie: cookie },
+      body: JSON.stringify({ token }),
+    });
+
+    const cookies = res.headers.getSetCookie();
+    const cookieNames = cookies.map((c) => c.split("=")[0]);
+    expect(cookieNames.length).toBe(3 /* head + 2 */);
+    expect(cookieNames).toMatchObject(["h3-test", "h3-test.1", "h3-test.2"]);
+
+    const body = await res.json();
+    expect(body.session.data.token).toBe(token);
+  });
 });

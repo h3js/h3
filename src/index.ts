@@ -9,7 +9,6 @@ export type {
   PreparedResponse,
   RouteOptions,
   MiddlewareOptions,
-  FetchHandler,
 } from "./types/h3.ts";
 
 export { definePlugin } from "./types/h3.ts";
@@ -38,6 +37,9 @@ export type {
   LazyEventHandler,
   Middleware,
   EventHandlerObject,
+  FetchHandler,
+  FetchableObject,
+  HTTPHandler,
 } from "./types/handler.ts";
 
 export {
@@ -45,6 +47,7 @@ export {
   defineLazyEventHandler,
   dynamicEventHandler,
   defineValidatedHandler,
+  toEventHandler,
 } from "./handler.ts";
 
 export { defineMiddleware } from "./middleware.ts";
@@ -187,6 +190,11 @@ export {
 
 // WebSocket
 export { defineWebSocketHandler, defineWebSocket } from "./utils/ws.ts";
+export type {
+  WebSocketHooks,
+  WebSocketPeer,
+  WebSocketMessage,
+} from "./utils/ws.ts";
 
 // ---- Deprecated ----
 

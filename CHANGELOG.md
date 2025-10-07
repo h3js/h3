@@ -2,6 +2,115 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## v2.0.0-beta.5
+
+[compare changes](https://github.com/h3js/h3/compare/v2.0.0-beta.4...v2.0.0-beta.5)
+
+### 🚀 Enhancements
+
+- Support universal `{ fetch }` handlers ([#1210](https://github.com/h3js/h3/pull/1210))
+- Support fetchable object for dynamic handlers ([0da8e4a](https://github.com/h3js/h3/commit/0da8e4a))
+- `toEventHandler` and `HTTPHandler` ([38be512](https://github.com/h3js/h3/commit/38be512))
+- `toMiddleware` and `defineLazyMiddleware` utils ([2737f62](https://github.com/h3js/h3/commit/2737f62))
+
+### 🔥 Performance
+
+- Slightly improve `getRequestIP` performances ([#1197](https://github.com/h3js/h3/pull/1197))
+
+### 💅 Refactors
+
+- Allow overriding middleware resolution ([f45dd27](https://github.com/h3js/h3/commit/f45dd27))
+- Move middleware normalization out of core ([b2ce1af](https://github.com/h3js/h3/commit/b2ce1af))
+- Pass `event` to `_getMiddleware` ([3f766a5](https://github.com/h3js/h3/commit/3f766a5))
+- Remove `toMiddleware` and `defineLazyMiddleware` (unreleased) ([f16f954](https://github.com/h3js/h3/commit/f16f954))
+- Avoid anonymous functions ([e4bb27a](https://github.com/h3js/h3/commit/e4bb27a))
+
+### 📖 Documentation
+
+- Correct h3 method ([#1206](https://github.com/h3js/h3/pull/1206))
+- Fix description of`handleCors`'s return value ([#1167](https://github.com/h3js/h3/pull/1167))
+
+### 🌊 Types
+
+- Export websocket related types ([#1202](https://github.com/h3js/h3/pull/1202))
+
+### 🏡 Chore
+
+- Import `ProxyOptions` separately ([#1199](https://github.com/h3js/h3/pull/1199))
+- Fix typo in docs ([#1201](https://github.com/h3js/h3/pull/1201))
+- Update undocs ([f2fd0e8](https://github.com/h3js/h3/commit/f2fd0e8))
+- Add `pnpm-lock.yaml` ([8f75d2f](https://github.com/h3js/h3/commit/8f75d2f))
+- **examples:** Fix typo ([#1205](https://github.com/h3js/h3/pull/1205))
+- Update deps ([2d32dd9](https://github.com/h3js/h3/commit/2d32dd9))
+- Update srvx ([c272021](https://github.com/h3js/h3/commit/c272021))
+- Update ci ([0dfb4fe](https://github.com/h3js/h3/commit/0dfb4fe))
+- Update ci ([8e451e8](https://github.com/h3js/h3/commit/8e451e8))
+- Update ci ([4480127](https://github.com/h3js/h3/commit/4480127))
+- Add prepack script ([920a331](https://github.com/h3js/h3/commit/920a331))
+- Update deps ([e945618](https://github.com/h3js/h3/commit/e945618))
+
+### ✅ Tests
+
+- Update statusText tests ([e2f9a9d](https://github.com/h3js/h3/commit/e2f9a9d))
+- Update test ([a4b0079](https://github.com/h3js/h3/commit/a4b0079))
+- Update snapshot ([a0cee89](https://github.com/h3js/h3/commit/a0cee89))
+
+### ❤️ Contributors
+
+- Pooya Parsa ([@pi0](https://github.com/pi0))
+- Kricsleo ([@kricsleo](https://github.com/kricsleo))
+- Rijk Van Zanten ([@rijkvanzanten](https://github.com/rijkvanzanten))
+- Homersimpsons <guillaume.alabre@gmail.com>
+- Abeer0 ([@iiio2](https://github.com/iiio2))
+- Christian Höhne ([@bombur51](https://github.com/bombur51))
+- Vladimir Ivakhno ([@wvovaw](https://github.com/wvovaw))
+
+## v2.0.0-beta.4
+
+[compare changes](https://github.com/h3js/h3/compare/v2.0.0-beta.3...v2.0.0-beta.4)
+
+### 🚀 Enhancements
+
+- Support thenable values ([#1193](https://github.com/h3js/h3/pull/1193))
+- Inherit `req.context` and `ServerRequestContext` types ([#1194](https://github.com/h3js/h3/pull/1194))
+- `HTTPEvent` for more agnostic usage ([#1195](https://github.com/h3js/h3/pull/1195))
+- Export `toRequest` ([55a2c9b](https://github.com/h3js/h3/commit/55a2c9b))
+- Support chunked cookies and use for session ([#1102](https://github.com/h3js/h3/pull/1102))
+- **EventStream:** Support comment event ([#1169](https://github.com/h3js/h3/pull/1169))
+
+### 🩹 Fixes
+
+- Use `H3RouteMeta` in `RouteDefinition` type ([#1181](https://github.com/h3js/h3/pull/1181))
+- **proxy:** Fix proxy headers filter ([#1188](https://github.com/h3js/h3/pull/1188))
+- Return a `Response` for no-content ([#1177](https://github.com/h3js/h3/pull/1177))
+
+### 📖 Documentation
+
+- Update logo to cube style ([#1183](https://github.com/h3js/h3/pull/1183))
+
+### 🏡 Chore
+
+- **docs:** Lowercase `srvx` ([#1186](https://github.com/h3js/h3/pull/1186))
+- Use native node typescript support ([#1191](https://github.com/h3js/h3/pull/1191))
+- Update benchmarks ([b3ede4e](https://github.com/h3js/h3/commit/b3ede4e))
+- Update deps ([4af9fd7](https://github.com/h3js/h3/commit/4af9fd7))
+- Fix type issues related to `BufferSource` ([9040219](https://github.com/h3js/h3/commit/9040219))
+
+### ✅ Tests
+
+- Add test for `app.request(unicode)` ([1f874ee](https://github.com/h3js/h3/commit/1f874ee))
+
+### ❤️ Contributors
+
+- Hugo Muller ([@HugoMuller](https://github.com/HugoMuller))
+- David De Sloovere ([@DavidDeSloovere](https://github.com/DavidDeSloovere))
+- Pooya Parsa ([@pi0](https://github.com/pi0))
+- Shun Git <kwokshungit@gmail.com>
+- Kricsleo ([@kricsleo](https://github.com/kricsleo))
+- Abeer0 ([@iiio2](https://github.com/iiio2))
+- Sébastien Chopin <seb@nuxtjs.com>
+- Lucas Nørgård ([@luxass](https://github.com/luxass))
+
 ## v2.0.0-beta.3
 
 [compare changes](https://github.com/h3js/h3/compare/v2.0.0-beta.2...v2.0.0-beta.3)

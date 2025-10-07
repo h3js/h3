@@ -41,7 +41,9 @@ export function fromWebHandler(
     context?: H3EventContext,
   ) => Promise<Response>,
 ): EventHandler {
-  return (event) => handler(event.req, event.context);
+  return function _webHandler(event) {
+    return handler(event.req, event.context);
+  };
 }
 
 /**
@@ -57,7 +59,7 @@ export function fromNodeHandler(
   if (typeof handler !== "function") {
     throw new TypeError(`Invalid handler. It should be a function: ${handler}`);
   }
-  return (event) => {
+  return function _nodeHandler(event) {
     if (!event.runtime?.node?.res) {
       throw new Error(
         "[h3] Executing Node.js middleware is not supported in this server!",

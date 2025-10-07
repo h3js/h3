@@ -1,8 +1,8 @@
 import type { H3EventContext } from "./context.ts";
-import type { EventHandler, Middleware } from "./handler.ts";
+import type { HTTPHandler, EventHandler, Middleware } from "./handler.ts";
 import type { HTTPError } from "../error.ts";
 import type { MaybePromise } from "./_utils.ts";
-import type { ServerRequest } from "srvx";
+import type { FetchHandler, ServerRequest } from "srvx";
 import type { MatchedRoute } from "rou3";
 import type { H3Event } from "../event.ts";
 
@@ -44,7 +44,7 @@ export interface H3Route {
   handler: EventHandler;
 }
 
-// --- H3 Pluins ---
+// --- H3 Plugins ---
 
 export type H3Plugin = (h3: H3) => void;
 
@@ -55,8 +55,6 @@ export function definePlugin<T = unknown>(
 }
 
 // --- H3 App ---
-
-export type FetchHandler = (req: ServerRequest) => Response | Promise<Response>;
 
 export type RouteOptions = {
   middleware?: Middleware[];
@@ -69,14 +67,10 @@ export type MiddlewareOptions = {
 };
 
 export declare class H3 {
-  /**
-   * @internal
-   */
+  /** @internal */
   _middleware: Middleware[];
 
-  /**
-   * @internal
-   */
+  /** @internal */
   _routes: H3Route[];
 
   /**
@@ -111,14 +105,22 @@ export declare class H3 {
     context?: H3EventContext,
   ): Response | Promise<Response>;
 
-  /**
-   * @internal
-   */
+  /** @internal */
   _findRoute(_event: H3Event): MatchedRoute<H3Route> | void;
 
-  /**
-   * @internal
-   */
+  /** @internal */
+  _getMiddleware(
+    event: H3Event,
+    route: MatchedRoute<H3Route> | undefined,
+  ): Middleware[];
+
+  /** @internal */
+  _normalizeMiddleware(
+    fn: Middleware,
+    _opts?: MiddlewareOptions & { route?: string },
+  ): Middleware;
+
+  /** @internal */
   _addRoute(_route: H3Route): void;
 
   /**
@@ -152,22 +154,22 @@ export declare class H3 {
   on(
     method: HTTPMethod | Lowercase<HTTPMethod> | "",
     route: string,
-    handler: EventHandler,
+    handler: HTTPHandler,
     opts?: RouteOptions,
   ): this;
 
   /**
    * Register a route handler for all HTTP methods.
    */
-  all(route: string, handler: EventHandler, opts?: RouteOptions): this;
+  all(route: string, handler: HTTPHandler, opts?: RouteOptions): this;
 
-  get(route: string, handler: EventHandler, opts?: RouteOptions): this;
-  post(route: string, handler: EventHandler, opts?: RouteOptions): this;
-  put(route: string, handler: EventHandler, opts?: RouteOptions): this;
-  delete(route: string, handler: EventHandler, opts?: RouteOptions): this;
-  patch(route: string, handler: EventHandler, opts?: RouteOptions): this;
-  head(route: string, handler: EventHandler, opts?: RouteOptions): this;
-  options(route: string, handler: EventHandler, opts?: RouteOptions): this;
-  connect(route: string, handler: EventHandler, opts?: RouteOptions): this;
-  trace(route: string, handler: EventHandler, opts?: RouteOptions): this;
+  get(route: string, handler: HTTPHandler, opts?: RouteOptions): this;
+  post(route: string, handler: HTTPHandler, opts?: RouteOptions): this;
+  put(route: string, handler: HTTPHandler, opts?: RouteOptions): this;
+  delete(route: string, handler: HTTPHandler, opts?: RouteOptions): this;
+  patch(route: string, handler: HTTPHandler, opts?: RouteOptions): this;
+  head(route: string, handler: HTTPHandler, opts?: RouteOptions): this;
+  options(route: string, handler: HTTPHandler, opts?: RouteOptions): this;
+  connect(route: string, handler: HTTPHandler, opts?: RouteOptions): this;
+  trace(route: string, handler: HTTPHandler, opts?: RouteOptions): this;
 }

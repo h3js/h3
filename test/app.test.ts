@@ -230,6 +230,16 @@ describeMatrix("app", (t, { it, expect }) => {
     expect(await res.text()).toBe("42");
   });
 
+  it("can use fetchable routes", async () => {
+    t.app.get("/fetchable", {
+      fetch: async () => {
+        return new Response("fetchable");
+      },
+    });
+    const res = await t.fetch("/fetchable");
+    expect(await res.text()).toBe("fetchable");
+  });
+
   it("handles next() call with no routes matching", async () => {
     t.app.use(() => {});
     t.app.use(() => {});

@@ -5,9 +5,15 @@ import { callMiddleware, normalizeMiddleware } from "./middleware.ts";
 
 import type { ServerRequest } from "srvx";
 import type { RouterContext, MatchedRoute } from "rou3";
-import type { FetchHandler, H3Config, H3Plugin } from "./types/h3.ts";
+import type { H3Config, H3Plugin } from "./types/h3.ts";
 import type { H3EventContext } from "./types/context.ts";
-import type { EventHandler, Middleware } from "./types/handler.ts";
+import type {
+  EventHandler,
+  FetchableObject,
+  FetchHandler,
+  HTTPHandler,
+  Middleware,
+} from "./types/handler.ts";
 import type {
   H3Route,
   HTTPMethod,
@@ -17,8 +23,11 @@ import type {
 } from "./types/h3.ts";
 
 import { toRequest } from "./utils/request.ts";
+import { toEventHandler } from "./handler.ts";
 
 export type H3Core = H3Type;
+
+export const NoHandler: EventHandler = () => kNotFound;
 
 export const H3Core = /* @__PURE__ */ (() => {
   // prettier-ignore
@@ -94,23 +103,31 @@ export const H3Core = /* @__PURE__ */ (() => {
       this._routes.push(_route);
     }
 
+    _getMiddleware(
+      _event: H3Event,
+      route: MatchedRoute<H3Route> | void,
+    ): Middleware[] {
+      return route?.data.middleware
+        ? [...this._middleware, ...route.data.middleware]
+        : this._middleware;
+    }
+
     handler(event: H3Event): unknown | Promise<unknown> {
       const route = this._findRoute(event);
       if (route) {
         event.context.params = route.params;
         event.context.matchedRoute = route.data;
       }
-      const middleware = route?.data.middleware
-        ? [...this._middleware, ...route.data.middleware]
-        : this._middleware;
-      return callMiddleware(event, middleware, () => {
-        return route ? route.data.handler(event) : kNotFound;
-      });
+      const routeHandler = route?.data.handler || NoHandler;
+      const middleware = this._getMiddleware(event, route);
+      return middleware.length > 0
+        ? callMiddleware(event, middleware, routeHandler)
+        : routeHandler(event);
     }
 
     mount(
       base: string,
-      input: FetchHandler | { fetch: FetchHandler } | H3Type,
+      input: FetchHandler | FetchableObject | H3Type,
     ): H3Type {
       if ("handler" in input) {
         if (input._middleware.length > 0) {
@@ -128,7 +145,7 @@ export const H3Core = /* @__PURE__ */ (() => {
         }
       } else {
         const fetchHandler = "fetch" in input ? input.fetch : input;
-        this.all(`${base}/**`, (event) => {
+        this.all(`${base}/**`, function _mountedMiddleware(event) {
           const url = new URL(event.url);
           url.pathname = url.pathname.slice(base.length) || "/";
           return fetchHandler(new Request(url, event.req));
@@ -144,7 +161,7 @@ export const H3Core = /* @__PURE__ */ (() => {
     on(
       method: HTTPMethod | Lowercase<HTTPMethod> | "",
       route: string,
-      handler: EventHandler,
+      handler: HTTPHandler,
       opts?: RouteOptions,
     ): H3Type {
       const _method = (method || "").toUpperCase();
@@ -152,11 +169,15 @@ export const H3Core = /* @__PURE__ */ (() => {
       this._addRoute({
         method: _method as HTTPMethod,
         route,
-        handler,
+        handler: toEventHandler(handler)!,
         middleware: opts?.middleware,
         meta: { ...(handler as EventHandler).meta, ...opts?.meta },
       });
       return this as unknown as H3Type;
+    }
+
+    _normalizeMiddleware(fn: Middleware, _opts: any): Middleware {
+      return fn;
     }
 
     use(arg1: unknown, arg2?: unknown, arg3?: unknown): H3Type {
@@ -172,10 +193,7 @@ export const H3Core = /* @__PURE__ */ (() => {
         opts = arg2 as MiddlewareOptions;
       }
       this._middleware.push(
-        normalizeMiddleware(
-          fn as Middleware,
-          route ? { ...opts, route } : opts,
-        ),
+        this._normalizeMiddleware(fn as Middleware, { ...opts, route }),
       );
       return this as unknown as H3Type;
     }
@@ -196,9 +214,7 @@ export const H3Core = /* @__PURE__ */ (() => {
 })() as unknown as { new (config?: H3Config): H3Type };
 
 export class H3 extends H3Core {
-  /**
-   * @internal
-   */
+  /** @internal */
   _rou3: RouterContext<H3Route>;
 
   constructor(config: H3Config = {}) {
@@ -213,5 +229,12 @@ export class H3 extends H3Core {
   override _addRoute(_route: H3Route): void {
     addRoute(this._rou3, _route.method, _route.route!, _route);
     super._addRoute(_route);
+  }
+
+  override _normalizeMiddleware(
+    fn: Middleware,
+    opts?: MiddlewareOptions & { route?: string },
+  ): Middleware {
+    return normalizeMiddleware(fn as Middleware, opts);
   }
 }
