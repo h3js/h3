@@ -37,6 +37,16 @@ describeMatrix("app", (t, { it, expect }) => {
     expect(await resSymbol.text()).toMatch("Symbol(test)");
   });
 
+  it("can return thenable", async () => {
+    t.app.get("/api", () => {
+      const p = Promise.resolve("value");
+      // eslint-disable-next-line unicorn/no-thenable
+      return { then: p.then.bind(p) };
+    });
+    const res = await t.fetch("/api");
+    expect(await res.text()).toEqual("value");
+  });
+
   it("can return Response directly", async () => {
     t.app.use(
       () =>
@@ -220,6 +230,16 @@ describeMatrix("app", (t, { it, expect }) => {
     expect(await res.text()).toBe("42");
   });
 
+  it("can use fetchable routes", async () => {
+    t.app.get("/fetchable", {
+      fetch: async () => {
+        return new Response("fetchable");
+      },
+    });
+    const res = await t.fetch("/fetchable");
+    expect(await res.text()).toBe("fetchable");
+  });
+
   it("handles next() call with no routes matching", async () => {
     t.app.use(() => {});
     t.app.use(() => {});
@@ -243,11 +263,14 @@ describeMatrix("app", (t, { it, expect }) => {
     expect(await res.text()).toBe("valid");
   });
 
-  it("can add arabic routes", async () => {
-    t.app.get("/عربي", () => "valid");
+  it("can add and match unicode routes", async () => {
+    t.app.get("/سلام", () => "valid");
 
-    const res = await t.fetch("/عربي");
+    const res = await t.fetch("/سلام");
     expect(res.status).toBe(200);
+
+    const res2 = await t.app.request("/سلام");
+    expect(res2.status).toBe(200);
   });
 
   it.skipIf(t.target !== "node")(

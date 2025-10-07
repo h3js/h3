@@ -91,8 +91,8 @@ export function validatedRequest<
     get(_target, prop: keyof ServerRequest) {
       if (validate.body) {
         if (prop === "json") {
-          return () =>
-            req
+          return function _validatedJson() {
+            return req
               .json()
               .then((data) => validate.body!["~standard"].validate(data))
               .then((result) =>
@@ -100,6 +100,7 @@ export function validatedRequest<
                   ? Promise.reject(createValidationError(result))
                   : result.value,
               );
+          };
         } else if (reqBodyKeys.has(prop)) {
           throw new TypeError(
             `Cannot access .${prop} on request with JSON validation enabled. Use .json() instead.`,

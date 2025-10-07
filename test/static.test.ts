@@ -251,6 +251,8 @@ describeMatrix("serve static MIME types", (t, { it, expect }) => {
     expect(res2.headers.get("content-type")).toBe("text/plain");
 
     const res3 = await t.fetch("/custom/file");
-    expect(res3.headers.get("content-type")).toBe(null);
+    expect(res3.headers.get("content-type")).toBe(
+      t.target === "web" ? null : "text/plain; charset=UTF-8",
+    );
   });
 });

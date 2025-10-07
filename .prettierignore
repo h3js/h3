@@ -4,3 +4,4 @@ lib
 .output
 src/types/_headers.ts
 docs/1.guide/6.websocket.md
+pnpm-lock.yaml

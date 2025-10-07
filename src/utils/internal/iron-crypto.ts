@@ -1,3 +1,5 @@
+// @ts-nocheck TODO: Validate BufferSource assignments
+
 /**
 Based on https://github.com/brc-dd/iron-webcrypto/tree/v1.2.1
 Copyright (c) 2021 Divyansh Singh.

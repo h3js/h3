@@ -35,7 +35,7 @@ function createMatcher(opts: MiddlewareOptions & { route?: string }) {
   }
   const routeMatcher = opts.route ? routeToRegExp(opts.route) : undefined;
   const method = opts.method?.toUpperCase();
-  return (event: H3Event) => {
+  return function _middlewareMatcher(event: H3Event) {
     if (method && event.req.method !== method) {
       return false;
     }
@@ -69,13 +69,33 @@ export function callMiddleware(
     return handler(event);
   }
   const fn = middleware[index];
-  const next = () => callMiddleware(event, middleware, handler, index + 1);
+
+  let nextCalled: undefined | boolean;
+  let nextResult: unknown;
+
+  const next = () => {
+    if (nextCalled) {
+      return nextResult;
+    }
+    nextCalled = true;
+    nextResult = callMiddleware(event, middleware, handler, index + 1);
+    return nextResult;
+  };
+
   const ret = fn(event, next);
-  return ret === undefined || ret === kNotFound
+  return is404(ret)
     ? next()
-    : ret instanceof Promise
-      ? ret.then((resolved) =>
-          resolved === undefined || resolved === kNotFound ? next() : resolved,
+    : typeof (ret as PromiseLike<unknown>)?.then === "function"
+      ? (ret as PromiseLike<unknown>).then((resolved) =>
+          is404(resolved) ? next() : resolved,
         )
       : ret;
+}
+
+function is404(val: unknown) {
+  return (
+    val === undefined ||
+    val === kNotFound ||
+    ((val as Response)?.status === 404 && val instanceof Response)
+  );
 }

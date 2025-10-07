@@ -89,7 +89,7 @@ describeMatrix("proxy", (t, { it, expect, describe }) => {
 
         const res = await t.fetch("/", {
           method: "POST",
-          body: dummyFile,
+          body: dummyFile as BufferSource,
           headers: {
             "x-req-header": "works",
           },

@@ -5,11 +5,12 @@ import {
   toNodeHandler,
 } from "./adapters.ts";
 import { defineHandler, defineLazyEventHandler } from "./handler.ts";
-import { proxy, type ProxyOptions } from "./utils/proxy.ts";
+import { proxy } from "./utils/proxy.ts";
 import { H3 } from "./h3.ts";
 import { withBase } from "./utils/base.ts";
 import { sanitizeStatusCode, sanitizeStatusMessage } from "./utils/sanitize.ts";
 
+import type { ProxyOptions } from "./utils/proxy.ts";
 import type { NodeHandler, NodeMiddleware } from "./adapters.ts";
 import type { H3Event } from "./event.ts";
 import type { EventHandler } from "./types/handler.ts";
@@ -144,7 +145,8 @@ export function sendStream(
 }
 
 /** @deprecated Please use `return noContent(event)` */
-export const sendNoContent: (event: H3Event, code?: number) => "" = noContent;
+export const sendNoContent: (event: H3Event, code?: number) => Response =
+  noContent;
 
 /** @deprecated Please use `return redirect(event, code)` */
 export const sendRedirect: (
@@ -341,15 +343,6 @@ export const fromNodeMiddleware: (
 
 /** @deprecated Please use `toNodeHandler` */
 export const toNodeListener: (app: H3) => NodeHandler = toNodeHandler;
-
-/** @deprecated */
-export function toEventHandler(
-  input: any,
-  _?: any,
-  _route?: string,
-): EventHandler {
-  return input;
-}
 
 // -- App/Router --
 

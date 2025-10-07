@@ -1,3 +1,4 @@
+import { FastResponse } from "srvx";
 import type { H3Event } from "../event.ts";
 import { sanitizeStatusCode } from "./sanitize.ts";
 import {
@@ -11,12 +12,12 @@ import {
  * Respond with an empty payload.<br>
  *
  * @example
- * app.get("/", () => noContent());
+ * app.get("/", (event) => noContent(event));
  *
  * @param event H3 event
  * @param code status code to be send. By default, it is `204 No Content`.
  */
-export function noContent(event: H3Event, code?: number): "" {
+export function noContent(event: H3Event, code?: number): Response {
   const currentStatus = event.res.status;
 
   if (!code && currentStatus && currentStatus !== 200) {
@@ -31,7 +32,7 @@ export function noContent(event: H3Event, code?: number): "" {
     event.res.headers.delete("content-length");
   }
 
-  return "";
+  return new FastResponse(null, event.res);
 }
 
 /**

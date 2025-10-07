@@ -78,7 +78,7 @@ export async function proxy(
   try {
     response =
       target[0] === "/"
-        ? await event.app!._fetch(createSubRequest(event, target, fetchOptions))
+        ? await event.app!.fetch(createSubRequest(event, target, fetchOptions))
         : await fetch(target, fetchOptions);
   } catch (error) {
     throw new HTTPError({ status: 502, cause: error });
@@ -140,13 +140,18 @@ export function getProxyRequestHeaders(
 ): Record<string, string> {
   const headers = new EmptyObject();
   for (const [name, value] of event.req.headers.entries()) {
-    if (
-      opts?.forwardHeaders?.includes(name) ||
-      (opts?.filterHeaders && !opts.filterHeaders.includes(name)) ||
-      !ignoredHeaders.has(name) ||
-      (name === "host" && opts?.host)
-    ) {
+    if (opts?.filterHeaders?.includes(name)) {
+      continue;
+    }
+
+    if (opts?.forwardHeaders?.includes(name)) {
       headers[name] = value;
+      continue;
+    }
+
+    if (!ignoredHeaders.has(name) || (name === "host" && opts?.host)) {
+      headers[name] = value;
+      continue;
     }
   }
   return headers;
@@ -163,7 +168,7 @@ export async function fetchWithEvent(
   if (url[0] !== "/") {
     return fetch(url, init);
   }
-  return event.app!._fetch(
+  return event.app!.fetch(
     createSubRequest(event, url, {
       ...init,
       headers: mergeHeaders(

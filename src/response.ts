@@ -3,7 +3,7 @@ import { HTTPError } from "./error.ts";
 import { isJSONSerializable } from "./utils/internal/object.ts";
 
 import type { H3Config } from "./types/h3.ts";
-import type { H3Event } from "./event.ts";
+import { kEventRes, kEventResHeaders, type H3Event } from "./event.ts";
 
 export const kNotFound: symbol = /* @__PURE__ */ Symbol.for("h3.notFound");
 export const kHandled: symbol = /* @__PURE__ */ Symbol.for("h3.handled");
@@ -13,20 +13,25 @@ export function toResponse(
   event: H3Event,
   config: H3Config = {},
 ): Response | Promise<Response> {
-  if (val && val instanceof Promise) {
-    return val
-      .catch((error) => error)
-      .then((resolvedVal) => toResponse(resolvedVal, event, config));
+  if (typeof (val as PromiseLike<unknown>)?.then === "function") {
+    return (
+      (val as Promise<unknown>).catch?.((error) => error) ||
+      Promise.resolve(val)
+    ).then((resolvedVal) =>
+      toResponse(resolvedVal, event, config),
+    ) as Promise<Response>;
   }
 
   const response = prepareResponse(val, event, config);
-  if (response instanceof Promise) {
+  if (typeof (response as PromiseLike<Response>)?.then === "function") {
     return toResponse(response, event, config);
   }
 
   const { onResponse } = config;
   return onResponse
-    ? Promise.resolve(onResponse(response, event)).then(() => response)
+    ? Promise.resolve(onResponse(response as Response, event)).then(
+        () => response,
+      )
     : response;
 }
 
@@ -57,6 +62,9 @@ function prepareResponse(
         error.stack = val.stack;
       }
     }
+    if (error.unhandled && !config.silent) {
+      console.error(error);
+    }
     const { onError } = config;
     return onError && !nested
       ? Promise.resolve(onError(error, event))
@@ -66,26 +74,31 @@ function prepareResponse(
   }
 
   // Only set if event.res.headers is accessed
-  const eventHeaders = (event.res as { _headers?: Headers })._headers;
+  const preparedRes:
+    | undefined
+    | { status?: number; statusText?: string; [kEventResHeaders]?: Headers } = (
+    event as any
+  )[kEventRes];
+  const preparedHeaders = preparedRes?.[kEventResHeaders];
 
   if (!(val instanceof Response)) {
     const res = prepareResponseBody(val, event, config);
-    const status = event.res.status;
+    const status = preparedRes?.status;
     return new FastResponse(
       nullBody(event.req.method, status) ? null : res.body,
       {
         status,
-        statusText: event.res.statusText,
+        statusText: preparedRes?.statusText,
         headers:
-          res.headers && eventHeaders
-            ? mergeHeaders(res.headers, eventHeaders)
-            : res.headers || eventHeaders,
+          res.headers && preparedHeaders
+            ? mergeHeaders(res.headers, preparedHeaders)
+            : res.headers || preparedHeaders,
       },
     );
   }
 
   // Note: Only check _headers. res.status/statusText are not used as we use them from the response
-  if (!eventHeaders) {
+  if (!preparedHeaders) {
     return val; // Fast path: no headers to merge
   }
   return new FastResponse(
@@ -93,7 +106,7 @@ function prepareResponse(
     {
       status: val.status,
       statusText: val.statusText,
-      headers: mergeHeaders(eventHeaders, val.headers),
+      headers: mergeHeaders(preparedHeaders, val.headers),
     },
   ) as Response;
 }
@@ -138,7 +151,7 @@ function prepareResponseBody(
   // Buffer (should be before JSON)
   if (val instanceof Uint8Array) {
     event.res.headers.set("content-length", val.byteLength.toString());
-    return { body: val };
+    return { body: val as BufferSource };
   }
 
   // JSON
