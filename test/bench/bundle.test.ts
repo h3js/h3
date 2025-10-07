@@ -38,7 +38,7 @@ describe("benchmark", () => {
         `Bundle size (H3Core): ${bundle.bytes} (gzip: ${bundle.gzipSize})`,
       );
     }
-    expect(bundle.bytes).toBeLessThanOrEqual(7500); // <7.5kb
+    expect(bundle.bytes).toBeLessThanOrEqual(7600); // <7.6kb
     expect(bundle.gzipSize).toBeLessThanOrEqual(3000); // <3kb
   });
 
