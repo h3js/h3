@@ -32,4 +32,4 @@ jobs:
         with: { node-version: lts/*, cache: "pnpm" }
       - run: pnpm install
       - run: pnpm changelogen --bump --canary nightly
-      - run: npm i -g npm@latest && npm publish --tag beta
+      - run: npm i -g npm@latest && npm publish --tag latest
