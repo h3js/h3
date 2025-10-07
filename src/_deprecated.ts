@@ -168,7 +168,7 @@ export const sendProxy: (
   event: H3Event,
   target: string,
   opts?: ProxyOptions,
-) => Promise<BodyInit | undefined | null> = proxy;
+) => Promise<HTTPResponse> = proxy;
 
 /** @deprecated Please use `return iterable(event, value)` */
 export const sendIterable: <Value = unknown, Return = unknown>(
