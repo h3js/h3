@@ -8,10 +8,25 @@ import {
   getRequestIP,
   getRequestFingerprint,
   handleCacheHeaders,
+  html,
 } from "../src/index.ts";
 import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("utils", (t, { it, describe, expect }) => {
+  describe("html", () => {
+    it("can return html response", async () => {
+      t.app.get("/test", () => html("<h1>Hello</h1>"));
+      const res1 = await t.fetch("/test");
+      expect(res1.headers.get("content-type")).toBe("text/html; charset=utf-8");
+      expect(await res1.text()).toBe("<h1>Hello</h1>");
+
+      t.app.get("/test2", () => html`<h1>Hello</h1>`);
+      const res2 = await t.fetch("/test2");
+      expect(res2.headers.get("content-type")).toBe("text/html; charset=utf-8");
+      expect(await res2.text()).toBe("<h1>Hello</h1>");
+    });
+  });
+
   describe("redirect", () => {
     it("can redirect URLs", async () => {
       t.app.use(() => redirect("https://google.com"));

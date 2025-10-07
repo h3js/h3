@@ -136,15 +136,21 @@ export function iterable<Value = unknown, Return = unknown>(
  *
  * @example
  * app.get("/", () => html("<h1>Hello, World!</h1>"));
+ * app.get("/", () => html`<h1>Hello, ${name}!</h1>`);
  */
 export function html(
   strings: TemplateStringsArray,
   ...values: unknown[]
+): HTTPResponse;
+export function html(markup: string): HTTPResponse;
+export function html(
+  first: TemplateStringsArray | string,
+  ...values: unknown[]
 ): HTTPResponse {
-  const body = strings.reduce(
-    (out, str, i) => out + str + (values[i] ?? ""),
-    "",
-  );
+  const body =
+    typeof first === "string"
+      ? first
+      : first.reduce((out, str, i) => out + str + (values[i] ?? ""), "");
   return new HTTPResponse(body, {
     headers: { "content-type": "text/html; charset=utf-8" },
   });
