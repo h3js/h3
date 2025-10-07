@@ -123,14 +123,21 @@ function prepareResponse(
   if (!preparedHeaders) {
     return val; // Fast path: no headers to merge
   }
-  return new FastResponse(
-    nullBody(event.req.method, val.status) ? null : val.body,
-    {
-      status: val.status,
-      statusText: val.statusText,
-      headers: mergeHeaders(preparedHeaders, val.headers),
-    },
-  ) as Response;
+
+  const mergedHeaders = mergeHeaders(preparedHeaders, val.headers);
+  try {
+    Object.defineProperty(val, "headers", { value: mergedHeaders });
+    if (val.headers === mergedHeaders) {
+      return val;
+    }
+  } catch {
+    /* fallback */
+  }
+  return new FastResponse(val.body, {
+    status: val.status,
+    statusText: val.statusText,
+    headers: mergedHeaders,
+  }) as Response;
 }
 
 function mergeHeaders(base: HeadersInit, merge: Headers): Headers {

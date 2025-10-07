@@ -21,7 +21,7 @@ describe("benchmark", () => {
       );
     }
     expect(bundle.bytes).toBeLessThanOrEqual(11_000); // <11kb
-    expect(bundle.gzipSize).toBeLessThanOrEqual(4100); // <4.1kb
+    expect(bundle.gzipSize).toBeLessThanOrEqual(4200); // <4.2kb
   });
 
   it("bundle size (H3Core)", async () => {
@@ -38,13 +38,13 @@ describe("benchmark", () => {
         `Bundle size (H3Core): ${bundle.bytes} (gzip: ${bundle.gzipSize})`,
       );
     }
-    expect(bundle.bytes).toBeLessThanOrEqual(7600); // <7.6kb
-    expect(bundle.gzipSize).toBeLessThanOrEqual(3000); // <3kb
+    expect(bundle.bytes).toBeLessThanOrEqual(7800); // <7.8kb
+    expect(bundle.gzipSize).toBeLessThanOrEqual(3100); // <3.1kb
   });
 
   it("bundle size (defineHandler)", async () => {
     const code = /* js */ `
-      import { defineHandler } from "h3";
+      import { defineHandler } from "../../src/index.ts";
       const handler = defineHandler({});
     `;
     const bundle = await getBundleSize(code);
@@ -56,7 +56,7 @@ describe("benchmark", () => {
         `Bundle size (defineHandler): ${bundle.bytes} (gzip: ${bundle.gzipSize})`,
       );
     }
-    expect(bundle.bytes).toBeLessThanOrEqual(5700); // <5.7kb
+    expect(bundle.bytes).toBeLessThanOrEqual(5800); // <5.8kb
     expect(bundle.gzipSize).toBeLessThanOrEqual(2300); // <2.3kb
   });
 });
