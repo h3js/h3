@@ -9,6 +9,14 @@ import type {
 } from "./types/handler.ts";
 import type { H3Core } from "./h3.ts";
 
+export const kEventRes: unique symbol = /* @__PURE__ */ Symbol.for(
+  "h3.internal.event.res",
+);
+
+export const kEventResHeaders: unique symbol = /* @__PURE__ */ Symbol.for(
+  "h3.internal.event.res.headers",
+);
+
 export interface HTTPEvent<
   _RequestT extends EventHandlerRequest = EventHandlerRequest,
 > {
@@ -53,11 +61,6 @@ export class H3Event<
    */
   static __is_event__ = true;
 
-  /**
-   * @internal
-   */
-  #res?: H3EventResponse;
-
   constructor(req: ServerRequest, context?: H3EventContext, app?: H3Core) {
     this.context = context || req.context || new EmptyObject();
     this.req = req;
@@ -71,10 +74,7 @@ export class H3Event<
    * Prepared HTTP response.
    */
   get res(): H3EventResponse {
-    if (!this.#res) {
-      this.#res = new H3EventResponse();
-    }
-    return this.#res;
+    return ((this as any)[kEventRes] ||= new H3EventResponse());
   }
 
   /**
@@ -145,11 +145,8 @@ export class H3Event<
 class H3EventResponse {
   status?: number;
   statusText?: string;
-  #headers?: Headers;
+
   get headers(): Headers {
-    if (!this.#headers) {
-      this.#headers = new Headers();
-    }
-    return this.#headers;
+    return ((this as any)[kEventResHeaders] ||= new Headers());
   }
 }

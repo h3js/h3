@@ -3,7 +3,7 @@ import { HTTPError } from "./error.ts";
 import { isJSONSerializable } from "./utils/internal/object.ts";
 
 import type { H3Config } from "./types/h3.ts";
-import type { H3Event } from "./event.ts";
+import { kEventRes, kEventResHeaders, type H3Event } from "./event.ts";
 
 export const kNotFound: symbol = /* @__PURE__ */ Symbol.for("h3.notFound");
 export const kHandled: symbol = /* @__PURE__ */ Symbol.for("h3.handled");
@@ -74,26 +74,31 @@ function prepareResponse(
   }
 
   // Only set if event.res.headers is accessed
-  const eventHeaders = (event.res as { _headers?: Headers })._headers;
+  const preparedRes:
+    | undefined
+    | { status?: number; statusText?: string; [kEventResHeaders]?: Headers } = (
+    event as any
+  )[kEventRes];
+  const preparedHeaders = preparedRes?.[kEventResHeaders];
 
   if (!(val instanceof Response)) {
     const res = prepareResponseBody(val, event, config);
-    const status = event.res.status;
+    const status = preparedRes?.status;
     return new FastResponse(
       nullBody(event.req.method, status) ? null : res.body,
       {
         status,
-        statusText: event.res.statusText,
+        statusText: preparedRes?.statusText,
         headers:
-          res.headers && eventHeaders
-            ? mergeHeaders(res.headers, eventHeaders)
-            : res.headers || eventHeaders,
+          res.headers && preparedHeaders
+            ? mergeHeaders(res.headers, preparedHeaders)
+            : res.headers || preparedHeaders,
       },
     );
   }
 
   // Note: Only check _headers. res.status/statusText are not used as we use them from the response
-  if (!eventHeaders) {
+  if (!preparedHeaders) {
     return val; // Fast path: no headers to merge
   }
   return new FastResponse(
@@ -101,7 +106,7 @@ function prepareResponse(
     {
       status: val.status,
       statusText: val.statusText,
-      headers: mergeHeaders(eventHeaders, val.headers),
+      headers: mergeHeaders(preparedHeaders, val.headers),
     },
   ) as Response;
 }
