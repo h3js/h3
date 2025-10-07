@@ -9,12 +9,14 @@ import type {
 } from "./types/handler.ts";
 import type { H3Core } from "./h3.ts";
 
+const kEventNS = "h3.internal.event.";
+
 export const kEventRes: unique symbol = /* @__PURE__ */ Symbol.for(
-  "h3.internal.event.res",
+  `${kEventNS}res`,
 );
 
 export const kEventResHeaders: unique symbol = /* @__PURE__ */ Symbol.for(
-  "h3.internal.event.res.headers",
+  `${kEventNS}res.headers`,
 );
 
 export interface HTTPEvent<
