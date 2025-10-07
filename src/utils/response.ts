@@ -1,5 +1,5 @@
 import type { H3Event } from "../event.ts";
-import { PseudoResponse } from "../response.ts";
+import { HTTPResponse } from "../response.ts";
 import { sanitizeStatusCode } from "./sanitize.ts";
 import {
   serializeIterableValue,
@@ -17,8 +17,8 @@ import {
  * @param event H3 event
  * @param code status code to be send. By default, it is `204 No Content`.
  */
-export function noContent(code: number = 204): PseudoResponse {
-  return new PseudoResponse(null, {
+export function noContent(code: number = 204): HTTPResponse {
+  return new HTTPResponse(null, {
     status: sanitizeStatusCode(code),
     statusText: "No Content",
   });
@@ -41,13 +41,10 @@ export function noContent(code: number = 204): PseudoResponse {
  *   return redirect("https://example.com", 301); // Permanent redirect
  * });
  */
-export function redirect(
-  location: string,
-  status: number = 302,
-): PseudoResponse {
+export function redirect(location: string, status: number = 302): HTTPResponse {
   const encodedLoc = location.replace(/"/g, "%22");
   const body = /* html */ `<html><head><meta http-equiv="refresh" content="0; url=${encodedLoc}" /></head></html>`;
-  return new PseudoResponse(body, {
+  return new HTTPResponse(body, {
     status: status,
     headers: {
       "content-type": "text/html; charset=utf-8",
@@ -108,10 +105,10 @@ export function iterable<Value = unknown, Return = unknown>(
   options?: {
     serializer: IteratorSerializer<Value | Return>;
   },
-): PseudoResponse {
+): HTTPResponse {
   const serializer = options?.serializer ?? serializeIterableValue;
   const iterator = coerceIterable(iterable);
-  return new PseudoResponse(
+  return new HTTPResponse(
     new ReadableStream({
       async pull(controller) {
         const { value, done } = await iterator.next();
@@ -141,12 +138,12 @@ export function iterable<Value = unknown, Return = unknown>(
 export function html(
   strings: TemplateStringsArray,
   ...values: unknown[]
-): PseudoResponse {
+): HTTPResponse {
   const body = strings.reduce(
     (out, str, i) => out + str + (values[i] ?? ""),
     "",
   );
-  return new PseudoResponse(body, {
+  return new HTTPResponse(body, {
     headers: { "content-type": "text/html; charset=utf-8" },
   });
 }

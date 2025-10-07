@@ -35,7 +35,7 @@ export function toResponse(
     : response;
 }
 
-export class PseudoResponse {
+export class HTTPResponse {
   #headers?: Headers;
   #init?: Pick<ResponseInit, "status" | "statusText" | "headers"> | undefined;
   body?: BodyInit | null;
@@ -155,7 +155,7 @@ function prepareResponseBody(
   val: unknown,
   event: H3Event,
   config: H3Config,
-): Partial<PseudoResponse> {
+): Partial<HTTPResponse> {
   // Empty Content
   if (val === null || val === undefined) {
     return { body: "", headers: emptyHeaders };
@@ -177,7 +177,7 @@ function prepareResponseBody(
   }
 
   // Partial Response
-  if (val instanceof PseudoResponse) {
+  if (val instanceof HTTPResponse) {
     return val;
   }
 

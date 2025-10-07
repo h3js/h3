@@ -2,7 +2,7 @@ import type { H3Event } from "../event.ts";
 import { HTTPError } from "../error.ts";
 import { withLeadingSlash, withoutTrailingSlash } from "./internal/path.ts";
 import { getType, getExtension } from "./internal/mime.ts";
-import { PseudoResponse } from "../response.ts";
+import { HTTPResponse } from "../response.ts";
 
 export interface StaticAssetMeta {
   type?: string;
@@ -67,7 +67,7 @@ export interface ServeStaticOptions {
 export async function serveStatic(
   event: H3Event,
   options: ServeStaticOptions,
-): Promise<PseudoResponse | undefined> {
+): Promise<HTTPResponse | undefined> {
   if (options.headers) {
     const entries = Array.isArray(options.headers)
       ? options.headers
@@ -130,7 +130,7 @@ export async function serveStatic(
 
     const ifModifiedSinceH = event.req.headers.get("if-modified-since");
     if (ifModifiedSinceH && new Date(ifModifiedSinceH) >= mtimeDate) {
-      return new PseudoResponse(null, {
+      return new HTTPResponse(null, {
         status: 304,
         statusText: "Not Modified",
       });
@@ -148,7 +148,7 @@ export async function serveStatic(
   const ifNotMatch =
     meta.etag && event.req.headers.get("if-none-match") === meta.etag;
   if (ifNotMatch) {
-    return new PseudoResponse(null, {
+    return new HTTPResponse(null, {
       status: 304,
       statusText: "Not Modified",
     });
@@ -179,11 +179,11 @@ export async function serveStatic(
   }
 
   if (event.req.method === "HEAD") {
-    return new PseudoResponse(null, { status: 200 });
+    return new HTTPResponse(null, { status: 200 });
   }
 
   const contents = await options.getContents(id);
-  return new PseudoResponse(contents || null, { status: 200 });
+  return new HTTPResponse(contents || null, { status: 200 });
 }
 
 // --- Internal Utils ---
