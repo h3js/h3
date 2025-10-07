@@ -1,6 +1,5 @@
 import type { H3Event } from "../event.ts";
 import { HTTPResponse } from "../response.ts";
-import { sanitizeStatusCode } from "./sanitize.ts";
 import {
   serializeIterableValue,
   coerceIterable,
@@ -14,12 +13,11 @@ import {
  * @example
  * app.get("/", () => noContent());
  *
- * @param event H3 event
- * @param code status code to be send. By default, it is `204 No Content`.
+ * @param status status code to be send. By default, it is `204 No Content`.
  */
-export function noContent(code: number = 204): HTTPResponse {
+export function noContent(status: number = 204): HTTPResponse {
   return new HTTPResponse(null, {
-    status: sanitizeStatusCode(code),
+    status,
     statusText: "No Content",
   });
 }
@@ -76,13 +74,12 @@ export function writeEarlyHints(
  *
  * For generator (yielding) functions, the returned value is treated the same as yielded values.
  *
- * @param event - H3 event
  * @param iterable - Iterator that produces chunks of the response.
  * @param serializer - Function that converts values from the iterable into stream-compatible values.
  * @template Value - Test
  *
  * @example
- * return iterable(event, async function* work() {
+ * return iterable(async function* work() {
  *   // Open document body
  *   yield "<!DOCTYPE html>\n<html><body><h1>Executing...</h1><ol>\n";
  *   // Do work ...
