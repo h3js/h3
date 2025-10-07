@@ -290,7 +290,7 @@ describeMatrix("app", (t, { it, expect }) => {
     },
   );
 
-  it("set headers via event.res + Response", async () => {
+  it("set headers via event.res + Response (mutable)", async () => {
     t.app.use((event) => {
       event.res.headers.set("x-from-event", "1");
       return new Response("hello", {
@@ -302,20 +302,22 @@ describeMatrix("app", (t, { it, expect }) => {
     expect(res.headers.get("x-from-response")).toBe("1");
   });
 
-  it("set headers via event.res + Response (slowpath)", async () => {
+  it("set headers via event.res + Response (immutable)", async () => {
     t.app.use((event) => {
       event.res.headers.set("x-from-event", "1");
       const res = new Response("hello", {
         headers: { "x-from-response": "1" },
       });
-      Object.defineProperty(res, "headers", {
-        writable: false,
-        value: res.headers,
-      });
+      res.headers.set = () => {
+        throw new Error("immutable");
+      };
+      res.headers.append = () => {
+        throw new Error("immutable");
+      };
       return res;
     });
     const res = await t.fetch("/");
-    expect(res.headers.get("x-from-event")).toBe("1");
     expect(res.headers.get("x-from-response")).toBe("1");
+    expect(res.headers.get("x-from-event")).toBe("1");
   });
 });

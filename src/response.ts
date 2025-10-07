@@ -124,32 +124,32 @@ function prepareResponse(
     return val; // Fast path: no headers to merge
   }
 
-  const mergedHeaders = mergeHeaders(preparedHeaders, val.headers);
   try {
-    Object.defineProperty(val, "headers", { value: mergedHeaders });
-    if (val.headers === mergedHeaders) {
-      return val;
-    }
+    mergeHeaders(val.headers, preparedHeaders, val.headers);
+    return val;
   } catch {
-    /* fallback */
+    // Res.headers are immutable, clone the response
+    return new FastResponse(val.body, {
+      status: val.status,
+      statusText: val.statusText,
+      headers: mergeHeaders(preparedHeaders, val.headers),
+    });
   }
-  return new FastResponse(val.body, {
-    status: val.status,
-    statusText: val.statusText,
-    headers: mergedHeaders,
-  }) as Response;
 }
 
-function mergeHeaders(base: HeadersInit, merge: Headers): Headers {
-  const mergedHeaders = new Headers(base);
+function mergeHeaders(
+  base: Headers,
+  merge: Headers,
+  target: Headers = new Headers(base),
+): Headers {
   for (const [name, value] of merge) {
     if (name === "set-cookie") {
-      mergedHeaders.append(name, value);
+      target.append(name, value);
     } else {
-      mergedHeaders.set(name, value);
+      target.set(name, value);
     }
   }
-  return mergedHeaders;
+  return target;
 }
 
 const emptyHeaders = /* @__PURE__ */ new Headers({ "content-length": "0" });
