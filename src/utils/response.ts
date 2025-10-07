@@ -1,5 +1,5 @@
-import { FastResponse } from "srvx";
 import type { H3Event } from "../event.ts";
+import { PseudoResponse } from "../response.ts";
 import { sanitizeStatusCode } from "./sanitize.ts";
 import {
   serializeIterableValue,
@@ -12,27 +12,16 @@ import {
  * Respond with an empty payload.<br>
  *
  * @example
- * app.get("/", (event) => noContent(event));
+ * app.get("/", () => noContent());
  *
  * @param event H3 event
  * @param code status code to be send. By default, it is `204 No Content`.
  */
-export function noContent(event: H3Event, code?: number): Response {
-  const currentStatus = event.res.status;
-
-  if (!code && currentStatus && currentStatus !== 200) {
-    code = event.res.status;
-  }
-
-  event.res.status = sanitizeStatusCode(code, 204);
-
-  // 204 responses MUST NOT have a Content-Length header field
-  // https://www.rfc-editor.org/rfc/rfc7230#section-3.3.2
-  if (event.res.status === 204) {
-    event.res.headers.delete("content-length");
-  }
-
-  return new FastResponse(null, event.res);
+export function noContent(code: number = 204): PseudoResponse {
+  return new PseudoResponse(null, {
+    status: sanitizeStatusCode(code),
+    statusText: "No Content",
+  });
 }
 
 /**
@@ -43,27 +32,28 @@ export function noContent(event: H3Event, code?: number): Response {
  * In the body, it sends a simple HTML page with a meta refresh tag to redirect the client in case the headers are ignored.
  *
  * @example
- * app.get("/", (event) => {
- *   return redirect(event, "https://example.com");
+ * app.get("/", () => {
+ *   return redirect("https://example.com");
  * });
  *
  * @example
- * app.get("/", (event) => {
- *   return redirect(event, "https://example.com", 301); // Permanent redirect
+ * app.get("/", () => {
+ *   return redirect("https://example.com", 301); // Permanent redirect
  * });
  */
 export function redirect(
-  event: H3Event,
   location: string,
-  code: number = 302,
-): string {
-  event.res.status = sanitizeStatusCode(code, event.res.status);
-  event.res.headers.set("location", location);
+  status: number = 302,
+): PseudoResponse {
   const encodedLoc = location.replace(/"/g, "%22");
-  return html(
-    event,
-    `<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0; url=${encodedLoc}"></head></html>`,
-  );
+  const body = /* html */ `<html><head><meta http-equiv="refresh" content="0; url=${encodedLoc}" /></head></html>`;
+  return new PseudoResponse(body, {
+    status: status,
+    headers: {
+      "content-type": "text/html; charset=utf-8",
+      location,
+    },
+  });
 }
 
 /**
@@ -114,42 +104,49 @@ export function writeEarlyHints(
  * }
  */
 export function iterable<Value = unknown, Return = unknown>(
-  _event: H3Event,
   iterable: IterationSource<Value, Return>,
   options?: {
     serializer: IteratorSerializer<Value | Return>;
   },
-): ReadableStream {
+): PseudoResponse {
   const serializer = options?.serializer ?? serializeIterableValue;
   const iterator = coerceIterable(iterable);
-  return new ReadableStream({
-    async pull(controller) {
-      const { value, done } = await iterator.next();
-      if (value !== undefined) {
-        const chunk = serializer(value);
-        if (chunk !== undefined) {
-          controller.enqueue(chunk);
+  return new PseudoResponse(
+    new ReadableStream({
+      async pull(controller) {
+        const { value, done } = await iterator.next();
+        if (value !== undefined) {
+          const chunk = serializer(value);
+          if (chunk !== undefined) {
+            controller.enqueue(chunk);
+          }
         }
-      }
-      if (done) {
-        controller.close();
-      }
-    },
-    cancel() {
-      iterator.return?.();
-    },
-  });
+        if (done) {
+          controller.close();
+        }
+      },
+      cancel() {
+        iterator.return?.();
+      },
+    }),
+  );
 }
 
 /**
  * Respond with HTML content.
  *
  * @example
- * app.get("/", (event) => html(event, "<h1>Hello, World!</h1>"));
+ * app.get("/", () => html("<h1>Hello, World!</h1>"));
  */
-export function html(event: H3Event, content: string): string {
-  if (!event.res.headers.has("content-type")) {
-    event.res.headers.set("content-type", "text/html; charset=utf-8");
-  }
-  return content;
+export function html(
+  strings: TemplateStringsArray,
+  ...values: unknown[]
+): PseudoResponse {
+  const body = strings.reduce(
+    (out, str, i) => out + str + (values[i] ?? ""),
+    "",
+  );
+  return new PseudoResponse(body, {
+    headers: { "content-type": "text/html; charset=utf-8" },
+  });
 }

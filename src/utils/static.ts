@@ -2,6 +2,7 @@ import type { H3Event } from "../event.ts";
 import { HTTPError } from "../error.ts";
 import { withLeadingSlash, withoutTrailingSlash } from "./internal/path.ts";
 import { getType, getExtension } from "./internal/mime.ts";
+import { PseudoResponse } from "../response.ts";
 
 export interface StaticAssetMeta {
   type?: string;
@@ -66,7 +67,7 @@ export interface ServeStaticOptions {
 export async function serveStatic(
   event: H3Event,
   options: ServeStaticOptions,
-): Promise<false | undefined | null | BodyInit> {
+): Promise<PseudoResponse | undefined> {
   if (options.headers) {
     const entries = Array.isArray(options.headers)
       ? options.headers
@@ -129,9 +130,10 @@ export async function serveStatic(
 
     const ifModifiedSinceH = event.req.headers.get("if-modified-since");
     if (ifModifiedSinceH && new Date(ifModifiedSinceH) >= mtimeDate) {
-      event.res.status = 304;
-      event.res.statusText = "Not Modified";
-      return "";
+      return new PseudoResponse(null, {
+        status: 304,
+        statusText: "Not Modified",
+      });
     }
 
     if (!event.res.headers.get("last-modified")) {
@@ -146,9 +148,10 @@ export async function serveStatic(
   const ifNotMatch =
     meta.etag && event.req.headers.get("if-none-match") === meta.etag;
   if (ifNotMatch) {
-    event.res.status = 304;
-    event.res.statusText = "Not Modified";
-    return "";
+    return new PseudoResponse(null, {
+      status: 304,
+      statusText: "Not Modified",
+    });
   }
 
   if (!event.res.headers.get("content-type")) {
@@ -176,11 +179,11 @@ export async function serveStatic(
   }
 
   if (event.req.method === "HEAD") {
-    return "";
+    return new PseudoResponse(null, { status: 200 });
   }
 
   const contents = await options.getContents(id);
-  return contents;
+  return new PseudoResponse(contents || null, { status: 200 });
 }
 
 // --- Internal Utils ---

@@ -66,8 +66,8 @@ describeMatrix("event response", (t, { it, describe, expect }) => {
 
   describe("no content response", () => {
     it("sets status 204 as default", async () => {
-      t.app.all("/test", (event) => {
-        return noContent(event);
+      t.app.all("/test", () => {
+        return noContent();
       });
 
       const res = await t.fetch("/test", {

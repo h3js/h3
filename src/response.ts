@@ -35,6 +35,28 @@ export function toResponse(
     : response;
 }
 
+export class PseudoResponse {
+  #headers?: Headers;
+  #init?: Pick<ResponseInit, "status" | "statusText" | "headers"> | undefined;
+  body?: BodyInit | null;
+  constructor(
+    body: BodyInit | null,
+    init?: Pick<ResponseInit, "status" | "statusText" | "headers">,
+  ) {
+    this.body = body;
+    this.#init = init;
+  }
+  get status(): number {
+    return this.#init?.status || 200;
+  }
+  get statusText(): string {
+    return this.#init?.statusText || "OK";
+  }
+  get headers(): Headers {
+    return (this.#headers ||= new Headers(this.#init?.headers));
+  }
+}
+
 function prepareResponse(
   val: unknown,
   event: H3Event,
@@ -83,12 +105,12 @@ function prepareResponse(
 
   if (!(val instanceof Response)) {
     const res = prepareResponseBody(val, event, config);
-    const status = preparedRes?.status;
+    const status = res.status || preparedRes?.status;
     return new FastResponse(
       nullBody(event.req.method, status) ? null : res.body,
       {
         status,
-        statusText: preparedRes?.statusText,
+        statusText: res.statusText || preparedRes?.statusText,
         headers:
           res.headers && preparedHeaders
             ? mergeHeaders(res.headers, preparedHeaders)
@@ -133,7 +155,7 @@ function prepareResponseBody(
   val: unknown,
   event: H3Event,
   config: H3Config,
-): { body: BodyInit; headers?: HeadersInit } {
+): Partial<PseudoResponse> {
   // Empty Content
   if (val === null || val === undefined) {
     return { body: "", headers: emptyHeaders };
@@ -154,6 +176,11 @@ function prepareResponseBody(
     return { body: val as BufferSource };
   }
 
+  // Partial Response
+  if (val instanceof PseudoResponse) {
+    return val;
+  }
+
   // JSON
   if (isJSONSerializable(val, valType)) {
     return {
@@ -169,18 +196,20 @@ function prepareResponseBody(
 
   // Blob
   if (val instanceof Blob) {
-    const headers: Record<string, string> = {
+    const headers = new Headers({
       "content-type": val.type,
       "content-length": val.size.toString(),
-    };
+    });
 
     // File
     let filename = (val as File).name;
     if (filename) {
       filename = encodeURIComponent(filename);
       // Omit the disposition type ("inline" or "attachment") and let the client (browser) decide.
-      headers["content-disposition"] =
-        `filename="${filename}"; filename*=UTF-8''${filename}`;
+      headers.set(
+        "content-disposition",
+        `filename="${filename}"; filename*=UTF-8''${filename}`,
+      );
     }
 
     return { body: val.stream(), headers };

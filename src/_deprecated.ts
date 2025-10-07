@@ -20,6 +20,7 @@ import type {
   IteratorSerializer,
 } from "./utils/internal/iterable.ts";
 import { HTTPError, type ErrorDetails } from "./error.ts";
+import type { PseudoResponse } from "./response.ts";
 
 // --- Error ---
 
@@ -145,15 +146,17 @@ export function sendStream(
 }
 
 /** @deprecated Please use `return noContent(event)` */
-export const sendNoContent: (event: H3Event, code?: number) => Response =
-  noContent;
+export const sendNoContent: (
+  event: H3Event,
+  code?: number,
+) => PseudoResponse = (_, code) => noContent(code);
 
 /** @deprecated Please use `return redirect(event, code)` */
 export const sendRedirect: (
   event: H3Event,
   location: string,
   code: number,
-) => string = redirect;
+) => PseudoResponse = (_, loc, code) => redirect(loc, code);
 
 /** @deprecated Please directly return response */
 export const sendWebResponse: (response: Response) => Response = (
@@ -170,11 +173,13 @@ export const sendProxy: (
 /** @deprecated Please use `return iterable(event, value)` */
 export const sendIterable: <Value = unknown, Return = unknown>(
   _event: H3Event,
-  iterable: IterationSource<Value, Return>,
+  val: IterationSource<Value, Return>,
   options?: {
     serializer: IteratorSerializer<Value | Return>;
   },
-) => ReadableStream = iterable;
+) => PseudoResponse = (_event, val, options) => {
+  return iterable(val, options);
+};
 
 /** @deprecated Please use `event.res.statusText` */
 export function getResponseStatusText(event: H3Event): string {

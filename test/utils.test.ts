@@ -14,7 +14,7 @@ import { describeMatrix } from "./_setup.ts";
 describeMatrix("utils", (t, { it, describe, expect }) => {
   describe("redirect", () => {
     it("can redirect URLs", async () => {
-      t.app.use((event) => redirect(event, "https://google.com"));
+      t.app.use(() => redirect("https://google.com"));
       const result = await t.fetch("/");
       expect(result.headers.get("location")).toBe("https://google.com");
       expect(result.headers.get("content-type")).toBe(
