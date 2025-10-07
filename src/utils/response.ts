@@ -39,11 +39,16 @@ export function noContent(status: number = 204): HTTPResponse {
  *   return redirect("https://example.com", 301); // Permanent redirect
  * });
  */
-export function redirect(location: string, status: number = 302): HTTPResponse {
+export function redirect(
+  location: string,
+  status: number = 302,
+  statusText?: string,
+): HTTPResponse {
   const encodedLoc = location.replace(/"/g, "%22");
   const body = /* html */ `<html><head><meta http-equiv="refresh" content="0; url=${encodedLoc}" /></head></html>`;
   return new HTTPResponse(body, {
-    status: status,
+    status,
+    statusText: statusText || (status === 301 ? "Moved Permanently" : "Found"),
     headers: {
       "content-type": "text/html; charset=utf-8",
       location,

@@ -55,12 +55,6 @@ export class HTTPResponse {
   get headers(): Headers {
     return (this.#headers ||= new Headers(this.#init?.headers));
   }
-  static [Symbol.hasInstance](instance: unknown): boolean {
-    return (
-      instance instanceof Response ||
-      instance?.constructor?.name === "HTTPResponse"
-    );
-  }
 }
 
 function prepareResponse(
@@ -183,7 +177,10 @@ function prepareResponseBody(
   }
 
   // Partial Response
-  if (val instanceof HTTPResponse) {
+  if (
+    val instanceof HTTPResponse ||
+    val?.constructor?.name === "HTTPResponse"
+  ) {
     return val;
   }
 
