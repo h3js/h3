@@ -12,7 +12,7 @@ describe("h3 package", () => {
         "H3Error",
         "H3Event",
         "HTTPError",
-        "PseudoResponse",
+        "HTTPResponse",
         "appendCorsHeaders",
         "appendCorsPreflightHeaders",
         "appendHeader",
