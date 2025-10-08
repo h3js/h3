@@ -80,25 +80,6 @@ export function defineNodeMiddleware(handler: NodeMiddleware): NodeMiddleware {
   return handler;
 }
 
-/**
- * @deprecated please use `toNodeHandler` from `h3/node`.
- */
-export function toNodeHandler(app: H3): NodeHandler {
-  if ((toNodeHandler as any)._isWarned !== true) {
-    console.warn(
-      `[h3] "toNodeHandler" export from h3 is deprecated. Please import "toNodeHandler" from "h3/node".`,
-    );
-    (toNodeHandler as any)._isWarned = true;
-  }
-  const _toNodeHandler = ((toNodeHandler as any)._toNodeHandler ??= () => {
-    const _require = process
-      .getBuiltinModule("node:module")
-      .createRequire(import.meta.url);
-    return _require("srvx/node").toNodeHandler;
-  })();
-  return _toNodeHandler(app.fetch);
-}
-
 function callNodeHandler(
   handler: NodeHandler | NodeMiddleware,
   req: NodeServerRequest,

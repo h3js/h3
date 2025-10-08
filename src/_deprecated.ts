@@ -1,9 +1,5 @@
 import { iterable, noContent, redirect } from "./utils/response.ts";
-import {
-  defineNodeHandler,
-  fromNodeHandler,
-  toNodeHandler,
-} from "./adapters.ts";
+import { defineNodeHandler, fromNodeHandler } from "./adapters.ts";
 import { defineHandler, defineLazyEventHandler } from "./handler.ts";
 import { proxy } from "./utils/proxy.ts";
 import { H3 } from "./h3.ts";
@@ -345,6 +341,25 @@ export const defineNodeListener: (handler: NodeHandler) => NodeHandler =
 export const fromNodeMiddleware: (
   handler: NodeHandler | NodeMiddleware,
 ) => EventHandler = fromNodeHandler;
+
+/**
+ * @deprecated please use `toNodeHandler` from `h3/node`.
+ */
+export function toNodeHandler(app: H3): NodeHandler {
+  if ((toNodeHandler as any)._isWarned !== true) {
+    console.warn(
+      `[h3] "toNodeHandler" export from h3 is deprecated. Please import "toNodeHandler" from "h3/node".`,
+    );
+    (toNodeHandler as any)._isWarned = true;
+  }
+  const _toNodeHandler = ((toNodeHandler as any)._toNodeHandler ??= () => {
+    const _require = process
+      .getBuiltinModule("node:module")
+      .createRequire(import.meta.url);
+    return _require("srvx/node").toNodeHandler;
+  })();
+  return _toNodeHandler(app.fetch);
+}
 
 /** @deprecated Please use `toNodeHandler` */
 export const toNodeListener: (app: H3) => NodeHandler = toNodeHandler;

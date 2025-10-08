@@ -76,7 +76,6 @@ export {
   fromWebHandler,
   toWebHandler,
   fromNodeHandler,
-  toNodeHandler,
   defineNodeHandler,
   defineNodeMiddleware,
 } from "./adapters.ts";
