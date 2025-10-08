@@ -353,7 +353,7 @@ export function toNodeHandler(app: H3): NodeHandler {
     (toNodeHandler as any)._isWarned = true;
   }
   const _toNodeHandler = ((toNodeHandler as any)._toNodeHandler ??= () => {
-    const _require = process
+    const _require = globalThis.process
       .getBuiltinModule("node:module")
       .createRequire(import.meta.url);
     return _require("srvx/node").toNodeHandler;

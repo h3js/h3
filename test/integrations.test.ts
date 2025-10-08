@@ -6,12 +6,13 @@ import { Hono } from "hono";
 import { Elysia } from "elysia";
 import {
   H3,
-  toNodeHandler,
   withBase,
   fromNodeHandler,
   defineNodeHandler,
   type NodeMiddleware,
 } from "../src/index.ts";
+import { toNodeHandler } from "../src/_entries/node.ts";
+
 import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("integrations", (t, { it, expect, describe }) => {

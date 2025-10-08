@@ -17,7 +17,8 @@ import {
   beforeAll,
   afterAll,
 } from "vitest";
-import { H3, toNodeHandler } from "../src/index.ts";
+import { H3 } from "../src/index.ts";
+import { toNodeHandler } from "../src/_entries/node.ts";
 
 // Matrix
 export function describeMatrix(
