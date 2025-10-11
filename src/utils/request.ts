@@ -192,6 +192,14 @@ export function getValidatedQuery(
   return validateData(query, validate, options);
 }
 
+export function getRouterParams<Event extends H3Event>(
+  event: Event,
+  opts?: { decode?: boolean },
+): Event extends H3Event<infer R> ? R["routerParams"] : never;
+export function getRouterParams<Event extends HTTPEvent>(
+  event: Event,
+  opts?: { decode?: boolean },
+): NonNullable<H3Event["context"]["params"]>;
 /**
  * Get matched route params.
  *
@@ -222,14 +230,6 @@ export function getValidatedQuery(
  *   getRouterParams(event, { decode: true }); // { rest: "%2e%2e/x" } — still encoded, do not decode again
  * });
  */
-export function getRouterParams<Event extends H3Event>(
-  event: Event,
-  opts?: { decode?: boolean },
-): Event extends H3Event<infer R> ? R["routerParams"] : never;
-export function getRouterParams<Event extends HTTPEvent>(
-  event: Event,
-  opts?: { decode?: boolean },
-): NonNullable<H3Event["context"]["params"]>;
 export function getRouterParams<Event extends HTTPEvent>(
   event: Event,
   opts: { decode?: boolean } = {},
@@ -356,7 +356,9 @@ export function getValidatedRouterParams(
  */
 export function getRouterParam<
   Event extends H3Event,
-  Key extends Event extends H3Event<infer R> ? keyof R["routerParams"] & string : never,
+  Key extends Event extends H3Event<infer R>
+    ? keyof R["routerParams"] & string
+    : never,
 >(
   event: Event,
   name: Key,
@@ -367,6 +369,16 @@ export function getRouterParam<Event extends HTTPEvent>(
   name: string,
   opts?: { decode?: boolean },
 ): string | undefined;
+/**
+ * Get a matched route param by name.
+ *
+ * If `decode` option is `true`, it will decode the matched route param using `decodeURI`.
+ *
+ * @example
+ * app.get("/", (event) => {
+ *   const param = getRouterParam(event, "key");
+ * });
+ */
 export function getRouterParam<Event extends HTTPEvent>(
   event: Event,
   name: string,
