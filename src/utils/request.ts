@@ -229,11 +229,11 @@ export function getRouterParams<Event extends H3Event>(
 export function getRouterParams<Event extends HTTPEvent>(
   event: Event,
   opts?: { decode?: boolean },
-): Record<string, string>;
+): NonNullable<H3Event["context"]["params"]>;
 export function getRouterParams<Event extends HTTPEvent>(
   event: Event,
   opts: { decode?: boolean } = {},
-): Record<string, string> {
+): NonNullable<H3Event["context"]["params"]> {
   // Fallback object needs to be returned in case router is not used (#149)
   const context = getEventContext<H3EventContext>(event);
   let params = (context.params || {}) as NonNullable<
@@ -253,7 +253,7 @@ export function getRouterParams<Event extends HTTPEvent>(
     }
   }
 
-  return params as any;
+  return params;
 }
 
 export function getValidatedRouterParams<Event extends HTTPEvent, S extends StandardSchemaV1>(
@@ -374,7 +374,7 @@ export function getRouterParam<Event extends HTTPEvent>(
 ): string | undefined {
   const params = getRouterParams(event, opts);
 
-  return params?.[name] as any;
+  return params[name];
 }
 
 /**
