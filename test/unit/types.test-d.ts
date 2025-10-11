@@ -124,4 +124,38 @@ describe("types", () => {
       });
     });
   });
+
+  describe("routerParams inference", () => {
+    it("should infer router params from EventHandlerRequest (non-optional)", () => {
+      defineHandler<{
+        routerParams: { id: string; name: string };
+      }>((event) => {
+        expectTypeOf(event.context.params).toEqualTypeOf<{
+          id: string;
+          name: string;
+        }>();
+        expectTypeOf(event.context.params.id).toEqualTypeOf<string>();
+        expectTypeOf(event.context.params.name).toEqualTypeOf<string>();
+      });
+    });
+
+    it("should default to optional Record<string, string> when no routerParams specified", () => {
+      defineHandler((event) => {
+        expectTypeOf(event.context.params).toEqualTypeOf<
+          Record<string, string> | undefined
+        >();
+      });
+    });
+
+    it("should work with specific param types (non-optional)", () => {
+      defineHandler<{
+        routerParams: { userId: string; postId: string };
+      }>((event) => {
+        const userId = event.context.params.userId;
+        const postId = event.context.params.postId;
+        expectTypeOf(userId).toEqualTypeOf<string>();
+        expectTypeOf(postId).toEqualTypeOf<string>();
+      });
+    });
+  });
 });

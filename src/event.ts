@@ -56,7 +56,12 @@ export class H3Event<
   /**
    * Event context.
    */
-  readonly context: H3EventContext;
+  readonly context: _RequestT["routerParams"] extends infer P extends Record<
+    string,
+    string
+  >
+    ? Omit<H3EventContext<P>, "params"> & { params: P }
+    : H3EventContext<Record<string, string>>;
 
   /**
    * @internal
