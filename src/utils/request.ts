@@ -115,15 +115,17 @@ export function getValidatedQuery(
  *   const params = getRouterParams(event); // { key: "value" }
  * });
  */
-export function getRouterParams(
-  event: HTTPEvent,
+export function getRouterParams<Event extends HTTPEvent>(
+  event: Event,
   opts: { decode?: boolean } = {},
-): NonNullable<H3Event["context"]["params"]> {
+): Event extends H3Event<infer R>
+  ? R["routerParams"] extends infer P extends Record<string, string>
+    ? P
+    : Record<string, string>
+  : Record<string, string> {
   // Fallback object needs to be returned in case router is not used (#149)
   const context = getEventContext<H3EventContext>(event);
-  let params = (context.params || {}) as NonNullable<
-    H3Event["context"]["params"]
-  >;
+  let params = (context.params || {}) as any;
   if (opts.decode) {
     params = { ...params };
     for (const key in params) {
@@ -196,13 +198,24 @@ export function getValidatedRouterParams(
  *   const param = getRouterParam(event, "key");
  * });
  */
-export function getRouterParam(
-  event: HTTPEvent,
-  name: string,
+export function getRouterParam<
+  Event extends HTTPEvent,
+  Key extends Event extends H3Event<infer R>
+    ? R["routerParams"] extends infer P extends Record<string, string>
+      ? keyof P & string
+      : string
+    : string,
+>(
+  event: Event,
+  name: Key,
   opts: { decode?: boolean } = {},
-): string | undefined {
+): Event extends H3Event<infer R>
+  ? R["routerParams"] extends infer P extends Record<string, string>
+    ? P[Key]
+    : string | undefined
+  : string | undefined {
   const params = getRouterParams(event, opts);
-  return params[name];
+  return params[name] as any;
 }
 
 /**

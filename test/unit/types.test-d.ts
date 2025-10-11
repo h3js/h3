@@ -8,6 +8,8 @@ import {
   readValidatedBody,
   getValidatedQuery,
   defineValidatedHandler,
+  getRouterParams,
+  getRouterParam,
 } from "../../src/index.ts";
 import { z } from "zod";
 
@@ -155,6 +157,38 @@ describe("types", () => {
         const postId = event.context.params.postId;
         expectTypeOf(userId).toEqualTypeOf<string>();
         expectTypeOf(postId).toEqualTypeOf<string>();
+      });
+    });
+
+    it("should work with getRouterParams helper", () => {
+      defineHandler<{
+        routerParams: { id: string; slug: string };
+      }>((event) => {
+        const params = getRouterParams(event);
+        expectTypeOf(params).toEqualTypeOf<{ id: string; slug: string }>();
+        expectTypeOf(params.id).toEqualTypeOf<string>();
+        expectTypeOf(params.slug).toEqualTypeOf<string>();
+      });
+    });
+
+    it("should work with getRouterParam helper", () => {
+      defineHandler<{
+        routerParams: { id: string; slug: string };
+      }>((event) => {
+        const id = getRouterParam(event, "id");
+        const slug = getRouterParam(event, "slug");
+        expectTypeOf(id).toEqualTypeOf<string>();
+        expectTypeOf(slug).toEqualTypeOf<string>();
+      });
+    });
+
+    it("getRouterParam should provide autocomplete for param keys", () => {
+      defineHandler<{
+        routerParams: { userId: string; postId: string };
+      }>((event) => {
+        // This should only allow "userId" | "postId" as the second parameter
+        const userId = getRouterParam(event, "userId");
+        expectTypeOf(userId).toEqualTypeOf<string>();
       });
     });
   });
