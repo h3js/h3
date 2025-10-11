@@ -1,6 +1,6 @@
 import type { H3Event } from "../event.ts";
 
-import { splitSetCookieString } from "cookie-es";
+import { splitSetCookieString } from "srvx/cookie";
 import { HTTPError } from "../error.ts";
 import {
   PayloadMethods,
