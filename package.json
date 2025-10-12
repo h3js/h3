@@ -48,10 +48,8 @@
     "h3": "link:."
   },
   "dependencies": {
-    "cookie-es": "^2.0.0",
-    "fetchdts": "^0.1.7",
     "rou3": "^0.7.7",
-    "srvx": "^0.8.15"
+    "srvx": "^0.8.16"
   },
   "devDependencies": {
     "@mitata/counters": "^0.0.8",
@@ -64,12 +62,14 @@
     "automd": "^0.4.2",
     "changelogen": "^0.6.2",
     "connect": "^3.7.0",
+    "cookie-es": "^2.0.0",
     "crossws": "^0.4.1",
     "elysia": "^1.4.9",
     "esbuild": "^0.25.10",
     "eslint": "^9.37.0",
     "eslint-config-unjs": "^0.5.0",
     "express": "^5.1.0",
+    "fetchdts": "^0.1.7",
     "get-port-please": "^3.2.0",
     "h3-nightly": "latest",
     "h3-v1": "npm:h3@^1.15.4",

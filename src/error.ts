@@ -232,7 +232,7 @@ export class HTTPError<DataT = unknown>
     return this.statusText;
   }
 
-  toJSON(): ErrorBody {
+  toJSON(): Omit<ErrorBody, "body"> & ErrorBody["body"] {
     const unhandled = this.unhandled;
     return {
       status: this.status,
