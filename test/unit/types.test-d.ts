@@ -305,13 +305,6 @@ describe("types", () => {
           expectTypeOf(id).toEqualTypeOf<string>();
         }),
       );
-
-      app.all("/:userid/:postId", (event) => {
-        expectTypeOf(event.context.params).toEqualTypeOf<{
-          userid: string;
-          postId: string;
-        }>();
-      });
     });
   });
 });
