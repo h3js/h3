@@ -3,7 +3,7 @@ import type { HTTPHandler, EventHandler, Middleware } from "./handler.ts";
 import type { HTTPError } from "../error.ts";
 import type { MaybePromise, RouteParams } from "./_utils.ts";
 import type { FetchHandler, ServerRequest } from "srvx";
-import type { MatchedRoute, InferRouteParams, RouterContext } from "rou3";
+import type { MatchedRoute, RouterContext } from "rou3";
 import type { H3Event } from "../event.ts";
 
 // --- Misc ---
@@ -148,7 +148,7 @@ export declare class H3 extends H3Core {
     method: HTTPMethod | Lowercase<HTTPMethod> | "",
     route: Route,
     handler: EventHandler<{
-      routerParams: RouteParams<InferRouteParams<Route>>;
+      routerParams: RouteParams<Route>;
     }>,
     opts?: RouteOptions,
   ): this;
@@ -181,7 +181,7 @@ export declare class H3 extends H3Core {
   get<const Route extends string>(
     route: Route,
     handler: EventHandler<{
-      routerParams: RouteParams<InferRouteParams<Route>>;
+      routerParams: RouteParams<Route>;
     }>,
     opts?: RouteOptions,
   ): this;
@@ -190,7 +190,7 @@ export declare class H3 extends H3Core {
   post<const Route extends string>(
     route: Route,
     handler: EventHandler<{
-      routerParams: RouteParams<InferRouteParams<Route>>;
+      routerParams: RouteParams<Route>;
     }>,
     opts?: RouteOptions,
   ): this;
@@ -199,7 +199,7 @@ export declare class H3 extends H3Core {
   put<const Route extends string>(
     route: Route,
     handler: EventHandler<{
-      routerParams: RouteParams<InferRouteParams<Route>>;
+      routerParams: RouteParams<Route>;
     }>,
     opts?: RouteOptions,
   ): this;
@@ -208,7 +208,7 @@ export declare class H3 extends H3Core {
   delete<const Route extends string>(
     route: Route,
     handler: EventHandler<{
-      routerParams: RouteParams<InferRouteParams<Route>>;
+      routerParams: RouteParams<Route>;
     }>,
     opts?: RouteOptions,
   ): this;
@@ -217,7 +217,7 @@ export declare class H3 extends H3Core {
   patch<const Route extends string>(
     route: Route,
     handler: EventHandler<{
-      routerParams: RouteParams<InferRouteParams<Route>>;
+      routerParams: RouteParams<Route>;
     }>,
     opts?: RouteOptions,
   ): this;
@@ -226,7 +226,7 @@ export declare class H3 extends H3Core {
   head<const Route extends string>(
     route: Route,
     handler: EventHandler<{
-      routerParams: RouteParams<InferRouteParams<Route>>;
+      routerParams: RouteParams<Route>;
     }>,
     opts?: RouteOptions,
   ): this;
@@ -235,7 +235,7 @@ export declare class H3 extends H3Core {
   options<const Route extends string>(
     route: Route,
     handler: EventHandler<{
-      routerParams: RouteParams<InferRouteParams<Route>>;
+      routerParams: RouteParams<Route>;
     }>,
     opts?: RouteOptions,
   ): this;
@@ -244,7 +244,7 @@ export declare class H3 extends H3Core {
   connect<const Route extends string>(
     route: Route,
     handler: EventHandler<{
-      routerParams: RouteParams<InferRouteParams<Route>>;
+      routerParams: RouteParams<Route>;
     }>,
     opts?: RouteOptions,
   ): this;
@@ -253,7 +253,7 @@ export declare class H3 extends H3Core {
   trace<const Route extends string>(
     route: Route,
     handler: EventHandler<{
-      routerParams: RouteParams<InferRouteParams<Route>>;
+      routerParams: RouteParams<Route>;
     }>,
     opts?: RouteOptions,
   ): this;

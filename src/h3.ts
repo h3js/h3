@@ -4,7 +4,7 @@ import { toResponse, kNotFound } from "./response.ts";
 import { callMiddleware, normalizeMiddleware } from "./middleware.ts";
 
 import type { ServerRequest } from "srvx";
-import type { RouterContext, MatchedRoute, InferRouteParams } from "rou3";
+import type { RouterContext, MatchedRoute } from "rou3";
 import type { H3Config, H3CoreConfig, H3Plugin } from "./types/h3.ts";
 import type { H3EventContext } from "./types/context.ts";
 import type {
@@ -163,7 +163,7 @@ export const H3 = /* @__PURE__ */ (() => {
       method: HTTPMethod | Lowercase<HTTPMethod> | "",
       route: Route,
       handler: EventHandler<{
-        routerParams: RouteParams<InferRouteParams<Route>>;
+        routerParams: RouteParams<Route>;
       }>,
       opts?: RouteOptions,
     ): this;
@@ -178,7 +178,7 @@ export const H3 = /* @__PURE__ */ (() => {
       route: Route | string,
       handler:
         | EventHandler<{
-            routerParams: RouteParams<InferRouteParams<Route>>;
+            routerParams: RouteParams<Route>;
           }>
         | HTTPHandler,
       opts?: RouteOptions,
