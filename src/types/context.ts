@@ -4,7 +4,11 @@ import type { ServerRequestContext } from "srvx";
 
 export interface H3EventContext<TParams = Record<string, string>>
   extends ServerRequestContext {
-  /* Matched router parameters */
+  /**
+   * Matched route parameters
+   *
+   * If there are no parameters, this will be `undefined`.
+   */
   params?: TParams;
 
   /* Matched middleware parameters */
