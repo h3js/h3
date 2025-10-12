@@ -1,9 +1,9 @@
 import type { H3EventContext } from "./context.ts";
 import type { HTTPHandler, EventHandler, EventHandlerRequest, Middleware } from "./handler.ts";
 import type { HTTPError } from "../error.ts";
-import type { MaybePromise } from "./_utils.ts";
+import type { MaybePromise, RouteParams } from "./_utils.ts";
 import type { FetchHandler, ServerRequest } from "srvx";
-// import type { MatchedRoute, RouterContext } from "rou3";
+import type { InferRouteParams } from "rou3";
 import type { H3Event } from "../event.ts";
 import type { H3Plugin } from "../plugin.ts";
 import type { ComposedMiddleware } from "../middleware.ts";
@@ -191,6 +191,14 @@ export declare class H3 extends H3Core {
   /**
    * Register a route handler for the specified HTTP method and route.
    */
+  on<const Route extends string>(
+    method: HTTPMethod | Lowercase<HTTPMethod> | "",
+    route: Route,
+    handler: EventHandler<{
+      routerParams: RouteParams<InferRouteParams<Route>>;
+    }>,
+    opts?: RouteOptions,
+  ): this;
   on<_RequestT extends EventHandlerRequest = EventHandlerRequest>(
     method: HTTPMethod | Lowercase<HTTPMethod> | "",
     route: string,
@@ -215,15 +223,87 @@ export declare class H3 extends H3Core {
   /**
    * Register a route handler for all HTTP methods.
    */
-  all: RouteRegistrar<this>;
-  get: RouteRegistrar<this>;
-  post: RouteRegistrar<this>;
-  put: RouteRegistrar<this>;
-  delete: RouteRegistrar<this>;
-  patch: RouteRegistrar<this>;
-  head: RouteRegistrar<this>;
-  options: RouteRegistrar<this>;
-  connect: RouteRegistrar<this>;
-  trace: RouteRegistrar<this>;
+  all(route: string, handler: HTTPHandler, opts?: RouteOptions): this;
+
+  get<const Route extends string>(
+    route: Route,
+    handler: EventHandler<{
+      routerParams: RouteParams<InferRouteParams<Route>>;
+    }>,
+    opts?: RouteOptions,
+  ): this;
+  get(route: string, handler: HTTPHandler, opts?: RouteOptions): this;
+
+  post<const Route extends string>(
+    route: Route,
+    handler: EventHandler<{
+      routerParams: RouteParams<InferRouteParams<Route>>;
+    }>,
+    opts?: RouteOptions,
+  ): this;
+  post(route: string, handler: HTTPHandler, opts?: RouteOptions): this;
+
+  put<const Route extends string>(
+    route: Route,
+    handler: EventHandler<{
+      routerParams: RouteParams<InferRouteParams<Route>>;
+    }>,
+    opts?: RouteOptions,
+  ): this;
+  put(route: string, handler: HTTPHandler, opts?: RouteOptions): this;
+
+  delete<const Route extends string>(
+    route: Route,
+    handler: EventHandler<{
+      routerParams: RouteParams<InferRouteParams<Route>>;
+    }>,
+    opts?: RouteOptions,
+  ): this;
+  delete(route: string, handler: HTTPHandler, opts?: RouteOptions): this;
+
+  patch<const Route extends string>(
+    route: Route,
+    handler: EventHandler<{
+      routerParams: RouteParams<InferRouteParams<Route>>;
+    }>,
+    opts?: RouteOptions,
+  ): this;
+  patch(route: string, handler: HTTPHandler, opts?: RouteOptions): this;
+
+  head<const Route extends string>(
+    route: Route,
+    handler: EventHandler<{
+      routerParams: RouteParams<InferRouteParams<Route>>;
+    }>,
+    opts?: RouteOptions,
+  ): this;
+  head(route: string, handler: HTTPHandler, opts?: RouteOptions): this;
+
+  options<const Route extends string>(
+    route: Route,
+    handler: EventHandler<{
+      routerParams: RouteParams<InferRouteParams<Route>>;
+    }>,
+    opts?: RouteOptions,
+  ): this;
+  options(route: string, handler: HTTPHandler, opts?: RouteOptions): this;
+
+  connect<const Route extends string>(
+    route: Route,
+    handler: EventHandler<{
+      routerParams: RouteParams<InferRouteParams<Route>>;
+    }>,
+    opts?: RouteOptions,
+  ): this;
+  connect(route: string, handler: HTTPHandler, opts?: RouteOptions): this;
+
+  trace<const Route extends string>(
+    route: Route,
+    handler: EventHandler<{
+      routerParams: RouteParams<InferRouteParams<Route>>;
+    }>,
+    opts?: RouteOptions,
+  ): this;
+  trace(route: string, handler: HTTPHandler, opts?: RouteOptions): this;
   query: RouteRegistrar<this>;
 }

@@ -16,6 +16,7 @@ import { hasEmptySegmentAfterBase, normalizeRoute, stripBase } from "./utils/int
 import type { ServerRequest } from "srvx";
 import type { H3Config, H3CoreConfig, MatchedRoute, RouterContext } from "./types/h3.ts";
 import type { H3Plugin } from "./plugin.ts";
+import type { InferRouteParams } from "rou3";
 import type { H3EventContext } from "./types/context.ts";
 import type {
   EventHandler,
@@ -35,6 +36,7 @@ import type {
 
 import { toRequest } from "./utils/request.ts";
 import { toEventHandler } from "./handler.ts";
+import type { RouteParams } from "./types/_utils.ts";
 
 export const NoHandler: EventHandler = () => kNotFound;
 
@@ -228,10 +230,28 @@ export const H3 = /* @__PURE__ */ (() => {
       return this;
     }
 
+    on<const Route extends string>(
+      method: HTTPMethod | Lowercase<HTTPMethod> | "",
+      route: Route,
+      handler: EventHandler<{
+        routerParams: RouteParams<InferRouteParams<Route>>;
+      }>,
+      opts?: RouteOptions,
+    ): this;
     on(
       method: HTTPMethod | Lowercase<HTTPMethod> | "",
       route: string,
       handler: HTTPHandler,
+      opts?: RouteOptions,
+    ): this;
+    on<const Route extends string>(
+      method: HTTPMethod | Lowercase<HTTPMethod> | "",
+      route: Route | string,
+      handler:
+        | EventHandler<{
+            routerParams: RouteParams<InferRouteParams<Route>>;
+          }>
+        | HTTPHandler,
       opts?: RouteOptions,
     ): this {
       const _method = (method || "").toUpperCase();
@@ -239,7 +259,7 @@ export const H3 = /* @__PURE__ */ (() => {
       this["~addRoute"]({
         method: _method as HTTPMethod,
         route,
-        handler: toEventHandler(handler)!,
+        handler: toEventHandler(handler as HTTPHandler)!,
         middleware: opts?.middleware,
         meta: { ...(handler as EventHandler).meta, ...opts?.meta },
       });
