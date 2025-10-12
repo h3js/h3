@@ -159,7 +159,7 @@ export const H3Core = /* @__PURE__ */ (() => {
       return this.on("", route, handler, opts);
     }
 
-    on<const Route extends string>(
+    on<Route extends string>(
       method: HTTPMethod | Lowercase<HTTPMethod> | "",
       route: Route,
       handler: EventHandler<{
@@ -173,7 +173,7 @@ export const H3Core = /* @__PURE__ */ (() => {
       handler: HTTPHandler,
       opts?: RouteOptions,
     ): H3Type;
-    on<const Route extends string>(
+    on<Route extends string>(
       method: HTTPMethod | Lowercase<HTTPMethod> | "",
       route: Route | string,
       handler:

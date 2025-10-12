@@ -151,7 +151,7 @@ export declare class H3 {
   /**
    * Register a route handler for the specified HTTP method and route.
    */
-  on<const Route extends string>(
+  on<Route extends string>(
     method: HTTPMethod | Lowercase<HTTPMethod> | "",
     route: Route,
     handler: EventHandler<{
@@ -169,9 +169,16 @@ export declare class H3 {
   /**
    * Register a route handler for all HTTP methods.
    */
+  all<Route extends string>(
+    route: Route,
+    handler: EventHandler<{
+      routerParams: RouteParams<Route>;
+    }>,
+    opts?: RouteOptions,
+  ): this;
   all(route: string, handler: HTTPHandler, opts?: RouteOptions): this;
 
-  get<const Route extends string>(
+  get<Route extends string>(
     route: Route,
     handler: EventHandler<{
       routerParams: RouteParams<Route>;
@@ -180,7 +187,7 @@ export declare class H3 {
   ): this;
   get(route: string, handler: HTTPHandler, opts?: RouteOptions): this;
 
-  post<const Route extends string>(
+  post<Route extends string>(
     route: Route,
     handler: EventHandler<{
       routerParams: RouteParams<Route>;
@@ -189,7 +196,7 @@ export declare class H3 {
   ): this;
   post(route: string, handler: HTTPHandler, opts?: RouteOptions): this;
 
-  put<const Route extends string>(
+  put<Route extends string>(
     route: Route,
     handler: EventHandler<{
       routerParams: RouteParams<Route>;
@@ -198,7 +205,7 @@ export declare class H3 {
   ): this;
   put(route: string, handler: HTTPHandler, opts?: RouteOptions): this;
 
-  delete<const Route extends string>(
+  delete<Route extends string>(
     route: Route,
     handler: EventHandler<{
       routerParams: RouteParams<Route>;
@@ -207,7 +214,7 @@ export declare class H3 {
   ): this;
   delete(route: string, handler: HTTPHandler, opts?: RouteOptions): this;
 
-  patch<const Route extends string>(
+  patch<Route extends string>(
     route: Route,
     handler: EventHandler<{
       routerParams: RouteParams<Route>;
@@ -216,7 +223,7 @@ export declare class H3 {
   ): this;
   patch(route: string, handler: HTTPHandler, opts?: RouteOptions): this;
 
-  head<const Route extends string>(
+  head<Route extends string>(
     route: Route,
     handler: EventHandler<{
       routerParams: RouteParams<Route>;
@@ -225,7 +232,7 @@ export declare class H3 {
   ): this;
   head(route: string, handler: HTTPHandler, opts?: RouteOptions): this;
 
-  options<const Route extends string>(
+  options<Route extends string>(
     route: Route,
     handler: EventHandler<{
       routerParams: RouteParams<Route>;
@@ -234,7 +241,7 @@ export declare class H3 {
   ): this;
   options(route: string, handler: HTTPHandler, opts?: RouteOptions): this;
 
-  connect<const Route extends string>(
+  connect<Route extends string>(
     route: Route,
     handler: EventHandler<{
       routerParams: RouteParams<Route>;
@@ -243,7 +250,7 @@ export declare class H3 {
   ): this;
   connect(route: string, handler: HTTPHandler, opts?: RouteOptions): this;
 
-  trace<const Route extends string>(
+  trace<Route extends string>(
     route: Route,
     handler: EventHandler<{
       routerParams: RouteParams<Route>;
