@@ -16,7 +16,6 @@ import { hasEmptySegmentAfterBase, normalizeRoute, stripBase } from "./utils/int
 import type { ServerRequest } from "srvx";
 import type { H3Config, H3CoreConfig, MatchedRoute, RouterContext } from "./types/h3.ts";
 import type { H3Plugin } from "./plugin.ts";
-import type { InferRouteParams } from "rou3";
 import type { H3EventContext } from "./types/context.ts";
 import type {
   EventHandler,
@@ -234,7 +233,7 @@ export const H3 = /* @__PURE__ */ (() => {
       method: HTTPMethod | Lowercase<HTTPMethod> | "",
       route: Route,
       handler: EventHandler<{
-        routerParams: RouteParams<InferRouteParams<Route>>;
+        routerParams: RouteParams<Route>;
       }>,
       opts?: RouteOptions,
     ): this;
@@ -249,7 +248,7 @@ export const H3 = /* @__PURE__ */ (() => {
       route: Route | string,
       handler:
         | EventHandler<{
-            routerParams: RouteParams<InferRouteParams<Route>>;
+            routerParams: RouteParams<Route>;
           }>
         | HTTPHandler,
       opts?: RouteOptions,
