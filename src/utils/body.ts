@@ -119,12 +119,15 @@ export async function readValidatedBody(
  * @param event H3 event passed by h3 handler
  * @return {boolean} `true` if body size in bytes is smaller or equal to `limit`, `false` otherwise
  */
-export async function isBodySizeWithin(limit: number, event: HTTPEvent): Promise<boolean> {
+export async function isBodySizeWithin(
+  limit: number,
+  event: HTTPEvent,
+): Promise<boolean> {
   const req = event.req;
 
   if (req.body !== null) {
-    const bodyLen = req.headers.get('content-length');
-    if (bodyLen === null || req.headers.has('transfer-encoding')) {
+    const bodyLen = req.headers.get("content-length");
+    if (bodyLen === null || req.headers.has("transfer-encoding")) {
       const reader = req.clone().body!.getReader();
       let chunk = await reader.read();
       let size = 0;

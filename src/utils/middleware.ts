@@ -75,12 +75,12 @@ export function onError(
  */
 export function bodyLimit(limit: number): Middleware {
   return async (event) => {
-    if (!await isBodySizeWithin(limit, event))
+    if (!(await isBodySizeWithin(limit, event)))
       // This can be cached but idk if the behavior
       // of different runtimes is consistent
       return new Response(null, {
         status: 413,
-        statusText: 'Request Entity Too Large'
+        statusText: "Request Entity Too Large",
       });
-  }
+  };
 }
