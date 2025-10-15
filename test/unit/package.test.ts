@@ -79,6 +79,7 @@ describe("h3 package", () => {
         "handleCacheHeaders",
         "handleCors",
         "html",
+        "isBodySizeWithin",
         "isCorsOriginAllowed",
         "isError",
         "isEvent",
