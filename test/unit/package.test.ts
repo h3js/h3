@@ -21,6 +21,7 @@ describe("h3 package", () => {
         "appendResponseHeaders",
         "assertMethod",
         "basicAuth",
+        "bodyLimit",
         "callMiddleware",
         "clearResponseHeaders",
         "clearSession",

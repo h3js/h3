@@ -115,7 +115,7 @@ export {
 
 // Middleware
 
-export { onError, onRequest, onResponse } from "./utils/middleware.ts";
+export { onError, onRequest, onResponse, bodyLimit } from "./utils/middleware.ts";
 
 // Proxy
 

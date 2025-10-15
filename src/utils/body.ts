@@ -103,7 +103,7 @@ export async function readValidatedBody(
 }
 
 /**
- * Check whether request body is within a certain size.
+ * Checks whether request body size is within specified limit.
  *
  * @example
  * app.get("/", async (event) => {
