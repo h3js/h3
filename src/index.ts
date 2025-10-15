@@ -129,7 +129,7 @@ export {
 
 // Body
 
-export { readBody, readValidatedBody } from "./utils/body.ts";
+export { readBody, readValidatedBody, isBodySizeWithin } from "./utils/body.ts";
 
 // Cookie
 

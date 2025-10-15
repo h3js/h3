@@ -69,19 +69,22 @@ export async function readValidatedBody<
  * You can use a simple function to validate the body or use a Standard-Schema compatible library like `zod` to define a schema.
  *
  * @example
+ * function validateBody(body: any) {
+ *   return typeof body === "object" && body !== null;
+ * };
+ *
  * app.get("/", async (event) => {
- *   const body = await readValidatedBody(event, (body) => {
- *     return typeof body === "object" && body !== null;
- *   });
+ *   const body = await readValidatedBody(event, validateBody);
  * });
  * @example
  * import { z } from "zod";
  *
+ * const objectSchema = z.object({
+ *   name: z.string().min(3).max(20),
+ *   age: z.number({ coerce: true }).positive().int(),
+ * });
+ *
  * app.get("/", async (event) => {
- *   const objectSchema = z.object({
- *     name: z.string().min(3).max(20),
- *     age: z.number({ coerce: true }).positive().int(),
- *   });
  *   const body = await readValidatedBody(event, objectSchema);
  * });
  *
@@ -97,4 +100,42 @@ export async function readValidatedBody(
 ): Promise<any> {
   const _body = await readBody(event);
   return validateData(_body, validate);
+}
+
+/**
+ * Check whether request body is within a certain size.
+ *
+ * @example
+ * app.get("/", async (event) => {
+ *   if (await isBodySizeWithin(10 * 1024 * 1024, event)) {
+ *     // Body size is smaller or equal to 10MB
+ *     const body = await readBody(event);
+ *   } else {
+ *     // Body size is bigger than 10MB
+ *   }
+ * });
+ *
+ * @param limit Body size limit in bytes
+ * @param event H3 event passed by h3 handler
+ * @return {boolean} `true` if body size in bytes is smaller or equal to `limit`, `false` otherwise
+ */
+export async function isBodySizeWithin(limit: number, event: HTTPEvent): Promise<boolean> {
+  const req = event.req;
+
+  if (req.body !== null) {
+    const bodyLen = req.headers.get('content-length');
+    if (bodyLen === null || req.headers.has('transfer-encoding')) {
+      const reader = req.clone().body!.getReader();
+      let chunk = await reader.read();
+      let size = 0;
+
+      while (!chunk.done) {
+        size += chunk.value.byteLength;
+        if (size > limit) return false;
+        chunk = await reader.read();
+      }
+    } else return +bodyLen <= limit;
+  }
+
+  return true;
 }
