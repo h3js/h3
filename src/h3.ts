@@ -24,6 +24,7 @@ import type {
 
 import { toRequest } from "./utils/request.ts";
 import { toEventHandler } from "./handler.ts";
+import type { RouteParams } from "./types/_utils.ts";
 
 export type H3Core = H3Type;
 
@@ -158,10 +159,28 @@ export const H3Core = /* @__PURE__ */ (() => {
       return this.on("", route, handler, opts);
     }
 
+    on<Route extends string>(
+      method: HTTPMethod | Lowercase<HTTPMethod> | "",
+      route: Route,
+      handler: EventHandler<{
+        routerParams: RouteParams<Route>;
+      }>,
+      opts?: RouteOptions,
+    ): H3Type;
     on(
       method: HTTPMethod | Lowercase<HTTPMethod> | "",
       route: string,
       handler: HTTPHandler,
+      opts?: RouteOptions,
+    ): H3Type;
+    on<Route extends string>(
+      method: HTTPMethod | Lowercase<HTTPMethod> | "",
+      route: Route | string,
+      handler:
+        | EventHandler<{
+            routerParams: RouteParams<Route>;
+          }>
+        | HTTPHandler,
       opts?: RouteOptions,
     ): H3Type {
       const _method = (method || "").toUpperCase();
@@ -169,7 +188,7 @@ export const H3Core = /* @__PURE__ */ (() => {
       this._addRoute({
         method: _method as HTTPMethod,
         route,
-        handler: toEventHandler(handler)!,
+        handler: toEventHandler(handler as HTTPHandler)!,
         middleware: opts?.middleware,
         meta: { ...(handler as EventHandler).meta, ...opts?.meta },
       });
