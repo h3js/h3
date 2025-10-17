@@ -115,7 +115,12 @@ export {
 
 // Middleware
 
-export { onError, onRequest, onResponse } from "./utils/middleware.ts";
+export {
+  onError,
+  onRequest,
+  onResponse,
+  bodyLimit,
+} from "./utils/middleware.ts";
 
 // Proxy
 
@@ -129,7 +134,7 @@ export {
 
 // Body
 
-export { readBody, readValidatedBody } from "./utils/body.ts";
+export { readBody, readValidatedBody, isBodySizeWithin } from "./utils/body.ts";
 
 // Cookie
 
