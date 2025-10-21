@@ -49,7 +49,7 @@
   },
   "dependencies": {
     "rou3": "^0.7.7",
-    "srvx": "npm:srvx-nightly@0.9.0-20251021-135600-a69e3cf"
+    "srvx": "npm:srvx-nightly@0.9.0-20251021-140339-6adeb8e"
   },
   "devDependencies": {
     "@mitata/counters": "^0.0.8",
