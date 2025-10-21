@@ -154,9 +154,28 @@ function mergeHeaders(
   return target;
 }
 
-const emptyHeaders = /* @__PURE__ */ new Headers({ "content-length": "0" });
+const ERROR_FROZEN = () => {
+  console.log("nooo");
+  throw new Error("Headers are frozen");
+};
 
-const jsonHeaders = /* @__PURE__ */ new Headers({
+class FrozenHeaders extends Headers {
+  override set(): void {
+    ERROR_FROZEN();
+  }
+  override append(): void {
+    ERROR_FROZEN();
+  }
+  override delete(): void {
+    ERROR_FROZEN();
+  }
+}
+
+const emptyHeaders = /* @__PURE__ */ new FrozenHeaders({
+  "content-length": "0",
+});
+
+const jsonHeaders = /* @__PURE__ */ new FrozenHeaders({
   "content-type": "application/json;charset=UTF-8",
 });
 
@@ -267,7 +286,7 @@ function errorResponse(error: HTTPError, debug?: boolean): Response {
       statusText: error.statusText,
       headers: error.headers
         ? mergeHeaders(jsonHeaders, error.headers)
-        : jsonHeaders,
+        : new Headers(jsonHeaders),
     },
   );
 }
