@@ -98,7 +98,7 @@ export async function proxy(
       cookies.push(value);
       continue;
     }
-    headers.set(key, value);
+    headers.append(key, value);
   }
 
   if (cookies.length > 0) {
