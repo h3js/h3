@@ -1,6 +1,5 @@
 import type { H3Event } from "../event.ts";
 
-import { splitSetCookieString } from "cookie-es";
 import { HTTPError } from "../error.ts";
 import {
   PayloadMethods,
@@ -96,7 +95,7 @@ export async function proxy(
       continue;
     }
     if (key === "set-cookie") {
-      cookies.push(...splitSetCookieString(value));
+      cookies.push(value);
       continue;
     }
     headers.set(key, value);
