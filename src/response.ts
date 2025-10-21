@@ -155,7 +155,6 @@ function mergeHeaders(
 }
 
 const ERROR_FROZEN = () => {
-  console.log("nooo");
   throw new Error("Headers are frozen");
 };
 
