@@ -120,7 +120,7 @@ function prepareResponse(
   }
 
   // Note: Only check _headers. res.status/statusText are not used as we use them from the response
-  if (!preparedHeaders) {
+  if (!preparedHeaders || nested) {
     return val; // Fast path: no headers to merge
   }
   try {
