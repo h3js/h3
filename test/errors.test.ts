@@ -127,6 +127,13 @@ describeMatrix("errors", (t, { it, expect }) => {
   });
 
   it("error headers", async () => {
+    t.app.config.onError = async () => {
+      return new Response("error", {
+        status: 501,
+        headers: { "set-cookie": "error=1" },
+      });
+    };
+
     t.app.get("/", async (event) => {
       event.res.headers.set("set-cookie", "test=1");
       throw new HTTPError({ status: 501 });
@@ -134,7 +141,7 @@ describeMatrix("errors", (t, { it, expect }) => {
 
     const res = await t.fetch("/");
     expect(res.status).toBe(501);
-    expect(res.headers.get("set-cookie")).toBe("test=1");
+    expect(res.headers.getSetCookie()).toEqual(["error=1", "test=1"]);
 
     t.errors = [];
   });
