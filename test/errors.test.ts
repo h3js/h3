@@ -135,13 +135,13 @@ describeMatrix("errors", (t, { it, expect }) => {
     };
 
     t.app.get("/", async (event) => {
-      event.res.headers.set("set-cookie", "test=1");
+      event.res.headers.set("set-cookie", "auth=1");
       throw new HTTPError({ status: 501 });
     });
 
     const res = await t.fetch("/");
     expect(res.status).toBe(501);
-    expect(res.headers.getSetCookie()).toEqual(["error=1", "test=1"]);
+    expect(res.headers.getSetCookie()).toEqual(["error=1"]);
 
     t.errors = [];
   });
