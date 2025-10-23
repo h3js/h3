@@ -1,6 +1,5 @@
 import type { H3Event } from "../event.ts";
 
-import { splitSetCookieString } from "srvx/cookie";
 import { HTTPError } from "../error.ts";
 import {
   PayloadMethods,
@@ -96,10 +95,10 @@ export async function proxy(
       continue;
     }
     if (key === "set-cookie") {
-      cookies.push(...splitSetCookieString(value));
+      cookies.push(value);
       continue;
     }
-    headers.set(key, value);
+    headers.append(key, value);
   }
 
   if (cookies.length > 0) {
