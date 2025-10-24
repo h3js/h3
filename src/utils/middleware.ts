@@ -76,8 +76,8 @@ export function onError(
 export function bodyLimit(limit: number): Middleware {
   return async (event) => {
     if (!(await isBodySizeWithin(limit, event)))
-      // This can be cached but idk if the behavior
-      // of different runtimes is consistent
+      // Rn this doesn't really need testing, I can cache the response
+      // but then tests need to be e2e to avoid behavior mismatch of different runtimes
       return new Response(null, {
         status: 413,
         statusText: "Request Entity Too Large",

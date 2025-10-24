@@ -127,17 +127,18 @@ export async function isBodySizeWithin(
 
   if (req.body !== null) {
     const bodyLen = req.headers.get("content-length");
-    if (bodyLen === null || req.headers.has("transfer-encoding")) {
-      const reader = req.clone().body!.getReader();
-      let chunk = await reader.read();
-      let size = 0;
+    if (bodyLen !== null && !req.headers.has("transfer-encoding"))
+      return +bodyLen <= limit;
 
-      while (!chunk.done) {
-        size += chunk.value.byteLength;
-        if (size > limit) return false;
-        chunk = await reader.read();
-      }
-    } else return +bodyLen <= limit;
+    const reader = req.clone().body!.getReader();
+    let chunk = await reader.read();
+    let size = 0;
+
+    while (!chunk.done) {
+      size += chunk.value.byteLength;
+      if (size > limit) return false;
+      chunk = await reader.read();
+    }
   }
 
   return true;
