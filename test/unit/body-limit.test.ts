@@ -41,7 +41,7 @@ describe("body limit (unit)", () => {
         body: streamBytesFrom(BODY_PARTS),
       });
 
-      expect(await isBodySizeWithin(10, eventMock)).toBe(false);
+      expect(await isBodySizeWithin(100, eventMock)).toBe(true);
       expect(await isBodySizeWithin(10, eventMock)).toBe(false);
     });
 
