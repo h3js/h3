@@ -119,8 +119,8 @@ function prepareResponse(
     );
   }
 
-  // Note: Only check _headers. res.status/statusText are not used as we use them from the response
-  if (!preparedHeaders) {
+  // Avoid merging if no prepared headers are provided or we are rendering an Error
+  if (!preparedHeaders || nested || !val.ok) {
     return val; // Fast path: no headers to merge
   }
   try {

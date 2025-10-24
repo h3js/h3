@@ -320,22 +320,13 @@ export function clearResponseHeaders(
 
 // -- Event handler --
 
-/** Please use `defineHandler`  */
-export const defineEventHandler: (handler: EventHandler) => EventHandler =
-  defineHandler;
-
-/** Please use `defineHandler`  */
-export const eventHandler: (handler: EventHandler) => EventHandler =
-  defineHandler;
-
-/** Please use `defineLazyEventHandler` */
-export const lazyEventHandler: (
-  load: () => Promise<EventHandler> | EventHandler,
-) => EventHandler = defineLazyEventHandler;
+export const defineEventHandler: typeof defineHandler = defineHandler;
+export const eventHandler: typeof defineHandler = defineHandler;
+export const lazyEventHandler: typeof defineLazyEventHandler =
+  defineLazyEventHandler;
 
 /** @deprecated Please use `defineNodeHandler` */
-export const defineNodeListener: (handler: NodeHandler) => NodeHandler =
-  defineNodeHandler;
+export const defineNodeListener: typeof defineNodeHandler = defineNodeHandler;
 
 /** @deprecated Please use `defineNodeHandler` */
 export const fromNodeMiddleware: (
