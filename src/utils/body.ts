@@ -103,42 +103,57 @@ export async function readValidatedBody(
 }
 
 /**
- * Checks whether request body size is within specified limit.
+ * Asserts that request body size is within the specified limit.
+ *
+ * If body size exceeds the limit, throws a `413` Request Entity Too Large response error.
  *
  * @example
  * app.get("/", async (event) => {
- *   if (await isBodySizeWithin(10 * 1024 * 1024, event)) {
- *     // Body size is smaller or equal to 10MB
- *     const body = await readBody(event);
- *   } else {
- *     // Body size is bigger than 10MB
- *   }
+ *   await assertBodySize(event, 10 * 1024 * 1024); // 10MB
+ *   const data = await event.req.formData();
  * });
  *
+ * @param event HTTP event
  * @param limit Body size limit in bytes
- * @param event H3 event passed by h3 handler
- * @return {boolean} `true` if body size in bytes is smaller or equal to `limit`, `false` otherwise
  */
-export async function isBodySizeWithin(
-  limit: number,
+export async function assertBodySize(
   event: HTTPEvent,
+  limit: number,
+): Promise<void> {
+  const isWithin = await isBodySizeWithin(event, limit);
+  if (!isWithin) {
+    throw new HTTPError({
+      status: 413,
+      statusText: "Request Entity Too Large",
+      message: `Request body size exceeds the limit of ${limit} bytes`,
+    });
+  }
+}
+
+// Internal util for now. We can export later if needed
+async function isBodySizeWithin(
+  event: HTTPEvent,
+  limit: number,
 ): Promise<boolean> {
   const req = event.req;
+  if (req.body === null) {
+    return true;
+  }
 
-  if (req.body !== null) {
-    const bodyLen = req.headers.get("content-length");
-    if (bodyLen !== null && !req.headers.has("transfer-encoding"))
-      return +bodyLen <= limit;
+  const bodyLen = req.headers.get("content-length");
+  if (bodyLen !== null && !req.headers.has("transfer-encoding")) {
+    return +bodyLen <= limit;
+  }
 
-    const reader = req.clone().body!.getReader();
-    let chunk = await reader.read();
-    let size = 0;
-
-    while (!chunk.done) {
-      size += chunk.value.byteLength;
-      if (size > limit) return false;
-      chunk = await reader.read();
+  const reader = req.clone().body!.getReader();
+  let chunk = await reader.read();
+  let size = 0;
+  while (!chunk.done) {
+    size += chunk.value.byteLength;
+    if (size > limit) {
+      return false;
     }
+    chunk = await reader.read();
   }
 
   return true;
