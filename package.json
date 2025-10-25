@@ -52,6 +52,7 @@
     "srvx": "^0.9.1"
   },
   "devDependencies": {
+    "@happy-dom/global-registrator": "^20.0.8",
     "@mitata/counters": "^0.0.8",
     "@types/connect": "^3.4.38",
     "@types/express": "^5.0.4",
@@ -72,6 +73,7 @@
     "fetchdts": "^0.1.7",
     "get-port-please": "^3.2.0",
     "h3-nightly": "3.0.0-20251023-133803-7632fc3",
+    "happy-dom": "^20.0.8",
     "hono": "^4.10.3",
     "memoirist": "^0.4.0",
     "mitata": "^1.0.34",

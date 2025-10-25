@@ -18,6 +18,9 @@ importers:
         specifier: ^0.9.1
         version: 0.9.1
     devDependencies:
+      '@happy-dom/global-registrator':
+        specifier: ^20.0.8
+        version: 20.0.8
       '@mitata/counters':
         specifier: ^0.0.8
         version: 0.0.8
@@ -38,7 +41,7 @@ importers:
         version: 19.2.2(@types/react@19.2.2)
       '@vitest/coverage-v8':
         specifier: ^4.0.3
-        version: 4.0.3(vitest@4.0.3(@types/node@24.9.1)(jiti@2.6.1))
+        version: 4.0.3(vitest@4.0.3(@types/node@24.9.1)(happy-dom@20.0.8)(jiti@2.6.1))
       automd:
         specifier: ^0.4.2
         version: 0.4.2(magicast@0.3.5)
@@ -78,6 +81,9 @@ importers:
       h3-nightly:
         specifier: 3.0.0-20251023-133803-7632fc3
         version: 3.0.0-20251023-133803-7632fc3(crossws@0.4.1(srvx@0.9.1))
+      happy-dom:
+        specifier: ^20.0.8
+        version: 20.0.8
       hono:
         specifier: ^4.10.3
         version: 4.10.3
@@ -107,7 +113,7 @@ importers:
         version: 7.1.12(@types/node@24.9.1)(jiti@2.6.1)
       vitest:
         specifier: ^4.0.3
-        version: 4.0.3(@types/node@24.9.1)(jiti@2.6.1)
+        version: 4.0.3(@types/node@24.9.1)(happy-dom@20.0.8)(jiti@2.6.1)
       zod:
         specifier: ^4.1.12
         version: 4.1.12
@@ -368,6 +374,10 @@ packages:
   '@eslint/plugin-kit@0.4.0':
     resolution: {integrity: sha512-sB5uyeq+dwCWyPi31B2gQlVlo+j5brPlWx4yZBrEaRo/nhdDE8Xke1gsGgtiBdaBTxuTkceLVuVt/pclrasb0A==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+
+  '@happy-dom/global-registrator@20.0.8':
+    resolution: {integrity: sha512-6XJ7BGO3tz3yLZcrQF1JIQAEZ6u3mJ2EYfLSZDuZPC5EVdGtz5O2R/RlWgLYATc2tbkPnuxb9qHWHdT4TlzeOw==}
+    engines: {node: '>=20.0.0'}
 
   '@humanfs/core@0.19.1':
     resolution: {integrity: sha512-5DyQ4+1JEUzejeK1JGICcideyfUbGixgS9jNgex5nqkW+cY7WZhxBigmieN5Qnw9ZosSNVC9KQKyb+GUaGyKUA==}
@@ -975,6 +985,9 @@ packages:
   '@types/mime@1.3.5':
     resolution: {integrity: sha512-/pyBZWSLD2n0dcHE3hq8s8ZvcETHtEuF+3E7XVt0Ig2nvsVQXdghHVcEkIWjy9A0wKfTn97a/PSDYohKIlnP/w==}
 
+  '@types/node@20.19.23':
+    resolution: {integrity: sha512-yIdlVVVHXpmqRhtyovZAcSy0MiPcYWGkoO4CGe/+jpP0hmNuihm4XhHbADpK++MsiLHP5MVlv+bcgdF99kSiFQ==}
+
   '@types/node@24.9.1':
     resolution: {integrity: sha512-QoiaXANRkSXK6p0Duvt56W208du4P9Uye9hWLWgGMDTEoKPhuenzNcC4vGUmrNkiOKTlIrBoyNQYNpSwfEZXSg==}
 
@@ -1003,6 +1016,9 @@ packages:
 
   '@types/unist@2.0.11':
     resolution: {integrity: sha512-CmBKiL6NNo/OqgmMn95Fk9Whlp2mtvIv+KNpQKN2F4SjvrEesubTRWGYSg+BnWZOnlCaSTU1sMpsBOzgbYhnsA==}
+
+  '@types/whatwg-mimetype@3.0.2':
+    resolution: {integrity: sha512-c2AKvDT8ToxLIOUlN51gTiHXflsfIFisS4pO7pDPoKouJCESkhZnEy623gwP9laCy5lnLDAw1vAzu2vM2YLOrA==}
 
   '@typescript-eslint/eslint-plugin@8.46.2':
     resolution: {integrity: sha512-ZGBMToy857/NIPaaCucIUQgqueOiq7HeAKkhlvqVV4lm089zUFW6ikRySx2v+cAhKeUCPuWVHeimyk6Dw1iY3w==}
@@ -1669,6 +1685,10 @@ packages:
     peerDependenciesMeta:
       crossws:
         optional: true
+
+  happy-dom@20.0.8:
+    resolution: {integrity: sha512-TlYaNQNtzsZ97rNMBAm8U+e2cUQXNithgfCizkDgc11lgmN4j9CKMhO3FPGKWQYPwwkFcPpoXYF/CqEPLgzfOg==}
+    engines: {node: '>=20.0.0'}
 
   has-flag@4.0.0:
     resolution: {integrity: sha512-EykJT/Q1KjTWctppgIAgfSO0tKVuZUjhgMr17kqTumMl6Afv3EISleU7qZUzoXDFTAHTDC4NOoG/ZxU3EvlMPQ==}
@@ -2337,6 +2357,9 @@ packages:
     resolution: {integrity: sha512-rvKSBiC5zqCCiDZ9kAOszZcDvdAHwwIKJG33Ykj43OKcWsnmcBRL09YTU4nOeHZ8Y2a7l1MgTd08SBe9A8Qj6A==}
     engines: {node: '>=18'}
 
+  undici-types@6.21.0:
+    resolution: {integrity: sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ==}
+
   undici-types@7.16.0:
     resolution: {integrity: sha512-Zz+aZWSj8LE6zoxD+xrjh4VfkIG8Ya6LvYkZqtUQGJPZjYl53ypCaUwWqo7eI0x66KBGeRo+mlBEkMSeSZ38Nw==}
 
@@ -2441,6 +2464,10 @@ packages:
         optional: true
       jsdom:
         optional: true
+
+  whatwg-mimetype@3.0.0:
+    resolution: {integrity: sha512-nt+N2dzIutVRxARx1nghPKGv1xHikU7HKdfafKkLNLindmPU/ch3U31NOCGGA/dmPcmb1VlofO0vnKAcsm0o/Q==}
+    engines: {node: '>=12'}
 
   which@2.0.2:
     resolution: {integrity: sha512-BLI3Tl1TW3Pvl70l3yq3Y64i+awpwXqsGBYWkkqMtnbXgrMD+yj7rhW0kuEDxzJaYXGjEW5ogapKNMEKNMjibA==}
@@ -2647,6 +2674,11 @@ snapshots:
     dependencies:
       '@eslint/core': 0.16.0
       levn: 0.4.1
+
+  '@happy-dom/global-registrator@20.0.8':
+    dependencies:
+      '@types/node': 20.19.23
+      happy-dom: 20.0.8
 
   '@humanfs/core@0.19.1': {}
 
@@ -3056,6 +3088,10 @@ snapshots:
 
   '@types/mime@1.3.5': {}
 
+  '@types/node@20.19.23':
+    dependencies:
+      undici-types: 6.21.0
+
   '@types/node@24.9.1':
     dependencies:
       undici-types: 7.16.0
@@ -3088,6 +3124,8 @@ snapshots:
       '@types/send': 0.17.6
 
   '@types/unist@2.0.11': {}
+
+  '@types/whatwg-mimetype@3.0.2': {}
 
   '@typescript-eslint/eslint-plugin@8.46.2(@typescript-eslint/parser@8.46.2(eslint@9.38.0(jiti@2.6.1))(typescript@5.9.3))(eslint@9.38.0(jiti@2.6.1))(typescript@5.9.3)':
     dependencies:
@@ -3182,7 +3220,7 @@ snapshots:
       '@typescript-eslint/types': 8.46.2
       eslint-visitor-keys: 4.2.1
 
-  '@vitest/coverage-v8@4.0.3(vitest@4.0.3(@types/node@24.9.1)(jiti@2.6.1))':
+  '@vitest/coverage-v8@4.0.3(vitest@4.0.3(@types/node@24.9.1)(happy-dom@20.0.8)(jiti@2.6.1))':
     dependencies:
       '@bcoe/v8-coverage': 1.0.2
       '@vitest/utils': 4.0.3
@@ -3195,7 +3233,7 @@ snapshots:
       magicast: 0.3.5
       std-env: 3.10.0
       tinyrainbow: 3.0.3
-      vitest: 4.0.3(@types/node@24.9.1)(jiti@2.6.1)
+      vitest: 4.0.3(@types/node@24.9.1)(happy-dom@20.0.8)(jiti@2.6.1)
     transitivePeerDependencies:
       - supports-color
 
@@ -3891,6 +3929,12 @@ snapshots:
       srvx: 0.9.1
     optionalDependencies:
       crossws: 0.4.1(srvx@0.9.1)
+
+  happy-dom@20.0.8:
+    dependencies:
+      '@types/node': 20.19.23
+      '@types/whatwg-mimetype': 3.0.2
+      whatwg-mimetype: 3.0.0
 
   has-flag@4.0.0: {}
 
@@ -4606,6 +4650,8 @@ snapshots:
 
   uint8array-extras@1.5.0: {}
 
+  undici-types@6.21.0: {}
+
   undici-types@7.16.0: {}
 
   unist-util-stringify-position@2.0.3:
@@ -4649,7 +4695,7 @@ snapshots:
       fsevents: 2.3.3
       jiti: 2.6.1
 
-  vitest@4.0.3(@types/node@24.9.1)(jiti@2.6.1):
+  vitest@4.0.3(@types/node@24.9.1)(happy-dom@20.0.8)(jiti@2.6.1):
     dependencies:
       '@vitest/expect': 4.0.3
       '@vitest/mocker': 4.0.3(vite@7.1.12(@types/node@24.9.1)(jiti@2.6.1))
@@ -4673,6 +4719,7 @@ snapshots:
       why-is-node-running: 2.3.0
     optionalDependencies:
       '@types/node': 24.9.1
+      happy-dom: 20.0.8
     transitivePeerDependencies:
       - jiti
       - less
@@ -4686,6 +4733,8 @@ snapshots:
       - terser
       - tsx
       - yaml
+
+  whatwg-mimetype@3.0.0: {}
 
   which@2.0.2:
     dependencies:

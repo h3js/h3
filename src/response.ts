@@ -154,19 +154,14 @@ function mergeHeaders(
   return target;
 }
 
-const ERROR_FROZEN = () => {
+const frozenHeaders = () => {
   throw new Error("Headers are frozen");
 };
 
 class FrozenHeaders extends Headers {
-  override set(): void {
-    ERROR_FROZEN();
-  }
-  override append(): void {
-    ERROR_FROZEN();
-  }
-  override delete(): void {
-    ERROR_FROZEN();
+  constructor(init?: HeadersInit) {
+    super(init);
+    this.set = this.append = this.delete = frozenHeaders;
   }
 }
 
