@@ -71,7 +71,7 @@ export async function readValidatedBody<
  * @example
  * function validateBody(body: any) {
  *   return typeof body === "object" && body !== null;
- * };
+ * }
  *
  * app.get("/", async (event) => {
  *   const body = await readValidatedBody(event, validateBody);
