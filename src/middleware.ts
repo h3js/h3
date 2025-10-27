@@ -3,7 +3,13 @@ import { kNotFound } from "./response.ts";
 
 import type { H3Event } from "./event.ts";
 import type { MiddlewareOptions } from "./types/h3.ts";
-import type { EventHandler, Middleware } from "./types/handler.ts";
+import type {
+  EventHandler,
+  FetchableObject,
+  HTTPHandler,
+  Middleware,
+} from "./types/handler.ts";
+import type { H3Core } from "./h3.ts";
 
 export function defineMiddleware(input: Middleware): Middleware {
   return input;
@@ -83,19 +89,58 @@ export function callMiddleware(
   };
 
   const ret = fn(event, next);
-  return is404(ret)
+  return isUnhandledResponse(ret)
     ? next()
     : typeof (ret as PromiseLike<unknown>)?.then === "function"
       ? (ret as PromiseLike<unknown>).then((resolved) =>
-          is404(resolved) ? next() : resolved,
+          isUnhandledResponse(resolved) ? next() : resolved,
         )
       : ret;
 }
 
-function is404(val: unknown) {
+function isUnhandledResponse(val: unknown) {
+  return val === undefined || val === kNotFound;
+}
+
+/**
+ * Converts any HTTPHandler or Middleware into Middleware.
+ *
+ * If FetchableObject or Handler returns a Response with 404 status, the next middleware will be called.
+ */
+export function toMiddleware(
+  input: HTTPHandler | Middleware | undefined,
+): Middleware {
+  let h = (input as H3Core).handler || (input as EventHandler | Middleware);
+  let isFunction: boolean = typeof h === "function";
+  if (!isFunction && typeof (input as FetchableObject)?.fetch === "function") {
+    isFunction = true;
+    h = function _fetchHandler(event: H3Event) {
+      return (input as FetchableObject).fetch!(event.req);
+    };
+  }
+  if (!isFunction) {
+    return function noopMiddleware(event, next) {
+      return next();
+    };
+  }
+  if (h.length === 2) {
+    return h as Middleware;
+  }
+  return function _middlewareHandler(event, next) {
+    const res = h(event);
+    return typeof (res as Promise<any>)?.then === "function"
+      ? (res as Promise<any>).then((r) => {
+          return is404(r) ? next() : r;
+        })
+      : is404(res)
+        ? next()
+        : res;
+  };
+}
+
+function is404(val: unknown): boolean {
   return (
-    val === undefined ||
-    val === kNotFound ||
+    isUnhandledResponse(val) ||
     ((val as Response)?.status === 404 && val instanceof Response)
   );
 }

@@ -125,6 +125,7 @@ describe("h3 package", () => {
         "setResponseHeaders",
         "setResponseStatus",
         "toEventHandler",
+        "toMiddleware",
         "toNodeHandler",
         "toNodeListener",
         "toRequest",

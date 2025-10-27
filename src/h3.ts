@@ -81,7 +81,7 @@ export class H3Core implements H3CoreType {
 
   _getMiddleware(
     _event: H3Event,
-    route: MatchedRoute<H3Route> | void,
+    route: MatchedRoute<H3Route> | undefined,
   ): Middleware[] {
     const routeMiddleware = route?.data.middleware;
     return routeMiddleware

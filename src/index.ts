@@ -53,7 +53,11 @@ export {
   toEventHandler,
 } from "./handler.ts";
 
-export { defineMiddleware, callMiddleware } from "./middleware.ts";
+export {
+  defineMiddleware,
+  callMiddleware,
+  toMiddleware,
+} from "./middleware.ts";
 
 // Response
 
