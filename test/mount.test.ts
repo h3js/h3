@@ -57,7 +57,7 @@ describeMatrix("mount", (t, { it, expect, describe }) => {
     });
   });
 
-  describe("mount middleware with paths (issue #1208)", () => {
+  describe("mount sub-app with routed middleware", () => {
     it("middleware with path should inherit base URL", async () => {
       const logs: string[] = [];
 

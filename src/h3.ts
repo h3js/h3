@@ -132,26 +132,15 @@ export const H3Core = /* @__PURE__ */ (() => {
       if ("handler" in input) {
         if (input._middleware.length > 0) {
           this._middleware.push((event, next) => {
-            if (!event.url.pathname.startsWith(base)) {
-              return next();
-            }
-
-            // Adjust pathname to remove base prefix for child middleware matchers
             const originalPathname = event.url.pathname;
+            if (!originalPathname.startsWith(base)) {
+              return next();
+            }
             event.url.pathname = event.url.pathname.slice(base.length) || "/";
-
-            // Wrap next to restore pathname before calling route handler
-            const wrappedNext = () => {
+            return callMiddleware(event, input._middleware, () => {
               event.url.pathname = originalPathname;
               return next();
-            };
-
-            try {
-              return callMiddleware(event, input._middleware, wrappedNext);
-            } finally {
-              // Restore original pathname for subsequent middleware
-              event.url.pathname = originalPathname;
-            }
+            });
           });
         }
         for (const r of input._routes) {
