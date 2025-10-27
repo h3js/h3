@@ -95,7 +95,10 @@ export class H3Core implements H3CoreType {
       event.context.matchedRoute = route.data;
     }
     const routeHandler = route?.data.handler || NoHandler;
-    const middleware = this._getMiddleware(event, route);
+    const middleware = this._getMiddleware(
+      event,
+      route as unknown as undefined,
+    );
     return middleware.length > 0
       ? callMiddleware(event, middleware, routeHandler)
       : routeHandler(event);
