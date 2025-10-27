@@ -3,7 +3,7 @@ import type { HTTPHandler, EventHandler, Middleware } from "./handler.ts";
 import type { HTTPError } from "../error.ts";
 import type { MaybePromise } from "./_utils.ts";
 import type { FetchHandler, ServerRequest } from "srvx";
-import type { MatchedRoute } from "rou3";
+import type { MatchedRoute, RouterContext } from "rou3";
 import type { H3Event } from "../event.ts";
 
 // --- Misc ---
@@ -29,6 +29,8 @@ export interface H3Config {
   onResponse?: (response: Response, event: H3Event) => MaybePromise<void>;
   onError?: (error: HTTPError, event: H3Event) => MaybePromise<void | unknown>;
 }
+
+export type H3CoreConfig = Omit<H3Config, "plugins">;
 
 export type PreparedResponse = ResponseInit & { body?: BodyInit | null };
 
@@ -66,7 +68,7 @@ export type MiddlewareOptions = {
   match?: (event: H3Event) => boolean;
 };
 
-export declare class H3 {
+export declare class H3Core {
   /** @internal */
   _middleware: Middleware[];
 
@@ -92,16 +94,9 @@ export declare class H3 {
    */
   fetch(_request: ServerRequest): Response | Promise<Response>;
 
-  /**
-   * A [fetch](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API)-compatible API allowing to fetch app routes.
-   *
-   * Input can be a URL, relative path or standard [Request](https://developer.mozilla.org/en-US/docs/Web/API/Request) object.
-   *
-   * Returned value is a [Response](https://developer.mozilla.org/en-US/docs/Web/API/Response) Promise.
-   */
-  request(
-    request: ServerRequest | URL | string,
-    options?: RequestInit,
+  /** @internal */
+  _request(
+    request: ServerRequest,
     context?: H3EventContext,
   ): Response | Promise<Response>;
 
@@ -115,32 +110,30 @@ export declare class H3 {
   ): Middleware[];
 
   /** @internal */
-  _normalizeMiddleware(
-    fn: Middleware,
-    _opts?: MiddlewareOptions & { route?: string },
-  ): Middleware;
-
-  /** @internal */
   _addRoute(_route: H3Route): void;
-
-  /**
-   * Immediately register an H3 plugin.
-   */
-  register(plugin: H3Plugin): this;
 
   /**
    * An h3 compatible event handler useful to compose multiple h3 app instances.
    */
   handler(event: H3Event): unknown | Promise<unknown>;
+}
+
+export declare class H3 extends H3Core {
+  /** @internal */
+  _rou3: RouterContext<H3Route>;
 
   /**
-   * Mount an H3 app or a `.fetch` compatible server (like Hono or Elysia) with a base prefix.
+   * A [fetch](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API)-compatible API allowing to fetch app routes.
    *
-   * When mounting a sub-app, all routes will be added with base prefix and global middleware will be added as one prefixed middleware.
+   * Input can be a URL, relative path or standard [Request](https://developer.mozilla.org/en-US/docs/Web/API/Request) object.
    *
-   * **Note:** Sub-app options and global hooks are not inherited by the mounted app please consider setting them in the main app directly.
+   * Returned value is a [Response](https://developer.mozilla.org/en-US/docs/Web/API/Response) Promise.
    */
-  mount(base: string, input: FetchHandler | { fetch: FetchHandler } | H3): this;
+  request(
+    request: ServerRequest | URL | string,
+    options?: RequestInit,
+    context?: H3EventContext,
+  ): Response | Promise<Response>;
 
   /**
    * Register a global middleware.
@@ -157,6 +150,20 @@ export declare class H3 {
     handler: HTTPHandler,
     opts?: RouteOptions,
   ): this;
+
+  /**
+   * Immediately register an H3 plugin.
+   */
+  register(plugin: H3Plugin): this;
+
+  /**
+   * Mount an H3 app or a `.fetch` compatible server (like Hono or Elysia) with a base prefix.
+   *
+   * When mounting a sub-app, all routes will be added with base prefix and global middleware will be added as one prefixed middleware.
+   *
+   * **Note:** Sub-app options and global hooks are not inherited by the mounted app please consider setting them in the main app directly.
+   */
+  mount(base: string, input: FetchHandler | { fetch: FetchHandler } | H3): this;
 
   /**
    * Register a route handler for all HTTP methods.

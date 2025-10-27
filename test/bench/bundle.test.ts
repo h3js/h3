@@ -38,8 +38,8 @@ describe("benchmark", () => {
         `Bundle size (H3Core): ${bundle.bytes} (gzip: ${bundle.gzipSize})`,
       );
     }
-    expect(bundle.bytes).toBeLessThanOrEqual(7900); // <7.9kb
-    expect(bundle.gzipSize).toBeLessThanOrEqual(3100); // <3.1kb
+    expect(bundle.bytes).toBeLessThanOrEqual(6200); // <6.2kb
+    expect(bundle.gzipSize).toBeLessThanOrEqual(2500); // <2.5kb
   });
 
   it("bundle size (defineHandler)", async () => {
