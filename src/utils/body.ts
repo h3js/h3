@@ -140,9 +140,14 @@ async function isBodySizeWithin(
     return true;
   }
 
-  const bodyLen = req.headers.get("content-length");
-  if (bodyLen !== null && !req.headers.has("transfer-encoding")) {
-    return +bodyLen <= limit;
+  const contentLength = req.headers.get("content-length");
+  if (contentLength) {
+    const transferEncoding = req.headers.get("transfer-encoding");
+    if (transferEncoding) {
+      // https://datatracker.ietf.org/doc/html/rfc7230#section-3.3.2
+      throw new HTTPError({ status: 400 });
+    }
+    return +contentLength <= limit;
   }
 
   const reader = req.clone().body!.getReader();

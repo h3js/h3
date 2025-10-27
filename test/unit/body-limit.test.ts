@@ -66,15 +66,21 @@ describe("body limit (unit)", () => {
       const eventMock = mockEvent("/", {
         method: "POST",
         body: streamBytesFrom(BODY_PARTS),
-        headers: {
-          // Should ignore content-length
-          "content-length": "7",
-          "transfer-encoding": "chunked",
-        },
+        headers: { "transfer-encoding": "chunked" },
       });
 
       await expect(assertBodySize(eventMock, 100)).resolves.toBeUndefined();
       await expect(assertBodySize(eventMock, 10)).rejects.toThrow(HTTPError);
+    });
+
+    it("both content length and transfer encoding", async () => {
+      const eventMock = mockEvent("/", {
+        method: "POST",
+        body: "test",
+        headers: { "transfer-encoding": "chunked", "content-length": "4" },
+      });
+      await expect(assertBodySize(eventMock, 10)).rejects.toThrow(HTTPError);
+      await expect(assertBodySize(eventMock, 100)).rejects.toThrow(HTTPError);
     });
   });
 });
