@@ -39,10 +39,10 @@ describeMatrix("mount", (t, { it, expect, describe }) => {
           })),
       );
 
-      expect(t.app._routes).toHaveLength(1);
-      expect(t.app._routes[0].route).toBe("/test/**:slug");
+      expect(t.app["~routes"]).toHaveLength(1);
+      expect(t.app["~routes"][0].route).toBe("/test/**:slug");
 
-      expect(t.app._middleware).toHaveLength(1);
+      expect(t.app["~middleware"]).toHaveLength(1);
 
       const res = await t.fetch("/test/123");
       expect(res.headers.get("x-test")).toBe("1");
