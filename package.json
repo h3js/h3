@@ -48,7 +48,7 @@
     "h3": "link:."
   },
   "dependencies": {
-    "rou3": "^0.7.8",
+    "rou3": "^0.7.9",
     "srvx": "^0.9.1"
   },
   "devDependencies": {
@@ -75,9 +75,11 @@
     "h3-nightly": "3.0.0-20251023-133803-7632fc3",
     "happy-dom": "^20.0.8",
     "hono": "^4.10.3",
+    "magic-string": "^0.30.21",
     "memoirist": "^0.4.0",
     "mitata": "^1.0.34",
-    "obuild": "^0.2.1",
+    "obuild": "^0.3.0",
+    "oxc-parser": "^0.95.0",
     "prettier": "^3.6.2",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
