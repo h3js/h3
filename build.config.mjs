@@ -9,6 +9,9 @@ export default defineBuildConfig({
     {
       type: "bundle",
       input: [...inferExports(exports)],
+      dts: {
+        resolve: true,
+      },
     },
   ],
   hooks: {

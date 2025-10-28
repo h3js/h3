@@ -3,8 +3,19 @@ import type { HTTPHandler, EventHandler, Middleware } from "./handler.ts";
 import type { HTTPError } from "../error.ts";
 import type { MaybePromise, RouteParams } from "./_utils.ts";
 import type { FetchHandler, ServerRequest } from "srvx";
-import type { MatchedRoute, RouterContext } from "rou3";
+// import type { MatchedRoute, RouterContext } from "rou3";
 import type { H3Event } from "../event.ts";
+
+// Inlined from rou3 for type portability
+export interface RouterContext {
+  root: any;
+  static: Record<string, any>;
+}
+
+export type MatchedRoute<T = any> = {
+  data: T;
+  params?: Record<string, string>;
+};
 
 // --- Misc ---
 
@@ -93,16 +104,16 @@ export type MiddlewareOptions = {
 };
 
 export declare class H3Core {
-  /** @internal */
-  _middleware: Middleware[];
-
-  /** @internal */
-  _routes: H3Route[];
-
   /**
    * H3 instance config.
    */
   readonly config: H3Config;
+
+  /** @internal */
+  "~middleware": Middleware[];
+
+  /** @internal */
+  "~routes": H3Route[];
 
   /**
    * Create a new H3 app instance.
@@ -118,33 +129,33 @@ export declare class H3Core {
    */
   fetch(_request: ServerRequest): Response | Promise<Response>;
 
+  /**
+   * An h3 compatible event handler useful to compose multiple h3 app instances.
+   */
+  handler(event: H3Event): unknown | Promise<unknown>;
+
   /** @internal */
-  _request(
+  "~request"(
     request: ServerRequest,
     context?: H3EventContext,
   ): Response | Promise<Response>;
 
   /** @internal */
-  _findRoute(_event: H3Event): MatchedRoute<H3Route> | void;
+  "~findRoute"(_event: H3Event): MatchedRoute<H3Route> | void;
 
   /** @internal */
-  _getMiddleware(
+  "~getMiddleware"(
     event: H3Event,
     route: MatchedRoute<H3Route> | undefined,
   ): Middleware[];
 
   /** @internal */
-  _addRoute(_route: H3Route): void;
-
-  /**
-   * An h3 compatible event handler useful to compose multiple h3 app instances.
-   */
-  handler(event: H3Event): unknown | Promise<unknown>;
+  "~addRoute"(_route: H3Route): void;
 }
 
 export declare class H3 extends H3Core {
   /** @internal */
-  _rou3: RouterContext<H3Route>;
+  "~rou3": RouterContext;
 
   /**
    * A [fetch](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API)-compatible API allowing to fetch app routes.

@@ -1,6 +1,6 @@
 {
   "name": "h3",
-  "version": "2.0.1-rc.4",
+  "version": "2.0.1-rc.5",
   "description": "Minimal H(TTP) framework built for high performance and portability.",
   "homepage": "https://h3.dev",
   "repository": "h3js/h3",
@@ -59,7 +59,7 @@
     "@types/node": "^24.9.1",
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.2",
-    "@vitest/coverage-v8": "^4.0.3",
+    "@vitest/coverage-v8": "^4.0.4",
     "automd": "^0.4.2",
     "changelogen": "^0.6.2",
     "connect": "^3.7.0",
@@ -72,7 +72,7 @@
     "express": "^5.1.0",
     "fetchdts": "^0.1.7",
     "get-port-please": "^3.2.0",
-    "h3-nightly": "3.0.0-20251023-133803-7632fc3",
+    "h3-nightly": "^2.0.0-20251027-114947-241a45b",
     "happy-dom": "^20.0.8",
     "hono": "^4.10.3",
     "magic-string": "^0.30.21",
@@ -85,7 +85,7 @@
     "react-dom": "^19.2.0",
     "typescript": "^5.9.3",
     "vite": "^7.1.12",
-    "vitest": "^4.0.3",
+    "vitest": "^4.0.4",
     "zod": "^4.1.12"
   },
   "peerDependencies": {

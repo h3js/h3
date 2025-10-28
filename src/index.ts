@@ -2,6 +2,7 @@
 
 export type {
   H3Config,
+  H3CoreConfig,
   H3Plugin,
   H3Route,
   H3RouteMeta,
@@ -9,6 +10,8 @@ export type {
   PreparedResponse,
   RouteOptions,
   MiddlewareOptions,
+  RouterContext,
+  MatchedRoute,
 } from "./types/h3.ts";
 
 export { definePlugin } from "./types/h3.ts";

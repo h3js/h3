@@ -2,6 +2,61 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## v2.0.1-rc.5
+
+[compare changes](https://github.com/h3js/h3/compare/v2.0.1-rc.4...v2.0.1-rc.5)
+
+### 🚀 Enhancements
+
+- `toMiddleware` util ([#1234](https://github.com/h3js/h3/pull/1234))
+
+### 🩹 Fixes
+
+- **assertBodySize:** Disallow both `content-length` and `transfer-encoding` headers ([9ccd301](https://github.com/h3js/h3/commit/9ccd301))
+- Adjust pathname for mounted sub-app routed middleware ([#1232](https://github.com/h3js/h3/pull/1232))
+- **middleware:** Allow returning 404 response in middleware ([#1231](https://github.com/h3js/h3/pull/1231))
+
+### 💅 Refactors
+
+- ⚠️  Slim down `H3Core` ([#1233](https://github.com/h3js/h3/pull/1233))
+- Hide internals with `~` ([#1236](https://github.com/h3js/h3/pull/1236))
+- Fix typo ([a68a754](https://github.com/h3js/h3/commit/a68a754))
+
+### 📦 Build
+
+- Export `toMiddleware` ([0f2e568](https://github.com/h3js/h3/commit/0f2e568))
+- Reduce dist size by stripping comments ([#1235](https://github.com/h3js/h3/pull/1235))
+- Include bundled types ([d833afb](https://github.com/h3js/h3/commit/d833afb))
+- Inline rou3 related types ([5d3a274](https://github.com/h3js/h3/commit/5d3a274))
+- Export `RouterContext` and `MatchedRoute` types ([fd7dc8f](https://github.com/h3js/h3/commit/fd7dc8f))
+
+### 🌊 Types
+
+- Fix `_getMiddleware` route typed ([e090a76](https://github.com/h3js/h3/commit/e090a76))
+
+### 🏡 Chore
+
+- Update deps ([17cbbe0](https://github.com/h3js/h3/commit/17cbbe0))
+
+### ✅ Tests
+
+- Add case for middleware with 404 Response support ([8791818](https://github.com/h3js/h3/commit/8791818))
+- Add coverage exclude ([5558575](https://github.com/h3js/h3/commit/5558575))
+
+### 🤖 CI
+
+- Fix nightly version bump ([630bbb8](https://github.com/h3js/h3/commit/630bbb8))
+
+#### ⚠️ Breaking Changes
+
+- ⚠️  Slim down `H3Core` ([#1233](https://github.com/h3js/h3/pull/1233))
+
+### ❤️ Contributors
+
+- Pooya Parsa ([@pi0](https://github.com/pi0))
+- Kricsleo ([@kricsleo](https://github.com/kricsleo))
+- Minsu Lee ([@amondnet](https://github.com/amondnet))
+
 ## v2.0.1-rc.4
 
 [compare changes](https://github.com/h3js/h3/compare/v2.0.1-rc.3...v2.0.1-rc.4)
