@@ -114,7 +114,7 @@ export function getValidatedQuery<
  *       key: v.string(),
  *     }),
  *     {
- *       onError: (issues) => ({
+ *       onError: ({ issues }) => ({
  *         statusText: "Custom validation error",
  *         message: v.summarize(issues),
  *       }),
@@ -228,7 +228,7 @@ export function getValidatedRouterParams<
  *     }),
  *     {
  *       decode: true,
- *       onError: (issues) => ({
+ *       onError: ({ issues }) => ({
  *         statusText: "Custom validation error",
  *         message: v.summarize(issues),
  *       }),

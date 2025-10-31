@@ -106,7 +106,7 @@ export async function readValidatedBody<
  *       age: v.pipe(v.number(), v.integer(), v.minValue(1)),
  *     }),
  *     {
- *       onError: (issues) => ({
+ *       onError: ({ issues }) => ({
  *         statusText: "Custom validation error",
  *         message: v.summarize(issues),
  *       }),
