@@ -5,6 +5,7 @@ import {
   isCorsOriginAllowed,
   appendCorsPreflightHeaders,
   appendCorsHeaders,
+  handleCors,
 } from "../../src/index.ts";
 import {
   resolveCorsOptions,
@@ -674,6 +675,53 @@ describe("cors (unit)", () => {
           eventMock.res.headers.get("access-control-allow-credentials"),
         ).toEqual("true");
       }
+    });
+  });
+
+  describe("handleCors", () => {
+    it("handles preflight request", () => {
+      const eventMock = mockEvent("/", {
+        method: "OPTIONS",
+        headers: {
+          origin: "https://example.com",
+          "access-control-request-method": "POST",
+        },
+      });
+
+      // use defaults
+      handleCors(eventMock, {});
+
+      expect(eventMock.res.headers.get("access-control-allow-origin")).toEqual(
+        "*",
+      );
+      expect(eventMock.res.headers.get("access-control-allow-methods")).toEqual(
+        "*",
+      );
+      expect(
+        eventMock.res.headers.has("access-control-expose-headers"),
+      ).toEqual(false);
+    });
+
+    it("handles normal request", () => {
+      const eventMock = mockEvent("/", {
+        method: "POST",
+        headers: {
+          origin: "https://example.com",
+        },
+      });
+
+      // use defaults
+      handleCors(eventMock, {});
+
+      expect(eventMock.res.headers.get("access-control-allow-origin")).toEqual(
+        "*",
+      );
+      expect(eventMock.res.headers.has("access-control-allow-methods")).toEqual(
+        false,
+      );
+      expect(
+        eventMock.res.headers.get("access-control-expose-headers"),
+      ).toEqual("*");
     });
   });
 });

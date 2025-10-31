@@ -1,4 +1,3 @@
-import { toNodeHandler as _toNodeHandler } from "srvx/node";
 import { HTTPError } from "./error.ts";
 import { kHandled } from "./response.ts";
 
@@ -41,7 +40,9 @@ export function fromWebHandler(
     context?: H3EventContext,
   ) => Promise<Response>,
 ): EventHandler {
-  return (event) => handler(event.req, event.context);
+  return function _webHandler(event) {
+    return handler(event.req, event.context);
+  };
 }
 
 /**
@@ -57,7 +58,7 @@ export function fromNodeHandler(
   if (typeof handler !== "function") {
     throw new TypeError(`Invalid handler. It should be a function: ${handler}`);
   }
-  return (event) => {
+  return function _nodeHandler(event) {
     if (!event.runtime?.node?.res) {
       throw new Error(
         "[h3] Executing Node.js middleware is not supported in this server!",
@@ -77,13 +78,6 @@ export function defineNodeHandler(handler: NodeHandler): NodeHandler {
 
 export function defineNodeMiddleware(handler: NodeMiddleware): NodeMiddleware {
   return handler;
-}
-
-/**
- * Convert H3 app instance to a NodeHandler with (IncomingMessage, ServerResponse) => void signature.
- */
-export function toNodeHandler(app: H3): NodeHandler {
-  return _toNodeHandler(app.fetch);
 }
 
 function callNodeHandler(

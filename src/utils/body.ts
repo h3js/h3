@@ -77,19 +77,22 @@ export async function readValidatedBody<
  * You can use a simple function to validate the body or use a Standard-Schema compatible library like `zod` to define a schema.
  *
  * @example
+ * function validateBody(body: any) {
+ *   return typeof body === "object" && body !== null;
+ * }
+ *
  * app.post("/", async (event) => {
- *   const body = await readValidatedBody(event, (body) => {
- *     return typeof body === "object" && body !== null;
- *   });
+ *   const body = await readValidatedBody(event, validateBody);
  * });
  * @example
  * import { z } from "zod";
  *
+ * const objectSchema = z.object({
+ *   name: z.string().min(3).max(20),
+ *   age: z.number({ coerce: true }).positive().int(),
+ * });
+ *
  * app.post("/", async (event) => {
- *   const objectSchema = z.object({
- *     name: z.string().min(3).max(20),
- *     age: z.number({ coerce: true }).positive().int(),
- *   });
  *   const body = await readValidatedBody(event, objectSchema);
  * });
  * @example
@@ -127,4 +130,66 @@ export async function readValidatedBody(
 ): Promise<any> {
   const _body = await readBody(event);
   return validateData(_body, validate, options);
+}
+
+/**
+ * Asserts that request body size is within the specified limit.
+ *
+ * If body size exceeds the limit, throws a `413` Request Entity Too Large response error.
+ *
+ * @example
+ * app.get("/", async (event) => {
+ *   await assertBodySize(event, 10 * 1024 * 1024); // 10MB
+ *   const data = await event.req.formData();
+ * });
+ *
+ * @param event HTTP event
+ * @param limit Body size limit in bytes
+ */
+export async function assertBodySize(
+  event: HTTPEvent,
+  limit: number,
+): Promise<void> {
+  const isWithin = await isBodySizeWithin(event, limit);
+  if (!isWithin) {
+    throw new HTTPError({
+      status: 413,
+      statusText: "Request Entity Too Large",
+      message: `Request body size exceeds the limit of ${limit} bytes`,
+    });
+  }
+}
+
+// Internal util for now. We can export later if needed
+async function isBodySizeWithin(
+  event: HTTPEvent,
+  limit: number,
+): Promise<boolean> {
+  const req = event.req;
+  if (req.body === null) {
+    return true;
+  }
+
+  const contentLength = req.headers.get("content-length");
+  if (contentLength) {
+    const transferEncoding = req.headers.get("transfer-encoding");
+    if (transferEncoding) {
+      // https://datatracker.ietf.org/doc/html/rfc7230#section-3.3.2
+      throw new HTTPError({ status: 400 });
+    }
+    return +contentLength <= limit;
+  }
+
+  const reader = req.clone().body!.getReader();
+  let chunk = await reader.read();
+  let size = 0;
+  while (!chunk.done) {
+    size += chunk.value.byteLength;
+    if (size > limit) {
+      return false;
+    }
+    chunk = await reader.read();
+  }
+
+  return true;
 }

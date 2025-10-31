@@ -444,9 +444,11 @@ export function getRequestIP(
   if (opts.xForwardedFor) {
     // https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Forwarded-For#syntax
     const _header = event.req.headers.get("x-forwarded-for");
-    const xForwardedFor = (_header || "")?.split(",").shift()?.trim();
-    if (xForwardedFor) {
-      return xForwardedFor;
+    if (_header) {
+      const xForwardedFor = _header.split(",")[0].trim();
+      if (xForwardedFor) {
+        return xForwardedFor;
+      }
     }
   }
 

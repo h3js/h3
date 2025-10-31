@@ -1,9 +1,5 @@
 import { iterable, noContent, redirect } from "./utils/response.ts";
-import {
-  defineNodeHandler,
-  fromNodeHandler,
-  toNodeHandler,
-} from "./adapters.ts";
+import { defineNodeHandler, fromNodeHandler } from "./adapters.ts";
 import { defineHandler, defineLazyEventHandler } from "./handler.ts";
 import { proxy } from "./utils/proxy.ts";
 import { H3 } from "./h3.ts";
@@ -20,6 +16,7 @@ import type {
   IteratorSerializer,
 } from "./utils/internal/iterable.ts";
 import { HTTPError, type ErrorDetails } from "./error.ts";
+import type { HTTPResponse } from "./response.ts";
 
 // --- Error ---
 
@@ -145,15 +142,17 @@ export function sendStream(
 }
 
 /** @deprecated Please use `return noContent(event)` */
-export const sendNoContent: (event: H3Event, code?: number) => Response =
-  noContent;
+export const sendNoContent: (event: H3Event, code?: number) => HTTPResponse = (
+  _,
+  code,
+) => noContent(code);
 
 /** @deprecated Please use `return redirect(event, code)` */
 export const sendRedirect: (
   event: H3Event,
   location: string,
   code: number,
-) => string = redirect;
+) => HTTPResponse = (_, loc, code) => redirect(loc, code);
 
 /** @deprecated Please directly return response */
 export const sendWebResponse: (response: Response) => Response = (
@@ -165,16 +164,18 @@ export const sendProxy: (
   event: H3Event,
   target: string,
   opts?: ProxyOptions,
-) => Promise<BodyInit | undefined | null> = proxy;
+) => Promise<HTTPResponse> = proxy;
 
 /** @deprecated Please use `return iterable(event, value)` */
 export const sendIterable: <Value = unknown, Return = unknown>(
   _event: H3Event,
-  iterable: IterationSource<Value, Return>,
+  val: IterationSource<Value, Return>,
   options?: {
     serializer: IteratorSerializer<Value | Return>;
   },
-) => ReadableStream = iterable;
+) => HTTPResponse = (_event, val, options) => {
+  return iterable(val, options);
+};
 
 /** @deprecated Please use `event.res.statusText` */
 export function getResponseStatusText(event: H3Event): string {
@@ -319,39 +320,40 @@ export function clearResponseHeaders(
 
 // -- Event handler --
 
-/** Please use `defineHandler`  */
-export const defineEventHandler: (handler: EventHandler) => EventHandler =
-  defineHandler;
-
-/** Please use `defineHandler`  */
-export const eventHandler: (handler: EventHandler) => EventHandler =
-  defineHandler;
-
-/** Please use `defineLazyEventHandler` */
-export const lazyEventHandler: (
-  load: () => Promise<EventHandler> | EventHandler,
-) => EventHandler = defineLazyEventHandler;
+export const defineEventHandler: typeof defineHandler = defineHandler;
+export const eventHandler: typeof defineHandler = defineHandler;
+export const lazyEventHandler: typeof defineLazyEventHandler =
+  defineLazyEventHandler;
 
 /** @deprecated Please use `defineNodeHandler` */
-export const defineNodeListener: (handler: NodeHandler) => NodeHandler =
-  defineNodeHandler;
+export const defineNodeListener: typeof defineNodeHandler = defineNodeHandler;
 
 /** @deprecated Please use `defineNodeHandler` */
 export const fromNodeMiddleware: (
   handler: NodeHandler | NodeMiddleware,
 ) => EventHandler = fromNodeHandler;
 
+/**
+ * @deprecated please use `toNodeHandler` from `h3/node`.
+ */
+export function toNodeHandler(app: H3): NodeHandler {
+  if ((toNodeHandler as any)._isWarned !== true) {
+    console.warn(
+      `[h3] "toNodeHandler" export from h3 is deprecated. Please import "toNodeHandler" from "h3/node".`,
+    );
+    (toNodeHandler as any)._isWarned = true;
+  }
+  const _toNodeHandler = ((toNodeHandler as any)._toNodeHandler ??= () => {
+    const _require = globalThis.process
+      .getBuiltinModule("node:module")
+      .createRequire(import.meta.url);
+    return _require("srvx/node").toNodeHandler;
+  })();
+  return _toNodeHandler(app.fetch);
+}
+
 /** @deprecated Please use `toNodeHandler` */
 export const toNodeListener: (app: H3) => NodeHandler = toNodeHandler;
-
-/** @deprecated */
-export function toEventHandler(
-  input: any,
-  _?: any,
-  _route?: string,
-): EventHandler {
-  return input;
-}
 
 // -- App/Router --
 

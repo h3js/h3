@@ -2,6 +2,7 @@
 
 export type {
   H3Config,
+  H3CoreConfig,
   H3Plugin,
   H3Route,
   H3RouteMeta,
@@ -9,7 +10,8 @@ export type {
   PreparedResponse,
   RouteOptions,
   MiddlewareOptions,
-  FetchHandler,
+  RouterContext,
+  MatchedRoute,
 } from "./types/h3.ts";
 
 export { definePlugin } from "./types/h3.ts";
@@ -34,10 +36,16 @@ export type {
   DynamicEventHandler,
   EventHandlerRequest,
   EventHandlerResponse,
+  EventHandlerFetch,
+  EventHandlerWithFetch,
   InferEventInput,
   LazyEventHandler,
   Middleware,
   EventHandlerObject,
+  FetchHandler,
+  FetchableObject,
+  HTTPHandler,
+  TypedServerRequest,
 } from "./types/handler.ts";
 
 export {
@@ -45,19 +53,27 @@ export {
   defineLazyEventHandler,
   dynamicEventHandler,
   defineValidatedHandler,
+  toEventHandler,
 } from "./handler.ts";
 
-export { defineMiddleware } from "./middleware.ts";
+export {
+  defineMiddleware,
+  callMiddleware,
+  toMiddleware,
+} from "./middleware.ts";
 
 // Response
 
-export { toResponse } from "./response.ts";
+export { toResponse, HTTPResponse } from "./response.ts";
 
 // Error
 
-export type { ErrorDetails, ErrorBody, ErrorInput } from "./error.ts";
-
-export { HTTPError } from "./error.ts";
+export {
+  type ErrorDetails,
+  type ErrorBody,
+  type ErrorInput,
+  HTTPError,
+} from "./error.ts";
 
 // Adapters
 
@@ -67,7 +83,6 @@ export {
   fromWebHandler,
   toWebHandler,
   fromNodeHandler,
-  toNodeHandler,
   defineNodeHandler,
   defineNodeMiddleware,
 } from "./adapters.ts";
@@ -75,10 +90,11 @@ export {
 // ------ Utils ------
 
 // Route
-export { defineRoute } from "./utils/route.ts";
-export type { RouteDefinition } from "./utils/route.ts";
+
+export { type RouteDefinition, defineRoute } from "./utils/route.ts";
 
 // Request
+
 export {
   toRequest,
   getRequestHost,
@@ -95,6 +111,7 @@ export {
 } from "./utils/request.ts";
 
 // Response
+
 export {
   writeEarlyHints,
   redirect,
@@ -104,9 +121,16 @@ export {
 } from "./utils/response.ts";
 
 // Middleware
-export { onError, onRequest, onResponse } from "./utils/middleware.ts";
+
+export {
+  onError,
+  onRequest,
+  onResponse,
+  bodyLimit,
+} from "./utils/middleware.ts";
 
 // Proxy
+
 export {
   type ProxyOptions,
   proxy,
@@ -116,17 +140,23 @@ export {
 } from "./utils/proxy.ts";
 
 // Body
-export { readBody, readValidatedBody } from "./utils/body.ts";
+
+export { readBody, readValidatedBody, assertBodySize } from "./utils/body.ts";
 
 // Cookie
+
 export {
   getCookie,
   deleteCookie,
   parseCookies,
   setCookie,
+  getChunkedCookie,
+  deleteChunkedCookie,
+  setChunkedCookie,
 } from "./utils/cookie.ts";
 
 // SSE
+
 export {
   type EventStreamMessage,
   type EventStreamOptions,
@@ -134,12 +164,15 @@ export {
 } from "./utils/event-stream.ts";
 
 // Sanitize
+
 export { sanitizeStatusCode, sanitizeStatusMessage } from "./utils/sanitize.ts";
 
 // Cache
+
 export { type CacheConditions, handleCacheHeaders } from "./utils/cache.ts";
 
 // Static
+
 export {
   type ServeStaticOptions,
   type StaticAssetMeta,
@@ -147,13 +180,16 @@ export {
 } from "./utils/static.ts";
 
 // Base
+
 export { withBase } from "./utils/base.ts";
 
 // Session
+
 export {
   type Session,
   type SessionConfig,
   type SessionData,
+  type SessionManager,
   clearSession,
   getSession,
   sealSession,
@@ -163,6 +199,7 @@ export {
 } from "./utils/session.ts";
 
 // Cors
+
 export {
   type CorsOptions,
   handleCors,
@@ -173,6 +210,7 @@ export {
 } from "./utils/cors.ts";
 
 // Auth
+
 export {
   type BasicAuthOptions,
   requireBasicAuth,
@@ -180,13 +218,21 @@ export {
 } from "./utils/auth.ts";
 
 // Fingerprint
+
 export {
   type RequestFingerprintOptions,
   getRequestFingerprint,
 } from "./utils/fingerprint.ts";
 
 // WebSocket
-export { defineWebSocketHandler, defineWebSocket } from "./utils/ws.ts";
+
+export {
+  type WebSocketHooks,
+  type WebSocketPeer,
+  type WebSocketMessage,
+  defineWebSocketHandler,
+  defineWebSocket,
+} from "./utils/ws.ts";
 
 // ---- Deprecated ----
 

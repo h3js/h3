@@ -2,6 +2,8 @@ import { beforeEach } from "vitest";
 import { describeMatrix } from "./_setup.ts";
 import { H3 } from "../src/h3.ts";
 import { defineHandler } from "../src/handler.ts";
+import { Hono } from "hono";
+import { toMiddleware } from "../src/middleware.ts";
 
 describeMatrix("middleware", (t, { it, expect }) => {
   beforeEach(() => {
@@ -47,6 +49,15 @@ describeMatrix("middleware", (t, { it, expect }) => {
         method: "GET",
         match: (event) => !event.req.headers.has("x-skip"),
       },
+    );
+
+    t.app.use(
+      "/custom-404",
+      () =>
+        new Response("Not found", {
+          status: 404,
+          statusText: "Page not found",
+        }),
     );
 
     let count = 0;
@@ -127,5 +138,28 @@ describeMatrix("middleware", (t, { it, expect }) => {
     const response = await t.app.request("/test/...");
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ log: expect.any(String) });
+  });
+
+  it("return custom 404 response in middleware", async () => {
+    const result = await t.fetch("/custom-404");
+    expect(result.status).toBe(404);
+    expect(result.statusText).toBe("Page not found");
+  });
+
+  it("can mount sub-router as middleware", async () => {
+    t.app.get("/", () => "hi!");
+
+    const honoApp = new Hono().get("/hello", (c) => {
+      return c.text("world");
+    });
+    t.app.use(toMiddleware(honoApp));
+
+    const res = await t.fetch("/hello");
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe("world");
+
+    const res2 = await t.fetch("/");
+    expect(res2.status).toBe(200);
+    expect(await res2.text()).toBe("hi!");
   });
 });
