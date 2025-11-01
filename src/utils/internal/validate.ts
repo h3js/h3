@@ -18,7 +18,10 @@ export type ValidateFunction<
   | ((data: unknown) => ValidateResult<T> | Promise<ValidateResult<T>>);
 
 export type ValidateIssues = ReadonlyArray<Issue>;
-export type ValidateError = (result: FailureResult) => ErrorDetails;
+
+export type OnValidateError<Source extends string = string> = (
+  result: FailureResult & { _source?: Source },
+) => ErrorDetails;
 
 const VALIDATION_FAILED = "Validation failed";
 
@@ -34,23 +37,17 @@ const VALIDATION_FAILED = "Validation failed";
 export async function validateData<Schema extends StandardSchemaV1>(
   data: unknown,
   fn: Schema,
-  options?: {
-    onError?: (result: FailureResult) => ErrorDetails;
-  },
+  options?: { onError?: OnValidateError },
 ): Promise<InferOutput<Schema>>;
 export async function validateData<T>(
   data: unknown,
   fn: (data: unknown) => ValidateResult<T> | Promise<ValidateResult<T>>,
-  options?: {
-    onError?: () => ErrorDetails;
-  },
+  options?: { onError?: OnValidateError },
 ): Promise<T>;
 export async function validateData<T>(
   data: unknown,
   fn: ValidateFunction<T>,
-  options?: {
-    onError?: ValidateError | undefined;
-  },
+  options?: { onError?: OnValidateError },
 ): Promise<T> {
   if ("~standard" in fn) {
     const result = await fn["~standard"].validate(data);
@@ -94,10 +91,7 @@ export function validatedRequest<
   validate: {
     body?: RequestBody;
     headers?: RequestHeaders;
-    onError?: (
-      result: FailureResult,
-      source: "headers" | "body",
-    ) => ErrorDetails;
+    onError?: OnValidateError;
   },
 ): ServerRequest {
   // Validate Headers
@@ -129,7 +123,7 @@ export function validatedRequest<
               .then((result) => {
                 if (result.issues) {
                   throw createValidationError(
-                    validate.onError?.(result, "body") || {
+                    validate.onError?.({ _source: "body", ...result }) || {
                       message: VALIDATION_FAILED,
                       issues: result.issues,
                     },
@@ -154,7 +148,7 @@ export function validatedURL(
   url: URL,
   validate: {
     query?: StandardSchemaV1;
-    onError?: (result: FailureResult, source: "query") => ErrorDetails;
+    onError?: OnValidateError;
   },
 ): URL {
   if (!validate.query) {
@@ -176,18 +170,20 @@ export function validatedURL(
 }
 
 function syncValidate<Source extends "headers" | "query", T = unknown>(
-  type: Source,
+  source: Source,
   data: unknown,
   fn: StandardSchemaV1<T>,
-  onError?: (result: FailureResult, source: Source) => ErrorDetails,
+  onError?: OnValidateError,
 ): T {
   const result = fn["~standard"].validate(data);
   if (result instanceof Promise) {
-    throw new TypeError(`Asynchronous validation is not supported for ${type}`);
+    throw new TypeError(
+      `Asynchronous validation is not supported for ${source}`,
+    );
   }
   if (result.issues) {
     throw createValidationError(
-      onError?.(result, type) || {
+      onError?.({ _source: source, ...result }) || {
         message: VALIDATION_FAILED,
         issues: result.issues,
       },

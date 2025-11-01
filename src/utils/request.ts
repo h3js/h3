@@ -8,7 +8,7 @@ import type {
   FailureResult,
   InferOutput,
 } from "./internal/standard-schema.ts";
-import type { ValidateResult, ValidateError } from "./internal/validate.ts";
+import type { ValidateResult, OnValidateError } from "./internal/validate.ts";
 import type { H3Event, HTTPEvent } from "../event.ts";
 import type { InferEventInput } from "../types/handler.ts";
 import type { HTTPMethod } from "../types/h3.ts";
@@ -133,7 +133,7 @@ export function getValidatedQuery(
   event: HTTPEvent,
   validate: any,
   options?: {
-    onError?: ValidateError;
+    onError?: OnValidateError;
   },
 ): Promise<any> {
   const query = getQuery(event);
@@ -248,7 +248,7 @@ export function getValidatedRouterParams(
   validate: any,
   options: {
     decode?: boolean;
-    onError?: ValidateError;
+    onError?: OnValidateError;
   } = {},
 ): Promise<any> {
   const { decode, ...opts } = options;

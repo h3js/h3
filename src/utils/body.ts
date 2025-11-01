@@ -1,5 +1,5 @@
 import { type ErrorDetails, HTTPError } from "../error.ts";
-import { type ValidateError, validateData } from "./internal/validate.ts";
+import { type OnValidateError, validateData } from "./internal/validate.ts";
 import { parseURLEncodedBody } from "./internal/body.ts";
 
 import type { HTTPEvent } from "../event.ts";
@@ -125,7 +125,7 @@ export async function readValidatedBody(
   event: HTTPEvent,
   validate: any,
   options?: {
-    onError?: ValidateError;
+    onError?: OnValidateError;
   },
 ): Promise<any> {
   const _body = await readBody(event);
