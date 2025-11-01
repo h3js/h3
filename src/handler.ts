@@ -15,11 +15,9 @@ import type {
 } from "./types/handler.ts";
 import type {
   StandardSchemaV1,
-  FailureResult,
   InferOutput,
 } from "./utils/internal/standard-schema.ts";
 import type { TypedRequest } from "fetchdts";
-import type { ErrorDetails } from "./error.ts";
 import { NoHandler, type H3Core } from "./h3.ts";
 import {
   validatedRequest,
