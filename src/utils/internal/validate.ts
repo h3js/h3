@@ -55,11 +55,12 @@ export async function validateData<T>(
   if ("~standard" in fn) {
     const result = await fn["~standard"].validate(data);
     if (result.issues) {
-      const errorDetails = options?.onError?.(result) ?? {
-        message: VALIDATION_FAILED,
-        issues: result.issues,
-      };
-      throw createValidationError(errorDetails);
+      throw createValidationError(
+        options?.onError?.(result) ?? {
+          message: VALIDATION_FAILED,
+          issues: result.issues,
+        },
+      );
     }
     return result.value;
   }
@@ -67,17 +68,18 @@ export async function validateData<T>(
   try {
     const res = await fn(data);
     if (res === false) {
-      const errorDetails = options?.onError?.({
-        issues: [{ message: VALIDATION_FAILED }],
-      }) ?? { message: VALIDATION_FAILED };
-      throw createValidationError(errorDetails);
+      throw createValidationError(
+        options?.onError?.({
+          issues: [{ message: VALIDATION_FAILED }],
+        }) ?? { message: VALIDATION_FAILED },
+      );
     }
     if (res === true) {
       return data as T;
     }
     return res ?? (data as T);
   } catch (error) {
-    throw createValidationError(error);
+    throw createValidationError(error as Error);
   }
 }
 
@@ -126,12 +128,12 @@ export function validatedRequest<
               .then((data) => validate.body!["~standard"].validate(data))
               .then((result) => {
                 if (result.issues) {
-                  const errorDetails = validate.onError?.(result, "body") || {
-                    message: VALIDATION_FAILED,
-                    issues: result.issues,
-                  };
-
-                  throw createValidationError(errorDetails);
+                  throw createValidationError(
+                    validate.onError?.(result, "body") || {
+                      message: VALIDATION_FAILED,
+                      issues: result.issues,
+                    },
+                  );
                 }
 
                 return result.value;
@@ -184,24 +186,32 @@ function syncValidate<Source extends "headers" | "query", T = unknown>(
     throw new TypeError(`Asynchronous validation is not supported for ${type}`);
   }
   if (result.issues) {
-    const errorDetails = onError?.(result, type) || {
-      message: VALIDATION_FAILED,
-      issues: result.issues,
-    };
-
-    throw createValidationError(errorDetails);
+    throw createValidationError(
+      onError?.(result, type) || {
+        message: VALIDATION_FAILED,
+        issues: result.issues,
+      },
+    );
   }
   return result.value;
 }
 
-function createValidationError(validateError?: HTTPError | any) {
-  return HTTPError.isError(validateError)
-    ? validateError
+function createValidationError(
+  cause: Error | HTTPError | ErrorDetails | FailureResult,
+) {
+  return HTTPError.isError(cause)
+    ? cause
     : new HTTPError({
-        status: validateError?.status || 400,
-        statusText: validateError?.statusText || VALIDATION_FAILED,
-        message: validateError?.message,
-        data: validateError,
-        cause: validateError,
+        cause,
+        status: (cause as HTTPError)?.status || 400,
+        statusText: (cause as HTTPError)?.statusText || VALIDATION_FAILED,
+        message: (cause as HTTPError)?.message || VALIDATION_FAILED,
+        data: {
+          issues: (cause as FailureResult)?.issues,
+          message:
+            cause instanceof Error
+              ? VALIDATION_FAILED
+              : (cause as ErrorDetails)?.message || VALIDATION_FAILED,
+        },
       });
 }
