@@ -18,9 +18,9 @@ export type ValidateFunction<
   | ((data: unknown) => ValidateResult<T> | Promise<ValidateResult<T>>);
 
 export type ValidateIssues = ReadonlyArray<Issue>;
-export type ValidateError =
-  | (() => ErrorDetails)
-  | ((result: FailureResult) => ErrorDetails);
+export type ValidateError = (result: FailureResult) => ErrorDetails;
+
+const VALIDATION_FAILED = "Validation failed";
 
 /**
  * Validates the given data using the provided validation function.
@@ -55,13 +55,10 @@ export async function validateData<T>(
   if ("~standard" in fn) {
     const result = await fn["~standard"].validate(data);
     if (result.issues) {
-      const errorDetails = options?.onError
-        ? options.onError(result)
-        : {
-            message: "Validation failed",
-            issues: result.issues,
-          };
-
+      const errorDetails = options?.onError?.(result) ?? {
+        message: VALIDATION_FAILED,
+        issues: result.issues,
+      };
       throw createValidationError(errorDetails);
     }
     return result.value;
@@ -70,12 +67,9 @@ export async function validateData<T>(
   try {
     const res = await fn(data);
     if (res === false) {
-      const errorDetails = options?.onError
-        ? (options.onError as () => ErrorDetails)()
-        : {
-            message: "Validation failed",
-          };
-
+      const errorDetails = options?.onError?.({
+        issues: [{ message: VALIDATION_FAILED }],
+      }) ?? { message: VALIDATION_FAILED };
       throw createValidationError(errorDetails);
     }
     if (res === true) {
@@ -132,12 +126,10 @@ export function validatedRequest<
               .then((data) => validate.body!["~standard"].validate(data))
               .then((result) => {
                 if (result.issues) {
-                  const errorDetails = validate.onError
-                    ? validate.onError(result, "body")
-                    : {
-                        message: "Validation failed",
-                        issues: result.issues,
-                      };
+                  const errorDetails = validate.onError?.(result, "body") || {
+                    message: VALIDATION_FAILED,
+                    issues: result.issues,
+                  };
 
                   throw createValidationError(errorDetails);
                 }
@@ -192,12 +184,10 @@ function syncValidate<Source extends "headers" | "query", T = unknown>(
     throw new TypeError(`Asynchronous validation is not supported for ${type}`);
   }
   if (result.issues) {
-    const errorDetails = onError
-      ? onError(result, type)
-      : {
-          message: "Validation failed",
-          issues: result.issues,
-        };
+    const errorDetails = onError?.(result, type) || {
+      message: VALIDATION_FAILED,
+      issues: result.issues,
+    };
 
     throw createValidationError(errorDetails);
   }
@@ -209,7 +199,7 @@ function createValidationError(validateError?: HTTPError | any) {
     ? validateError
     : new HTTPError({
         status: validateError?.status || 400,
-        statusText: validateError?.statusText || "Validation failed",
+        statusText: validateError?.statusText || VALIDATION_FAILED,
         message: validateError?.message,
         data: validateError,
         cause: validateError,
