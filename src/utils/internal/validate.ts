@@ -49,14 +49,14 @@ export async function validateData<T>(
   data: unknown,
   fn: ValidateFunction<T>,
   options?: {
-    onError?: ValidateError;
+    onError?: ValidateError | undefined;
   },
 ): Promise<T> {
   if ("~standard" in fn) {
     const result = await fn["~standard"].validate(data);
     if (result.issues) {
       throw createValidationError(
-        options?.onError?.(result) ?? {
+        options?.onError?.(result) || {
           message: VALIDATION_FAILED,
           issues: result.issues,
         },
@@ -71,7 +71,7 @@ export async function validateData<T>(
       throw createValidationError(
         options?.onError?.({
           issues: [{ message: VALIDATION_FAILED }],
-        }) ?? { message: VALIDATION_FAILED },
+        }) || { message: VALIDATION_FAILED },
       );
     }
     if (res === true) {
