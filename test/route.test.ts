@@ -89,7 +89,7 @@ describe("defineWebSocketRoute", () => {
     });
     app.register(wsRoute);
 
-    const route = app._routes.find((r) => r.route === "/ws");
+    const route = app["~routes"].find((r) => r.route === "/ws");
     expect(route).toBeDefined();
     expect(route?.method).toBe("GET");
   });
@@ -102,7 +102,7 @@ describe("defineWebSocketRoute", () => {
     });
     app.register(wsRoute);
 
-    const route = app._routes.find((r) => r.route === "/ws");
+    const route = app["~routes"].find((r) => r.route === "/ws");
     expect(route?.method).toBe("GET");
   });
 
@@ -118,7 +118,7 @@ describe("defineWebSocketRoute", () => {
     });
     app.register(wsRoute);
 
-    const res = await app.fetch("/ws");
+    const res = await app.request("/ws");
     expect(res.status).toBe(426);
     expect(await res.text()).toContain("WebSocket upgrade is required");
     expect((res as any).crossws).toBeDefined();
@@ -135,7 +135,7 @@ describe("defineWebSocketRoute", () => {
       });
       app.register(wsRoute);
 
-      const route = app._routes.find((r) => r.route === pattern);
+      const route = app["~routes"].find((r) => r.route === pattern);
       expect(route).toBeDefined();
       expect(route?.route).toBe(pattern);
     }
@@ -161,15 +161,15 @@ describe("defineWebSocketRoute", () => {
     app.on("GET", "/old-ws", defineWebSocketHandler(hooks));
 
     // Both routes should be registered
-    const newRoute = app._routes.find((r) => r.route === "/new-ws");
-    const oldRoute = app._routes.find((r) => r.route === "/old-ws");
+    const newRoute = app["~routes"].find((r) => r.route === "/new-ws");
+    const oldRoute = app["~routes"].find((r) => r.route === "/old-ws");
 
     expect(newRoute).toBeDefined();
     expect(oldRoute).toBeDefined();
 
     // Both should return similar responses
-    const newRes = await app.fetch("/new-ws");
-    const oldRes = await app.fetch("/old-ws");
+    const newRes = await app.request("/new-ws");
+    const oldRes = await app.request("/old-ws");
 
     expect(newRes.status).toBe(oldRes.status);
     expect((newRes as any).crossws).toBeDefined();
