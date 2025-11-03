@@ -1,4 +1,4 @@
-import type { HTTPMethod } from "../types/h3.ts";
+import type { H3RouteMeta, HTTPMethod } from "../types/h3.ts";
 import type { EventHandler, Middleware } from "../types/handler.ts";
 import type { H3Plugin, H3 } from "../types/h3.ts";
 import type { StandardSchemaV1 } from "./internal/standard-schema.ts";
@@ -33,7 +33,7 @@ export interface RouteDefinition {
   /**
    * Additional route metadata.
    */
-  meta?: Record<string, unknown>;
+  meta?: H3RouteMeta;
 
   // Validation schemas
   // TODO: Support generics for better typing `handler` input

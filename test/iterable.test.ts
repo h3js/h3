@@ -6,14 +6,14 @@ import { describeMatrix } from "./_setup.ts";
 describeMatrix("iterable", (t, { it, expect, describe }) => {
   describe("iterable", () => {
     it("sends empty body for an empty iterator", async () => {
-      t.app.use((event) => iterable(event, []));
+      t.app.use(() => iterable([]));
       const result = await t.fetch("/");
       expect(result.headers.get("content-length")).toBe(null);
       expect(await result.text()).toBe("");
     });
 
     it("concatenates iterated values", async () => {
-      t.app.use((event) => iterable(event, ["a", "b", "c"]));
+      t.app.use(() => iterable(["a", "b", "c"]));
       const result = await t.fetch("/");
       expect(await result.text()).toBe("abc");
     });
@@ -86,7 +86,7 @@ describeMatrix("iterable", (t, { it, expect, describe }) => {
           }),
         },
       ])("$type", async (c) => {
-        t.app.use((event) => iterable(event, c.iterable as any));
+        t.app.use(() => iterable(c.iterable as any));
         const response = await t.fetch("/");
         expect(await response.text()).toBe("the-value");
       });
@@ -97,7 +97,7 @@ describeMatrix("iterable", (t, { it, expect, describe }) => {
         const testIterable = [1, "2", { field: 3 }, null];
         const textEncoder = new TextEncoder();
         const serializer = vi.fn(() => textEncoder.encode("x"));
-        t.app.use((event) => iterable(event, testIterable, { serializer }));
+        t.app.use(() => iterable(testIterable, { serializer }));
         const response = await t.fetch("/");
         expect(await response.text()).toBe("x".repeat(testIterable.length));
         expect(serializer).toBeCalledTimes(4);

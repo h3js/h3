@@ -17,7 +17,8 @@ import {
   beforeAll,
   afterAll,
 } from "vitest";
-import { H3, toNodeHandler } from "../src/index.ts";
+import { H3 } from "../src/index.ts";
+import { toNodeHandler } from "../src/_entries/node.ts";
 
 // Matrix
 export function describeMatrix(
@@ -63,7 +64,7 @@ function setupWebTest(opts: TestOptions = {}): TestContext {
         headers.set("Host", "localhost");
       }
       return Promise.resolve(
-        ctx.app.fetch(input, {
+        ctx.app.request(input, {
           ...init,
           headers,
         }),

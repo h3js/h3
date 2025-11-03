@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { requests } from "./input.ts";
+import { getRequests } from "./input.ts";
 import { createInstances } from "./bench.impl.ts";
 
 describe("benchmark", async () => {
@@ -7,14 +7,9 @@ describe("benchmark", async () => {
 
   describe("app works as expected", () => {
     for (const [name, _fetch] of instances) {
-      for (const request of requests) {
+      for (const request of getRequests()) {
         it(`[${name}] [${request.method}] ${request.path}`, async () => {
-          const response = await _fetch(
-            new Request(`http://localhost${request.path}`, {
-              method: request.method,
-              body: request.body,
-            }),
-          );
+          const response = await _fetch(request.req);
           if (request.response.body) {
             expect(await response.text()).toBe(request.response.body);
           }

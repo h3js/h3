@@ -1,7 +1,5 @@
 import type { H3Event } from "../event.ts";
 
-import { splitSetCookieString } from "cookie-es";
-import { sanitizeStatusMessage } from "./sanitize.ts";
 import { HTTPError } from "../error.ts";
 import {
   PayloadMethods,
@@ -11,6 +9,7 @@ import {
 } from "./internal/proxy.ts";
 import { EmptyObject } from "./internal/obj.ts";
 import type { ServerRequest } from "srvx";
+import { HTTPResponse } from "../response.ts";
 
 export interface ProxyOptions {
   headers?: HeadersInit;
@@ -29,7 +28,7 @@ export async function proxyRequest(
   event: H3Event,
   target: string,
   opts: ProxyOptions = {},
-): Promise<BodyInit | undefined | null> {
+): Promise<HTTPResponse> {
   // Request Body
   const requestBody = PayloadMethods.has(event.req.method)
     ? event.req.body
@@ -68,7 +67,7 @@ export async function proxy(
   event: H3Event,
   target: string,
   opts: ProxyOptions = {},
-): Promise<BodyInit | undefined | null> {
+): Promise<HTTPResponse> {
   const fetchOptions: RequestInit = {
     headers: opts.headers as HeadersInit,
     ...opts.fetchOptions,
@@ -78,12 +77,13 @@ export async function proxy(
   try {
     response =
       target[0] === "/"
-        ? await event.app!._fetch(createSubRequest(event, target, fetchOptions))
+        ? await event.app!.fetch(createSubRequest(event, target, fetchOptions))
         : await fetch(target, fetchOptions);
   } catch (error) {
     throw new HTTPError({ status: 502, cause: error });
   }
-  event.res.statusText = sanitizeStatusMessage(response.statusText);
+
+  const headers = new Headers();
 
   const cookies: string[] = [];
 
@@ -95,10 +95,10 @@ export async function proxy(
       continue;
     }
     if (key === "set-cookie") {
-      cookies.push(...splitSetCookieString(value));
+      cookies.push(value);
       continue;
     }
-    event.res.headers.set(key, value);
+    headers.append(key, value);
   }
 
   if (cookies.length > 0) {
@@ -116,7 +116,7 @@ export async function proxy(
       return cookie;
     });
     for (const cookie of _cookies) {
-      event.res.headers.append("set-cookie", cookie);
+      headers.append("set-cookie", cookie);
     }
   }
 
@@ -124,7 +124,11 @@ export async function proxy(
     await opts.onResponse(event, response);
   }
 
-  return response.body;
+  return new HTTPResponse(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
 }
 
 /**
@@ -140,13 +144,18 @@ export function getProxyRequestHeaders(
 ): Record<string, string> {
   const headers = new EmptyObject();
   for (const [name, value] of event.req.headers.entries()) {
-    if (
-      opts?.forwardHeaders?.includes(name) ||
-      (opts?.filterHeaders && !opts.filterHeaders.includes(name)) ||
-      !ignoredHeaders.has(name) ||
-      (name === "host" && opts?.host)
-    ) {
+    if (opts?.filterHeaders?.includes(name)) {
+      continue;
+    }
+
+    if (opts?.forwardHeaders?.includes(name)) {
       headers[name] = value;
+      continue;
+    }
+
+    if (!ignoredHeaders.has(name) || (name === "host" && opts?.host)) {
+      headers[name] = value;
+      continue;
     }
   }
   return headers;
@@ -163,7 +172,7 @@ export async function fetchWithEvent(
   if (url[0] !== "/") {
     return fetch(url, init);
   }
-  return event.app!._fetch(
+  return event.app!.fetch(
     createSubRequest(event, url, {
       ...init,
       headers: mergeHeaders(

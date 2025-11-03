@@ -4,6 +4,7 @@ import type { MaybePromise } from "../types/_utils.ts";
 
 import type { H3Event } from "../event.ts";
 import type { Middleware } from "../types/handler.ts";
+import { assertBodySize } from "./body.ts";
 
 /**
  * Define a middleware that runs on each request.
@@ -11,7 +12,7 @@ import type { Middleware } from "../types/handler.ts";
 export function onRequest(
   hook: (event: H3Event) => void | Promise<void>,
 ): Middleware {
-  return async (event) => {
+  return async function _onRequestMiddleware(event) {
     await hook(event);
   };
 }
@@ -24,7 +25,7 @@ export function onRequest(
 export function onResponse(
   hook: (response: Response, event: H3Event) => MaybePromise<void | Response>,
 ): Middleware {
-  return async (event, next) => {
+  return async function _onResponseMiddleware(event, next) {
     const rawBody = await next();
     const response = await toResponse(rawBody, event);
     const hookResponse = await hook(response, event);
@@ -61,5 +62,21 @@ export function onError(
       }
       throw error;
     }
+  };
+}
+
+/**
+ * Define a middleware that checks whether request body size is within specified limit.
+ *
+ * If body size exceeds the limit, throws a `413` Request Entity Too Large response error.
+ * If you need custom handling for this case, use `assertBodySize` instead.
+ *
+ * @param limit Body size limit in bytes
+ * @see {assertBodySize}
+ */
+export function bodyLimit(limit: number): Middleware {
+  return async (event, next) => {
+    await assertBodySize(event, limit);
+    return next();
   };
 }

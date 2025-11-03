@@ -37,6 +37,16 @@ describeMatrix("app", (t, { it, expect }) => {
     expect(await resSymbol.text()).toMatch("Symbol(test)");
   });
 
+  it("can return thenable", async () => {
+    t.app.get("/api", () => {
+      const p = Promise.resolve("value");
+      // eslint-disable-next-line unicorn/no-thenable
+      return { then: p.then.bind(p) };
+    });
+    const res = await t.fetch("/api");
+    expect(await res.text()).toEqual("value");
+  });
+
   it("can return Response directly", async () => {
     t.app.use(
       () =>
@@ -220,6 +230,16 @@ describeMatrix("app", (t, { it, expect }) => {
     expect(await res.text()).toBe("42");
   });
 
+  it("can use fetchable routes", async () => {
+    t.app.get("/fetchable", {
+      fetch: async () => {
+        return new Response("fetchable");
+      },
+    });
+    const res = await t.fetch("/fetchable");
+    expect(await res.text()).toBe("fetchable");
+  });
+
   it("handles next() call with no routes matching", async () => {
     t.app.use(() => {});
     t.app.use(() => {});
@@ -243,11 +263,14 @@ describeMatrix("app", (t, { it, expect }) => {
     expect(await res.text()).toBe("valid");
   });
 
-  it("can add arabic routes", async () => {
-    t.app.get("/عربي", () => "valid");
+  it("can add and match unicode routes", async () => {
+    t.app.get("/سلام", () => "valid");
 
-    const res = await t.fetch("/عربي");
+    const res = await t.fetch("/سلام");
     expect(res.status).toBe(200);
+
+    const res2 = await t.app.request("/سلام");
+    expect(res2.status).toBe(200);
   });
 
   it.skipIf(t.target !== "node")(
@@ -266,4 +289,35 @@ describeMatrix("app", (t, { it, expect }) => {
       expect(await res.json()).toEqual({ works: 1 });
     },
   );
+
+  it("set headers via event.res + Response (mutable)", async () => {
+    t.app.use((event) => {
+      event.res.headers.set("x-from-event", "1");
+      return new Response("hello", {
+        headers: { "x-from-response": "1" },
+      });
+    });
+    const res = await t.fetch("/");
+    expect(res.headers.get("x-from-event")).toBe("1");
+    expect(res.headers.get("x-from-response")).toBe("1");
+  });
+
+  it("set headers via event.res + Response (immutable)", async () => {
+    t.app.use((event) => {
+      event.res.headers.set("x-from-event", "1");
+      const res = new Response("hello", {
+        headers: { "x-from-response": "1" },
+      });
+      res.headers.set = () => {
+        throw new Error("immutable");
+      };
+      res.headers.append = () => {
+        throw new Error("immutable");
+      };
+      return res;
+    });
+    const res = await t.fetch("/");
+    expect(res.headers.get("x-from-response")).toBe("1");
+    expect(res.headers.get("x-from-event")).toBe("1");
+  });
 });

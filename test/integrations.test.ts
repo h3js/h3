@@ -6,12 +6,13 @@ import { Hono } from "hono";
 import { Elysia } from "elysia";
 import {
   H3,
-  toNodeHandler,
   withBase,
   fromNodeHandler,
   defineNodeHandler,
   type NodeMiddleware,
 } from "../src/index.ts";
+import { toNodeHandler } from "../src/_entries/node.ts";
+
 import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("integrations", (t, { it, expect, describe }) => {
@@ -42,7 +43,7 @@ describeMatrix("integrations", (t, { it, expect, describe }) => {
         "/hono",
         new Hono().get("/test", (c) => c.text("Hello Hono!")),
       );
-      const res = await h3App.fetch("/hono/test");
+      const res = await h3App.request("/hono/test");
       expect(await res.text()).toBe("Hello Hono!");
     });
 
@@ -62,7 +63,7 @@ describeMatrix("integrations", (t, { it, expect, describe }) => {
         "/elysia",
         new Elysia().get("/test", () => "Hello Elysia!"),
       );
-      const res = await h3App.fetch("/elysia/test");
+      const res = await h3App.request("/elysia/test");
       expect(await res.text()).toBe("Hello Elysia!");
     });
 
