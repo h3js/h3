@@ -94,7 +94,7 @@ describe("defineWebSocketRoute", () => {
     expect(route?.method).toBe("GET");
   });
 
-  it("should use GET method by default for WebSocket routes", async () => {
+  it("should use GET method for WebSocket routes", async () => {
     const app = new H3();
     const wsRoute = defineWebSocketRoute({
       route: "/ws",
@@ -104,19 +104,6 @@ describe("defineWebSocketRoute", () => {
 
     const route = app._routes.find((r) => r.route === "/ws");
     expect(route?.method).toBe("GET");
-  });
-
-  it("should allow custom HTTP method for WebSocket routes", async () => {
-    const app = new H3();
-    const wsRoute = defineWebSocketRoute({
-      method: "POST",
-      route: "/ws",
-      websocket: {},
-    });
-    app.register(wsRoute);
-
-    const route = app._routes.find((r) => r.route === "/ws");
-    expect(route?.method).toBe("POST");
   });
 
   it("should test WebSocket upgrade response", async () => {

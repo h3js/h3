@@ -77,11 +77,6 @@ export function defineRoute(def: RouteDefinition): H3Plugin {
  */
 export interface WebSocketRouteDefinition {
   /**
-   * HTTP method for the route (typically 'GET' for WebSocket upgrades)
-   */
-  method?: HTTPMethod;
-
-  /**
    * Route pattern, e.g. '/api/ws'
    */
   route: string;
@@ -91,15 +86,11 @@ export interface WebSocketRouteDefinition {
    */
   websocket: Partial<WSHooks>;
 
-  /**
-   * Optional middleware to run before WebSocket upgrade
-   */
-  middleware?: Middleware[];
+  // TODO: Support middleware when implemented in defineWebSocketHandler
+  // middleware?: Middleware[];
 
-  /**
-   * Additional route metadata
-   */
-  meta?: Record<string, unknown>;
+  // TODO: Support metadata when implemented in WebSocket routing
+  // meta?: Record<string, unknown>;
 }
 
 /**
@@ -130,6 +121,6 @@ export interface WebSocketRouteDefinition {
 export function defineWebSocketRoute(def: WebSocketRouteDefinition): H3Plugin {
   const handler = defineWebSocketHandler(def.websocket);
   return (h3: H3) => {
-    h3.on(def.method || "GET", def.route, handler);
+    h3.on("GET", def.route, handler);
   };
 }
