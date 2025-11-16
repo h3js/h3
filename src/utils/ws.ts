@@ -29,7 +29,9 @@ export function defineWebSocket(
 export function defineWebSocketHandler(
   hooks:
     | Partial<WebSocketHooks>
-    | ((event: H3Event) => Partial<WebSocketHooks>),
+    | ((
+        event: H3Event,
+      ) => Partial<WebSocketHooks> | Promise<Partial<WebSocketHooks>>),
 ): EventHandler {
   return defineHandler(function _webSocketHandler(event) {
     const crossws = typeof hooks === "function" ? hooks(event) : hooks;
