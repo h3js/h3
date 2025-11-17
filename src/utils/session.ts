@@ -18,6 +18,13 @@ export interface Session<T extends SessionDataT = SessionDataT> {
   [getSessionPromise]?: Promise<Session<T>>;
 }
 
+export interface SessionManager<T extends SessionDataT = SessionDataT> {
+  readonly id: string | undefined;
+  readonly data: SessionData<T>;
+  update: (update: SessionUpdate<T>) => Promise<SessionManager<T>>;
+  clear: () => Promise<SessionManager<T>>;
+}
+
 export interface SessionConfig {
   /** Private key used to encrypt session tokens */
   password: string;
@@ -53,7 +60,7 @@ type CompatEvent =
 export async function useSession<T extends SessionDataT = SessionDataT>(
   event: H3Event | CompatEvent,
   config: SessionConfig,
-) {
+): Promise<SessionManager<T>> {
   // Create a synced wrapper around the session
   const sessionName = config.name || DEFAULT_NAME;
   await getSession(event, config); // Force init
@@ -226,11 +233,16 @@ export async function sealSession<T extends SessionDataT = SessionDataT>(
     (event.context.sessions?.[sessionName] as Session<T>) ||
     (await getSession<T>(event, config));
 
-  const sealed = await seal(config.crypto || crypto, session, config.password, {
-    ...sealDefaults,
-    ttl: config.maxAge ? config.maxAge * 1000 : 0,
-    ...config.seal,
-  });
+  const sealed = await seal(
+    config.crypto || (crypto as any),
+    session,
+    config.password,
+    {
+      ...sealDefaults,
+      ttl: config.maxAge ? config.maxAge * 1000 : 0,
+      ...config.seal,
+    },
+  );
 
   return sealed;
 }
@@ -244,7 +256,7 @@ export async function unsealSession(
   sealed: string,
 ) {
   const unsealed = (await unseal(
-    config.crypto || crypto,
+    config.crypto || (crypto as any),
     sealed,
     config.password,
     {

@@ -1,45 +1,35 @@
 name: ci
 
 on:
-  push:
-    branches:
-      - v1
-  pull_request:
-    branches:
-      - v1
-
-permissions:
-  id-token: write
+  push: { branches: [v1] }
+  pull_request: { branches: [v1] }
 
 jobs:
-  ci:
+  tests:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        node: [18, 20]
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - run: npm i -g -f corepack && corepack enable
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ matrix.node }}
-          cache: "pnpm"
+      - uses: actions/checkout@v5
+      - run: npm i -g --force corepack && corepack enable
+      - uses: actions/setup-node@v5
+        with: { node-version: lts/*, cache: pnpm }
       - run: pnpm install
       - run: pnpm lint
+      - run: pnpm test:types
       - run: pnpm build
-      - run: pnpm vitest --coverage && rm -rf coverage/tmp
-      - uses: codecov/codecov-action@v5
-      - name: nightly release
-        if: |
-          github.event_name == 'push' &&
-          matrix.node == 20 &&
-          !contains(github.event.head_commit.message, '[skip-release]') &&
-          !startsWith(github.event.head_commit.message, 'docs')
-        run: |
-          echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" >> ~/.npmrc &&
-          pnpm changelogen --canary nightly --publish --publishTag latest
-        env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-          NPM_CONFIG_PROVENANCE: true
+      - run: pnpm vitest --coverage
+      - uses: codecov/codecov-action@v3
+        with: { token: "${{ secrets.CODECOV_TOKEN }}" }
+  publish:
+    runs-on: ubuntu-latest
+    permissions: { id-token: write, contents: read }
+    needs: tests
+    if: contains('refs/heads/v1', github.ref) && github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v5
+        with: { fetch-depth: 0 }
+      - run: npm i -fg corepack && corepack enable
+      - uses: actions/setup-node@v5
+        with: { node-version: lts/*, cache: "pnpm" }
+      - run: pnpm install
+      - run: pnpm changelogen --bump --canary nightly
+      - run: npm i -g npm@latest && npm publish --tag 1x

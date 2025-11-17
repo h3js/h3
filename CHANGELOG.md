@@ -2,6 +2,40 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## v1.15.4
+
+[compare changes](https://github.com/h3js/h3/compare/v1.15.2...v1.15.4)
+
+### 🩹 Fixes
+
+- **serveStatic:** Omit decoded id from `statusMessage` ([#1044](https://github.com/h3js/h3/pull/1044))
+- **getRequestHost:** Return first host from `x-forwarded-host` ([#1175](https://github.com/h3js/h3/pull/1175))
+
+### 💅 Refactors
+
+- **useSession:** Backport `SessionManager` interface to fix types ([#1058](https://github.com/h3js/h3/pull/1058))
+
+### 📦 Build
+
+- Update `repository` field ([d94b09a](https://github.com/h3js/h3/commit/d94b09a))
+
+### 🏡 Chore
+
+- **release:** V1.15.3 ([3d0f4d5](https://github.com/h3js/h3/commit/3d0f4d5))
+- **docs:** Fix typos ([#1108](https://github.com/h3js/h3/pull/1108))
+- Apply automated updates ([774956a](https://github.com/h3js/h3/commit/774956a))
+- Update deps ([18d0bb7](https://github.com/h3js/h3/commit/18d0bb7))
+
+### ✅ Tests
+
+- Update zod test ([325a62b](https://github.com/h3js/h3/commit/325a62b))
+
+### ❤️ Contributors
+
+- Pooya Parsa ([@pi0](https://github.com/pi0))
+- Kricsleo ([@kricsleo](https://github.com/kricsleo))
+- Izoukhai <i.zoukhaiev@gmail.com>
+
 ## v1.15.3
 
 [compare changes](https://github.com/unjs/h3/compare/v1.15.2...v1.15.3)

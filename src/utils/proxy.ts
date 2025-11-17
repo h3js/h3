@@ -67,7 +67,7 @@ export async function proxyRequest(
     ...opts,
     fetchOptions: {
       method,
-      body,
+      body: body as BodyInit,
       duplex,
       ...opts.fetchOptions,
       headers: fetchHeaders,

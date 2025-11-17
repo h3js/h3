@@ -92,7 +92,9 @@ describe("Validate", () => {
       it("Invalid", async () => {
         const res = await request.post("/zod").send({ invalid: true });
         expect(res.status).toEqual(400);
-        expect(res.body.data?.issues?.[0]?.code).toEqual("invalid_type");
+        // TODO: zod5 error message is stringified
+        const payload = JSON.parse(res.body.data.message);
+        expect(payload[0].code).toEqual("invalid_type");
       });
     });
   });
@@ -110,7 +112,13 @@ describe("Validate", () => {
       app.use(
         "/zod",
         eventHandler(async (event) => {
-          const data = await getValidatedQuery(event, zodValidate);
+          const data = await getValidatedQuery(event, (data) => {
+            try {
+              return zodValidate(data);
+            } catch (error) {
+              console.log(error.toJSON());
+            }
+          });
           return data;
         }),
       );
