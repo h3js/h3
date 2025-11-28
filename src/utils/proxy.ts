@@ -94,6 +94,9 @@ export async function proxy(
     if (key === "content-length") {
       continue;
     }
+    if (key === "transfer-encoding") {
+      continue;
+    }
     if (key === "set-cookie") {
       cookies.push(value);
       continue;
