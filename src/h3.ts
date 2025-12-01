@@ -30,6 +30,11 @@ import type {
 
 import { toRequest } from "./utils/request.ts";
 import { toEventHandler } from "./handler.ts";
+import {
+  publishInit,
+  publishMount,
+  traceRequestHandler,
+} from "./utils/tracing.ts";
 
 export const NoHandler: EventHandler = () => kNotFound;
 
@@ -44,6 +49,7 @@ export class H3Core implements H3CoreType {
     this.config = config;
     this.fetch = this.fetch.bind(this);
     this.handler = this.handler.bind(this);
+    publishInit(this);
   }
 
   fetch(request: ServerRequest): Response | Promise<Response> {
@@ -63,7 +69,7 @@ export class H3Core implements H3CoreType {
     );
     return middleware.length > 0
       ? callMiddleware(event, middleware, routeHandler)
-      : routeHandler(event);
+      : traceRequestHandler(event, "route", async () => routeHandler(event));
   }
 
   "~request"(
@@ -164,6 +170,7 @@ export const H3 = /* @__PURE__ */ (() => {
           return fetchHandler(new Request(url, event.req));
         });
       }
+      publishMount(this, base, input);
       return this;
     }
 

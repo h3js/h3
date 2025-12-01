@@ -234,6 +234,15 @@ export {
   defineWebSocket,
 } from "./utils/ws.ts";
 
+// Tracing
+
+export {
+  type HandlerType,
+  type H3InitPayload,
+  type H3MountPayload,
+  type H3RequestHandlerPayload,
+} from "./utils/tracing.ts";
+
 // ---- Deprecated ----
 
 export * from "./_deprecated.ts";
