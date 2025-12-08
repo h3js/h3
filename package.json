@@ -48,45 +48,45 @@
     "h3": "link:."
   },
   "dependencies": {
-    "rou3": "^0.7.9",
-    "srvx": "^0.9.1"
+    "rou3": "^0.7.10",
+    "srvx": "^0.9.7"
   },
   "devDependencies": {
-    "@happy-dom/global-registrator": "^20.0.8",
+    "@happy-dom/global-registrator": "^20.0.11",
     "@mitata/counters": "^0.0.8",
     "@types/connect": "^3.4.38",
-    "@types/express": "^5.0.4",
-    "@types/node": "^24.9.1",
-    "@types/react": "^19.2.2",
-    "@types/react-dom": "^19.2.2",
-    "@vitest/coverage-v8": "^4.0.4",
+    "@types/express": "^5.0.6",
+    "@types/node": "^24.10.1",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "@vitest/coverage-v8": "^4.0.15",
     "automd": "^0.4.2",
     "changelogen": "^0.6.2",
     "connect": "^3.7.0",
     "cookie-es": "^2.0.0",
     "crossws": "^0.4.1",
-    "elysia": "^1.4.13",
-    "esbuild": "^0.25.11",
-    "eslint": "^9.38.0",
+    "elysia": "^1.4.18",
+    "esbuild": "^0.27.1",
+    "eslint": "^9.39.1",
     "eslint-config-unjs": "^0.5.0",
-    "express": "^5.1.0",
+    "express": "^5.2.1",
     "fetchdts": "^0.1.7",
     "get-port-please": "^3.2.0",
-    "h3-nightly": "^2.0.0-20251027-114947-241a45b",
-    "happy-dom": "^20.0.8",
-    "hono": "^4.10.3",
+    "h3-nightly": "^2.0.0-20251121-160644-d6475e1",
+    "happy-dom": "^20.0.11",
+    "hono": "^4.10.7",
     "magic-string": "^0.30.21",
     "memoirist": "^0.4.0",
     "mitata": "^1.0.34",
-    "obuild": "^0.3.0",
-    "oxc-parser": "^0.95.0",
-    "prettier": "^3.6.2",
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0",
+    "obuild": "^0.4.7",
+    "oxc-parser": "^0.101.0",
+    "prettier": "^3.7.4",
+    "react": "^19.2.1",
+    "react-dom": "^19.2.1",
     "typescript": "^5.9.3",
-    "vite": "^7.1.12",
-    "vitest": "^4.0.4",
-    "zod": "^4.1.12"
+    "vite": "^7.2.7",
+    "vitest": "^4.0.15",
+    "zod": "^4.1.13"
   },
   "peerDependencies": {
     "crossws": "^0.4.1"
@@ -96,7 +96,7 @@
       "optional": true
     }
   },
-  "packageManager": "pnpm@10.19.0",
+  "packageManager": "pnpm@10.24.0",
   "engines": {
     "node": ">=20.11.1"
   }
