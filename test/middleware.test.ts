@@ -165,7 +165,7 @@ describeMatrix("middleware", (t, { it, expect }) => {
   });
 
   it('onResponse() does not duplicate "Set-Cookie" headers', async () => {
-    // onResponse uses toResponse() internally (#1257)
+    // onResponse uses toResponse() internally (#1259)
     t.app.use(onResponse(() => {}));
 
     t.app.use((event) => {
