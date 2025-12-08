@@ -102,6 +102,7 @@ function prepareResponse(
     event as any
   )[kEventRes];
   const preparedHeaders = preparedRes?.[kEventResHeaders];
+  (event as any)[kEventRes] = undefined; // Clear prepared response to avoid duplication
 
   if (!(val instanceof Response)) {
     const res = prepareResponseBody(val, event, config);
