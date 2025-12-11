@@ -430,7 +430,8 @@ export function sendStream(
         });
     }
     // Fallback: store stream directly for environments that can handle it
-    (event.node.res as unknown as { _data: BodyInit })._data = stream as BodyInit;
+    (event.node.res as unknown as { _data: BodyInit })._data =
+      stream as BodyInit;
     event._handled = true;
     return Promise.resolve();
   }

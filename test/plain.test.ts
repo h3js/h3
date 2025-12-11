@@ -128,6 +128,8 @@ describe("Plain handler", () => {
     expect(res.status).toBe(200);
     expect(res.headers).toContainEqual(["content-type", "text/plain"]);
     expect(res.body).toBeInstanceOf(Uint8Array);
-    expect(new TextDecoder().decode(res.body as Uint8Array)).toBe("Hello, Stream!");
+    expect(new TextDecoder().decode(res.body as Uint8Array)).toBe(
+      "Hello, Stream!",
+    );
   });
 });
