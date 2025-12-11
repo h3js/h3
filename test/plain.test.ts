@@ -6,6 +6,8 @@ import {
   PlainHandler,
   eventHandler,
   readBody,
+  setResponseHeader,
+  sendStream,
 } from "../src";
 
 describe("Plain handler", () => {
@@ -69,5 +71,63 @@ describe("Plain handler", () => {
       headers: [["x-test", "true"]],
       contextKeys: ["test"],
     });
+  });
+
+  it("handles ReadableStream responses with correct headers in serverless environment", async () => {
+    const testData = new Uint8Array([0x89, 0x50, 0x4e, 0x47]); // PNG magic bytes
+
+    app.use(
+      "/stream",
+      eventHandler((event) => {
+        setResponseHeader(event, "content-type", "image/png");
+        return new ReadableStream({
+          start(controller) {
+            controller.enqueue(testData);
+            controller.close();
+          },
+        });
+      }),
+    );
+
+    const res = await handler({
+      method: "GET",
+      path: "/stream",
+      headers: [],
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.headers).toContainEqual(["content-type", "image/png"]);
+    // Body should be the actual stream data, not the stream object
+    expect(res.body).toBeInstanceOf(Uint8Array);
+    expect(new Uint8Array(res.body as ArrayBuffer)).toEqual(testData);
+  });
+
+  it("handles sendStream with correct body in serverless environment", async () => {
+    const testData = new TextEncoder().encode("Hello, Stream!");
+
+    app.use(
+      "/send-stream",
+      eventHandler(async (event) => {
+        setResponseHeader(event, "content-type", "text/plain");
+        const stream = new ReadableStream({
+          start(controller) {
+            controller.enqueue(testData);
+            controller.close();
+          },
+        });
+        await sendStream(event, stream);
+      }),
+    );
+
+    const res = await handler({
+      method: "GET",
+      path: "/send-stream",
+      headers: [],
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.headers).toContainEqual(["content-type", "text/plain"]);
+    expect(res.body).toBeInstanceOf(Uint8Array);
+    expect(new TextDecoder().decode(res.body as Uint8Array)).toBe("Hello, Stream!");
   });
 });

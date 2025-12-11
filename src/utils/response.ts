@@ -399,15 +399,44 @@ export function sendStream(
     throw new Error("[h3] Invalid stream provided.");
   }
 
-  // Directly expose stream for worker environments (unjs/unenv)
-  (event.node.res as unknown as { _data: BodyInit })._data = stream as BodyInit;
-
   // Early return if response Socket is not available for worker environments (unjs/nitro)
+  // In this case, consume the stream and write data to response
   if (!event.node.res.socket) {
+    if (
+      hasProp(stream, "pipeTo") &&
+      typeof (stream as ReadableStream).pipeTo === "function"
+    ) {
+      const chunks: Uint8Array[] = [];
+      return (stream as ReadableStream)
+        .pipeTo(
+          new WritableStream({
+            write(chunk) {
+              chunks.push(
+                chunk instanceof Uint8Array ? chunk : new Uint8Array(chunk),
+              );
+            },
+          }),
+        )
+        .then(() => {
+          const totalLength = chunks.reduce((sum, c) => sum + c.length, 0);
+          const result = new Uint8Array(totalLength);
+          let offset = 0;
+          for (const chunk of chunks) {
+            result.set(chunk, offset);
+            offset += chunk.length;
+          }
+          event.node.res.end(result);
+          event._handled = true;
+        });
+    }
+    // Fallback: store stream directly for environments that can handle it
+    (event.node.res as unknown as { _data: BodyInit })._data = stream as BodyInit;
     event._handled = true;
-    // TODO: Hook and handle stream errors
     return Promise.resolve();
   }
+
+  // Directly expose stream for worker environments (unjs/unenv)
+  (event.node.res as unknown as { _data: BodyInit })._data = stream as BodyInit;
 
   // Native Web Streams
   if (
