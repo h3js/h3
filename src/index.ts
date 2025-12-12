@@ -91,7 +91,12 @@ export {
 
 // Route
 
-export { type RouteDefinition, defineRoute } from "./utils/route.ts";
+export {
+  type RouteDefinition,
+  type WebSocketRouteDefinition,
+  defineRoute,
+  defineWebSocketRoute,
+} from "./utils/route.ts";
 
 // Request
 
