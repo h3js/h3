@@ -135,7 +135,7 @@ export function validatedURL(
   return url;
 }
 
-function syncValidate<T = unknown>(
+export function syncValidate<T = unknown>(
   type: string,
   data: unknown,
   fn: StandardSchemaV1<T>,
@@ -150,6 +150,28 @@ function syncValidate<T = unknown>(
     });
   }
   return result.value;
+}
+
+/**
+ * Validates a response value against a schema.
+ * Response validation errors use 500 status (server error) instead of 400.
+ */
+export async function validateResponse<Schema extends StandardSchemaV1>(
+  value: unknown,
+  schema: Schema,
+): Promise<InferOutput<Schema>> {
+  try {
+    return await validateData(value, schema);
+  } catch (error: any) {
+    // Response validation errors are server errors (500), not client errors (400)
+    throw new HTTPError({
+      status: 500,
+      statusText: "Response validation failed",
+      message: error?.message || "Response validation failed",
+      data: error?.data,
+      cause: error,
+    });
+  }
 }
 
 function createValidationError(validateError?: any) {

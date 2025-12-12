@@ -62,7 +62,7 @@ export function getQuery<
 
 export function getValidatedQuery<
   Event extends HTTPEvent,
-  S extends StandardSchemaV1<any, any>,
+  S extends StandardSchemaV1,
 >(event: Event, validate: S): Promise<InferOutput<S>>;
 export function getValidatedQuery<
   Event extends HTTPEvent,
