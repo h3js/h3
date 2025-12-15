@@ -647,6 +647,139 @@ describeMatrix(
         listener.cleanup();
       }
     });
+
+    it("traces mounted fetch handler function", async () => {
+      const listener = createTracingListener();
+
+      try {
+        const fetchHandler = (req: Request) => {
+          const url = new URL(req.url);
+          return new Response(`Fetch handler: ${url.pathname}`);
+        };
+
+        t.app.mount("/fetch", fetchHandler);
+
+        const response = await t.fetch("/fetch/test");
+        expect(response.status).toBe(200);
+        expect(await response.text()).toBe("Fetch handler: /test");
+
+        // Wait for tracing events to be processed
+        await new Promise((resolve) => setTimeout(resolve, 10));
+
+        const routeEvents = listener.events.filter(
+          (e) => e.asyncStart?.data.type === "route",
+        );
+
+        // Should have traced the mounted fetch handler route
+        expect(routeEvents.length).toBeGreaterThan(0);
+        const fetchRouteEvent = routeEvents.find(
+          (e) => e.asyncStart?.data.event.url.pathname === "/fetch/test",
+        );
+        expect(fetchRouteEvent).toBeDefined();
+      } finally {
+        listener.cleanup();
+      }
+    });
+
+    it("traces mounted fetchable object with fetch method", async () => {
+      const listener = createTracingListener();
+
+      try {
+        const fetchableObject = {
+          fetch: (req: Request) => {
+            const url = new URL(req.url);
+            return new Response(`Fetchable object: ${url.pathname}`);
+          },
+        };
+
+        t.app.mount("/fetchable", fetchableObject);
+
+        const response = await t.fetch("/fetchable/path");
+        expect(response.status).toBe(200);
+        expect(await response.text()).toBe("Fetchable object: /path");
+
+        // Wait for tracing events to be processed
+        await new Promise((resolve) => setTimeout(resolve, 10));
+
+        const routeEvents = listener.events.filter(
+          (e) => e.asyncStart?.data.type === "route",
+        );
+
+        // Should have traced the mounted fetchable object route
+        expect(routeEvents.length).toBeGreaterThan(0);
+        const fetchableRouteEvent = routeEvents.find(
+          (e) => e.asyncStart?.data.event.url.pathname === "/fetchable/path",
+        );
+        expect(fetchableRouteEvent).toBeDefined();
+      } finally {
+        listener.cleanup();
+      }
+    });
+
+    it("traces async fetch handler", async () => {
+      const listener = createTracingListener();
+
+      try {
+        const asyncFetchHandler = async (req: Request) => {
+          await Promise.resolve();
+          const url = new URL(req.url);
+          return new Response(`Async fetch: ${url.pathname}`);
+        };
+
+        t.app.mount("/async-fetch", asyncFetchHandler);
+
+        const response = await t.fetch("/async-fetch/data");
+        expect(response.status).toBe(200);
+        expect(await response.text()).toBe("Async fetch: /data");
+
+        // Wait for tracing events to be processed
+        await new Promise((resolve) => setTimeout(resolve, 10));
+
+        const routeEvents = listener.events.filter(
+          (e) => e.asyncStart?.data.type === "route",
+        );
+        const routeEnds = listener.events.filter(
+          (e) => e.asyncEnd?.data.type === "route",
+        );
+
+        // Should have traced the async fetch handler
+        expect(routeEvents.length).toBeGreaterThan(0);
+        expect(routeEnds.length).toBeGreaterThan(0);
+        expect(routeEvents.length).toBe(routeEnds.length);
+      } finally {
+        listener.cleanup();
+      }
+    });
+
+    it("traces fetch handler errors", async () => {
+      const listener = createTracingListener();
+
+      // Disable the test error handler so we can see the tracing error event
+      const originalOnError = t.hooks.onError;
+      t.hooks.onError.mockImplementation(() => {
+        // Silence error - we're testing the tracing channel
+      });
+
+      try {
+        const errorFetchHandler = (_: Request) => {
+          throw new Error("Fetch handler error");
+        };
+
+        t.app.mount("/error-fetch", errorFetchHandler);
+
+        await t.fetch("/error-fetch/test");
+
+        // Wait for tracing events to be processed
+        await new Promise((resolve) => setTimeout(resolve, 10));
+
+        const errorEvents = listener.events.filter((e) => e.error);
+        expect(errorEvents.length).toBeGreaterThan(0);
+        expect(errorEvents[0].error?.error.message).toBe("Fetch handler error");
+      } finally {
+        listener.cleanup();
+        t.hooks.onError = originalOnError;
+      }
+    });
   },
   testOpts,
 );
