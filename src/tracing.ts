@@ -11,7 +11,6 @@ export type HandlerType = "middleware" | "route";
 
 export interface H3THandlerTracePayload {
   event: H3Event;
-  route?: string;
   type: HandlerType;
 }
 
@@ -26,8 +25,8 @@ export interface TracingPluginOptions {
 /**
  * Enables tracing for H3 apps.
  */
-export const tracingPlugin = (traceOpts?: TracingPluginOptions): H3Plugin => {
-  return definePlugin((h3) => {
+export const tracingPlugin: (traceOpts?: TracingPluginOptions) => H3Plugin =
+  definePlugin((h3, traceOpts?: TracingPluginOptions) => {
     const { tracingChannel } =
       globalThis.process.getBuiltinModule?.("diagnostics_channel") ?? {};
 
@@ -45,7 +44,7 @@ export const tracingPlugin = (traceOpts?: TracingPluginOptions): H3Plugin => {
 
       const wrappedMiddleware: MaybeTracedMiddleware = (...args) => {
         return requestHandlerChannel.tracePromise(
-          async () => await middleware(...args),
+          async () => middleware(...args),
           {
             event: args[0],
             type: "middleware",
@@ -64,7 +63,7 @@ export const tracingPlugin = (traceOpts?: TracingPluginOptions): H3Plugin => {
 
       const wrappedHandler: MaybeTracedEventHandler = (...args) => {
         return requestHandlerChannel.tracePromise(
-          async () => await handler(...args),
+          async () => handler(...args),
           {
             event: args[0],
             type: "route",
@@ -131,5 +130,4 @@ export const tracingPlugin = (traceOpts?: TracingPluginOptions): H3Plugin => {
     // TODO: Trace mount
 
     return h3;
-  })();
-};
+  });
