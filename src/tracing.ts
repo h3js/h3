@@ -7,18 +7,28 @@ import {
 } from "./types/h3.ts";
 import type { EventHandler, Middleware } from "./types/handler.ts";
 
-export type HandlerType = "middleware" | "route";
-
+/**
+ * Payload sent to the tracing channels.
+ */
 export interface H3THandlerTracePayload {
   event: H3Event;
-  type: HandlerType;
+  type: "middleware" | "route";
 }
 
 type MaybeTracedMiddleware = Middleware & { __traced__?: boolean };
 type MaybeTracedEventHandler = EventHandler & { __traced__?: boolean };
 
+/**
+ * Options for the tracing plugin.
+ */
 export interface TracingPluginOptions {
+  /**
+   * Whether to trace middleware executions.
+   */
   traceMiddlewares?: boolean;
+  /**
+   * Whether to trace route executions.
+   */
   traceRoutes?: boolean;
 }
 

@@ -1,6 +1,7 @@
 import { tracingChannel } from "node:diagnostics_channel";
 import { describeMatrix, type TestOptions } from "./_setup.ts";
-import { type H3THandlerTracePayload } from "../src/tracing.ts";
+import { H3 } from "../src/h3.ts";
+import { tracingPlugin, type H3THandlerTracePayload } from "../src/tracing.ts";
 
 type TracingEvent = {
   start?: { data: H3THandlerTracePayload };
@@ -348,6 +349,130 @@ describeMatrix(
 
         expect(middlewareAsyncStarts.length).toBeGreaterThan(0);
         expect(middlewareAsyncEnds.length).toBeGreaterThan(0);
+      } finally {
+        listener.cleanup();
+      }
+    });
+
+    it("traceMiddlewares: false disables middleware tracing", async () => {
+      const listener = createTracingListener();
+
+      // Create a custom app with traceMiddlewares disabled
+      const app = new H3({
+        plugins: [tracingPlugin({ traceMiddlewares: false })],
+      });
+
+      try {
+        app.use((event) => {
+          event.context.middleware1 = true;
+        });
+
+        app.use((event) => {
+          event.context.middleware2 = true;
+        });
+
+        app.get("/test", () => "response");
+
+        const response = await app.request("/test");
+        expect(response.status).toBe(200);
+
+        // Wait for tracing events to be processed
+        await new Promise((resolve) => setTimeout(resolve, 10));
+
+        const middlewareEvents = listener.events.filter(
+          (e) => e.asyncStart?.data.type === "middleware",
+        );
+        const routeEvents = listener.events.filter(
+          (e) => e.asyncStart?.data.type === "route",
+        );
+
+        // Middleware should NOT be traced
+        expect(middlewareEvents.length).toBe(0);
+        // Routes should still be traced
+        expect(routeEvents.length).toBeGreaterThan(0);
+      } finally {
+        listener.cleanup();
+      }
+    });
+
+    it("traceRoutes: false disables route tracing", async () => {
+      const listener = createTracingListener();
+
+      // Create a custom app with traceRoutes disabled
+      const app = new H3({
+        plugins: [tracingPlugin({ traceRoutes: false })],
+      });
+
+      try {
+        app.use((event) => {
+          event.context.middleware1 = true;
+        });
+
+        app.use((event) => {
+          event.context.middleware2 = true;
+        });
+
+        app.get("/test", () => "response");
+
+        const response = await app.request("/test");
+        expect(response.status).toBe(200);
+
+        // Wait for tracing events to be processed
+        await new Promise((resolve) => setTimeout(resolve, 10));
+
+        const middlewareEvents = listener.events.filter(
+          (e) => e.asyncStart?.data.type === "middleware",
+        );
+        const routeEvents = listener.events.filter(
+          (e) => e.asyncStart?.data.type === "route",
+        );
+
+        // Middleware should still be traced
+        expect(middlewareEvents.length).toBeGreaterThan(0);
+        // Routes should NOT be traced
+        expect(routeEvents.length).toBe(0);
+      } finally {
+        listener.cleanup();
+      }
+    });
+
+    it("both options false disables all tracing", async () => {
+      const listener = createTracingListener();
+
+      // Create a custom app with both tracing options disabled
+      const app = new H3({
+        plugins: [
+          tracingPlugin({ traceMiddlewares: false, traceRoutes: false }),
+        ],
+      });
+
+      try {
+        app.use((event) => {
+          event.context.middleware1 = true;
+        });
+
+        app.use((event) => {
+          event.context.middleware2 = true;
+        });
+
+        app.get("/test", () => "response");
+
+        const response = await app.request("/test");
+        expect(response.status).toBe(200);
+
+        // Wait for tracing events to be processed
+        await new Promise((resolve) => setTimeout(resolve, 10));
+
+        const middlewareEvents = listener.events.filter(
+          (e) => e.asyncStart?.data.type === "middleware",
+        );
+        const routeEvents = listener.events.filter(
+          (e) => e.asyncStart?.data.type === "route",
+        );
+
+        // No tracing events should be emitted
+        expect(middlewareEvents.length).toBe(0);
+        expect(routeEvents.length).toBe(0);
       } finally {
         listener.cleanup();
       }
