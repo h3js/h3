@@ -477,6 +477,176 @@ describeMatrix(
         listener.cleanup();
       }
     });
+
+    it("traces routes from mounted nested app", async () => {
+      const listener = createTracingListener();
+
+      try {
+        const nestedApp = new H3({
+          plugins: [tracingPlugin()],
+        });
+        nestedApp.get("/nested", () => "nested response");
+
+        t.app.mount("/api", nestedApp);
+
+        const response = await t.fetch("/api/nested");
+        expect(response.status).toBe(200);
+        expect(await response.text()).toBe("nested response");
+
+        // Wait for tracing events to be processed
+        await new Promise((resolve) => setTimeout(resolve, 10));
+
+        const routeEvents = listener.events.filter(
+          (e) => e.asyncStart?.data.type === "route",
+        );
+
+        // Should have traced the nested app route
+        expect(routeEvents.length).toBeGreaterThan(0);
+        const nestedRouteEvent = routeEvents.find(
+          (e) => e.asyncStart?.data.event.url.pathname === "/api/nested",
+        );
+        expect(nestedRouteEvent).toBeDefined();
+      } finally {
+        listener.cleanup();
+      }
+    });
+
+    it("traces middleware from mounted nested app", async () => {
+      const listener = createTracingListener();
+
+      try {
+        const nestedApp = new H3({
+          plugins: [tracingPlugin()],
+        });
+        nestedApp.use((event) => {
+          event.context.nestedMiddleware = true;
+        });
+        nestedApp.get("/nested", (event) => ({
+          nestedMiddleware: event.context.nestedMiddleware,
+        }));
+
+        t.app.mount("/api", nestedApp);
+
+        const response = await t.fetch("/api/nested");
+        expect(response.status).toBe(200);
+        const body = await response.json();
+        expect(body.nestedMiddleware).toBe(true);
+
+        // Wait for tracing events to be processed
+        await new Promise((resolve) => setTimeout(resolve, 10));
+
+        const middlewareEvents = listener.events.filter(
+          (e) => e.asyncStart?.data.type === "middleware",
+        );
+
+        // Should have traced the nested app middleware
+        expect(middlewareEvents.length).toBeGreaterThan(0);
+      } finally {
+        listener.cleanup();
+      }
+    });
+
+    it("traces both parent and nested app routes and middleware", async () => {
+      const listener = createTracingListener();
+
+      try {
+        // Parent app route
+        t.app.get("/parent", () => "parent response");
+
+        // Nested app with route and middleware
+        const nestedApp = new H3();
+        nestedApp.use((event) => {
+          event.context.nested = true;
+        });
+        nestedApp.get("/nested", () => "nested response");
+
+        t.app.mount("/api", nestedApp);
+
+        // Make requests to both
+        const parentResponse = await t.fetch("/parent");
+        expect(parentResponse.status).toBe(200);
+
+        const nestedResponse = await t.fetch("/api/nested");
+        expect(nestedResponse.status).toBe(200);
+
+        // Wait for tracing events to be processed
+        await new Promise((resolve) => setTimeout(resolve, 10));
+
+        const routeEvents = listener.events.filter(
+          (e) => e.asyncStart?.data.type === "route",
+        );
+        const middlewareEvents = listener.events.filter(
+          (e) => e.asyncStart?.data.type === "middleware",
+        );
+
+        // Should have traced both parent and nested routes
+        expect(routeEvents.length).toBeGreaterThanOrEqual(2);
+
+        // Should have traced nested middleware
+        expect(middlewareEvents.length).toBeGreaterThan(0);
+
+        // Verify parent route was traced
+        const parentRouteEvent = routeEvents.find(
+          (e) => e.asyncStart?.data.event.url.pathname === "/parent",
+        );
+        expect(parentRouteEvent).toBeDefined();
+
+        // Verify nested route was traced
+        const nestedRouteEvent = routeEvents.find(
+          (e) => e.asyncStart?.data.event.url.pathname === "/api/nested",
+        );
+        expect(nestedRouteEvent).toBeDefined();
+      } finally {
+        listener.cleanup();
+      }
+    });
+
+    it("traces deeply nested mounted apps", async () => {
+      const listener = createTracingListener();
+
+      try {
+        // Create a deeply nested app structure
+        const deepApp = new H3();
+        deepApp.use((event) => {
+          event.context.deep = true;
+        });
+        deepApp.get("/deep", () => "deep response");
+
+        const midApp = new H3();
+        midApp.use((event) => {
+          event.context.mid = true;
+        });
+        midApp.mount("/v1", deepApp);
+
+        t.app.mount("/api", midApp);
+
+        const response = await t.fetch("/api/v1/deep");
+        expect(response.status).toBe(200);
+        expect(await response.text()).toBe("deep response");
+
+        // Wait for tracing events to be processed
+        await new Promise((resolve) => setTimeout(resolve, 10));
+
+        const routeEvents = listener.events.filter(
+          (e) => e.asyncStart?.data.type === "route",
+        );
+        const middlewareEvents = listener.events.filter(
+          (e) => e.asyncStart?.data.type === "middleware",
+        );
+
+        // Should have traced the deep route
+        expect(routeEvents.length).toBeGreaterThan(0);
+        const deepRouteEvent = routeEvents.find(
+          (e) => e.asyncStart?.data.event.url.pathname === "/api/v1/deep",
+        );
+        expect(deepRouteEvent).toBeDefined();
+
+        // Should have traced middleware from both mid and deep apps
+        expect(middlewareEvents.length).toBeGreaterThanOrEqual(2);
+      } finally {
+        listener.cleanup();
+      }
+    });
   },
   testOpts,
 );

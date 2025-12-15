@@ -137,7 +137,16 @@ export const tracingPlugin: (traceOpts?: TracingPluginOptions) => H3Plugin =
       return originalUse.call(h3, wrapMiddleware(fn), opts);
     };
 
-    // TODO: Trace mount
+    const originalMount = h3.mount;
+    h3.mount = (base, input) => {
+      // If the input is an H3 instance
+      // then we can register the tracing plugin on it to propagate the tracing to the nested app
+      if ("register" in input) {
+        input.register(tracingPlugin(traceOpts));
+      }
+
+      return originalMount.call(h3, base, input);
+    };
 
     return h3;
   });
