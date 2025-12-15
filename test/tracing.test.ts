@@ -1,12 +1,6 @@
-import { channel, tracingChannel } from "node:diagnostics_channel";
-import { describeMatrix } from "./_setup.ts";
-import { H3 } from "../src/h3.ts";
-import {
-  type H3InitPayload,
-  type H3MountPayload,
-  type H3THandlerTracePayload,
-  tracingPlugin,
-} from "../src/tracing.ts";
+import { tracingChannel } from "node:diagnostics_channel";
+import { describeMatrix, type TestOptions } from "./_setup.ts";
+import { type H3THandlerTracePayload } from "../src/tracing.ts";
 
 type TracingEvent = {
   start?: { data: H3THandlerTracePayload };
@@ -15,14 +9,6 @@ type TracingEvent = {
   asyncEnd?: { data: H3THandlerTracePayload; result?: any; error?: Error };
   error?: { data: H3THandlerTracePayload; error: Error };
 };
-
-function createH3WithTracing() {
-  const app = new H3({
-    plugins: [tracingPlugin()],
-  });
-
-  return app;
-}
 
 function createTracingListener() {
   const events: TracingEvent[] = [];
@@ -69,111 +55,12 @@ function createTracingListener() {
   };
 }
 
+// Matrix is configured with tracing plugin enabled
+const testOpts: TestOptions = { tracing: true };
+
 describeMatrix(
   "tracing channels",
   (t, { it, expect }) => {
-    it("h3.init channel fires when app is initialized", async () => {
-      const events: H3InitPayload[] = [];
-      const initChannel = channel("h3.init");
-
-      const handler = (message: unknown) => {
-        events.push(message as H3InitPayload);
-      };
-      initChannel.subscribe(handler);
-
-      try {
-        const app = createH3WithTracing();
-        expect(events).toHaveLength(1);
-        expect(events[0].app).toBe(app);
-      } finally {
-        initChannel.unsubscribe(handler);
-      }
-    });
-
-    it("h3.init listener can configure global error handler", async () => {
-      const initChannel = channel("h3.init");
-
-      const customError = (error: any) => {
-        return new Response(
-          JSON.stringify({ custom: true, message: error.message }),
-          {
-            status: error.status || 500,
-            headers: { "content-type": "application/json" },
-          },
-        );
-      };
-
-      const handler = (message: unknown) => {
-        const { app } = message as H3InitPayload;
-        app.config.onError = customError;
-      };
-      initChannel.subscribe(handler);
-
-      try {
-        const app = createH3WithTracing();
-        app.get("/error", () => {
-          throw new Error("Test error");
-        });
-
-        const res = await app.request("/error");
-        expect(res.status).toBe(500);
-        const body = await res.json();
-        expect(body.custom).toBe(true);
-        expect(body.message).toBe("Test error");
-      } finally {
-        initChannel.unsubscribe(handler);
-      }
-    });
-
-    it("h3.mount channel fires when nested app is mounted", async () => {
-      const events: H3MountPayload[] = [];
-      const mountChannel = channel("h3.mount");
-
-      const handler = (message: unknown) => {
-        events.push(message as H3MountPayload);
-      };
-      mountChannel.subscribe(handler);
-
-      try {
-        const nestedApp = createH3WithTracing();
-        nestedApp.get("/test", () => "nested");
-
-        t.app.mount("/api", nestedApp);
-
-        expect(events).toHaveLength(1);
-        expect(events[0].app).toBe(t.app);
-        expect(events[0].base).toBe("/api");
-        expect(events[0].mountedApp).toBe(nestedApp);
-      } finally {
-        mountChannel.unsubscribe(handler);
-      }
-    });
-
-    it("h3.mount channel fires for fetchable objects", async () => {
-      const events: H3MountPayload[] = [];
-      const mountChannel = channel("h3.mount");
-
-      const handler = (message: unknown) => {
-        events.push(message as H3MountPayload);
-      };
-      mountChannel.subscribe(handler);
-
-      try {
-        const fetchHandler = {
-          fetch: () => new Response("fetchable"),
-        };
-
-        t.app.mount("/fetch", fetchHandler);
-
-        expect(events).toHaveLength(1);
-        expect(events[0].app).toBe(t.app);
-        expect(events[0].base).toBe("/fetch");
-        expect(events[0].mountedApp).toBe(fetchHandler);
-      } finally {
-        mountChannel.unsubscribe(handler);
-      }
-    });
-
     it("tracing channels fire for handlers", async () => {
       const listener = createTracingListener();
 
@@ -466,5 +353,5 @@ describeMatrix(
       }
     });
   },
-  { tracing: true },
+  testOpts,
 );

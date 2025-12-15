@@ -1,5 +1,4 @@
 import type { H3Event } from "./event.ts";
-import type { H3Core } from "./h3.ts";
 import {
   definePlugin,
   type H3Plugin,
@@ -8,17 +7,7 @@ import {
 } from "./types/h3.ts";
 import type { EventHandler, Middleware } from "./types/handler.ts";
 
-export interface H3InitPayload {
-  app: H3Core;
-}
-
 export type HandlerType = "middleware" | "route";
-
-export interface H3MountPayload {
-  app: H3Core;
-  base: string;
-  mountedApp: unknown;
-}
 
 export interface H3THandlerTracePayload {
   event: H3Event;
@@ -39,38 +28,8 @@ export interface TracingPluginOptions {
  */
 export const tracingPlugin = (traceOpts?: TracingPluginOptions): H3Plugin => {
   return definePlugin((h3) => {
-    const { tracingChannel, channel } =
+    const { tracingChannel } =
       globalThis.process.getBuiltinModule?.("diagnostics_channel") ?? {};
-
-    // Skip if diagnostics_channel is not available
-    // if channel isn't available, then tracingChannel is also not available since its built on top of it
-    if (!channel) {
-      return;
-    }
-
-    const initChannel = channel("h3.init");
-    const mountChannel = channel("h3.mount");
-
-    // Store original mount before overriding
-    const originalMount = h3.mount;
-
-    // Override the mount method to publish the mount event when a nested app is mounted.
-    h3.mount = (base, input) => {
-      if (mountChannel.hasSubscribers) {
-        mountChannel.publish({
-          app: h3,
-          base,
-          mountedApp: input,
-        } satisfies H3MountPayload);
-      }
-
-      return originalMount.call(h3, base, input);
-    };
-
-    // Publish the init event ASAP
-    if (initChannel.hasSubscribers) {
-      initChannel.publish({ app: h3 } satisfies H3InitPayload);
-    }
 
     // If tracingChannel is not available, then we can't trace request handlers
     if (!tracingChannel) {
@@ -168,6 +127,8 @@ export const tracingPlugin = (traceOpts?: TracingPluginOptions): H3Plugin => {
 
       return originalUse.call(h3, wrapMiddleware(fn), opts);
     };
+
+    // TODO: Trace mount
 
     return h3;
   })();
