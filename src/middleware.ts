@@ -1,6 +1,5 @@
 import { routeToRegExp } from "rou3";
 import { kNotFound } from "./response.ts";
-import { traceRequestHandler } from "./utils/tracing.ts";
 
 import type { H3Event } from "./event.ts";
 import type { MiddlewareOptions } from "./types/h3.ts";
@@ -73,9 +72,8 @@ export function callMiddleware(
   index: number = 0,
 ): unknown | Promise<unknown> {
   if (index === middleware.length) {
-    return traceRequestHandler(event, "route", async () => handler(event));
+    return handler(event);
   }
-
   const fn = middleware[index];
 
   let nextCalled: undefined | boolean;
@@ -90,11 +88,14 @@ export function callMiddleware(
     return nextResult;
   };
 
-  return traceRequestHandler(event, "middleware", async () => {
-    const ret = await fn(event, next);
-
-    return isUnhandledResponse(ret) ? next() : ret;
-  });
+  const ret = fn(event, next);
+  return isUnhandledResponse(ret)
+    ? next()
+    : typeof (ret as PromiseLike<unknown>)?.then === "function"
+      ? (ret as PromiseLike<unknown>).then((resolved) =>
+          isUnhandledResponse(resolved) ? next() : resolved,
+        )
+      : ret;
 }
 
 function isUnhandledResponse(val: unknown) {

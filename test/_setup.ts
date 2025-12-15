@@ -5,6 +5,7 @@ import type {
   NodeHandler,
   HTTPError,
 } from "../src/index.ts";
+import { tracingPlugin } from "../src/tracing.ts";
 import { Server as NodeServer } from "node:http";
 import { getRandomPort } from "get-port-please";
 import {
@@ -156,6 +157,7 @@ function setupBaseTest(
       onError: ctx.hooks.onError,
       onRequest: ctx.hooks.onRequest,
       onResponse: ctx.hooks.onResponse,
+      plugins: [opts.tracing ? tracingPlugin() : undefined].filter((p) => !!p),
     });
   });
 
@@ -184,6 +186,7 @@ export interface TestOptions {
   allowUnhandledErrors?: boolean;
   startServer?: boolean;
   debug?: boolean;
+  tracing?: boolean;
 }
 
 export interface TestContext {
