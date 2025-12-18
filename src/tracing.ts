@@ -1,6 +1,6 @@
 import type { H3Event } from "./event.ts";
+import type { H3 } from "./h3.ts";
 import {
-  definePlugin,
   type H3Plugin,
   type H3Route,
   type MiddlewareOptions,
@@ -35,8 +35,9 @@ export interface TracingPluginOptions {
 /**
  * Enables tracing for H3 apps.
  */
-export const tracingPlugin: (traceOpts?: TracingPluginOptions) => H3Plugin =
-  definePlugin((h3, traceOpts?: TracingPluginOptions) => {
+export function tracingPlugin(traceOpts?: TracingPluginOptions): H3Plugin {
+  // TODO: Support H3Core (Nitro)
+  return (h3: H3) => {
     const { tracingChannel } =
       globalThis.process.getBuiltinModule?.("diagnostics_channel") ?? {};
 
@@ -149,4 +150,5 @@ export const tracingPlugin: (traceOpts?: TracingPluginOptions) => H3Plugin =
     };
 
     return h3;
-  });
+  };
+}

@@ -23,10 +23,7 @@
     "./service-worker": "./dist/_entries/service-worker.mjs",
     "./node": "./dist/_entries/node.mjs",
     "./generic": "./dist/_entries/generic.mjs",
-    "./tracing": {
-      "types": "./dist/tracing.d.mts",
-      "default": "./dist/tracing.mjs"
-    }
+    "./tracing": "./dist/tracing.mjs"
   },
   "types": "./dist/_entries/generic.d.mts",
   "files": [
