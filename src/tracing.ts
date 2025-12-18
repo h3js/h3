@@ -1,5 +1,5 @@
 import type { H3Event } from "./event.ts";
-import type { H3 } from "./h3.ts";
+import type { H3, H3Core } from "./h3.ts";
 import {
   type H3Plugin,
   type H3Route,
@@ -36,8 +36,7 @@ export interface TracingPluginOptions {
  * Enables tracing for H3 apps.
  */
 export function tracingPlugin(traceOpts?: TracingPluginOptions): H3Plugin {
-  // TODO: Support H3Core (Nitro)
-  return (h3: H3) => {
+  return (h3: H3 | H3Core) => {
     const { tracingChannel } =
       globalThis.process.getBuiltinModule?.("diagnostics_channel") ?? {};
 
@@ -97,57 +96,63 @@ export function tracingPlugin(traceOpts?: TracingPluginOptions): H3Plugin {
       } satisfies H3Route;
     });
 
-    const originalOn = h3.on;
+    if ("on" in h3 && typeof h3.on === "function") {
+      const originalOn = h3.on;
 
-    h3.on = (...args) => {
-      const instance = originalOn.apply(h3, args);
-      // Since it uses route push, we can wrap the last route handler added
-      // Wrapping the handler at the arg level is problematic because we need the `event` to be passed to the tracePromise.
-      // Which is only available with `toEventHandler` and it is already called in the `on` method.
-      // eslint-disable-next-line unicorn/prefer-at
-      const lastRoute = instance["~routes"][instance["~routes"].length - 1];
-      if (lastRoute) {
-        lastRoute.handler = wrapEventHandler(lastRoute.handler);
-        lastRoute.middleware = lastRoute.middleware?.map((m) =>
-          wrapMiddleware(m),
-        );
-      }
+      h3.on = (...args) => {
+        const instance = originalOn.apply(h3, args);
+        // Since it uses route push, we can wrap the last route handler added
+        // Wrapping the handler at the arg level is problematic because we need the `event` to be passed to the tracePromise.
+        // Which is only available with `toEventHandler` and it is already called in the `on` method.
+        // eslint-disable-next-line unicorn/prefer-at
+        const lastRoute = instance["~routes"][instance["~routes"].length - 1];
+        if (lastRoute) {
+          lastRoute.handler = wrapEventHandler(lastRoute.handler);
+          lastRoute.middleware = lastRoute.middleware?.map((m) =>
+            wrapMiddleware(m),
+          );
+        }
 
-      return instance;
-    };
+        return instance;
+      };
+    }
 
-    const originalUse = h3.use;
-    h3.use = (arg1: unknown, arg2?: unknown, arg3?: unknown) => {
-      // Middlewares should be wrapped at the arg level to avoid creating trace events for skipped wrappers added by h3
-      let route: string | undefined;
-      let fn: Middleware;
-      let opts: MiddlewareOptions | undefined;
+    if ("use" in h3 && typeof h3.use === "function") {
+      const originalUse = h3.use;
+      h3.use = (arg1: unknown, arg2?: unknown, arg3?: unknown) => {
+        // Middlewares should be wrapped at the arg level to avoid creating trace events for skipped wrappers added by h3
+        let route: string | undefined;
+        let fn: Middleware;
+        let opts: MiddlewareOptions | undefined;
 
-      if (typeof arg1 === "string") {
-        route = arg1 as string;
-        fn = arg2 as Middleware;
-        opts = arg3 as MiddlewareOptions;
+        if (typeof arg1 === "string") {
+          route = arg1 as string;
+          fn = arg2 as Middleware;
+          opts = arg3 as MiddlewareOptions;
 
-        // @ts-expect-error - call not accepting the route signature
-        return originalUse.call(h3, route, wrapMiddleware(fn), opts);
-      }
+          // @ts-expect-error - call not accepting the route signature
+          return originalUse.call(h3, route, wrapMiddleware(fn), opts);
+        }
 
-      fn = arg1 as Middleware;
-      opts = arg2 as MiddlewareOptions;
+        fn = arg1 as Middleware;
+        opts = arg2 as MiddlewareOptions;
 
-      return originalUse.call(h3, wrapMiddleware(fn), opts);
-    };
+        return originalUse.call(h3, wrapMiddleware(fn), opts);
+      };
+    }
 
-    const originalMount = h3.mount;
-    h3.mount = (base, input) => {
-      // If the input is an H3 instance
-      // then we can register the tracing plugin on it to propagate the tracing to the nested app
-      if ("register" in input) {
-        input.register(tracingPlugin(traceOpts));
-      }
+    if ("mount" in h3 && typeof h3.mount === "function") {
+      const originalMount = h3.mount;
+      h3.mount = (base, input) => {
+        // If the input is an H3 instance
+        // then we can register the tracing plugin on it to propagate the tracing to the nested app
+        if ("register" in input) {
+          input.register(tracingPlugin(traceOpts));
+        }
 
-      return originalMount.call(h3, base, input);
-    };
+        return originalMount.call(h3, base, input);
+      };
+    }
 
     return h3;
   };

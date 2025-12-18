@@ -1,3 +1,4 @@
+import { describe, it, expect } from "vitest";
 import { tracingChannel } from "node:diagnostics_channel";
 import { describeMatrix, type TestOptions } from "./_setup.ts";
 import { H3 } from "../src/h3.ts";
@@ -783,3 +784,425 @@ describeMatrix(
   },
   testOpts,
 );
+
+describe("tracing channels for H3Core instances", () => {
+  it("traces route handlers in H3Core", async () => {
+    const listener = createTracingListener();
+    const { H3Core } = await import("../src/h3.ts");
+    const { tracingPlugin } = await import("../src/tracing.ts");
+    const { H3Event } = await import("../src/event.ts");
+
+    try {
+      const app = new H3Core();
+      const routeHandler = () => "H3Core response";
+
+      // Manually add a route
+      app["~routes"].push({
+        method: "GET",
+        route: "/test",
+        handler: routeHandler,
+      });
+
+      // Apply tracing plugin
+      tracingPlugin()(app as any);
+
+      // Mock ~findRoute to return the matched route
+      const originalFindRoute = app["~findRoute"];
+      app["~findRoute"] = (event: any) => {
+        if (event.url.pathname === "/test" && event.req.method === "GET") {
+          return {
+            data: app["~routes"][0],
+            params: {},
+          };
+        }
+        return originalFindRoute.call(app, event);
+      };
+
+      // Create an event and call handler directly
+      const request = new Request("http://localhost/test", { method: "GET" });
+      const event = new H3Event(request, undefined, app as any);
+
+      await app.handler(event);
+
+      // Wait for tracing events to be processed
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      const routeEvents = listener.events.filter(
+        (e) => e.asyncStart?.data.type === "route",
+      );
+
+      expect(routeEvents.length).toBeGreaterThan(0);
+      const routeEvent = routeEvents[0];
+      expect(routeEvent.asyncStart?.data.type).toBe("route");
+      expect(routeEvent.asyncStart?.data.event).toBeDefined();
+    } finally {
+      listener.cleanup();
+    }
+  });
+
+  it("traces middleware in H3Core", async () => {
+    const listener = createTracingListener();
+    const { H3Core } = await import("../src/h3.ts");
+    const { tracingPlugin } = await import("../src/tracing.ts");
+    const { H3Event } = await import("../src/event.ts");
+
+    try {
+      const app = new H3Core();
+      const middleware1 = (event: any) => {
+        event.context.mw1 = true;
+      };
+      const middleware2 = (event: any) => {
+        event.context.mw2 = true;
+      };
+      const routeHandler = (event: any) => ({
+        mw1: event.context.mw1,
+        mw2: event.context.mw2,
+      });
+
+      // Manually add middleware
+      app["~middleware"].push(middleware1, middleware2);
+
+      // Manually add a route
+      app["~routes"].push({
+        method: "GET",
+        route: "/test",
+        handler: routeHandler,
+      });
+
+      // Apply tracing plugin
+      tracingPlugin()(app as any);
+
+      // Mock ~findRoute to return the matched route
+      app["~findRoute"] = (event: any) => {
+        if (event.url.pathname === "/test" && event.req.method === "GET") {
+          return {
+            data: app["~routes"][0],
+            params: {},
+          };
+        }
+        return undefined;
+      };
+
+      // Create an event and call handler directly
+      const request = new Request("http://localhost/test", { method: "GET" });
+      const event = new H3Event(request, undefined, app as any);
+
+      await app.handler(event);
+
+      // Wait for tracing events to be processed
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      const middlewareEvents = listener.events.filter(
+        (e) => e.asyncStart?.data.type === "middleware",
+      );
+      const routeEvents = listener.events.filter(
+        (e) => e.asyncStart?.data.type === "route",
+      );
+
+      expect(middlewareEvents.length).toBe(2);
+      expect(routeEvents.length).toBeGreaterThan(0);
+    } finally {
+      listener.cleanup();
+    }
+  });
+
+  it("traces route middleware in H3Core", async () => {
+    const listener = createTracingListener();
+    const { H3Core } = await import("../src/h3.ts");
+    const { tracingPlugin } = await import("../src/tracing.ts");
+    const { H3Event } = await import("../src/event.ts");
+
+    try {
+      const app = new H3Core();
+      const routeMiddleware = (event: any) => {
+        event.context.routeMw = true;
+      };
+      const routeHandler = (event: any) => ({
+        routeMw: event.context.routeMw,
+      });
+
+      // Manually add a route with middleware
+      app["~routes"].push({
+        method: "GET",
+        route: "/test",
+        handler: routeHandler,
+        middleware: [routeMiddleware],
+      });
+
+      // Apply tracing plugin
+      tracingPlugin()(app as any);
+
+      // Mock ~findRoute to return the matched route
+      app["~findRoute"] = (event: any) => {
+        if (event.url.pathname === "/test" && event.req.method === "GET") {
+          return {
+            data: app["~routes"][0],
+            params: {},
+          };
+        }
+        return undefined;
+      };
+
+      // Create an event and call handler directly
+      const request = new Request("http://localhost/test", { method: "GET" });
+      const event = new H3Event(request, undefined, app as any);
+
+      await app.handler(event);
+
+      // Wait for tracing events to be processed
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      const middlewareEvents = listener.events.filter(
+        (e) => e.asyncStart?.data.type === "middleware",
+      );
+      const routeEvents = listener.events.filter(
+        (e) => e.asyncStart?.data.type === "route",
+      );
+
+      expect(middlewareEvents.length).toBe(1);
+      expect(routeEvents.length).toBeGreaterThan(0);
+    } finally {
+      listener.cleanup();
+    }
+  });
+
+  it("traces async handlers in H3Core", async () => {
+    const listener = createTracingListener();
+    const { H3Core } = await import("../src/h3.ts");
+    const { tracingPlugin } = await import("../src/tracing.ts");
+    const { H3Event } = await import("../src/event.ts");
+
+    try {
+      const app = new H3Core();
+      const asyncHandler = async () => {
+        await Promise.resolve();
+        return "async H3Core response";
+      };
+
+      // Manually add a route
+      app["~routes"].push({
+        method: "GET",
+        route: "/async",
+        handler: asyncHandler,
+      });
+
+      // Apply tracing plugin
+      tracingPlugin()(app as any);
+
+      // Mock ~findRoute to return the matched route
+      app["~findRoute"] = (event: any) => {
+        if (event.url.pathname === "/async" && event.req.method === "GET") {
+          return {
+            data: app["~routes"][0],
+            params: {},
+          };
+        }
+        return undefined;
+      };
+
+      // Create an event and call handler directly
+      const request = new Request("http://localhost/async", { method: "GET" });
+      const event = new H3Event(request, undefined, app as any);
+
+      await app.handler(event);
+
+      // Wait for tracing events to be processed
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      const routeStarts = listener.events.filter(
+        (e) => e.asyncStart?.data.type === "route",
+      );
+      const routeEnds = listener.events.filter(
+        (e) => e.asyncEnd?.data.type === "route",
+      );
+
+      expect(routeStarts.length).toBeGreaterThan(0);
+      expect(routeEnds.length).toBeGreaterThan(0);
+      expect(routeStarts.length).toBe(routeEnds.length);
+    } finally {
+      listener.cleanup();
+    }
+  });
+
+  it("traces errors in H3Core handlers", async () => {
+    const listener = createTracingListener();
+    const { H3Core } = await import("../src/h3.ts");
+    const { tracingPlugin } = await import("../src/tracing.ts");
+    const { H3Event } = await import("../src/event.ts");
+
+    try {
+      const app = new H3Core({
+        onError: () => {
+          // Silence error - we're testing the tracing channel
+        },
+      });
+      const errorHandler = () => {
+        throw new Error("H3Core handler error");
+      };
+
+      // Manually add a route
+      app["~routes"].push({
+        method: "GET",
+        route: "/error",
+        handler: errorHandler,
+      });
+
+      // Apply tracing plugin
+      tracingPlugin()(app as any);
+
+      // Mock ~findRoute to return the matched route
+      app["~findRoute"] = (event: any) => {
+        if (event.url.pathname === "/error" && event.req.method === "GET") {
+          return {
+            data: app["~routes"][0],
+            params: {},
+          };
+        }
+        return undefined;
+      };
+
+      // Create an event and call handler directly
+      const request = new Request("http://localhost/error", { method: "GET" });
+      const event = new H3Event(request, undefined, app as any);
+
+      try {
+        await app.handler(event);
+      } catch {
+        // Expected error
+      }
+
+      // Wait for tracing events to be processed
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      const errorEvents = listener.events.filter((e) => e.error);
+      expect(errorEvents.length).toBeGreaterThan(0);
+      expect(errorEvents[0].error?.error.message).toBe("H3Core handler error");
+    } finally {
+      listener.cleanup();
+    }
+  });
+
+  it("respects traceMiddlewares: false for H3Core", async () => {
+    const listener = createTracingListener();
+    const { H3Core } = await import("../src/h3.ts");
+    const { tracingPlugin } = await import("../src/tracing.ts");
+    const { H3Event } = await import("../src/event.ts");
+
+    try {
+      const app = new H3Core();
+      const middleware = (event: any) => {
+        event.context.mw = true;
+      };
+      const routeHandler = () => "response";
+
+      // Manually add middleware
+      app["~middleware"].push(middleware);
+
+      // Manually add a route
+      app["~routes"].push({
+        method: "GET",
+        route: "/test",
+        handler: routeHandler,
+      });
+
+      // Apply tracing plugin with traceMiddlewares disabled
+      tracingPlugin({ traceMiddlewares: false })(app as any);
+
+      // Mock ~findRoute to return the matched route
+      app["~findRoute"] = (event: any) => {
+        if (event.url.pathname === "/test" && event.req.method === "GET") {
+          return {
+            data: app["~routes"][0],
+            params: {},
+          };
+        }
+        return undefined;
+      };
+
+      // Create an event and call handler directly
+      const request = new Request("http://localhost/test", { method: "GET" });
+      const event = new H3Event(request, undefined, app as any);
+
+      await app.handler(event);
+
+      // Wait for tracing events to be processed
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      const middlewareEvents = listener.events.filter(
+        (e) => e.asyncStart?.data.type === "middleware",
+      );
+      const routeEvents = listener.events.filter(
+        (e) => e.asyncStart?.data.type === "route",
+      );
+
+      // Middleware should NOT be traced
+      expect(middlewareEvents.length).toBe(0);
+      // Routes should still be traced
+      expect(routeEvents.length).toBeGreaterThan(0);
+    } finally {
+      listener.cleanup();
+    }
+  });
+
+  it("respects traceRoutes: false for H3Core", async () => {
+    const listener = createTracingListener();
+    const { H3Core } = await import("../src/h3.ts");
+    const { tracingPlugin } = await import("../src/tracing.ts");
+    const { H3Event } = await import("../src/event.ts");
+
+    try {
+      const app = new H3Core();
+      const middleware = (event: any) => {
+        event.context.mw = true;
+      };
+      const routeHandler = () => "response";
+
+      // Manually add middleware
+      app["~middleware"].push(middleware);
+
+      // Manually add a route
+      app["~routes"].push({
+        method: "GET",
+        route: "/test",
+        handler: routeHandler,
+      });
+
+      // Apply tracing plugin with traceRoutes disabled
+      tracingPlugin({ traceRoutes: false })(app as any);
+
+      // Mock ~findRoute to return the matched route
+      app["~findRoute"] = (event: any) => {
+        if (event.url.pathname === "/test" && event.req.method === "GET") {
+          return {
+            data: app["~routes"][0],
+            params: {},
+          };
+        }
+        return undefined;
+      };
+
+      // Create an event and call handler directly
+      const request = new Request("http://localhost/test", { method: "GET" });
+      const event = new H3Event(request, undefined, app as any);
+
+      await app.handler(event);
+
+      // Wait for tracing events to be processed
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      const middlewareEvents = listener.events.filter(
+        (e) => e.asyncStart?.data.type === "middleware",
+      );
+      const routeEvents = listener.events.filter(
+        (e) => e.asyncStart?.data.type === "route",
+      );
+
+      // Middleware should still be traced
+      expect(middlewareEvents.length).toBeGreaterThan(0);
+      // Routes should NOT be traced
+      expect(routeEvents.length).toBe(0);
+    } finally {
+      listener.cleanup();
+    }
+  });
+});
