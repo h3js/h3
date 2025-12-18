@@ -22,7 +22,8 @@
     "./cloudflare": "./dist/_entries/cloudflare.mjs",
     "./service-worker": "./dist/_entries/service-worker.mjs",
     "./node": "./dist/_entries/node.mjs",
-    "./generic": "./dist/_entries/generic.mjs"
+    "./generic": "./dist/_entries/generic.mjs",
+    "./tracing": "./dist/tracing.mjs"
   },
   "types": "./dist/_entries/generic.d.mts",
   "files": [
