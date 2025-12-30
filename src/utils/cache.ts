@@ -25,6 +25,7 @@ export function handleCacheHeaders(
 
   if (opts.modifiedTime) {
     const modifiedTime = new Date(opts.modifiedTime);
+    modifiedTime.setMilliseconds(0);
     const ifModifiedSince = event.req.headers.get("if-modified-since");
     event.res.headers.set("last-modified", modifiedTime.toUTCString());
     if (ifModifiedSince && new Date(ifModifiedSince) >= modifiedTime) {

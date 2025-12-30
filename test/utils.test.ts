@@ -376,5 +376,20 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
       });
       expect(res.status).toBe(304);
     });
+
+    it("handles modifiedTime with milliseconds correctly", async () => {
+      t.app.use((event) => {
+        handleCacheHeaders(event, {
+          modifiedTime: new Date("2021-01-01T00:00:00.500Z"),
+        });
+        return "ok";
+      });
+      const res = await t.fetch("/", {
+        headers: {
+          "if-modified-since": "Fri, 01 Jan 2021 00:00:00 GMT",
+        },
+      });
+      expect(res.status).toBe(304);
+    });
   });
 });
