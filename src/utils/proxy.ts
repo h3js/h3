@@ -88,10 +88,11 @@ export async function proxy(
   const cookies: string[] = [];
 
   for (const [key, value] of response.headers.entries()) {
-    if (key === "content-encoding") {
-      continue;
-    }
-    if (key === "content-length") {
+    if (
+      key === "content-encoding" ||
+      key === "content-length" ||
+      key === "transfer-encoding"
+    ) {
       continue;
     }
     if (key === "set-cookie") {

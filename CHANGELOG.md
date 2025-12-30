@@ -2,6 +2,38 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## v2.0.1-rc.6
+
+[compare changes](https://github.com/h3js/h3/compare/v2.0.1-rc.5...v2.0.1-rc.6)
+
+### 🚀 Enhancements
+
+- **defineWebSocketHandler:** Support callback with `event` ([#1242](https://github.com/h3js/h3/pull/1242))
+
+### 🩹 Fixes
+
+- **proxy:** Strip `transfer-encoding` header from proxied response ([#1248](https://github.com/h3js/h3/pull/1248))
+- Clear `event.res` after prepare ([#1259](https://github.com/h3js/h3/pull/1259))
+
+### 📖 Documentation
+
+- Add `H3ravel` to the community section ([#1239](https://github.com/h3js/h3/pull/1239))
+- Add intlify to community integrations ([#1244](https://github.com/h3js/h3/pull/1244))
+
+### 🏡 Chore
+
+- Lint ([4218cbe](https://github.com/h3js/h3/commit/4218cbe))
+- Update deps ([bb10838](https://github.com/h3js/h3/commit/bb10838))
+- Update build config ([504e878](https://github.com/h3js/h3/commit/504e878))
+
+### ❤️ Contributors
+
+- Pooya Parsa ([@pi0](https://github.com/pi0))
+- Dardan Bujupaj ([@dardanbujupaj](https://github.com/dardanbujupaj))
+- Minsu Lee ([@amondnet](https://github.com/amondnet))
+- Kazuya Kawaguchi <kawakazu80@gmail.com>
+- Legacy ([@3m1n3nc3](https://github.com/3m1n3nc3))
+
 ## v2.0.1-rc.5
 
 [compare changes](https://github.com/h3js/h3/compare/v2.0.1-rc.4...v2.0.1-rc.5)
