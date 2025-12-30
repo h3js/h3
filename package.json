@@ -49,45 +49,45 @@
     "h3": "link:."
   },
   "dependencies": {
-    "rou3": "^0.7.10",
-    "srvx": "^0.9.7"
+    "rou3": "^0.7.12",
+    "srvx": "^0.10.0"
   },
   "devDependencies": {
     "@happy-dom/global-registrator": "^20.0.11",
     "@mitata/counters": "^0.0.8",
     "@types/connect": "^3.4.38",
     "@types/express": "^5.0.6",
-    "@types/node": "^24.10.1",
+    "@types/node": "^25.0.3",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
-    "@vitest/coverage-v8": "^4.0.15",
+    "@vitest/coverage-v8": "^4.0.16",
     "automd": "^0.4.2",
     "changelogen": "^0.6.2",
     "connect": "^3.7.0",
     "cookie-es": "^2.0.0",
     "crossws": "^0.4.1",
-    "elysia": "^1.4.18",
-    "esbuild": "^0.27.1",
-    "eslint": "^9.39.1",
+    "elysia": "^1.4.19",
+    "esbuild": "^0.27.2",
+    "eslint": "^9.39.2",
     "eslint-config-unjs": "^0.5.0",
     "express": "^5.2.1",
     "fetchdts": "^0.1.7",
     "get-port-please": "^3.2.0",
-    "h3-nightly": "^2.0.0-20251121-160644-d6475e1",
+    "h3-nightly": "^2.0.0-20251212-101841-5405a1b",
     "happy-dom": "^20.0.11",
-    "hono": "^4.10.7",
+    "hono": "^4.11.3",
     "magic-string": "^0.30.21",
     "memoirist": "^0.4.0",
     "mitata": "^1.0.34",
-    "obuild": "^0.4.7",
-    "oxc-parser": "^0.101.0",
+    "obuild": "^0.4.9",
+    "oxc-parser": "^0.106.0",
     "prettier": "^3.7.4",
-    "react": "^19.2.1",
-    "react-dom": "^19.2.1",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
     "typescript": "^5.9.3",
-    "vite": "^7.2.7",
-    "vitest": "^4.0.15",
-    "zod": "^4.1.13"
+    "vite": "^7.3.0",
+    "vitest": "^4.0.16",
+    "zod": "^4.2.1"
   },
   "peerDependencies": {
     "crossws": "^0.4.1"
@@ -97,7 +97,7 @@
       "optional": true
     }
   },
-  "packageManager": "pnpm@10.24.0",
+  "packageManager": "pnpm@10.26.2",
   "engines": {
     "node": ">=20.11.1"
   }
