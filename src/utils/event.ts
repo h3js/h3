@@ -39,6 +39,9 @@ export function mockEvent(
   options?: RequestInit & { h3?: H3EventContext },
 ): H3Event {
   let request: Request;
+  if (options?.body && !(options as any).duplex) {
+    (options as any).duplex = "half";
+  }
   if (typeof _request === "string") {
     let url = _request;
     if (url[0] === "/") {
