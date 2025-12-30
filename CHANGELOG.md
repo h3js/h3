@@ -2,6 +2,34 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## v2.0.1-rc.7
+
+[compare changes](https://github.com/h3js/h3/compare/v2.0.1-rc.6...v2.0.1-rc.7)
+
+### 🚀 Enhancements
+
+- Experimental tracing support ([#1251](https://github.com/h3js/h3/pull/1251))
+- Customizable validation errors ([#1146](https://github.com/h3js/h3/pull/1146))
+
+### 🩹 Fixes
+
+- **mockEvent:** Make sure `duplex` option is properly set ([eb83aad](https://github.com/h3js/h3/commit/eb83aad))
+- **handleCacheHeaders:** Round `modifiedTime` to seconds ([#1262](https://github.com/h3js/h3/pull/1262))
+
+### 🏡 Chore
+
+- Fix typo in jsdocs ([#1263](https://github.com/h3js/h3/pull/1263))
+- Update deps ([fcd9ff9](https://github.com/h3js/h3/commit/fcd9ff9))
+- Update srvx to 0.10 ([0385342](https://github.com/h3js/h3/commit/0385342))
+
+### ❤️ Contributors
+
+- Minsu Lee ([@amondnet](https://github.com/amondnet))
+- Sandro Circi ([@sandros94](https://github.com/sandros94))
+- Abdelrahman Awad ([@logaretm](https://github.com/logaretm))
+- Pooya Parsa ([@pi0](https://github.com/pi0))
+- Huseeiin ([@huseeiin](https://github.com/huseeiin))
+
 ## v2.0.1-rc.6
 
 [compare changes](https://github.com/h3js/h3/compare/v2.0.1-rc.5...v2.0.1-rc.6)
