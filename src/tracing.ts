@@ -38,7 +38,7 @@ export interface TracingPluginOptions {
 export function tracingPlugin(traceOpts?: TracingPluginOptions): H3Plugin {
   return (h3: H3 | H3Core) => {
     const { tracingChannel } =
-      globalThis.process.getBuiltinModule?.("diagnostics_channel") ?? {};
+      globalThis.process?.getBuiltinModule?.("diagnostics_channel") ?? {};
 
     // If tracingChannel is not available, then we can't trace request handlers
     if (!tracingChannel) {
