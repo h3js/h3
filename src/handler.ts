@@ -14,12 +14,16 @@ import type {
   HTTPHandler,
 } from "./types/handler.ts";
 import type {
-  InferOutput,
   StandardSchemaV1,
+  InferOutput,
 } from "./utils/internal/standard-schema.ts";
 import type { TypedRequest } from "fetchdts";
 import { NoHandler, type H3Core } from "./h3.ts";
-import { validatedRequest, validatedURL } from "./utils/internal/validate.ts";
+import {
+  validatedRequest,
+  validatedURL,
+  type OnValidateError,
+} from "./utils/internal/validate.ts";
 
 // --- event handler ---
 
@@ -77,6 +81,7 @@ export function defineValidatedHandler<
       body?: RequestBody;
       headers?: RequestHeaders;
       query?: RequestQuery;
+      onError?: OnValidateError;
     };
     handler: EventHandler<
       {
