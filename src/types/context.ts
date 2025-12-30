@@ -3,8 +3,9 @@ import type { H3Route } from "./h3.ts";
 import type { ResolvedRouteRules } from "./route-rules.ts";
 import type { ServerRequestContext } from "srvx";
 
-export interface H3EventContext<TParams = Record<string, string>>
-  extends ServerRequestContext {
+export interface H3EventContext<
+  TParams = Record<string, string>,
+> extends ServerRequestContext {
   /**
    * Matched route parameters
    *
