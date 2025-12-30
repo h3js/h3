@@ -32,8 +32,7 @@ export interface HTTPEvent<
 
 export class H3Event<
   _RequestT extends EventHandlerRequest = EventHandlerRequest,
-> implements HTTPEvent<_RequestT>
-{
+> implements HTTPEvent<_RequestT> {
   /**
    * Access to the H3 application instance.
    */

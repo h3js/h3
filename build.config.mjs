@@ -40,6 +40,7 @@ export default defineBuildConfig({
     },
     rolldownOutput(outConcig) {
       outConcig.chunkFileNames = "h3.mjs";
+      outConcig.advancedChunks = {};
     },
   },
 });
