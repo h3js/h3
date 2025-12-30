@@ -25,7 +25,7 @@ export interface TracingPluginOptions {
   /**
    * Whether to trace middleware executions.
    */
-  traceMiddlewares?: boolean;
+  traceMiddleware?: boolean;
   /**
    * Whether to trace route executions.
    */
@@ -48,7 +48,7 @@ export function tracingPlugin(traceOpts?: TracingPluginOptions): H3Plugin {
     const requestHandlerChannel = tracingChannel("h3.request.handler");
 
     function wrapMiddleware(middleware: MaybeTracedMiddleware): Middleware {
-      if (middleware.__traced__ || traceOpts?.traceMiddlewares === false) {
+      if (middleware.__traced__ || traceOpts?.traceMiddleware === false) {
         return middleware;
       }
 

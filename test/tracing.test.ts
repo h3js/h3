@@ -356,12 +356,12 @@ describeMatrix(
       }
     });
 
-    it("traceMiddlewares: false disables middleware tracing", async () => {
+    it("traceMiddleware: false disables middleware tracing", async () => {
       const listener = createTracingListener();
 
-      // Create a custom app with traceMiddlewares disabled
+      // Create a custom app with traceMiddleware disabled
       const app = new H3({
-        plugins: [tracingPlugin({ traceMiddlewares: false })],
+        plugins: [tracingPlugin({ traceMiddleware: false })],
       });
 
       try {
@@ -444,7 +444,7 @@ describeMatrix(
       // Create a custom app with both tracing options disabled
       const app = new H3({
         plugins: [
-          tracingPlugin({ traceMiddlewares: false, traceRoutes: false }),
+          tracingPlugin({ traceMiddleware: false, traceRoutes: false }),
         ],
       });
 
@@ -1083,7 +1083,7 @@ describe("tracing channels for H3Core instances", () => {
     }
   });
 
-  it("respects traceMiddlewares: false for H3Core", async () => {
+  it("respects traceMiddleware: false for H3Core", async () => {
     const listener = createTracingListener();
     const { H3Core } = await import("../src/h3.ts");
     const { tracingPlugin } = await import("../src/tracing.ts");
@@ -1106,8 +1106,8 @@ describe("tracing channels for H3Core instances", () => {
         handler: routeHandler,
       });
 
-      // Apply tracing plugin with traceMiddlewares disabled
-      tracingPlugin({ traceMiddlewares: false })(app as any);
+      // Apply tracing plugin with traceMiddleware disabled
+      tracingPlugin({ traceMiddleware: false })(app as any);
 
       // Mock ~findRoute to return the matched route
       app["~findRoute"] = (event: any) => {
