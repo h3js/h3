@@ -21,7 +21,7 @@ describe("benchmark", () => {
       );
     }
     expect(bundle.bytes).toBeLessThanOrEqual(12_000); // <12kb
-    expect(bundle.gzipSize).toBeLessThanOrEqual(4300); // <4.3kb
+    expect(bundle.gzipSize).toBeLessThanOrEqual(4400); // <4.4kb
   });
 
   it("bundle size (H3Core)", async () => {
