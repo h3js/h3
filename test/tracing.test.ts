@@ -3,6 +3,7 @@ import { tracingChannel } from "node:diagnostics_channel";
 import { describeMatrix, type TestOptions } from "./_setup.ts";
 import { H3 } from "../src/h3.ts";
 import { tracingPlugin, type H3THandlerTracePayload } from "../src/tracing.ts";
+import { HTTPError } from "../src/error.ts";
 
 type TracingEvent = {
   start?: { data: H3THandlerTracePayload };
@@ -167,7 +168,7 @@ describeMatrix(
 
       try {
         t.app.get("/error", () => {
-          throw new Error("Handler error");
+          throw new HTTPError("Handler error");
         });
 
         await t.fetch("/error");
@@ -763,7 +764,7 @@ describeMatrix(
 
       try {
         const errorFetchHandler = (_: Request) => {
-          throw new Error("Fetch handler error");
+          throw new HTTPError("Fetch handler error");
         };
 
         t.app.mount("/error-fetch", errorFetchHandler);
