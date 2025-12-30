@@ -10,9 +10,9 @@ import type { EventHandler, Middleware } from "./types/handler.ts";
 /**
  * Payload sent to the tracing channels.
  */
-export interface H3THandlerTracePayload {
-  event: H3Event;
+export interface TracingRequestEvent {
   type: "middleware" | "route";
+  event: H3Event;
 }
 
 type MaybeTracedMiddleware = Middleware & { __traced__?: boolean };
@@ -45,7 +45,7 @@ export function tracingPlugin(traceOpts?: TracingPluginOptions): H3Plugin {
       return;
     }
 
-    const requestHandlerChannel = tracingChannel("h3.request.handler");
+    const requestHandlerChannel = tracingChannel("h3.fetch");
 
     function wrapMiddleware(middleware: MaybeTracedMiddleware): Middleware {
       if (middleware.__traced__ || traceOpts?.traceMiddleware === false) {
@@ -58,7 +58,7 @@ export function tracingPlugin(traceOpts?: TracingPluginOptions): H3Plugin {
           {
             event: args[0],
             type: "middleware",
-          } satisfies H3THandlerTracePayload,
+          } satisfies TracingRequestEvent,
         );
       };
       wrappedMiddleware.__traced__ = true;
@@ -77,7 +77,7 @@ export function tracingPlugin(traceOpts?: TracingPluginOptions): H3Plugin {
           {
             event: args[0],
             type: "route",
-          } satisfies H3THandlerTracePayload,
+          } satisfies TracingRequestEvent,
         );
       };
       wrappedHandler.__traced__ = true;

@@ -2,21 +2,21 @@ import { describe, it, expect } from "vitest";
 import { tracingChannel } from "node:diagnostics_channel";
 import { describeMatrix, type TestOptions } from "./_setup.ts";
 import { H3 } from "../src/h3.ts";
-import { tracingPlugin, type H3THandlerTracePayload } from "../src/tracing.ts";
+import { tracingPlugin, type TracingRequestEvent } from "../src/tracing.ts";
 import { HTTPError } from "../src/error.ts";
 
 type TracingEvent = {
-  start?: { data: H3THandlerTracePayload };
-  end?: { data: H3THandlerTracePayload };
-  asyncStart?: { data: H3THandlerTracePayload };
-  asyncEnd?: { data: H3THandlerTracePayload; result?: any; error?: Error };
-  error?: { data: H3THandlerTracePayload; error: Error };
+  start?: { data: TracingRequestEvent };
+  end?: { data: TracingRequestEvent };
+  asyncStart?: { data: TracingRequestEvent };
+  asyncEnd?: { data: TracingRequestEvent; result?: any; error?: Error };
+  error?: { data: TracingRequestEvent; error: Error };
 };
 
 function createTracingListener() {
   const events: TracingEvent[] = [];
 
-  const tracingCh = tracingChannel("h3.request.handler");
+  const tracingCh = tracingChannel("h3.fetch");
 
   const startHandler = (message: any) => {
     events.push({ start: { data: message } });
@@ -123,7 +123,7 @@ describeMatrix(
       }
     });
 
-    it("tracing:h3.request.handler:asyncStart/asyncEnd fire for async handlers", async () => {
+    it("tracing:h3.fetch:asyncStart/asyncEnd fire for async handlers", async () => {
       const listener = createTracingListener();
 
       try {
@@ -157,7 +157,7 @@ describeMatrix(
       }
     });
 
-    it("tracing:h3.request.handler:error fires when handler throws", async () => {
+    it("tracing:h3.fetch:error fires when handler throws", async () => {
       const listener = createTracingListener();
 
       // Disable the test error handler so we can see the tracing error event
