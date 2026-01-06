@@ -199,7 +199,6 @@ export class HTTPError<DataT = unknown>
     // @ts-ignore https://v8.dev/features/error-cause
     super(message, { cause: details });
     this.cause = details;
-    Error.captureStackTrace?.(this, this.constructor);
 
     this.status = status;
     this.statusText = statusText || undefined;
