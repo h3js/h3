@@ -308,11 +308,12 @@ describeMatrix("app", (t, { it, expect }) => {
   });
 
   it.skipIf(t.target !== "node")(
-    "fromNodeHandler + piping (with Error)",
+    "fromNodeHandler + piping (with Error and custom status)",
     async () => {
       t.app.all(
         "/*",
         fromNodeHandler((req, res) => {
+          res.statusCode = 201;
           const iterator = (async function* () {
             yield "item1,";
             yield "item2";
@@ -322,7 +323,7 @@ describeMatrix("app", (t, { it, expect }) => {
         }),
       );
       const res = await t.fetch("/");
-      expect(res.status).toBe(200);
+      expect(res.status).toBe(201);
       expect(await res.text()).toBe("item1,item2");
       console.log(t.errors);
     },
