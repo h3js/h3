@@ -2,6 +2,27 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## v2.0.1-rc.8
+
+[compare changes](https://github.com/h3js/h3/compare/v2.0.1-rc.7...v2.0.1-rc.8)
+
+### 🩹 Fixes
+
+- **fromNodeHandler:** Pipe responses once ([#1273](https://github.com/h3js/h3/pull/1273))
+
+### 💅 Refactors
+
+- Avoid unnecessary `    Error.captureStackTrace` ([652e883](https://github.com/h3js/h3/commit/652e883))
+
+### 🏡 Chore
+
+- Update deps ([1dfe739](https://github.com/h3js/h3/commit/1dfe739))
+- Lint ([2ec1eea](https://github.com/h3js/h3/commit/2ec1eea))
+
+### ❤️ Contributors
+
+- Pooya Parsa ([@pi0](https://github.com/pi0))
+
 ## v2.0.1-rc.7
 
 [compare changes](https://github.com/h3js/h3/compare/v2.0.1-rc.6...v2.0.1-rc.7)
