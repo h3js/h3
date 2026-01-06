@@ -325,7 +325,6 @@ describeMatrix("app", (t, { it, expect }) => {
       const res = await t.fetch("/");
       expect(res.status).toBe(201);
       expect(await res.text()).toBe("item1,item2");
-      console.log(t.errors);
     },
   );
 
