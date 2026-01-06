@@ -14,7 +14,7 @@ describeMatrix("app", (t, { it, expect }) => {
   });
 
   it("can return bigint directly", async () => {
-    t.app.get("/", () => BigInt(9_007_199_254_740_991));
+    t.app.get("/", () => 9_007_199_254_740_991n);
     const res = await t.fetch("/");
 
     expect(await res.text()).toBe("9007199254740991");
