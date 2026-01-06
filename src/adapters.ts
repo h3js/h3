@@ -89,8 +89,22 @@ function callNodeHandler(
   return new Promise((resolve, reject) => {
     res.once("close", () => resolve(kHandled));
     res.once("finish", () => resolve(kHandled));
-    res.once("pipe", (stream) => resolve(stream));
     res.once("error", (error) => reject(error));
+    res.once("pipe", (stream) => {
+      resolve(
+        new Promise((resolve, reject) => {
+          stream.once("close", () => resolve(kHandled));
+          stream.once("error", (error: any) => {
+            console.error("[h3] Stream error in Node.js handler", {
+              cause: error,
+            });
+            // We cannot alter the outgoing response at this point
+            // TODO: We might at least call h3 error hook here by exposing app to node request
+            reject(kHandled);
+          });
+        }),
+      );
+    });
     try {
       if (isMiddleware) {
         Promise.resolve(
