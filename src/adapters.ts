@@ -9,7 +9,6 @@ import type {
 import type { H3 } from "./h3.ts";
 import type { H3EventContext } from "./types/context.ts";
 import type { EventHandler, EventHandlerResponse } from "./types/handler.ts";
-import { ca } from "zod/v4/locales";
 
 export type NodeHandler = (
   req: NodeServerRequest,
