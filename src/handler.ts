@@ -18,11 +18,12 @@ import type {
   InferOutput,
 } from "./utils/internal/standard-schema.ts";
 import type { TypedRequest } from "fetchdts";
-import { NoHandler, type H3Core } from "./h3.ts";
+import type { H3Core } from "./h3.ts";
+import { NoHandler } from "./h3.ts";
+import type { OnValidateError } from "./utils/internal/validate.ts";
 import {
   validatedRequest,
-  validatedURL,
-  type OnValidateError,
+  validatedURL
 } from "./utils/internal/validate.ts";
 
 // --- event handler ---

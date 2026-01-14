@@ -3,7 +3,8 @@ import { HTTPError } from "./error.ts";
 import { isJSONSerializable } from "./utils/internal/object.ts";
 
 import type { H3Config } from "./types/h3.ts";
-import { kEventRes, kEventResHeaders, type H3Event } from "./event.ts";
+import type { H3Event } from "./event.ts";
+import { kEventRes, kEventResHeaders } from "./event.ts";
 
 export const kNotFound: symbol = /* @__PURE__ */ Symbol.for("h3.notFound");
 export const kHandled: symbol = /* @__PURE__ */ Symbol.for("h3.handled");

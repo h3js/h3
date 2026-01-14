@@ -1,4 +1,5 @@
-import { type ErrorDetails, HTTPError } from "../../error.ts";
+import type { ErrorDetails } from "../../error.ts";
+import { HTTPError } from "../../error.ts";
 
 import type { ServerRequest } from "srvx";
 import type {

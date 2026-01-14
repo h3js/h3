@@ -1,10 +1,9 @@
 import type { H3Event } from "../event.ts";
 import { HTTPResponse } from "../response.ts";
+import type { IterationSource, IteratorSerializer } from "./internal/iterable.ts";
 import {
   serializeIterableValue,
-  coerceIterable,
-  type IterationSource,
-  type IteratorSerializer,
+  coerceIterable
 } from "./internal/iterable.ts";
 
 /**

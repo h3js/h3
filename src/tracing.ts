@@ -1,10 +1,6 @@
 import type { H3Event } from "./event.ts";
 import type { H3, H3Core } from "./h3.ts";
-import {
-  type H3Plugin,
-  type H3Route,
-  type MiddlewareOptions,
-} from "./types/h3.ts";
+import type { H3Plugin, H3Route, MiddlewareOptions } from "./types/h3.ts";
 import type { EventHandler, Middleware } from "./types/handler.ts";
 
 /**

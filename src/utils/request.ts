@@ -1,4 +1,5 @@
-import { type ErrorDetails, HTTPError } from "../error.ts";
+import type { ErrorDetails } from "../error.ts";
+import { HTTPError } from "../error.ts";
 import { parseQuery } from "./internal/query.ts";
 import { validateData } from "./internal/validate.ts";
 import { getEventContext } from "./event.ts";

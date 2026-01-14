@@ -1,5 +1,7 @@
-import { type ErrorDetails, HTTPError } from "../error.ts";
-import { type OnValidateError, validateData } from "./internal/validate.ts";
+import type { ErrorDetails } from "../error.ts";
+import { HTTPError } from "../error.ts";
+import type { OnValidateError } from "./internal/validate.ts";
+import { validateData } from "./internal/validate.ts";
 import { parseURLEncodedBody } from "./internal/body.ts";
 
 import type { HTTPEvent } from "../event.ts";

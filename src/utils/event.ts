@@ -1,4 +1,5 @@
-import { H3Event, type HTTPEvent } from "../event.ts";
+import { H3Event } from "../event.ts";
+import type { HTTPEvent } from "../event.ts";
 import type { H3EventContext } from "../types/context.ts";
 import type { ServerRequestContext } from "srvx";
 
