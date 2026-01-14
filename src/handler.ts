@@ -21,10 +21,7 @@ import type { TypedRequest } from "fetchdts";
 import type { H3Core } from "./h3.ts";
 import { NoHandler } from "./h3.ts";
 import type { OnValidateError } from "./utils/internal/validate.ts";
-import {
-  validatedRequest,
-  validatedURL
-} from "./utils/internal/validate.ts";
+import { validatedRequest, validatedURL } from "./utils/internal/validate.ts";
 
 // --- event handler ---
 
