@@ -2,6 +2,33 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## v1.15.5
+
+[compare changes](https://github.com/h3js/h3/compare/v1.15.4...v1.15.5)
+
+### 🩹 Fixes
+
+- **readRawBody:** Fix case-sensitive `Transfer-Encoding` check causing request smuggling risk ([618ccf4](https://github.com/h3js/h3/commit/618ccf4))
+
+### 🏡 Chore
+
+- Update deps ([e2462ec](https://github.com/h3js/h3/commit/e2462ec))
+- Update ci ([c934599](https://github.com/h3js/h3/commit/c934599))
+- Add `test:types` script ([0a4a115](https://github.com/h3js/h3/commit/0a4a115))
+- Update ci ([b4dce71](https://github.com/h3js/h3/commit/b4dce71))
+- Update publish tag to 1.x ([589625c](https://github.com/h3js/h3/commit/589625c))
+- Fix ts issue ([c9ebf80](https://github.com/h3js/h3/commit/c9ebf80))
+- Update deps ([d18c074](https://github.com/h3js/h3/commit/d18c074))
+- Fix more ts/lint issues ([bd92b74](https://github.com/h3js/h3/commit/bd92b74))
+
+### 🤖 CI
+
+- Fix publish tag ([401c9b8](https://github.com/h3js/h3/commit/401c9b8))
+
+### ❤️ Contributors
+
+- Pooya Parsa ([@pi0](https://github.com/pi0))
+
 ## v1.15.4
 
 [compare changes](https://github.com/h3js/h3/compare/v1.15.2...v1.15.4)

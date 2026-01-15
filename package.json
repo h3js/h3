@@ -1,6 +1,6 @@
 {
   "name": "h3",
-  "version": "1.15.4",
+  "version": "1.15.5",
   "description": "Minimal H(TTP) framework built for high performance and portability.",
   "repository": "h3js/h3",
   "license": "MIT",
