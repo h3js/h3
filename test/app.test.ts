@@ -47,7 +47,7 @@ describe("app", () => {
   it("can return bigint directly", async () => {
     app.use(
       "/",
-      eventHandler(() => BigInt(9_007_199_254_740_991)),
+      eventHandler(() => 9_007_199_254_740_991n),
     );
     const res = await request.get("/");
 
