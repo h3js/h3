@@ -1,5 +1,6 @@
 ---
 icon: icons8:up-round
+title: Migration
 ---
 
 # Migration guide for v1 to v2
