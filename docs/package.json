@@ -6,7 +6,7 @@
     "dev": "undocs dev"
   },
   "devDependencies": {
-    "undocs": "^0.2.30"
+    "undocs": "^0.4.11"
   },
-  "packageManager": "pnpm@10.7.0"
+  "packageManager": "pnpm@10.28.0"
 }
