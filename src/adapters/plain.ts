@@ -80,8 +80,7 @@ export async function _handlePlainRequest(app: App, request: PlainRequest) {
   nodeReq.headers = Object.fromEntries(headers.entries());
 
   // Create new event
-  // @ts-expect-error unenv polyfill lacks ServerResponse.setHeaders
-  const event = createEvent(nodeReq, nodeRes);
+  const event = createEvent(nodeReq, nodeRes as any);
 
   // Fill internal event properties
   event._method = method;
