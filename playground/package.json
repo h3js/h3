@@ -8,6 +8,6 @@
     "deno": "deno --watch -A server.mjs"
   },
   "dependencies": {
-    "h3": "v2.0.0-beta.0"
+    "h3": "2.0.0-rc.1"
   }
 }
