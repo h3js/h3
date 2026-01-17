@@ -1,6 +1,7 @@
 import { getEventContext, HTTPError } from "../index.ts";
 
 import type { H3EventContext, HTTPEvent, Middleware } from "../index.ts";
+import { randomJitter, timingSafeEqual } from "./internal/auth.ts";
 
 type _BasicAuthOptions = {
   /**
@@ -54,25 +55,36 @@ export async function requireBasicAuth(
 
   const authHeader = event.req.headers.get("authorization");
   if (!authHeader) {
-    throw autheFailed(event);
+    throw authFailed(event);
   }
   const [authType, b64auth] = authHeader.split(" ");
   if (authType !== "Basic" || !b64auth) {
-    throw autheFailed(event, opts?.realm);
+    throw authFailed(event, opts?.realm);
   }
-  const [username, password] = atob(b64auth).split(":");
+  let authDecoded: string;
+  try {
+    authDecoded = atob(b64auth);
+  } catch {
+    throw authFailed(event, opts?.realm);
+  }
+  const [username, password] = authDecoded.split(":");
   if (!username || !password) {
-    throw autheFailed(event, opts?.realm);
+    throw authFailed(event, opts?.realm);
   }
 
-  if (opts.username && username !== opts.username) {
-    throw autheFailed(event, opts?.realm);
+  let valid = true;
+  if (opts.username) {
+    valid = timingSafeEqual(username, opts.username) && valid;
   }
-  if (opts.password && password !== opts.password) {
-    throw autheFailed(event, opts?.realm);
+  if (opts.password) {
+    valid = timingSafeEqual(password, opts.password) && valid;
+  }
+  if (!valid) {
+    await randomJitter();
+    throw authFailed(event, opts?.realm);
   }
   if (opts.validate && !(await opts.validate(username, password))) {
-    throw autheFailed(event, opts?.realm);
+    throw authFailed(event, opts?.realm);
   }
 
   const context = getEventContext<H3EventContext>(event);
@@ -97,7 +109,7 @@ export function basicAuth(opts: BasicAuthOptions): Middleware {
   };
 }
 
-function autheFailed(event: HTTPEvent, realm: string = "") {
+function authFailed(event: HTTPEvent, realm: string = "") {
   return new HTTPError({
     status: 401,
     statusText: "Authentication required",
