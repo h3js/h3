@@ -1,6 +1,7 @@
 import { getEventContext, HTTPError } from "../index.ts";
 
 import type { H3EventContext, HTTPEvent, Middleware } from "../index.ts";
+import { randomJitter, timingSafeEqual } from "./internal/auth.ts";
 
 type _BasicAuthOptions = {
   /**
@@ -47,32 +48,40 @@ export async function requireBasicAuth(
   opts: BasicAuthOptions,
 ): Promise<true> {
   if (!opts.validate && !opts.password) {
-    throw new Error(
-      "You must provide either a validate function or a password for basic auth.",
-    );
+    throw new HTTPError({
+      message: "Either 'password' or 'validate' option must be provided",
+      status: 500,
+    });
   }
 
   const authHeader = event.req.headers.get("authorization");
   if (!authHeader) {
-    throw autheFailed(event);
+    throw authFailed(event);
   }
   const [authType, b64auth] = authHeader.split(" ");
-  if (authType !== "Basic" || !b64auth) {
-    throw autheFailed(event, opts?.realm);
+  if (!b64auth || authType.toLowerCase() !== "basic") {
+    throw authFailed(event, opts?.realm);
   }
-  const [username, password] = atob(b64auth).split(":");
+  let authDecoded: string;
+  try {
+    authDecoded = atob(b64auth);
+  } catch {
+    throw authFailed(event, opts?.realm);
+  }
+  const colonIndex = authDecoded.indexOf(":");
+  const username = authDecoded.slice(0, colonIndex);
+  const password = authDecoded.slice(colonIndex + 1);
   if (!username || !password) {
-    throw autheFailed(event, opts?.realm);
+    throw authFailed(event, opts?.realm);
   }
 
-  if (opts.username && username !== opts.username) {
-    throw autheFailed(event, opts?.realm);
-  }
-  if (opts.password && password !== opts.password) {
-    throw autheFailed(event, opts?.realm);
-  }
-  if (opts.validate && !(await opts.validate(username, password))) {
-    throw autheFailed(event, opts?.realm);
+  if (
+    (opts.username && !timingSafeEqual(username, opts.username)) ||
+    (opts.password && !timingSafeEqual(password, opts.password)) ||
+    (opts.validate && !(await opts.validate(username, password)))
+  ) {
+    await randomJitter();
+    throw authFailed(event, opts?.realm);
   }
 
   const context = getEventContext<H3EventContext>(event);
@@ -97,7 +106,7 @@ export function basicAuth(opts: BasicAuthOptions): Middleware {
   };
 }
 
-function autheFailed(event: HTTPEvent, realm: string = "") {
+function authFailed(event: HTTPEvent, realm: string = "") {
   return new HTTPError({
     status: 401,
     statusText: "Authentication required",
