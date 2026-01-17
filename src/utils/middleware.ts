@@ -10,7 +10,7 @@ import { assertBodySize } from "./body.ts";
  * Define a middleware that runs on each request.
  */
 export function onRequest(
-  hook: (event: H3Event) => void | Promise<void>,
+  hook: (event: H3Event) => MaybePromise<void>,
 ): Middleware {
   return async function _onRequestMiddleware(event) {
     await hook(event);
@@ -23,7 +23,7 @@ export function onRequest(
  * You can return a new Response from the handler to replace the original response.
  */
 export function onResponse(
-  hook: (response: Response, event: H3Event) => MaybePromise<void | Response>,
+  hook: (response: Response, event: H3Event) => unknown,
 ): Middleware {
   return async function _onResponseMiddleware(event, next) {
     const rawBody = await next();
@@ -39,7 +39,7 @@ export function onResponse(
  * You can return a new Response from the handler to gracefully handle the error.
  */
 export function onError(
-  hook: (error: HTTPError, event: H3Event) => MaybePromise<void | unknown>,
+  hook: (error: HTTPError, event: H3Event) => unknown,
 ): Middleware {
   return async (event, next) => {
     try {
