@@ -137,12 +137,12 @@ describe("timingSafeEqual", () => {
       const highSurrogate = emoji.charCodeAt(0);
       const lowSurrogate = emoji.charCodeAt(1);
 
-      expect(highSurrogate).toBe(0xD8_3D);
-      expect(lowSurrogate).toBe(0xDE_00);
+      expect(highSurrogate).toBe(0xd8_3d);
+      expect(lowSurrogate).toBe(0xde_00);
 
       // Create strings with unpaired surrogates
-      const invalidStr1 = String.fromCharCode(0xD8_3D); // lone high surrogate
-      const invalidStr2 = String.fromCharCode(0xD8_3D); // same
+      const invalidStr1 = String.fromCharCode(0xd8_3d); // lone high surrogate
+      const invalidStr2 = String.fromCharCode(0xd8_3d); // same
 
       // Same unpaired surrogates are equal (both become same replacement char)
       expect(timingSafeEqual(invalidStr1, invalidStr2)).toBe(true);
@@ -152,8 +152,8 @@ describe("timingSafeEqual", () => {
       const bytes1 = encoder.encode(invalidStr1);
       const bytes2 = encoder.encode(invalidStr2);
 
-      expect([...bytes1]).toEqual([0xEF, 0xBF, 0xBD]);
-      expect([...bytes2]).toEqual([0xEF, 0xBF, 0xBD]);
+      expect([...bytes1]).toEqual([0xef, 0xbf, 0xbd]);
+      expect([...bytes2]).toEqual([0xef, 0xbf, 0xbd]);
     });
 
     it("different invalid surrogates are equal in UTF-8 (both become replacement char)", () => {
@@ -162,15 +162,15 @@ describe("timingSafeEqual", () => {
 
       const encoder = new TextEncoder();
 
-      const loneHigh1 = String.fromCharCode(0xD8_3D); // lone high surrogate
-      const loneHigh2 = String.fromCharCode(0xD8_3E); // different lone high surrogate
+      const loneHigh1 = String.fromCharCode(0xd8_3d); // lone high surrogate
+      const loneHigh2 = String.fromCharCode(0xd8_3e); // different lone high surrogate
 
       // As UTF-8, they're the same (both become replacement character)
       const bytes1 = encoder.encode(loneHigh1);
       const bytes2 = encoder.encode(loneHigh2);
 
-      expect([...bytes1]).toEqual([0xEF, 0xBF, 0xBD]);
-      expect([...bytes2]).toEqual([0xEF, 0xBF, 0xBD]);
+      expect([...bytes1]).toEqual([0xef, 0xbf, 0xbd]);
+      expect([...bytes2]).toEqual([0xef, 0xbf, 0xbd]);
 
       // With UTF-8 safe implementation, these are correctly identified as equal
       expect(timingSafeEqual(loneHigh1, loneHigh2)).toBe(true);
