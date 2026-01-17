@@ -48,9 +48,10 @@ export async function requireBasicAuth(
   opts: BasicAuthOptions,
 ): Promise<true> {
   if (!opts.validate && !opts.password) {
-    throw new Error(
-      "You must provide either a validate function or a password for basic auth.",
-    );
+    throw new HTTPError({
+      message: "Either 'password' or 'validate' option must be provided",
+      status: 500,
+    });
   }
 
   const authHeader = event.req.headers.get("authorization");
@@ -67,23 +68,19 @@ export async function requireBasicAuth(
   } catch {
     throw authFailed(event, opts?.realm);
   }
-  const [username, password] = authDecoded.split(":");
+  const colonIndex = authDecoded.indexOf(":");
+  const username = authDecoded.slice(0, colonIndex);
+  const password = authDecoded.slice(colonIndex + 1);
   if (!username || !password) {
     throw authFailed(event, opts?.realm);
   }
 
-  let valid = true;
-  if (opts.username) {
-    valid = timingSafeEqual(username, opts.username) && valid;
-  }
-  if (opts.password) {
-    valid = timingSafeEqual(password, opts.password) && valid;
-  }
-  if (!valid) {
+  if (
+    (opts.username && !timingSafeEqual(username, opts.username)) ||
+    (opts.password && !timingSafeEqual(password, opts.password)) ||
+    (opts.validate && !(await opts.validate(username, password)))
+  ) {
     await randomJitter();
-    throw authFailed(event, opts?.realm);
-  }
-  if (opts.validate && !(await opts.validate(username, password))) {
     throw authFailed(event, opts?.realm);
   }
 
