@@ -59,7 +59,7 @@ export async function requireBasicAuth(
     throw authFailed(event);
   }
   const [authType, b64auth] = authHeader.split(" ");
-  if (authType !== "Basic" || !b64auth) {
+  if (!b64auth || authType.toLowerCase() !== "basic") {
     throw authFailed(event, opts?.realm);
   }
   let authDecoded: string;
