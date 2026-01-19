@@ -2,6 +2,29 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## v2.0.1-rc.9
+
+[compare changes](https://github.com/h3js/h3/compare/v2.0.1-rc.8...v2.0.1-rc.9)
+
+### 🩹 Fixes
+
+- **basic-auth:** Use jitter and  constant-time string comparison ([#1283](https://github.com/h3js/h3/pull/1283))
+
+### 🌊 Types
+
+- **onResponse:** Allow returning any value ([#1277](https://github.com/h3js/h3/pull/1277))
+
+### 🏡 Chore
+
+- Update deps ([b85db16](https://github.com/h3js/h3/commit/b85db16))
+- Update undocs ([3fc60f2](https://github.com/h3js/h3/commit/3fc60f2))
+- Update deps ([4d87e29](https://github.com/h3js/h3/commit/4d87e29))
+
+### ❤️ Contributors
+
+- Pooya Parsa ([@pi0](https://github.com/pi0))
+- Huseeiin ([@huseeiin](https://github.com/huseeiin))
+
 ## v2.0.1-rc.8
 
 [compare changes](https://github.com/h3js/h3/compare/v2.0.1-rc.7...v2.0.1-rc.8)
