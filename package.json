@@ -50,23 +50,23 @@
   },
   "dependencies": {
     "rou3": "^0.7.12",
-    "srvx": "^0.10.0"
+    "srvx": "^0.10.1"
   },
   "devDependencies": {
-    "@happy-dom/global-registrator": "^20.3.1",
+    "@happy-dom/global-registrator": "^20.3.3",
     "@mitata/counters": "^0.0.8",
     "@types/connect": "^3.4.38",
     "@types/express": "^5.0.6",
     "@types/node": "^25.0.9",
     "@types/react": "^19.2.8",
     "@types/react-dom": "^19.2.3",
-    "@typescript/native-preview": "7.0.0-dev.20260117.1",
+    "@typescript/native-preview": "^7.0.0-dev.20260119.1",
     "@vitest/coverage-v8": "^4.0.17",
     "automd": "^0.4.2",
     "changelogen": "^0.6.2",
     "connect": "^3.7.0",
     "cookie-es": "^2.0.0",
-    "crossws": "^0.4.1",
+    "crossws": "^0.4.3",
     "elysia": "^1.4.22",
     "esbuild": "^0.27.2",
     "eslint": "^9.39.2",
@@ -74,14 +74,14 @@
     "express": "^5.2.1",
     "fetchdts": "^0.1.7",
     "get-port-please": "^3.2.0",
-    "h3-nightly": "^2.0.1-rc.8",
-    "happy-dom": "^20.3.1",
+    "h3-nightly": "^2.0.0-20260117-105852-2b7718c",
+    "happy-dom": "^20.3.3",
     "hono": "^4.11.4",
     "magic-string": "^0.30.21",
     "memoirist": "^0.4.0",
     "mitata": "^1.0.34",
-    "obuild": "^0.4.14",
-    "oxc-parser": "^0.108.0",
+    "obuild": "^0.4.16",
+    "oxc-parser": "^0.110.0",
     "prettier": "^3.8.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
@@ -98,7 +98,7 @@
       "optional": true
     }
   },
-  "packageManager": "pnpm@10.28.0",
+  "packageManager": "pnpm@10.28.1",
   "engines": {
     "node": ">=20.11.1"
   }
