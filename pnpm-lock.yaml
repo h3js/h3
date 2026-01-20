@@ -11,6 +11,9 @@ importers:
 
   .:
     dependencies:
+      fetchdts:
+        specifier: ^0.1.7
+        version: 0.1.7
       rou3:
         specifier: ^0.7.12
         version: 0.7.12
@@ -75,9 +78,6 @@ importers:
       express:
         specifier: ^5.2.1
         version: 5.2.1
-      fetchdts:
-        specifier: ^0.1.7
-        version: 0.1.7
       get-port-please:
         specifier: ^3.2.0
         version: 3.2.0

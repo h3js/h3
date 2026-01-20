@@ -49,6 +49,7 @@
     "h3": "link:."
   },
   "dependencies": {
+    "fetchdts": "^0.1.7",
     "rou3": "^0.7.12",
     "srvx": "^0.10.1"
   },
@@ -72,7 +73,6 @@
     "eslint": "^9.39.2",
     "eslint-config-unjs": "^0.6.2",
     "express": "^5.2.1",
-    "fetchdts": "^0.1.7",
     "get-port-please": "^3.2.0",
     "h3-nightly": "^2.0.0-20260117-105852-2b7718c",
     "happy-dom": "^20.3.3",
