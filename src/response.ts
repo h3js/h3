@@ -8,6 +8,14 @@ import { kEventRes, kEventResHeaders, type H3Event } from "./event.ts";
 export const kNotFound: symbol = /* @__PURE__ */ Symbol.for("h3.notFound");
 export const kHandled: symbol = /* @__PURE__ */ Symbol.for("h3.handled");
 
+const DISALLOWED_ERROR_HEADERS = /* @__PURE__ */ new Set([
+  "content-length",
+  "content-type",
+  "content-encoding",
+  "content-language",
+  "transfer-encoding",
+]);
+
 export function toResponse(
   val: unknown,
   event: H3Event,
@@ -144,9 +152,12 @@ function mergeHeaders(
   base: HeadersInit,
   overrides: Headers,
   target = new Headers(base),
+  ignoreSet = new Set(),
 ): Headers {
   for (const [name, value] of overrides) {
-    if (name === "set-cookie") {
+    if (ignoreSet.has(name.toLowerCase())) {
+      continue;
+    } else if (name === "set-cookie") {
       target.append(name, value);
     } else {
       target.set(name, value);
@@ -264,6 +275,12 @@ function nullBody(
 }
 
 function errorResponse(error: HTTPError, debug?: boolean): Response {
+  const headers = new Headers(jsonHeaders);
+
+  if (error.headers) {
+    mergeHeaders(headers, error.headers, headers, DISALLOWED_ERROR_HEADERS);
+  }
+
   return new FastResponse(
     JSON.stringify(
       {
@@ -279,9 +296,7 @@ function errorResponse(error: HTTPError, debug?: boolean): Response {
     {
       status: error.status,
       statusText: error.statusText,
-      headers: error.headers
-        ? mergeHeaders(jsonHeaders, error.headers)
-        : new Headers(jsonHeaders),
+      headers,
     },
   );
 }

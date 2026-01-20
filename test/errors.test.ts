@@ -146,4 +146,26 @@ describeMatrix("errors", (t, { it, expect }) => {
 
     t.errors = [];
   });
+
+  it("strips dangerous headers from the error cause", async () => {
+    t.app.use("/", () => {
+      throw new HTTPError({
+        status: 500,
+        message: "Proxy Error",
+        headers: {
+          "x-custom-header": "safe",
+          "content-length": "99999",
+          "content-encoding": "gzip",
+          "content-type": "text/html",
+        },
+      });
+    });
+
+    const res = await t.fetch("/");
+
+    expect(res.headers.get("x-custom-header")).toBe("safe");
+    expect(res.headers.get("content-encoding")).toBeNull();
+    expect(res.headers.get("content-length")).not.toBe("99999");
+    expect(res.headers.get("content-type")).toContain("application/json");
+  });
 });
