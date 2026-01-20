@@ -140,6 +140,14 @@ export function getValidatedQuery(
   return validateData(query, validate, options);
 }
 
+export function getRouterParams<Event extends H3Event>(
+  event: Event,
+  opts?: { decode?: boolean },
+): Event extends H3Event<infer R> ? R["routerParams"] : never;
+export function getRouterParams<Event extends HTTPEvent>(
+  event: Event,
+  opts?: { decode?: boolean },
+): NonNullable<H3Event["context"]["params"]>;
 /**
  * Get matched route params.
  *
@@ -150,8 +158,8 @@ export function getValidatedQuery(
  *   const params = getRouterParams(event); // { key: "value" }
  * });
  */
-export function getRouterParams(
-  event: HTTPEvent,
+export function getRouterParams<Event extends HTTPEvent>(
+  event: Event,
   opts: { decode?: boolean } = {},
 ): NonNullable<H3Event["context"]["params"]> {
   // Fallback object needs to be returned in case router is not used (#149)
@@ -159,12 +167,14 @@ export function getRouterParams(
   let params = (context.params || {}) as NonNullable<
     H3Event["context"]["params"]
   >;
+
   if (opts.decode) {
     params = { ...params };
     for (const key in params) {
       params[key] = decodeURIComponent(params[key]);
     }
   }
+
   return params;
 }
 
@@ -256,6 +266,21 @@ export function getValidatedRouterParams(
   return validateData(routerParams, validate, opts);
 }
 
+export function getRouterParam<
+  Event extends H3Event,
+  Key extends Event extends H3Event<infer R>
+    ? keyof R["routerParams"] & string
+    : never,
+>(
+  event: Event,
+  name: Key,
+  opts?: { decode?: boolean },
+): Event extends H3Event<infer R> ? R["routerParams"][Key] : never;
+export function getRouterParam<Event extends HTTPEvent>(
+  event: Event,
+  name: string,
+  opts?: { decode?: boolean },
+): string | undefined;
 /**
  * Get a matched route param by name.
  *
@@ -266,12 +291,13 @@ export function getValidatedRouterParams(
  *   const param = getRouterParam(event, "key");
  * });
  */
-export function getRouterParam(
-  event: HTTPEvent,
+export function getRouterParam<Event extends HTTPEvent>(
+  event: Event,
   name: string,
   opts: { decode?: boolean } = {},
 ): string | undefined {
   const params = getRouterParams(event, opts);
+
   return params[name];
 }
 

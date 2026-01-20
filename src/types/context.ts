@@ -2,9 +2,15 @@ import type { Session } from "../utils/session.ts";
 import type { H3Route } from "./h3.ts";
 import type { ServerRequestContext } from "srvx";
 
-export interface H3EventContext extends ServerRequestContext {
-  /* Matched router parameters */
-  params?: Record<string, string>;
+export interface H3EventContext<
+  TParams = Record<string, string>,
+> extends ServerRequestContext {
+  /**
+   * Matched route parameters
+   *
+   * If there are no parameters, this will be `undefined`.
+   */
+  params?: TParams;
 
   /* Matched middleware parameters */
   middlewareParams?: Record<string, string>;
