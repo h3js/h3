@@ -80,7 +80,7 @@
     "magic-string": "^0.30.21",
     "memoirist": "^0.4.0",
     "mitata": "^1.0.34",
-    "obuild": "^0.4.17",
+    "obuild": "npm:obuild-nightly@0.4.18-20260120-084242-d92d40b",
     "oxc-parser": "^0.110.0",
     "prettier": "^3.8.0",
     "react": "^19.2.3",
