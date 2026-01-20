@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## v2.0.1-rc.10
+
+[compare changes](https://github.com/h3js/h3/compare/v2.0.1-rc.9...v2.0.1-rc.10)
+
+### 📦 Build
+
+- Move fetchdts to dependencies due to bundle issues ([0d753cf](https://github.com/h3js/h3/commit/0d753cf))
+
+### ❤️ Contributors
+
+- Pooya Parsa ([@pi0](https://github.com/pi0))
+
 ## v2.0.1-rc.9
 
 [compare changes](https://github.com/h3js/h3/compare/v2.0.1-rc.8...v2.0.1-rc.9)
