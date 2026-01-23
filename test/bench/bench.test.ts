@@ -14,9 +14,7 @@ describe("benchmark", async () => {
             expect(await response.text()).toBe(request.response.body);
           }
           if (request.response.headers) {
-            for (const [key, value] of Object.entries(
-              request.response.headers,
-            )) {
+            for (const [key, value] of Object.entries(request.response.headers)) {
               expect(response.headers.get(key)).toBe(value);
             }
           }

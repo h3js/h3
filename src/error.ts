@@ -25,10 +25,7 @@ export interface ErrorInput<DataT = unknown> extends Partial<ErrorBody<DataT>> {
   statusMessage?: string;
 }
 
-export type ErrorDetails =
-  | (Error & { cause?: unknown })
-  | HTTPError
-  | ErrorInput;
+export type ErrorDetails = (Error & { cause?: unknown }) | HTTPError | ErrorInput;
 
 export interface ErrorBody<DataT = unknown> {
   /**
@@ -74,10 +71,7 @@ export interface ErrorBody<DataT = unknown> {
 /**
  * HTTPError
  */
-export class HTTPError<DataT = unknown>
-  extends Error
-  implements ErrorBody<DataT>
-{
+export class HTTPError<DataT = unknown> extends Error implements ErrorBody<DataT> {
   override get name(): string {
     return "HTTPError";
   }
@@ -145,10 +139,7 @@ export class HTTPError<DataT = unknown>
   static status(
     status: number,
     statusText?: string,
-    details?: Exclude<
-      ErrorDetails,
-      "status" | "statusText" | "statusCode" | "statusMessage"
-    >,
+    details?: Exclude<ErrorDetails, "status" | "statusText" | "statusCode" | "statusMessage">,
   ): HTTPError {
     return new HTTPError({ ...details, statusText, status });
   }
@@ -203,15 +194,11 @@ export class HTTPError<DataT = unknown>
     this.status = status;
     this.statusText = statusText || undefined;
 
-    const rawHeaders =
-      (details as ErrorInput)?.headers ||
-      (details?.cause as ErrorInput)?.headers;
+    const rawHeaders = (details as ErrorInput)?.headers || (details?.cause as ErrorInput)?.headers;
     this.headers = rawHeaders ? new Headers(rawHeaders) : undefined;
 
     this.unhandled =
-      (details as ErrorBody)?.unhandled ??
-      (details?.cause as ErrorBody)?.unhandled ??
-      undefined;
+      (details as ErrorBody)?.unhandled ?? (details?.cause as ErrorBody)?.unhandled ?? undefined;
 
     this.data = (details as ErrorBody)?.data as DataT | undefined;
     this.body = (details as ErrorBody)?.body;

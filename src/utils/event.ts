@@ -24,9 +24,9 @@ export function isHTTPEvent(input: any): input is HTTPEvent {
 /**
  * Gets the context of the event, if it does not exists, initializes a new context on `req.context`.
  */
-export function getEventContext<
-  T extends ServerRequestContext | H3EventContext,
->(event: HTTPEvent | H3Event): T {
+export function getEventContext<T extends ServerRequestContext | H3EventContext>(
+  event: HTTPEvent | H3Event,
+): T {
   if ((event as H3Event).context) {
     return (event as H3Event).context as T;
   }

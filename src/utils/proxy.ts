@@ -30,9 +30,7 @@ export async function proxyRequest(
   opts: ProxyOptions = {},
 ): Promise<HTTPResponse> {
   // Request Body
-  const requestBody = PayloadMethods.has(event.req.method)
-    ? event.req.body
-    : undefined;
+  const requestBody = PayloadMethods.has(event.req.method) ? event.req.body : undefined;
 
   // Method
   const method = opts.fetchOptions?.method || event.req.method;
@@ -88,11 +86,7 @@ export async function proxy(
   const cookies: string[] = [];
 
   for (const [key, value] of response.headers.entries()) {
-    if (
-      key === "content-encoding" ||
-      key === "content-length" ||
-      key === "transfer-encoding"
-    ) {
+    if (key === "content-encoding" || key === "content-length" || key === "transfer-encoding") {
       continue;
     }
     if (key === "set-cookie") {
@@ -105,11 +99,7 @@ export async function proxy(
   if (cookies.length > 0) {
     const _cookies = cookies.map((cookie) => {
       if (opts.cookieDomainRewrite) {
-        cookie = rewriteCookieProperty(
-          cookie,
-          opts.cookieDomainRewrite,
-          "domain",
-        );
+        cookie = rewriteCookieProperty(cookie, opts.cookieDomainRewrite, "domain");
       }
       if (opts.cookiePathRewrite) {
         cookie = rewriteCookieProperty(cookie, opts.cookiePathRewrite, "path");
@@ -176,19 +166,12 @@ export async function fetchWithEvent(
   return event.app!.fetch(
     createSubRequest(event, url, {
       ...init,
-      headers: mergeHeaders(
-        getProxyRequestHeaders(event, { host: true }),
-        init?.headers,
-      ),
+      headers: mergeHeaders(getProxyRequestHeaders(event, { host: true }), init?.headers),
     }),
   );
 }
 
-function createSubRequest(
-  event: H3Event,
-  path: string,
-  init: RequestInit,
-): ServerRequest {
+function createSubRequest(event: H3Event, path: string, init: RequestInit): ServerRequest {
   const url = new URL(path, event.url);
   const req = new Request(url, init) as ServerRequest;
   req.runtime = event.req.runtime;

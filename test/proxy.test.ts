@@ -83,9 +83,7 @@ describeMatrix("proxy", (t, { it, expect, describe }) => {
           return proxyRequest(event, "/debug");
         });
 
-        const dummyFile = await readFile(
-          new URL("assets/dummy.pdf", import.meta.url),
-        );
+        const dummyFile = await readFile(new URL("assets/dummy.pdf", import.meta.url));
 
         const res = await t.fetch("/", {
           method: "POST",
@@ -486,9 +484,7 @@ describeMatrix("proxy", (t, { it, expect, describe }) => {
 
         await t.fetch("/");
 
-        expect(headers?.["content-type"]).toEqual(
-          "application/json;charset=UTF-8",
-        );
+        expect(headers?.["content-type"]).toEqual("application/json;charset=UTF-8");
       });
     });
   });

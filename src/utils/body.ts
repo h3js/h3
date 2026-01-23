@@ -5,11 +5,7 @@ import { parseURLEncodedBody } from "./internal/body.ts";
 import type { HTTPEvent } from "../event.ts";
 import type { InferEventInput } from "../types/handler.ts";
 import type { ValidateResult } from "./internal/validate.ts";
-import type {
-  StandardSchemaV1,
-  FailureResult,
-  InferOutput,
-} from "./internal/standard-schema.ts";
+import type { StandardSchemaV1, FailureResult, InferOutput } from "./internal/standard-schema.ts";
 
 /**
  * Reads request body and tries to parse using JSON.parse or URLSearchParams.
@@ -50,10 +46,7 @@ export async function readBody<
   }
 }
 
-export async function readValidatedBody<
-  Event extends HTTPEvent,
-  S extends StandardSchemaV1,
->(
+export async function readValidatedBody<Event extends HTTPEvent, S extends StandardSchemaV1>(
   event: Event,
   validate: S,
   options?: { onError?: (result: FailureResult) => ErrorDetails },
@@ -64,9 +57,7 @@ export async function readValidatedBody<
   InputT = InferEventInput<"body", Event, OutputT>,
 >(
   event: Event,
-  validate: (
-    data: InputT,
-  ) => ValidateResult<OutputT> | Promise<ValidateResult<OutputT>>,
+  validate: (data: InputT) => ValidateResult<OutputT> | Promise<ValidateResult<OutputT>>,
   options?: {
     onError?: () => ErrorDetails;
   },
@@ -146,10 +137,7 @@ export async function readValidatedBody(
  * @param event HTTP event
  * @param limit Body size limit in bytes
  */
-export async function assertBodySize(
-  event: HTTPEvent,
-  limit: number,
-): Promise<void> {
+export async function assertBodySize(event: HTTPEvent, limit: number): Promise<void> {
   const isWithin = await isBodySizeWithin(event, limit);
   if (!isWithin) {
     throw new HTTPError({
@@ -161,10 +149,7 @@ export async function assertBodySize(
 }
 
 // Internal util for now. We can export later if needed
-async function isBodySizeWithin(
-  event: HTTPEvent,
-  limit: number,
-): Promise<boolean> {
+async function isBodySizeWithin(event: HTTPEvent, limit: number): Promise<boolean> {
   const req = event.req;
   if (req.body === null) {
     return true;

@@ -16,9 +16,7 @@ interface ResolvedCorsOptions {
 /**
  * Resolve CORS options.
  */
-export function resolveCorsOptions(
-  options: CorsOptions = {},
-): ResolvedCorsOptions {
+export function resolveCorsOptions(options: CorsOptions = {}): ResolvedCorsOptions {
   const defaultOptions: ResolvedCorsOptions = {
     origin: "*",
     methods: "*",
@@ -78,10 +76,7 @@ export function isCorsOriginAllowed(
 /**
  * Create the `access-control-allow-origin` header.
  */
-export function createOriginHeaders(
-  event: H3Event,
-  options: CorsOptions,
-): Record<string, string> {
+export function createOriginHeaders(event: H3Event, options: CorsOptions): Record<string, string> {
   const { origin: originOption } = options;
   const origin = event.req.headers.get("origin");
 
@@ -103,9 +98,7 @@ export function createOriginHeaders(
 /**
  * Create the `access-control-allow-methods` header.
  */
-export function createMethodsHeaders(
-  options: CorsOptions,
-): Record<string, string> {
+export function createMethodsHeaders(options: CorsOptions): Record<string, string> {
   const { methods } = options;
 
   if (!methods) {
@@ -116,17 +109,13 @@ export function createMethodsHeaders(
     return { "access-control-allow-methods": "*" };
   }
 
-  return methods.length > 0
-    ? { "access-control-allow-methods": methods.join(",") }
-    : {};
+  return methods.length > 0 ? { "access-control-allow-methods": methods.join(",") } : {};
 }
 
 /**
  * Create the `access-control-allow-credentials` header.
  */
-export function createCredentialsHeaders(
-  options: CorsOptions,
-): Record<string, string> {
+export function createCredentialsHeaders(options: CorsOptions): Record<string, string> {
   const { credentials } = options;
 
   if (credentials) {
@@ -165,9 +154,7 @@ export function createAllowHeaderHeaders(
 /**
  * Create the `access-control-expose-headers` header.
  */
-export function createExposeHeaders(
-  options: CorsOptions,
-): Record<string, string> {
+export function createExposeHeaders(options: CorsOptions): Record<string, string> {
   const { exposeHeaders } = options;
 
   if (!exposeHeaders) {
@@ -184,9 +171,7 @@ export function createExposeHeaders(
 /**
  * Create the `access-control-max-age` header.
  */
-export function createMaxAgeHeader(
-  options: CorsOptions,
-): Record<string, string> {
+export function createMaxAgeHeader(options: CorsOptions): Record<string, string> {
   const { maxAge } = options;
 
   if (maxAge) {

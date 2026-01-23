@@ -22,12 +22,7 @@ export { H3Core, H3 } from "./h3.ts";
 
 export type { H3EventContext } from "./types/context.ts";
 export { H3Event, type HTTPEvent } from "./event.ts";
-export {
-  isEvent,
-  isHTTPEvent,
-  mockEvent,
-  getEventContext,
-} from "./utils/event.ts";
+export { isEvent, isHTTPEvent, mockEvent, getEventContext } from "./utils/event.ts";
 
 // Handler and Middleware
 
@@ -56,11 +51,7 @@ export {
   toEventHandler,
 } from "./handler.ts";
 
-export {
-  defineMiddleware,
-  callMiddleware,
-  toMiddleware,
-} from "./middleware.ts";
+export { defineMiddleware, callMiddleware, toMiddleware } from "./middleware.ts";
 
 // Response
 
@@ -68,12 +59,7 @@ export { toResponse, HTTPResponse } from "./response.ts";
 
 // Error
 
-export {
-  type ErrorDetails,
-  type ErrorBody,
-  type ErrorInput,
-  HTTPError,
-} from "./error.ts";
+export { type ErrorDetails, type ErrorBody, type ErrorInput, HTTPError } from "./error.ts";
 
 // Adapters
 
@@ -112,22 +98,11 @@ export {
 
 // Response
 
-export {
-  writeEarlyHints,
-  redirect,
-  iterable,
-  noContent,
-  html,
-} from "./utils/response.ts";
+export { writeEarlyHints, redirect, iterable, noContent, html } from "./utils/response.ts";
 
 // Middleware
 
-export {
-  onError,
-  onRequest,
-  onResponse,
-  bodyLimit,
-} from "./utils/middleware.ts";
+export { onError, onRequest, onResponse, bodyLimit } from "./utils/middleware.ts";
 
 // Proxy
 
@@ -173,11 +148,7 @@ export { type CacheConditions, handleCacheHeaders } from "./utils/cache.ts";
 
 // Static
 
-export {
-  type ServeStaticOptions,
-  type StaticAssetMeta,
-  serveStatic,
-} from "./utils/static.ts";
+export { type ServeStaticOptions, type StaticAssetMeta, serveStatic } from "./utils/static.ts";
 
 // Base
 
@@ -211,18 +182,11 @@ export {
 
 // Auth
 
-export {
-  type BasicAuthOptions,
-  requireBasicAuth,
-  basicAuth,
-} from "./utils/auth.ts";
+export { type BasicAuthOptions, requireBasicAuth, basicAuth } from "./utils/auth.ts";
 
 // Fingerprint
 
-export {
-  type RequestFingerprintOptions,
-  getRequestFingerprint,
-} from "./utils/fingerprint.ts";
+export { type RequestFingerprintOptions, getRequestFingerprint } from "./utils/fingerprint.ts";
 
 // WebSocket
 

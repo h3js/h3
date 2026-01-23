@@ -83,9 +83,7 @@ describeMatrix("session", (t, { it, expect }) => {
   });
 
   it("stores large data in chunks", async () => {
-    const token = Array.from({ length: 5000 /* ~4k + one more */ })
-      .fill("x")
-      .join("");
+    const token = Array.from({ length: 5000 /* ~4k + one more */ }).fill("x").join("");
     const res = await t.fetch("/", {
       method: "POST",
       headers: { Cookie: cookie },

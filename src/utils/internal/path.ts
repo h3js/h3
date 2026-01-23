@@ -13,10 +13,7 @@ export function withoutTrailingSlash(path: string | undefined): string {
   return path[path.length - 1] === "/" ? path.slice(0, -1) : path;
 }
 
-export function joinURL(
-  base: string | undefined,
-  path: string | undefined,
-): string {
+export function joinURL(base: string | undefined, path: string | undefined): string {
   if (!base || base === "/") {
     return path || "/";
   }
@@ -48,7 +45,5 @@ export function withoutBase(input: string = "", base: string = ""): string {
 }
 
 export function getPathname(path: string = "/"): string {
-  return path.startsWith("/")
-    ? path.split("?")[0]
-    : new URL(path, "http://localhost").pathname;
+  return path.startsWith("/") ? path.split("?")[0] : new URL(path, "http://localhost").pathname;
 }

@@ -1,10 +1,6 @@
 import type { H3Event } from "./event.ts";
 import type { H3, H3Core } from "./h3.ts";
-import {
-  type H3Plugin,
-  type H3Route,
-  type MiddlewareOptions,
-} from "./types/h3.ts";
+import { type H3Plugin, type H3Route, type MiddlewareOptions } from "./types/h3.ts";
 import type { EventHandler, Middleware } from "./types/handler.ts";
 
 /**
@@ -37,8 +33,7 @@ export interface TracingPluginOptions {
  */
 export function tracingPlugin(traceOpts?: TracingPluginOptions): H3Plugin {
   return (h3: H3 | H3Core) => {
-    const { tracingChannel } =
-      globalThis.process?.getBuiltinModule?.("diagnostics_channel") ?? {};
+    const { tracingChannel } = globalThis.process?.getBuiltinModule?.("diagnostics_channel") ?? {};
 
     // If tracingChannel is not available, then we can't trace request handlers
     if (!tracingChannel) {
@@ -53,13 +48,10 @@ export function tracingPlugin(traceOpts?: TracingPluginOptions): H3Plugin {
       }
 
       const wrappedMiddleware: MaybeTracedMiddleware = (...args) => {
-        return requestHandlerChannel.tracePromise(
-          async () => middleware(...args),
-          {
-            event: args[0],
-            type: "middleware",
-          } satisfies TracingRequestEvent,
-        );
+        return requestHandlerChannel.tracePromise(async () => middleware(...args), {
+          event: args[0],
+          type: "middleware",
+        } satisfies TracingRequestEvent);
       };
       wrappedMiddleware.__traced__ = true;
 
@@ -72,13 +64,10 @@ export function tracingPlugin(traceOpts?: TracingPluginOptions): H3Plugin {
       }
 
       const wrappedHandler: MaybeTracedEventHandler = (...args) => {
-        return requestHandlerChannel.tracePromise(
-          async () => handler(...args),
-          {
-            event: args[0],
-            type: "route",
-          } satisfies TracingRequestEvent,
-        );
+        return requestHandlerChannel.tracePromise(async () => handler(...args), {
+          event: args[0],
+          type: "route",
+        } satisfies TracingRequestEvent);
       };
       wrappedHandler.__traced__ = true;
 
@@ -90,9 +79,7 @@ export function tracingPlugin(traceOpts?: TracingPluginOptions): H3Plugin {
       return {
         ...route,
         handler: wrapEventHandler(route.handler),
-        middleware: route.middleware
-          ? route.middleware.map((m) => wrapMiddleware(m))
-          : undefined,
+        middleware: route.middleware ? route.middleware.map((m) => wrapMiddleware(m)) : undefined,
       } satisfies H3Route;
     });
 
@@ -108,9 +95,7 @@ export function tracingPlugin(traceOpts?: TracingPluginOptions): H3Plugin {
         const lastRoute = instance["~routes"][instance["~routes"].length - 1];
         if (lastRoute) {
           lastRoute.handler = wrapEventHandler(lastRoute.handler);
-          lastRoute.middleware = lastRoute.middleware?.map((m) =>
-            wrapMiddleware(m),
-          );
+          lastRoute.middleware = lastRoute.middleware?.map((m) => wrapMiddleware(m));
         }
 
         return instance;

@@ -1,14 +1,7 @@
-import type {
-  ValidateFunction,
-  ValidateIssues,
-} from "../src/utils/internal/validate.ts";
+import type { ValidateFunction, ValidateIssues } from "../src/utils/internal/validate.ts";
 import { beforeEach } from "vitest";
 import { z } from "zod/v4";
-import {
-  readValidatedBody,
-  getValidatedQuery,
-  getValidatedRouterParams,
-} from "../src/index.ts";
+import { readValidatedBody, getValidatedQuery, getValidatedRouterParams } from "../src/index.ts";
 import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("validate", (t, { it, describe, expect }) => {
@@ -56,18 +49,14 @@ describeMatrix("validate", (t, { it, describe, expect }) => {
       });
 
       t.app.post("/custom-error", async (event) => {
-        const data = await readValidatedBody(
-          event,
-          customValidateWithoutError,
-          {
-            onError() {
-              return {
-                status: 500,
-                statusText: "Custom validation error",
-              };
-            },
+        const data = await readValidatedBody(event, customValidateWithoutError, {
+          onError() {
+            return {
+              status: 500,
+              statusText: "Custom validation error",
+            };
           },
-        );
+        });
 
         return data;
       });
@@ -142,9 +131,7 @@ describeMatrix("validate", (t, { it, describe, expect }) => {
           body: JSON.stringify({ invalid: true }),
         });
         expect(res.status).toEqual(400);
-        expect((await res.json()).data?.issues?.[0]?.code).toEqual(
-          "invalid_type",
-        );
+        expect((await res.json()).data?.issues?.[0]?.code).toEqual("invalid_type");
       });
 
       it("Caught", async () => {
@@ -208,18 +195,14 @@ describeMatrix("validate", (t, { it, describe, expect }) => {
       });
 
       t.app.get("/custom-error", async (event) => {
-        const data = await getValidatedQuery(
-          event,
-          customValidateWithoutError,
-          {
-            onError() {
-              return {
-                status: 500,
-                statusText: "Custom validation error",
-              };
-            },
+        const data = await getValidatedQuery(event, customValidateWithoutError, {
+          onError() {
+            return {
+              status: 500,
+              statusText: "Custom validation error",
+            };
           },
-        );
+        });
 
         return data;
       });
@@ -299,11 +282,7 @@ describeMatrix("validate", (t, { it, describe, expect }) => {
     const customParamValidate: ValidateFunction<{
       id: number;
     }> = (data: any) => {
-      if (
-        !data.id ||
-        typeof data.id !== "string" ||
-        !REGEX_NUMBER_STRING.test(data.id)
-      ) {
+      if (!data.id || typeof data.id !== "string" || !REGEX_NUMBER_STRING.test(data.id)) {
         throw new Error("Invalid id");
       }
       return {
@@ -315,10 +294,7 @@ describeMatrix("validate", (t, { it, describe, expect }) => {
     const zodParamValidate = z.object({
       id: z
         .string()
-        .regex(
-          REGEX_NUMBER_STRING,
-          "Invalid input: expected number, received string",
-        )
+        .regex(REGEX_NUMBER_STRING, "Invalid input: expected number, received string")
         .transform(Number),
     });
 

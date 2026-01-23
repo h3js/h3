@@ -13,17 +13,10 @@ import type {
   FetchableObject,
   HTTPHandler,
 } from "./types/handler.ts";
-import type {
-  StandardSchemaV1,
-  InferOutput,
-} from "./utils/internal/standard-schema.ts";
+import type { StandardSchemaV1, InferOutput } from "./utils/internal/standard-schema.ts";
 import type { TypedRequest } from "fetchdts";
 import { NoHandler, type H3Core } from "./h3.ts";
-import {
-  validatedRequest,
-  validatedURL,
-  type OnValidateError,
-} from "./utils/internal/validate.ts";
+import { validatedRequest, validatedURL, type OnValidateError } from "./utils/internal/validate.ts";
 
 // --- event handler ---
 
@@ -37,9 +30,7 @@ export function defineHandler<
   Res = EventHandlerResponse,
 >(def: EventHandlerObject<Req, Res>): EventHandlerWithFetch<Req, Res>;
 
-export function defineHandler(
-  input: EventHandler | EventHandlerObject,
-): EventHandlerWithFetch {
+export function defineHandler(input: EventHandler | EventHandlerObject): EventHandlerWithFetch {
   if (typeof input === "function") {
     return handlerWithFetch(input as EventHandler);
   }
@@ -91,24 +82,15 @@ export function defineValidatedHandler<
       Res
     >;
   },
-): EventHandlerWithFetch<
-  TypedRequest<InferOutput<RequestBody>, InferOutput<RequestHeaders>>,
-  Res
-> {
+): EventHandlerWithFetch<TypedRequest<InferOutput<RequestBody>, InferOutput<RequestHeaders>>, Res> {
   if (!def.validate) {
     return defineHandler(def) as any;
   }
   return defineHandler({
     ...def,
     handler: function _validatedHandler(event) {
-      (event as any) /* readonly */.req = validatedRequest(
-        event.req,
-        def.validate!,
-      );
-      (event as any) /* readonly */.url = validatedURL(
-        event.url,
-        def.validate!,
-      );
+      (event as any) /* readonly */.req = validatedRequest(event.req, def.validate!);
+      (event as any) /* readonly */.url = validatedURL(event.url, def.validate!);
       return def.handler(event as any);
     },
   }) as any;
@@ -143,9 +125,7 @@ function handlerWithFetch<
 
 //  --- dynamic event handler ---
 
-export function dynamicEventHandler(
-  initial?: EventHandler | FetchableObject,
-): DynamicEventHandler {
+export function dynamicEventHandler(initial?: EventHandler | FetchableObject): DynamicEventHandler {
   let current: EventHandler | undefined = toEventHandler(initial);
   return Object.assign(
     defineHandler(function _dynamicEventHandler(event: H3Event) {
@@ -182,17 +162,13 @@ export function defineLazyEventHandler(
     }));
   };
   return defineHandler(function lazyHandler(event) {
-    return handler
-      ? handler(event)
-      : resolveLazyHandler().then((r) => r(event));
+    return handler ? handler(event) : resolveLazyHandler().then((r) => r(event));
   });
 }
 
 // --- normalization utils ---
 
-export function toEventHandler(
-  handler: HTTPHandler | undefined,
-): EventHandler | undefined {
+export function toEventHandler(handler: HTTPHandler | undefined): EventHandler | undefined {
   if (typeof handler === "function") {
     return handler;
   }

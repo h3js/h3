@@ -8,8 +8,7 @@ const demoURL =
 
 app.get("/", () =>
   fetch(demoURL).then(
-    (res) =>
-      new Response(res.body, { headers: { "Content-Type": "text/html" } }),
+    (res) => new Response(res.body, { headers: { "Content-Type": "text/html" } }),
   ),
 );
 

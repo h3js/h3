@@ -45,9 +45,7 @@ describe("defineRoute", () => {
     app.register(routePlugin);
 
     // Check that route was registered
-    const route = app["~routes"].find(
-      (r) => r.route === "/api/test" && r.method === "GET",
-    );
+    const route = app["~routes"].find((r) => r.route === "/api/test" && r.method === "GET");
 
     expect(route).toMatchObject({
       route: "/api/test",

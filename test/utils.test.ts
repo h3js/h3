@@ -20,10 +20,16 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
       expect(res1.headers.get("content-type")).toBe("text/html; charset=utf-8");
       expect(await res1.text()).toBe("<h1>Hello</h1>");
 
-      t.app.get("/test2", () => html`<h1>Hello</h1>`);
+      t.app.get(
+        "/test2",
+        () =>
+          html`
+            <h1>Hello</h1>
+          `,
+      );
       const res2 = await t.fetch("/test2");
       expect(res2.headers.get("content-type")).toBe("text/html; charset=utf-8");
-      expect(await res2.text()).toBe("<h1>Hello</h1>");
+      expect((await res2.text()).trim()).toBe("<h1>Hello</h1>");
     });
   });
 
@@ -32,9 +38,7 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
       t.app.use(() => redirect("https://google.com"));
       const result = await t.fetch("/");
       expect(result.headers.get("location")).toBe("https://google.com");
-      expect(result.headers.get("content-type")).toBe(
-        "text/html; charset=utf-8",
-      );
+      expect(result.headers.get("content-type")).toBe("text/html; charset=utf-8");
     });
   });
 
@@ -74,9 +78,7 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
     it("can get method", async () => {
       t.app.all("/*", (event) => event.req.method);
       expect(await (await t.fetch("/api")).text()).toBe("GET");
-      expect(await (await t.fetch("/api", { method: "POST" })).text()).toBe(
-        "POST",
-      );
+      expect(await (await t.fetch("/api", { method: "POST" })).text()).toBe("POST");
     });
   });
 
@@ -192,9 +194,7 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
 
   describe("getRequestFingerprint", () => {
     it("returns an hash", async () => {
-      t.app.use((event) =>
-        getRequestFingerprint(event, { xForwardedFor: true }),
-      );
+      t.app.use((event) => getRequestFingerprint(event, { xForwardedFor: true }));
 
       const res = await t.fetch("/", {
         headers: {
@@ -211,9 +211,7 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
     });
 
     it("returns the same hash every time for same request", async () => {
-      t.app.use((event) =>
-        getRequestFingerprint(event, { hash: false, xForwardedFor: true }),
-      );
+      t.app.use((event) => getRequestFingerprint(event, { hash: false, xForwardedFor: true }));
       for (let i = 0; i < 3; i++) {
         const res = await t.fetch("/", {
           headers: {
@@ -225,9 +223,7 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
     });
 
     it("returns null when all detections impossible", async () => {
-      t.app.use((event) =>
-        getRequestFingerprint(event, { hash: false, ip: false }),
-      );
+      t.app.use((event) => getRequestFingerprint(event, { hash: false, ip: false }));
       expect(await (await t.fetch("/")).text()).toBe("");
     });
 
@@ -266,9 +262,7 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
     });
 
     it("uses x-forwarded-for ip when header set", async () => {
-      t.app.use((event) =>
-        getRequestFingerprint(event, { hash: false, xForwardedFor: true }),
-      );
+      t.app.use((event) => getRequestFingerprint(event, { hash: false, xForwardedFor: true }));
 
       const res = await t.fetch("/", {
         headers: {
@@ -320,12 +314,8 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
         return "ok";
       });
       const res = await t.fetch("/");
-      expect(res.headers.get("cache-control")).toBe(
-        "public, max-age=60, s-maxage=60",
-      );
-      expect(res.headers.get("last-modified")).toBe(
-        "Fri, 01 Jan 2021 00:00:00 GMT",
-      );
+      expect(res.headers.get("cache-control")).toBe("public, max-age=60, s-maxage=60");
+      expect(res.headers.get("last-modified")).toBe("Fri, 01 Jan 2021 00:00:00 GMT");
       expect(await res.text()).toBe("ok");
     });
 
@@ -338,9 +328,7 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
         return "ok";
       });
       const res = await t.fetch("/");
-      expect(res.headers.get("cache-control")).toBe(
-        "public, max-age=60, s-maxage=60",
-      );
+      expect(res.headers.get("cache-control")).toBe("public, max-age=60, s-maxage=60");
       expect(res.headers.get("etag")).toBe("123");
       expect(await res.text()).toBe("ok");
     });

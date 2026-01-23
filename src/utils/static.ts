@@ -17,16 +17,12 @@ export interface ServeStaticOptions {
   /**
    * This function should resolve asset meta
    */
-  getMeta: (
-    id: string,
-  ) => StaticAssetMeta | undefined | Promise<StaticAssetMeta | undefined>;
+  getMeta: (id: string) => StaticAssetMeta | undefined | Promise<StaticAssetMeta | undefined>;
 
   /**
    * This function should resolve asset content
    */
-  getContents: (
-    id: string,
-  ) => BodyInit | null | undefined | Promise<BodyInit | null | undefined>;
+  getContents: (id: string) => BodyInit | null | undefined | Promise<BodyInit | null | undefined>;
 
   /**
    * Headers to set on the response
@@ -87,9 +83,7 @@ export async function serveStatic(
     throw new HTTPError({ status: 405 });
   }
 
-  const originalId = decodeURI(
-    withLeadingSlash(withoutTrailingSlash(event.url.pathname)),
-  );
+  const originalId = decodeURI(withLeadingSlash(withoutTrailingSlash(event.url.pathname)));
 
   const acceptEncodings = parseAcceptEncoding(
     event.req.headers.get("accept-encoding") || "",
@@ -103,11 +97,7 @@ export async function serveStatic(
   let id = originalId;
   let meta: StaticAssetMeta | undefined;
 
-  const _ids = idSearchPaths(
-    originalId,
-    acceptEncodings,
-    options.indexNames || ["/index.html"],
-  );
+  const _ids = idSearchPaths(originalId, acceptEncodings, options.indexNames || ["/index.html"]);
 
   for (const _id of _ids) {
     const _meta = await options.getMeta(_id);
@@ -145,8 +135,7 @@ export async function serveStatic(
     event.res.headers.set("etag", meta.etag);
   }
 
-  const ifNotMatch =
-    meta.etag && event.req.headers.get("if-none-match") === meta.etag;
+  const ifNotMatch = meta.etag && event.req.headers.get("if-none-match") === meta.etag;
   if (ifNotMatch) {
     return new HTTPResponse(null, {
       status: 304,
@@ -170,11 +159,7 @@ export async function serveStatic(
     event.res.headers.set("content-encoding", meta.encoding);
   }
 
-  if (
-    meta.size !== undefined &&
-    meta.size > 0 &&
-    !event.req.headers.get("content-length")
-  ) {
+  if (meta.size !== undefined && meta.size > 0 && !event.req.headers.get("content-length")) {
     event.res.headers.set("content-length", meta.size + "");
   }
 
@@ -188,10 +173,7 @@ export async function serveStatic(
 
 // --- Internal Utils ---
 
-function parseAcceptEncoding(
-  header?: string,
-  encodingMap?: Record<string, string>,
-): string[] {
+function parseAcceptEncoding(header?: string, encodingMap?: Record<string, string>): string[] {
   if (!encodingMap || !header) {
     return [];
   }
