@@ -64,9 +64,7 @@ describe("timingSafeEqual", () => {
       expect(timingSafeEqual(nfc, nfd)).toBe(false);
 
       // If visual equality is needed, normalize both strings first
-      expect(timingSafeEqual(nfc.normalize("NFC"), nfd.normalize("NFC"))).toBe(
-        true,
-      );
+      expect(timingSafeEqual(nfc.normalize("NFC"), nfd.normalize("NFC"))).toBe(true);
     });
 
     it("returns false for visually similar but different Unicode characters", () => {

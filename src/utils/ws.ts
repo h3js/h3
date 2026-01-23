@@ -15,9 +15,7 @@ export type {
  *
  * @see https://h3.dev/guide/websocket
  */
-export function defineWebSocket(
-  hooks: Partial<WebSocketHooks>,
-): Partial<WebSocketHooks> {
+export function defineWebSocket(hooks: Partial<WebSocketHooks>): Partial<WebSocketHooks> {
   return hooks;
 }
 
@@ -29,9 +27,7 @@ export function defineWebSocket(
 export function defineWebSocketHandler(
   hooks:
     | Partial<WebSocketHooks>
-    | ((
-        event: H3Event,
-      ) => Partial<WebSocketHooks> | Promise<Partial<WebSocketHooks>>),
+    | ((event: H3Event) => Partial<WebSocketHooks> | Promise<Partial<WebSocketHooks>>),
 ): EventHandler {
   return defineHandler(function _webSocketHandler(event) {
     const crossws = typeof hooks === "function" ? hooks(event) : hooks;

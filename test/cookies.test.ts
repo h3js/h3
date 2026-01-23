@@ -63,9 +63,7 @@ describeMatrix("cookies", (t, { it, expect, describe }) => {
         return "200";
       });
       const result = await t.fetch("/");
-      expect(result.headers.getSetCookie()).toEqual([
-        "Authorization=1234567; Path=/",
-      ]);
+      expect(result.headers.getSetCookie()).toEqual(["Authorization=1234567; Path=/"]);
       expect(await result.text()).toBe("200");
     });
 

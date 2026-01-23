@@ -2,9 +2,7 @@ import { describe, expect, it } from "vitest";
 
 describe("h3 package", () => {
   it("package exports (snapshot)", async () => {
-    const exportNames = Object.keys(
-      await import("../../src/_entries/generic.ts"),
-    ).sort();
+    const exportNames = Object.keys(await import("../../src/_entries/generic.ts")).sort();
     expect(exportNames).toMatchInlineSnapshot(`
       [
         "H3",

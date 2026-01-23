@@ -1,19 +1,11 @@
 import { type ErrorDetails, HTTPError } from "../../error.ts";
 
 import type { ServerRequest } from "srvx";
-import type {
-  StandardSchemaV1,
-  FailureResult,
-  InferOutput,
-  Issue,
-} from "./standard-schema.ts";
+import type { StandardSchemaV1, FailureResult, InferOutput, Issue } from "./standard-schema.ts";
 
 export type ValidateResult<T> = T | true | false | void;
 
-export type ValidateFunction<
-  T,
-  Schema extends StandardSchemaV1 = StandardSchemaV1<any, T>,
-> =
+export type ValidateFunction<T, Schema extends StandardSchemaV1 = StandardSchemaV1<any, T>> =
   | Schema
   | ((data: unknown) => ValidateResult<T> | Promise<ValidateResult<T>>);
 
@@ -177,9 +169,7 @@ function syncValidate<Source extends "headers" | "query", T = unknown>(
 ): T {
   const result = fn["~standard"].validate(data);
   if (result instanceof Promise) {
-    throw new TypeError(
-      `Asynchronous validation is not supported for ${source}`,
-    );
+    throw new TypeError(`Asynchronous validation is not supported for ${source}`);
   }
   if (result.issues) {
     throw createValidationError(
@@ -192,9 +182,7 @@ function syncValidate<Source extends "headers" | "query", T = unknown>(
   return result.value;
 }
 
-function createValidationError(
-  cause: Error | HTTPError | ErrorDetails | FailureResult,
-) {
+function createValidationError(cause: Error | HTTPError | ErrorDetails | FailureResult) {
   return HTTPError.isError(cause)
     ? cause
     : new HTTPError({

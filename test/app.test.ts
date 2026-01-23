@@ -1,7 +1,4 @@
-import {
-  Readable as NodeStreamReadable,
-  Transform as NodeStreamTransoform,
-} from "node:stream";
+import { Readable as NodeStreamReadable, Transform as NodeStreamTransoform } from "node:stream";
 import { HTTPError, fromNodeHandler } from "../src/index.ts";
 import { describeMatrix } from "./_setup.ts";
 
@@ -128,32 +125,29 @@ describeMatrix("app", (t, { it, expect }) => {
   });
 
   // TODO: investigate issues with stream errors on srvx
-  it.runIf(/* t.target === "node" */ false)(
-    "Node.js Readable Stream with Error",
-    async () => {
-      t.app.use(() => {
-        return new NodeStreamReadable({
-          read() {
-            this.push(Buffer.from("123", "utf8"));
-            this.push(null);
+  it.runIf(/* t.target === "node" */ false)("Node.js Readable Stream with Error", async () => {
+    t.app.use(() => {
+      return new NodeStreamReadable({
+        read() {
+          this.push(Buffer.from("123", "utf8"));
+          this.push(null);
+        },
+      }).pipe(
+        new NodeStreamTransoform({
+          transform(_chunk, _encoding, callback) {
+            const err = new HTTPError({
+              statusCode: 500,
+              statusText: "test",
+            });
+            setTimeout(() => callback(err), 0);
           },
-        }).pipe(
-          new NodeStreamTransoform({
-            transform(_chunk, _encoding, callback) {
-              const err = new HTTPError({
-                statusCode: 500,
-                statusText: "test",
-              });
-              setTimeout(() => callback(err), 0);
-            },
-          }),
-        );
-      });
-      const res = await t.fetch("/");
-      expect(res.status).toBe(500);
-      expect(JSON.parse(await res.text()).statusMessage).toBe("test");
-    },
-  );
+        }),
+      );
+    });
+    const res = await t.fetch("/");
+    expect(res.status).toBe(500);
+    expect(JSON.parse(await res.text()).statusMessage).toBe("test");
+  });
 
   it("Web Stream", async () => {
     t.app.use(() => {
@@ -273,22 +267,19 @@ describeMatrix("app", (t, { it, expect }) => {
     expect(res2.status).toBe(200);
   });
 
-  it.skipIf(t.target !== "node")(
-    "wait for node middleware (req, res, next)",
-    async () => {
-      t.app.use(
-        fromNodeHandler((_req, res, next) => {
-          setTimeout(() => {
-            res.setHeader("content-type", "application/json");
-            res.end(JSON.stringify({ works: 1 }));
-            next();
-          }, 10);
-        }),
-      );
-      const res = await t.fetch("/");
-      expect(await res.json()).toEqual({ works: 1 });
-    },
-  );
+  it.skipIf(t.target !== "node")("wait for node middleware (req, res, next)", async () => {
+    t.app.use(
+      fromNodeHandler((_req, res, next) => {
+        setTimeout(() => {
+          res.setHeader("content-type", "application/json");
+          res.end(JSON.stringify({ works: 1 }));
+          next();
+        }, 10);
+      }),
+    );
+    const res = await t.fetch("/");
+    expect(await res.json()).toEqual({ works: 1 });
+  });
 
   it.skipIf(t.target !== "node")("fromNodeHandler + piping", async () => {
     t.app.all(

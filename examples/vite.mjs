@@ -12,8 +12,6 @@ const vite = await createServer({
 
 app.use(fromNodeHandler(vite.middlewares));
 
-app.get("/", (event) =>
-  html(event, "H3 App + Vite <br> <a href='./vite.mjs'>view source</a>"),
-);
+app.get("/", (event) => html(event, "H3 App + Vite <br> <a href='./vite.mjs'>view source</a>"));
 
 serve(app);

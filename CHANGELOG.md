@@ -32,7 +32,7 @@ All notable changes to this project will be documented in this file. See [standa
 
 ### 🩹 Fixes
 
-- **basic-auth:** Use jitter and  constant-time string comparison ([#1283](https://github.com/h3js/h3/pull/1283))
+- **basic-auth:** Use jitter and constant-time string comparison ([#1283](https://github.com/h3js/h3/pull/1283))
 
 ### 🌊 Types
 
@@ -146,7 +146,7 @@ All notable changes to this project will be documented in this file. See [standa
 
 ### 💅 Refactors
 
-- ⚠️  Slim down `H3Core` ([#1233](https://github.com/h3js/h3/pull/1233))
+- ⚠️ Slim down `H3Core` ([#1233](https://github.com/h3js/h3/pull/1233))
 - Hide internals with `~` ([#1236](https://github.com/h3js/h3/pull/1236))
 - Fix typo ([a68a754](https://github.com/h3js/h3/commit/a68a754))
 
@@ -177,7 +177,7 @@ All notable changes to this project will be documented in this file. See [standa
 
 #### ⚠️ Breaking Changes
 
-- ⚠️  Slim down `H3Core` ([#1233](https://github.com/h3js/h3/pull/1233))
+- ⚠️ Slim down `H3Core` ([#1233](https://github.com/h3js/h3/pull/1233))
 
 ### ❤️ Contributors
 
@@ -214,12 +214,12 @@ All notable changes to this project will be documented in this file. See [standa
 
 - Freeze default response headers ([#1227](https://github.com/h3js/h3/pull/1227))
 - **response:** Do not double merge prepared headers in nested error handler ([#1226](https://github.com/h3js/h3/pull/1226))
-- ⚠️  Avoid merging prepared headers when a `Response` is not ok ([#1228](https://github.com/h3js/h3/pull/1228))
+- ⚠️ Avoid merging prepared headers when a `Response` is not ok ([#1228](https://github.com/h3js/h3/pull/1228))
 
 ### 💅 Refactors
 
 - Update to srvx 0.9 ([#1224](https://github.com/h3js/h3/pull/1224))
-- **proxy:** ⚠️  Keep header entries as-is ([#1225](https://github.com/h3js/h3/pull/1225))
+- **proxy:** ⚠️ Keep header entries as-is ([#1225](https://github.com/h3js/h3/pull/1225))
 
 ### 📖 Documentation
 
@@ -242,8 +242,8 @@ All notable changes to this project will be documented in this file. See [standa
 
 #### ⚠️ Breaking Changes
 
-- ⚠️  Avoid merging prepared headers when a `Response` is not ok ([#1228](https://github.com/h3js/h3/pull/1228))
-- **proxy:** ⚠️  Keep header entries as-is ([#1225](https://github.com/h3js/h3/pull/1225))
+- ⚠️ Avoid merging prepared headers when a `Response` is not ok ([#1228](https://github.com/h3js/h3/pull/1228))
+- **proxy:** ⚠️ Keep header entries as-is ([#1225](https://github.com/h3js/h3/pull/1225))
 
 ### ❤️ Contributors
 
@@ -275,7 +275,7 @@ All notable changes to this project will be documented in this file. See [standa
 
 ### 🚀 Enhancements
 
-- ⚠️  `HTTPResponse` ([#1212](https://github.com/h3js/h3/pull/1212))
+- ⚠️ `HTTPResponse` ([#1212](https://github.com/h3js/h3/pull/1212))
 
 ### 🔥 Performance
 
@@ -301,7 +301,7 @@ All notable changes to this project will be documented in this file. See [standa
 
 #### ⚠️ Breaking Changes
 
-- ⚠️  `HTTPResponse` ([#1212](https://github.com/h3js/h3/pull/1212))
+- ⚠️ `HTTPResponse` ([#1212](https://github.com/h3js/h3/pull/1212))
 
 ### ❤️ Contributors
 
@@ -425,16 +425,16 @@ All notable changes to this project will be documented in this file. See [standa
 
 ### 🚀 Enhancements
 
-- ⚠️  `app.request` ([#1176](https://github.com/h3js/h3/pull/1176))
+- ⚠️ `app.request` ([#1176](https://github.com/h3js/h3/pull/1176))
 
 ### 💅 Refactors
 
-- ⚠️  Only accept `req` for `H3` and `EventHandlerWithFetch` fetch ([#1096](https://github.com/h3js/h3/pull/1096))
+- ⚠️ Only accept `req` for `H3` and `EventHandlerWithFetch` fetch ([#1096](https://github.com/h3js/h3/pull/1096))
 
 #### ⚠️ Breaking Changes
 
-- ⚠️  `app.request` ([#1176](https://github.com/h3js/h3/pull/1176))
-- ⚠️  Only accept `req` for `H3` and `EventHandlerWithFetch` fetch ([#1096](https://github.com/h3js/h3/pull/1096))
+- ⚠️ `app.request` ([#1176](https://github.com/h3js/h3/pull/1176))
+- ⚠️ Only accept `req` for `H3` and `EventHandlerWithFetch` fetch ([#1096](https://github.com/h3js/h3/pull/1096))
 
 ### ❤️ Contributors
 
@@ -452,7 +452,7 @@ All notable changes to this project will be documented in this file. See [standa
 
 ### 🩹 Fixes
 
-- **proxy:** ⚠️  Only inherit runtime context for sub-requests ([#1142](https://github.com/h3js/h3/pull/1142))
+- **proxy:** ⚠️ Only inherit runtime context for sub-requests ([#1142](https://github.com/h3js/h3/pull/1142))
 - Safer `HTTPError` check ([#1145](https://github.com/h3js/h3/pull/1145))
 - **defineValidatedHandler:** Accept all `EventHandlerObject` props ([#1147](https://github.com/h3js/h3/pull/1147))
 - Change "h://_" to "http://_" ([90226b8](https://github.com/h3js/h3/commit/90226b8))
@@ -471,7 +471,7 @@ All notable changes to this project will be documented in this file. See [standa
 
 #### ⚠️ Breaking Changes
 
-- **proxy:** ⚠️  Only inherit runtime context for sub-requests ([#1142](https://github.com/h3js/h3/pull/1142))
+- **proxy:** ⚠️ Only inherit runtime context for sub-requests ([#1142](https://github.com/h3js/h3/pull/1142))
 
 ### ❤️ Contributors
 
@@ -505,7 +505,7 @@ All notable changes to this project will be documented in this file. See [standa
 ### 💅 Refactors
 
 - Merge `H3Event` with types ([eaeb1e1](https://github.com/h3js/h3/commit/eaeb1e1))
-- ⚠️  Explicit use of handlers or middleware ([#1128](https://github.com/h3js/h3/pull/1128))
+- ⚠️ Explicit use of handlers or middleware ([#1128](https://github.com/h3js/h3/pull/1128))
 
 ### 📖 Documentation
 
@@ -547,12 +547,12 @@ All notable changes to this project will be documented in this file. See [standa
 
 #### ⚠️ Breaking Changes
 
-- ⚠️  Explicit use of handlers or middleware ([#1128](https://github.com/h3js/h3/pull/1128))
+- ⚠️ Explicit use of handlers or middleware ([#1128](https://github.com/h3js/h3/pull/1128))
 
 ### ❤️ Contributors
 
 - Pooya Parsa ([@pi0](https://github.com/pi0))
-- Gene ._. ([@outslept](https://github.com/outslept))
+- Gene .\_. ([@outslept](https://github.com/outslept))
 - Daniel Roe ([@danielroe](https://github.com/danielroe))
 - 87xie ([@87xie](https://github.com/87xie))
 - Wuiyang <wuiyang@live.com>

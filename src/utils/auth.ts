@@ -28,10 +28,7 @@ type _BasicAuthOptions = {
 };
 
 export type BasicAuthOptions = Partial<_BasicAuthOptions> &
-  (
-    | { validate: _BasicAuthOptions["validate"] }
-    | { password: _BasicAuthOptions["password"] }
-  );
+  ({ validate: _BasicAuthOptions["validate"] } | { password: _BasicAuthOptions["password"] });
 
 /**
  * Apply basic authentication for current request.
@@ -43,10 +40,7 @@ export type BasicAuthOptions = Partial<_BasicAuthOptions> &
  *   return `Hello, ${event.context.basicAuth.username}!`;
  * });
  */
-export async function requireBasicAuth(
-  event: HTTPEvent,
-  opts: BasicAuthOptions,
-): Promise<true> {
+export async function requireBasicAuth(event: HTTPEvent, opts: BasicAuthOptions): Promise<true> {
   if (!opts.validate && !opts.password) {
     throw new HTTPError({
       message: "Either 'password' or 'validate' option must be provided",

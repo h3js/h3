@@ -86,9 +86,7 @@ describeMatrix(
 
         // Should have events for route handler
         const routeEvents = listener.events.filter(
-          (e) =>
-            e.asyncStart?.data.type === "route" ||
-            e.asyncEnd?.data.type === "route",
+          (e) => e.asyncStart?.data.type === "route" || e.asyncEnd?.data.type === "route",
         );
         expect(routeEvents.length).toBeGreaterThan(0);
 
@@ -143,12 +141,8 @@ describeMatrix(
         expect(asyncStarts.length).toBeGreaterThan(0);
         expect(asyncEnds.length).toBeGreaterThan(0);
 
-        const routeStart = asyncStarts.find(
-          (e) => e.asyncStart?.data.type === "route",
-        );
-        const routeEnd = asyncEnds.find(
-          (e) => e.asyncEnd?.data.type === "route",
-        );
+        const routeStart = asyncStarts.find((e) => e.asyncStart?.data.type === "route");
+        const routeEnd = asyncEnds.find((e) => e.asyncEnd?.data.type === "route");
 
         expect(routeStart).toBeDefined();
         expect(routeEnd).toBeDefined();
@@ -202,12 +196,8 @@ describeMatrix(
         await t.fetch("/test");
 
         const allStarts = listener.events.filter((e) => e.asyncStart);
-        const middlewareEvents = allStarts.filter(
-          (e) => e.asyncStart?.data.type === "middleware",
-        );
-        const routeEvents = allStarts.filter(
-          (e) => e.asyncStart?.data.type === "route",
-        );
+        const middlewareEvents = allStarts.filter((e) => e.asyncStart?.data.type === "middleware");
+        const routeEvents = allStarts.filter((e) => e.asyncStart?.data.type === "route");
 
         expect(middlewareEvents.length).toBeGreaterThanOrEqual(2);
         expect(routeEvents.length).toBeGreaterThanOrEqual(1);
@@ -309,12 +299,8 @@ describeMatrix(
         const middlewareEnds = listener.events.filter(
           (e) => e.asyncEnd?.data.type === "middleware",
         );
-        const routeStarts = listener.events.filter(
-          (e) => e.asyncStart?.data.type === "route",
-        );
-        const routeEnds = listener.events.filter(
-          (e) => e.asyncEnd?.data.type === "route",
-        );
+        const routeStarts = listener.events.filter((e) => e.asyncStart?.data.type === "route");
+        const routeEnds = listener.events.filter((e) => e.asyncEnd?.data.type === "route");
 
         expect(middlewareStarts.length).toBe(2);
         expect(middlewareEnds.length).toBe(2);
@@ -384,9 +370,7 @@ describeMatrix(
         const middlewareEvents = listener.events.filter(
           (e) => e.asyncStart?.data.type === "middleware",
         );
-        const routeEvents = listener.events.filter(
-          (e) => e.asyncStart?.data.type === "route",
-        );
+        const routeEvents = listener.events.filter((e) => e.asyncStart?.data.type === "route");
 
         // Middleware should NOT be traced
         expect(middlewareEvents.length).toBe(0);
@@ -425,9 +409,7 @@ describeMatrix(
         const middlewareEvents = listener.events.filter(
           (e) => e.asyncStart?.data.type === "middleware",
         );
-        const routeEvents = listener.events.filter(
-          (e) => e.asyncStart?.data.type === "route",
-        );
+        const routeEvents = listener.events.filter((e) => e.asyncStart?.data.type === "route");
 
         // Middleware should still be traced
         expect(middlewareEvents.length).toBeGreaterThan(0);
@@ -443,9 +425,7 @@ describeMatrix(
 
       // Create a custom app with both tracing options disabled
       const app = new H3({
-        plugins: [
-          tracingPlugin({ traceMiddleware: false, traceRoutes: false }),
-        ],
+        plugins: [tracingPlugin({ traceMiddleware: false, traceRoutes: false })],
       });
 
       try {
@@ -468,9 +448,7 @@ describeMatrix(
         const middlewareEvents = listener.events.filter(
           (e) => e.asyncStart?.data.type === "middleware",
         );
-        const routeEvents = listener.events.filter(
-          (e) => e.asyncStart?.data.type === "route",
-        );
+        const routeEvents = listener.events.filter((e) => e.asyncStart?.data.type === "route");
 
         // No tracing events should be emitted
         expect(middlewareEvents.length).toBe(0);
@@ -498,9 +476,7 @@ describeMatrix(
         // Wait for tracing events to be processed
         await new Promise((resolve) => setTimeout(resolve, 10));
 
-        const routeEvents = listener.events.filter(
-          (e) => e.asyncStart?.data.type === "route",
-        );
+        const routeEvents = listener.events.filter((e) => e.asyncStart?.data.type === "route");
 
         // Should have traced the nested app route
         expect(routeEvents.length).toBeGreaterThan(0);
@@ -574,9 +550,7 @@ describeMatrix(
         // Wait for tracing events to be processed
         await new Promise((resolve) => setTimeout(resolve, 10));
 
-        const routeEvents = listener.events.filter(
-          (e) => e.asyncStart?.data.type === "route",
-        );
+        const routeEvents = listener.events.filter((e) => e.asyncStart?.data.type === "route");
         const middlewareEvents = listener.events.filter(
           (e) => e.asyncStart?.data.type === "middleware",
         );
@@ -629,9 +603,7 @@ describeMatrix(
         // Wait for tracing events to be processed
         await new Promise((resolve) => setTimeout(resolve, 10));
 
-        const routeEvents = listener.events.filter(
-          (e) => e.asyncStart?.data.type === "route",
-        );
+        const routeEvents = listener.events.filter((e) => e.asyncStart?.data.type === "route");
         const middlewareEvents = listener.events.filter(
           (e) => e.asyncStart?.data.type === "middleware",
         );
@@ -668,9 +640,7 @@ describeMatrix(
         // Wait for tracing events to be processed
         await new Promise((resolve) => setTimeout(resolve, 10));
 
-        const routeEvents = listener.events.filter(
-          (e) => e.asyncStart?.data.type === "route",
-        );
+        const routeEvents = listener.events.filter((e) => e.asyncStart?.data.type === "route");
 
         // Should have traced the mounted fetch handler route
         expect(routeEvents.length).toBeGreaterThan(0);
@@ -703,9 +673,7 @@ describeMatrix(
         // Wait for tracing events to be processed
         await new Promise((resolve) => setTimeout(resolve, 10));
 
-        const routeEvents = listener.events.filter(
-          (e) => e.asyncStart?.data.type === "route",
-        );
+        const routeEvents = listener.events.filter((e) => e.asyncStart?.data.type === "route");
 
         // Should have traced the mounted fetchable object route
         expect(routeEvents.length).toBeGreaterThan(0);
@@ -737,12 +705,8 @@ describeMatrix(
         // Wait for tracing events to be processed
         await new Promise((resolve) => setTimeout(resolve, 10));
 
-        const routeEvents = listener.events.filter(
-          (e) => e.asyncStart?.data.type === "route",
-        );
-        const routeEnds = listener.events.filter(
-          (e) => e.asyncEnd?.data.type === "route",
-        );
+        const routeEvents = listener.events.filter((e) => e.asyncStart?.data.type === "route");
+        const routeEnds = listener.events.filter((e) => e.asyncEnd?.data.type === "route");
 
         // Should have traced the async fetch handler
         expect(routeEvents.length).toBeGreaterThan(0);
@@ -828,9 +792,7 @@ describe("tracing channels for H3Core instances", () => {
       // Wait for tracing events to be processed
       await new Promise((resolve) => setTimeout(resolve, 10));
 
-      const routeEvents = listener.events.filter(
-        (e) => e.asyncStart?.data.type === "route",
-      );
+      const routeEvents = listener.events.filter((e) => e.asyncStart?.data.type === "route");
 
       expect(routeEvents.length).toBeGreaterThan(0);
       const routeEvent = routeEvents[0];
@@ -896,9 +858,7 @@ describe("tracing channels for H3Core instances", () => {
       const middlewareEvents = listener.events.filter(
         (e) => e.asyncStart?.data.type === "middleware",
       );
-      const routeEvents = listener.events.filter(
-        (e) => e.asyncStart?.data.type === "route",
-      );
+      const routeEvents = listener.events.filter((e) => e.asyncStart?.data.type === "route");
 
       expect(middlewareEvents.length).toBe(2);
       expect(routeEvents.length).toBeGreaterThan(0);
@@ -956,9 +916,7 @@ describe("tracing channels for H3Core instances", () => {
       const middlewareEvents = listener.events.filter(
         (e) => e.asyncStart?.data.type === "middleware",
       );
-      const routeEvents = listener.events.filter(
-        (e) => e.asyncStart?.data.type === "route",
-      );
+      const routeEvents = listener.events.filter((e) => e.asyncStart?.data.type === "route");
 
       expect(middlewareEvents.length).toBe(1);
       expect(routeEvents.length).toBeGreaterThan(0);
@@ -1010,12 +968,8 @@ describe("tracing channels for H3Core instances", () => {
       // Wait for tracing events to be processed
       await new Promise((resolve) => setTimeout(resolve, 10));
 
-      const routeStarts = listener.events.filter(
-        (e) => e.asyncStart?.data.type === "route",
-      );
-      const routeEnds = listener.events.filter(
-        (e) => e.asyncEnd?.data.type === "route",
-      );
+      const routeStarts = listener.events.filter((e) => e.asyncStart?.data.type === "route");
+      const routeEnds = listener.events.filter((e) => e.asyncEnd?.data.type === "route");
 
       expect(routeStarts.length).toBeGreaterThan(0);
       expect(routeEnds.length).toBeGreaterThan(0);
@@ -1132,9 +1086,7 @@ describe("tracing channels for H3Core instances", () => {
       const middlewareEvents = listener.events.filter(
         (e) => e.asyncStart?.data.type === "middleware",
       );
-      const routeEvents = listener.events.filter(
-        (e) => e.asyncStart?.data.type === "route",
-      );
+      const routeEvents = listener.events.filter((e) => e.asyncStart?.data.type === "route");
 
       // Middleware should NOT be traced
       expect(middlewareEvents.length).toBe(0);
@@ -1194,9 +1146,7 @@ describe("tracing channels for H3Core instances", () => {
       const middlewareEvents = listener.events.filter(
         (e) => e.asyncStart?.data.type === "middleware",
       );
-      const routeEvents = listener.events.filter(
-        (e) => e.asyncStart?.data.type === "route",
-      );
+      const routeEvents = listener.events.filter((e) => e.asyncStart?.data.type === "route");
 
       // Middleware should still be traced
       expect(middlewareEvents.length).toBeGreaterThan(0);

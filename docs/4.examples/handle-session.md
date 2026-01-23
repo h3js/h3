@@ -78,9 +78,7 @@ app.use(async (event) => {
     count: count,
   });
 
-  return count === 0
-    ? "Hello world!"
-    : `Hello world! You have visited this page ${count} times.`;
+  return count === 0 ? "Hello world!" : `Hello world! You have visited this page ${count} times.`;
 });
 ```
 

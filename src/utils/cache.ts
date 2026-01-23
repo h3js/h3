@@ -12,10 +12,7 @@ export interface CacheConditions {
  * Note: `public` cache control will be added by default
  * @returns `true` when cache headers are matching. When `true` is returned, no response should be sent anymore
  */
-export function handleCacheHeaders(
-  event: H3Event,
-  opts: CacheConditions,
-): boolean {
+export function handleCacheHeaders(event: H3Event, opts: CacheConditions): boolean {
   const cacheControls = ["public", ...(opts.cacheControls || [])];
   let cacheMatched = false;
 

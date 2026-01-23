@@ -3,25 +3,16 @@ import type { H3EventContext } from "./types/context.ts";
 
 import { EmptyObject } from "./utils/internal/obj.ts";
 import { FastURL } from "srvx";
-import type {
-  EventHandlerRequest,
-  TypedServerRequest,
-} from "./types/handler.ts";
+import type { EventHandlerRequest, TypedServerRequest } from "./types/handler.ts";
 import type { H3Core } from "./h3.ts";
 
 const kEventNS = "h3.internal.event.";
 
-export const kEventRes: unique symbol = /* @__PURE__ */ Symbol.for(
-  `${kEventNS}res`,
-);
+export const kEventRes: unique symbol = /* @__PURE__ */ Symbol.for(`${kEventNS}res`);
 
-export const kEventResHeaders: unique symbol = /* @__PURE__ */ Symbol.for(
-  `${kEventNS}res.headers`,
-);
+export const kEventResHeaders: unique symbol = /* @__PURE__ */ Symbol.for(`${kEventNS}res.headers`);
 
-export interface HTTPEvent<
-  _RequestT extends EventHandlerRequest = EventHandlerRequest,
-> {
+export interface HTTPEvent<_RequestT extends EventHandlerRequest = EventHandlerRequest> {
   /**
    * Incoming HTTP request info.
    *

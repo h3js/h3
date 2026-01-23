@@ -82,22 +82,15 @@ export interface CorsOptions {
  */
 export function isPreflightRequest(event: HTTPEvent): boolean {
   const origin = event.req.headers.get("origin");
-  const accessControlRequestMethod = event.req.headers.get(
-    "access-control-request-method",
-  );
+  const accessControlRequestMethod = event.req.headers.get("access-control-request-method");
 
-  return (
-    event.req.method === "OPTIONS" && !!origin && !!accessControlRequestMethod
-  );
+  return event.req.method === "OPTIONS" && !!origin && !!accessControlRequestMethod;
 }
 
 /**
  * Append CORS preflight headers to the response.
  */
-export function appendCorsPreflightHeaders(
-  event: H3Event,
-  options: CorsOptions,
-): void {
+export function appendCorsPreflightHeaders(event: H3Event, options: CorsOptions): void {
   const headers = {
     ...createOriginHeaders(event, options),
     ...createCredentialsHeaders(options),
@@ -148,10 +141,7 @@ export function appendCorsHeaders(event: H3Event, options: CorsOptions): void {
  *   // Your code here
  * });
  */
-export function handleCors(
-  event: H3Event,
-  options: CorsOptions,
-): false | HTTPResponse {
+export function handleCors(event: H3Event, options: CorsOptions): false | HTTPResponse {
   const _options = resolveCorsOptions(options);
   if (isPreflightRequest(event)) {
     appendCorsPreflightHeaders(event, _options);

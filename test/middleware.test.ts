@@ -28,9 +28,7 @@ describeMatrix("middleware", (t, { it, expect }) => {
     });
 
     t.app.use(async (event, next) => {
-      (event.context._middleware as string[]).push(
-        `async (event, next) (passthrough)`,
-      );
+      (event.context._middleware as string[]).push(`async (event, next) (passthrough)`);
       await next();
     });
 
@@ -42,9 +40,7 @@ describeMatrix("middleware", (t, { it, expect }) => {
     t.app.use(
       "/test/**",
       new H3().all("/test", (event) =>
-        event.req.headers.has("x-async")
-          ? Promise.resolve("Hello World!")
-          : "Hello World!",
+        event.req.headers.has("x-async") ? Promise.resolve("Hello World!") : "Hello World!",
       ).handler,
       {
         method: "GET",
@@ -169,17 +165,12 @@ describeMatrix("middleware", (t, { it, expect }) => {
     t.app.use(onResponse(() => {}));
 
     t.app.use((event) => {
-      event.res.headers.append(
-        "Set-Cookie",
-        "session=abc123; Path=/; HttpOnly",
-      );
+      event.res.headers.append("Set-Cookie", "session=abc123; Path=/; HttpOnly");
       return new Response("Hello");
     });
 
     const res = await t.fetch("/");
     expect(res.status).toBe(200);
-    expect(res.headers.getSetCookie()).toMatchObject([
-      "session=abc123; Path=/; HttpOnly",
-    ]);
+    expect(res.headers.getSetCookie()).toMatchObject(["session=abc123; Path=/; HttpOnly"]);
   });
 });

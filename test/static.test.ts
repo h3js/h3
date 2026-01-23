@@ -5,9 +5,7 @@ import { describeMatrix } from "./_setup.ts";
 describeMatrix("serve static", (t, { it, expect }) => {
   beforeEach(() => {
     const serveStaticOptions: ServeStaticOptions = {
-      getContents: vi.fn((id) =>
-        id.includes("404") ? undefined : `asset:${id}`,
-      ),
+      getContents: vi.fn((id) => (id.includes("404") ? undefined : `asset:${id}`)),
       getMeta: vi.fn((id) =>
         id.includes("404")
           ? undefined
@@ -109,9 +107,7 @@ describeMatrix("serve static with fallthrough", (t, { it, expect }) => {
   beforeEach(() => {
     const serveStaticOptions = {
       getContents: vi.fn((id) => {
-        return id.includes("404") || id.includes("fallthrough")
-          ? undefined
-          : `asset:${id}`;
+        return id.includes("404") || id.includes("fallthrough") ? undefined : `asset:${id}`;
       }),
       getMeta: vi.fn((id) =>
         id.includes("404") || id.includes("fallthrough")
@@ -234,9 +230,7 @@ describeMatrix("serve static MIME types", (t, { it, expect }) => {
     const customOptions: ServeStaticOptions = {
       getContents: vi.fn(() => "content"),
       getMeta: vi.fn(() => ({ size: 10 })),
-      getType: vi.fn((ext) =>
-        ext === ".xyz" ? "application/custom" : undefined,
-      ),
+      getType: vi.fn((ext) => (ext === ".xyz" ? "application/custom" : undefined)),
     };
 
     t.app.all("/custom/**", (event) => {

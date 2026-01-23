@@ -34,9 +34,7 @@ export async function getRequestFingerprint(
   const fingerprint: unknown[] = [];
 
   if (opts.ip !== false) {
-    fingerprint.push(
-      getRequestIP(event, { xForwardedFor: opts.xForwardedFor }),
-    );
+    fingerprint.push(getRequestIP(event, { xForwardedFor: opts.xForwardedFor }));
   }
 
   if (opts.method === true) {
@@ -66,9 +64,7 @@ export async function getRequestFingerprint(
     new TextEncoder().encode(fingerprintString),
   );
 
-  const hash = [...new Uint8Array(buffer)]
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
+  const hash = [...new Uint8Array(buffer)].map((b) => b.toString(16).padStart(2, "0")).join("");
 
   return hash;
 }

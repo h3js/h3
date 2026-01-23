@@ -3,11 +3,7 @@ import { parseQuery } from "./internal/query.ts";
 import { validateData } from "./internal/validate.ts";
 import { getEventContext } from "./event.ts";
 
-import type {
-  StandardSchemaV1,
-  FailureResult,
-  InferOutput,
-} from "./internal/standard-schema.ts";
+import type { StandardSchemaV1, FailureResult, InferOutput } from "./internal/standard-schema.ts";
 import type { ValidateResult, OnValidateError } from "./internal/validate.ts";
 import type { H3Event, HTTPEvent } from "../event.ts";
 import type { InferEventInput } from "../types/handler.ts";
@@ -29,12 +25,9 @@ export function toRequest(
   if (typeof input === "string") {
     let url = input;
     if (url[0] === "/") {
-      const headers = options?.headers
-        ? new Headers(options.headers)
-        : undefined;
+      const headers = options?.headers ? new Headers(options.headers) : undefined;
       const host = headers?.get("host") || "localhost";
-      const proto =
-        headers?.get("x-forwarded-proto") === "https" ? "https" : "http";
+      const proto = headers?.get("x-forwarded-proto") === "https" ? "https" : "http";
       url = `${proto}://${host}${url}`;
     }
     return new Request(url, options);
@@ -61,10 +54,7 @@ export function getQuery<
   return parseQuery(url.search.slice(1)) as _T;
 }
 
-export function getValidatedQuery<
-  Event extends HTTPEvent,
-  S extends StandardSchemaV1<any, any>,
->(
+export function getValidatedQuery<Event extends HTTPEvent, S extends StandardSchemaV1<any, any>>(
   event: Event,
   validate: S,
   options?: { onError?: (result: FailureResult) => ErrorDetails },
@@ -75,9 +65,7 @@ export function getValidatedQuery<
   InputT = InferEventInput<"query", Event, OutputT>,
 >(
   event: Event,
-  validate: (
-    data: InputT,
-  ) => ValidateResult<OutputT> | Promise<ValidateResult<OutputT>>,
+  validate: (data: InputT) => ValidateResult<OutputT> | Promise<ValidateResult<OutputT>>,
   options?: {
     onError?: () => ErrorDetails;
   },
@@ -156,9 +144,7 @@ export function getRouterParams(
 ): NonNullable<H3Event["context"]["params"]> {
   // Fallback object needs to be returned in case router is not used (#149)
   const context = getEventContext<H3EventContext>(event);
-  let params = (context.params || {}) as NonNullable<
-    H3Event["context"]["params"]
-  >;
+  let params = (context.params || {}) as NonNullable<H3Event["context"]["params"]>;
   if (opts.decode) {
     params = { ...params };
     for (const key in params) {
@@ -168,10 +154,7 @@ export function getRouterParams(
   return params;
 }
 
-export function getValidatedRouterParams<
-  Event extends HTTPEvent,
-  S extends StandardSchemaV1,
->(
+export function getValidatedRouterParams<Event extends HTTPEvent, S extends StandardSchemaV1>(
   event: Event,
   validate: S,
   options?: {
@@ -185,9 +168,7 @@ export function getValidatedRouterParams<
   InputT = InferEventInput<"routerParams", Event, OutputT>,
 >(
   event: Event,
-  validate: (
-    data: InputT,
-  ) => ValidateResult<OutputT> | Promise<ValidateResult<OutputT>>,
+  validate: (data: InputT) => ValidateResult<OutputT> | Promise<ValidateResult<OutputT>>,
   options?: {
     decode?: boolean;
     onError?: () => ErrorDetails;
@@ -345,10 +326,7 @@ export function assertMethod(
  *   const host = getRequestHost(event); // "example.com"
  * });
  */
-export function getRequestHost(
-  event: HTTPEvent,
-  opts: { xForwardedHost?: boolean } = {},
-): string {
+export function getRequestHost(event: HTTPEvent, opts: { xForwardedHost?: boolean } = {}): string {
   if (opts.xForwardedHost) {
     const _header = event.req.headers.get("x-forwarded-host");
     const xForwardedHost = (_header || "").split(",").shift()?.trim();
@@ -452,7 +430,5 @@ export function getRequestIP(
     }
   }
 
-  return (
-    (event.req.context?.clientAddress as string) || event.req.ip || undefined
-  );
+  return (event.req.context?.clientAddress as string) || event.req.ip || undefined;
 }

@@ -1,23 +1,9 @@
 import type { Mock } from "vitest";
-import type {
-  H3Config,
-  H3Event,
-  NodeHandler,
-  HTTPError,
-} from "../src/index.ts";
+import type { H3Config, H3Event, NodeHandler, HTTPError } from "../src/index.ts";
 import { tracingPlugin } from "../src/tracing.ts";
 import { Server as NodeServer } from "node:http";
 import { getRandomPort } from "get-port-please";
-import {
-  beforeEach,
-  afterEach,
-  vi,
-  it,
-  describe,
-  expect,
-  beforeAll,
-  afterAll,
-} from "vitest";
+import { beforeEach, afterEach, vi, it, describe, expect, beforeAll, afterAll } from "vitest";
 import { H3 } from "../src/index.ts";
 import { toNodeHandler } from "../src/_entries/node.ts";
 
@@ -57,11 +43,7 @@ function setupWebTest(opts: TestOptions = {}): TestContext {
   beforeEach(() => {
     ctx.fetch = (input, init) => {
       const headers = new Headers(init?.headers);
-      if (
-        input.startsWith("/") &&
-        !headers.has("host") &&
-        !headers.has("x-forwarded-host")
-      ) {
+      if (input.startsWith("/") && !headers.has("host") && !headers.has("x-forwarded-host")) {
         headers.set("Host", "localhost");
       }
       return Promise.resolve(
@@ -131,10 +113,7 @@ function setupNodeTest(opts: TestOptions = {}): TestContext {
 }
 
 // Base
-function setupBaseTest(
-  target: TestContext["target"],
-  opts: TestOptions = {},
-): TestContext {
+function setupBaseTest(target: TestContext["target"], opts: TestOptions = {}): TestContext {
   const ctx: TestContext = { target } as TestContext;
 
   beforeEach(async () => {
@@ -217,8 +196,7 @@ function mergeErrors(err: Error | Error[]) {
       return mergeErrors(err[0]);
     }
     return new Error(
-      "[tests] H3 global errors: \n" +
-        err.map((error) => " - " + (error.stack || "")).join("\n"),
+      "[tests] H3 global errors: \n" + err.map((error) => " - " + (error.stack || "")).join("\n"),
     );
   }
   return new Error("[tests] H3 global error: " + (err.stack || ""));

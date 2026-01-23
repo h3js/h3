@@ -5,13 +5,9 @@ export type IterationSource<Val, Ret = Val> =
   | AsyncIterable<Val>
   | Iterator<Val, Ret | undefined>
   | AsyncIterator<Val, Ret | undefined>
-  | (() =>
-      | Iterator<Val, Ret | undefined>
-      | AsyncIterator<Val, Ret | undefined>);
+  | (() => Iterator<Val, Ret | undefined> | AsyncIterator<Val, Ret | undefined>);
 
-export type IteratorSerializer<Value> = (
-  value: Value,
-) => Uint8Array | undefined;
+export type IteratorSerializer<Value> = (value: Value) => Uint8Array | undefined;
 
 /**
  * The default implementation for {@link iterable}'s `serializer` argument.

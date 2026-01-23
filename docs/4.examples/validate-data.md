@@ -74,10 +74,7 @@ import * as z from "zod";
 import * as v from "valibot";
 
 // Example with Zod
-const stringToNumber = z
-  .string()
-  .regex(/^\d+$/, "Must be a number string")
-  .transform(Number);
+const stringToNumber = z.string().regex(/^\d+$/, "Must be a number string").transform(Number);
 const paginationSchema = z.object({
   page: stringToNumber.optional().default(1),
   size: stringToNumber.optional().default(10),
@@ -191,10 +188,7 @@ const contentSchema = v.object({
 });
 
 router.use("/content/:topic/:uuid", async (event) => {
-  const params = await getValidatedRouterParams(
-    event,
-    v.safeParser(contentSchema),
-  );
+  const params = await getValidatedRouterParams(event, v.safeParser(contentSchema));
   if (!params.success) {
     // Handle validation errors
     return `Validation failed:\n${v.summarize(params.issues)}`;

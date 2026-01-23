@@ -2,23 +2,13 @@ import { defineBuildConfig } from "obuild/config";
 import { parseSync } from "oxc-parser";
 import MagicString from "magic-string";
 
-const entries = [
-  "deno",
-  "bun",
-  "cloudflare",
-  "service-worker",
-  "node",
-  "generic",
-];
+const entries = ["deno", "bun", "cloudflare", "service-worker", "node", "generic"];
 
 export default defineBuildConfig({
   entries: [
     {
       type: "bundle",
-      input: [
-        ...entries.map((entry) => `src/_entries/${entry}.ts`),
-        "./src/tracing.ts",
-      ],
+      input: [...entries.map((entry) => `src/_entries/${entry}.ts`), "./src/tracing.ts"],
     },
   ],
   hooks: {

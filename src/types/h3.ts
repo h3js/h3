@@ -111,19 +111,13 @@ export declare class H3Core {
   handler(event: H3Event): unknown | Promise<unknown>;
 
   /** @internal */
-  "~request"(
-    request: ServerRequest,
-    context?: H3EventContext,
-  ): Response | Promise<Response>;
+  "~request"(request: ServerRequest, context?: H3EventContext): Response | Promise<Response>;
 
   /** @internal */
   "~findRoute"(_event: H3Event): MatchedRoute<H3Route> | void;
 
   /** @internal */
-  "~getMiddleware"(
-    event: H3Event,
-    route: MatchedRoute<H3Route> | undefined,
-  ): Middleware[];
+  "~getMiddleware"(event: H3Event, route: MatchedRoute<H3Route> | undefined): Middleware[];
 
   /** @internal */
   "~addRoute"(_route: H3Route): void;
