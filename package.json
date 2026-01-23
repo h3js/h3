@@ -32,11 +32,11 @@
     "test:types": "tsgo --noEmit"
   },
   "resolutions": {
-    "h3": "^1.14.0"
+    "h3": "^1.15.5"
   },
   "dependencies": {
     "cookie-es": "^1.2.2",
-    "crossws": "^0.3.5",
+    "crossws": "^0.4.3",
     "defu": "^6.1.4",
     "destr": "^2.0.5",
     "iron-webcrypto": "^1.2.1",
@@ -48,10 +48,10 @@
   "devDependencies": {
     "0x": "^6.0.0",
     "@types/express": "^5.0.6",
-    "@types/node": "^25.0.8",
+    "@types/node": "^25.0.10",
     "@types/supertest": "^6.0.3",
-    "@typescript/native-preview": "7.0.0-dev.20260115.1",
-    "@vitest/coverage-v8": "^4.0.17",
+    "@typescript/native-preview": "7.0.0-dev.20260122.4",
+    "@vitest/coverage-v8": "^4.0.18",
     "autocannon": "^8.0.0",
     "automd": "^0.4.2",
     "changelogen": "^0.6.2",
@@ -64,15 +64,15 @@
     "jiti": "^2.6.1",
     "listhen": "^1.9.0",
     "node-fetch-native": "^1.6.7",
-    "prettier": "^3.8.0",
+    "prettier": "^3.8.1",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "supertest": "^7.2.2",
     "typescript": "^5.9.3",
     "unbuild": "^3.6.1",
-    "undici": "^7.18.2",
-    "vitest": "^4.0.17",
-    "zod": "^4.3.5"
+    "undici": "^7.19.0",
+    "vitest": "^4.0.18",
+    "zod": "^4.3.6"
   },
-  "packageManager": "pnpm@10.28.0"
+  "packageManager": "pnpm@10.28.1"
 }
