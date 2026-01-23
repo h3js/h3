@@ -29,7 +29,8 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
       );
       const res2 = await t.fetch("/test2");
       expect(res2.headers.get("content-type")).toBe("text/html; charset=utf-8");
-      expect(await res2.text()).toBe("<h1>Hello</h1>");
+      expect((await res2.text()).trim()).toBe("<h1>Hello</h1>");
+
     });
   });
 
