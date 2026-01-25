@@ -9,6 +9,7 @@ import {
   getRequestFingerprint,
   handleCacheHeaders,
   html,
+  writeEarlyHints,
 } from "../src/index.ts";
 import { describeMatrix } from "./_setup.ts";
 
@@ -302,6 +303,36 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
       expect((await t.fetch("/post", { method: "POST" })).status).toBe(200);
       expect((await t.fetch("/post", { method: "HEAD" })).status).toBe(200);
     });
+  });
+
+  describe("writeEarlyHints", () => {
+    // In Node.js, native writeEarlyHints sends 103 Early Hints status,
+    // so the Link header fallback is not used. Test fallback in web target only.
+    it.skipIf(t.target === "node")(
+      "sets Link header as fallback when native early hints not available",
+      async () => {
+        t.app.get("/", async (event) => {
+          await writeEarlyHints(event, {
+            Link: "</style.css>; rel=preload; as=style",
+          });
+          return "ok";
+        });
+        t.app.get("/multi", async (event) => {
+          await writeEarlyHints(event, {
+            Link: ["</style.css>; rel=preload; as=style", "</script.js>; rel=preload; as=script"],
+          });
+          return "ok";
+        });
+
+        const res = await t.fetch("/");
+        expect(res.headers.get("Link")).toBe("</style.css>; rel=preload; as=style");
+
+        const res2 = await t.fetch("/multi");
+        expect(res2.headers.get("Link")).toBe(
+          "</style.css>; rel=preload; as=style, </script.js>; rel=preload; as=script",
+        );
+      },
+    );
   });
 
   describe("handleCacheHeaders", () => {
