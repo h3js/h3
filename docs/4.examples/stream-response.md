@@ -42,15 +42,15 @@ const stream = new ReadableStream({
 ## Send a Stream
 
 ```ts
-import { H3, setResponseHeader } from "h3";
+import { H3 } from "h3";
 
 export const app = new H3();
 
 app.use((event) => {
   // Set to response header to tell to the client that we are sending a stream.
-  setResponseHeader(event, "Content-Type", "text/html");
-  setResponseHeader(event, "Cache-Control", "no-cache");
-  setResponseHeader(event, "Transfer-Encoding", "chunked");
+  event.res.headers.set("Content-Type", "text/html");
+  event.res.headers.set("Cache-Control", "no-cache");
+  event.res.headers.set("Transfer-Encoding", "chunked");
 
   let interval: NodeJS.Timeout;
   const stream = new ReadableStream({
