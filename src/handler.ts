@@ -149,9 +149,6 @@ export function defineLazyEventHandler(
   let handler: EventHandler | undefined;
   let promise: Promise<EventHandler> | undefined;
   const resolveLazyHandler = () => {
-    if (handler) {
-      return Promise.resolve(handler);
-    }
     return (promise ??= Promise.resolve(loader()).then((r: any) => {
       handler = toEventHandler(r) || toEventHandler(r.default);
       if (typeof handler !== "function") {
