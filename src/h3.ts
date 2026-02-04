@@ -4,7 +4,13 @@ import { toResponse, kNotFound } from "./response.ts";
 import { callMiddleware, normalizeMiddleware } from "./middleware.ts";
 
 import { serve, type ServerRequest } from "srvx";
-import type { H3Config, H3CoreConfig, H3Plugin, MatchedRoute, RouterContext } from "./types/h3.ts";
+import type {
+  H3Config,
+  H3CoreConfig,
+  H3Plugin,
+  MatchedRoute,
+  RouterContext,
+} from "./types/h3.ts";
 import type { H3EventContext } from "./types/context.ts";
 import type {
   EventHandler,
@@ -41,7 +47,7 @@ export class H3Core implements H3CoreType {
   }
 
   get fetch(): (request: ServerRequest) => MaybePromise<Response> {
-    return serve({ fetch: this["~request"], manual: true }).fetch;
+    return serve({ fetch: this["~request"].bind(this), manual: true }).fetch;
   }
 
   handler(event: H3Event): unknown | Promise<unknown> {
@@ -51,13 +57,19 @@ export class H3Core implements H3CoreType {
       event.context.matchedRoute = route.data;
     }
     const routeHandler = route?.data.handler || NoHandler;
-    const middleware = this["~getMiddleware"](event, route as unknown as undefined);
+    const middleware = this["~getMiddleware"](
+      event,
+      route as unknown as undefined,
+    );
     return middleware.length > 0
       ? callMiddleware(event, middleware, routeHandler)
       : routeHandler(event);
   }
 
-  "~request"(request: ServerRequest, context?: H3EventContext): Response | Promise<Response> {
+  "~request"(
+    request: ServerRequest,
+    context?: H3EventContext,
+  ): Response | Promise<Response> {
     // Create a new event instance
     const event = new H3Event(request, context, this as unknown as H3Type);
 
@@ -87,10 +99,15 @@ export class H3Core implements H3CoreType {
     this["~routes"].push(_route);
   }
 
-  "~getMiddleware"(_event: H3Event, route: MatchedRoute<H3Route> | undefined): Middleware[] {
+  "~getMiddleware"(
+    _event: H3Event,
+    route: MatchedRoute<H3Route> | undefined,
+  ): Middleware[] {
     const routeMiddleware = route?.data.middleware;
     const globalMiddleware = this["~middleware"];
-    return routeMiddleware ? [...globalMiddleware, ...routeMiddleware] : globalMiddleware;
+    return routeMiddleware
+      ? [...globalMiddleware, ...routeMiddleware]
+      : globalMiddleware;
   }
 }
 
@@ -193,7 +210,9 @@ export const H3 = /* @__PURE__ */ (() => {
         fn = arg1 as Middleware | H3Type;
         opts = arg2 as MiddlewareOptions;
       }
-      this["~middleware"].push(normalizeMiddleware(fn as Middleware, { ...opts, route }));
+      this["~middleware"].push(
+        normalizeMiddleware(fn as Middleware, { ...opts, route }),
+      );
       return this;
     }
   }
