@@ -3,7 +3,7 @@ import { H3Event } from "./event.ts";
 import { toResponse, kNotFound } from "./response.ts";
 import { callMiddleware, normalizeMiddleware } from "./middleware.ts";
 
-import type { ServerRequest } from "srvx";
+import { serve, type ServerRequest } from "srvx";
 import type { H3Config, H3CoreConfig, H3Plugin, MatchedRoute, RouterContext } from "./types/h3.ts";
 import type { H3EventContext } from "./types/context.ts";
 import type {
@@ -24,6 +24,7 @@ import type {
 
 import { toRequest } from "./utils/request.ts";
 import { toEventHandler } from "./handler.ts";
+import type { MaybePromise } from "./types/_utils.ts";
 
 export const NoHandler: EventHandler = () => kNotFound;
 
@@ -36,12 +37,11 @@ export class H3Core implements H3CoreType {
   constructor(config: H3CoreConfig = {}) {
     this["~middleware"] = [];
     this.config = config;
-    this.fetch = this.fetch.bind(this);
     this.handler = this.handler.bind(this);
   }
 
-  fetch(request: ServerRequest): Response | Promise<Response> {
-    return this["~request"](request);
+  get fetch(): (request: ServerRequest) => MaybePromise<Response> {
+    return serve({ fetch: this["~request"], manual: true }).fetch;
   }
 
   handler(event: H3Event): unknown | Promise<unknown> {
