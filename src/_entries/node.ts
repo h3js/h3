@@ -24,5 +24,5 @@ export function serve(app: H3, options?: Omit<ServerOptions, "fetch">): Server {
  * Convert H3 app instance to a NodeHandler with (IncomingMessage, ServerResponse) => void signature.
  */
 export function toNodeHandler(app: H3): NodeHandler {
-  return _toNodeHandler(app.fetch);
+  return _toNodeHandler(app.fetch) as NodeHandler;
 }
