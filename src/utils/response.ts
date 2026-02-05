@@ -58,17 +58,34 @@ export function redirect(
 
 /**
  * Write `HTTP/1.1 103 Early Hints` to the client.
+ *
+ * In runtimes that don't support early hints natively, this function
+ * falls back to setting response headers which can be used by CDN.
  */
 export function writeEarlyHints(
   event: H3Event,
-  hints: Record<string, string>,
+  hints: Record<string, string | string[]>,
 ): void | Promise<void> {
-  if (!event.runtime?.node?.res?.writeEarlyHints) {
-    return;
+  // Use native early hints if available (Node.js)
+  if (event.runtime?.node?.res?.writeEarlyHints) {
+    return new Promise((resolve) => {
+      event.runtime?.node?.res?.writeEarlyHints(hints, () => resolve());
+    });
   }
-  return new Promise((resolve) => {
-    event.runtime?.node?.res?.writeEarlyHints(hints, () => resolve());
-  });
+
+  // Fallback: Set Link headers for CDN support (only Link headers to avoid leaking sensitive headers)
+  for (const [name, value] of Object.entries(hints)) {
+    if (name.toLowerCase() !== "link") {
+      continue;
+    }
+    if (Array.isArray(value)) {
+      for (const v of value) {
+        event.res.headers.append("link", v);
+      }
+    } else {
+      event.res.headers.append("link", value);
+    }
+  }
 }
 
 /**
