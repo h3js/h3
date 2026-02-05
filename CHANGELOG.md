@@ -2,6 +2,45 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## v2.0.1-rc.12
+
+[compare changes](https://github.com/h3js/h3/compare/v2.0.1-rc.11...v2.0.1-rc.12)
+
+### 🚀 Enhancements
+
+- `h3` cli ([#1293](https://github.com/h3js/h3/pull/1293))
+- **writeEarlyHints:** Add `Link: rel:preload` headers as fallback ([#1288](https://github.com/h3js/h3/pull/1288))
+
+### 💅 Refactors
+
+- Allow better debugging `headers are frozen` ([#1287](https://github.com/h3js/h3/pull/1287))
+
+### 📖 Documentation
+
+- Update example to use `event.res.headers.set` ([#1289](https://github.com/h3js/h3/pull/1289))
+
+### 📦 Build
+
+- Update obuild ([905886c](https://github.com/h3js/h3/commit/905886c))
+
+### 🏡 Chore
+
+- Migrate to oxlint and oxfmt ([#1286](https://github.com/h3js/h3/pull/1286))
+- Update deps ([fd46b1e](https://github.com/h3js/h3/commit/fd46b1e))
+- Update deps ([d82f198](https://github.com/h3js/h3/commit/d82f198))
+- Rename typecheck script ([64a7081](https://github.com/h3js/h3/commit/64a7081))
+- Update undocs ([a91970d](https://github.com/h3js/h3/commit/a91970d))
+
+### 🤖 CI
+
+- Add pkg.pr.new integration ([f6f152a](https://github.com/h3js/h3/commit/f6f152a))
+
+### ❤️ Contributors
+
+- Pooya Parsa ([@pi0](https://github.com/pi0))
+- Kricsleo ([@kricsleo](https://github.com/kricsleo))
+- Daniel Slepov <danil.slepov@gmail.com>
+
 ## v2.0.1-rc.11
 
 [compare changes](https://github.com/h3js/h3/compare/v2.0.1-rc.10...v2.0.1-rc.11)
