@@ -40,7 +40,7 @@ export function tracingPlugin(traceOpts?: TracingPluginOptions): H3Plugin {
       return;
     }
 
-    const requestHandlerChannel = tracingChannel("h3.fetch");
+    const requestHandlerChannel = tracingChannel("h3.request");
 
     function wrapMiddleware(middleware: MaybeTracedMiddleware): Middleware {
       if (middleware.__traced__ || traceOpts?.traceMiddleware === false) {

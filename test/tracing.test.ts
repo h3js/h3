@@ -16,7 +16,7 @@ type TracingEvent = {
 function createTracingListener() {
   const events: TracingEvent[] = [];
 
-  const tracingCh = tracingChannel("h3.fetch");
+  const tracingCh = tracingChannel("h3.request");
 
   const startHandler = (message: any) => {
     events.push({ start: { data: message } });
@@ -121,7 +121,7 @@ describeMatrix(
       }
     });
 
-    it("tracing:h3.fetch:asyncStart/asyncEnd fire for async handlers", async () => {
+    it("tracing:h3.request:asyncStart/asyncEnd fire for async handlers", async () => {
       const listener = createTracingListener();
 
       try {
@@ -151,7 +151,7 @@ describeMatrix(
       }
     });
 
-    it("tracing:h3.fetch:error fires when handler throws", async () => {
+    it("tracing:h3.request:error fires when handler throws", async () => {
       const listener = createTracingListener();
 
       // Disable the test error handler so we can see the tracing error event
