@@ -46,8 +46,8 @@
     "play:plain": "pnpm test/fixture/plain.ts",
     "play:web": "pnpm test/fixture/web.ts",
     "release": "pnpm test && pnpm build && changelogen --release --prerelease --publish && git push --follow-tags",
-    "test": "pnpm lint && pnpm test:types && vitest --run --coverage",
-    "test:types": "tsgo --noEmit --skipLibCheck"
+    "test": "pnpm lint && pnpm typecheck && vitest --run --coverage",
+    "typecheck": "tsgo --noEmit --skipLibCheck"
   },
   "dependencies": {
     "rou3": "^0.7.12",
