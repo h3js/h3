@@ -73,14 +73,17 @@ export function writeEarlyHints(
     });
   }
 
-  // Fallback: Set response headers for CDN support
+  // Fallback: Set Link headers for CDN support (only Link headers to avoid leaking sensitive headers)
   for (const [name, value] of Object.entries(hints)) {
+    if (name.toLowerCase() !== "link") {
+      continue;
+    }
     if (Array.isArray(value)) {
       for (const v of value) {
-        event.res.headers.append(name, v);
+        event.res.headers.append("link", v);
       }
     } else {
-      event.res.headers.append(name, value);
+      event.res.headers.append("link", value);
     }
   }
 }
