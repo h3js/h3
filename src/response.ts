@@ -140,15 +140,16 @@ function mergeHeaders(base: HeadersInit, overrides: Headers, target = new Header
   return target;
 }
 
-const frozenHeaders = () => {
-  throw new Error("Headers are frozen");
-};
+const frozen =
+  (name: string) =>
+  (...args: any[]) => {
+    throw new Error(`Headers are frozen (${name} ${args.join(", ")})`);
+  };
 
 class FrozenHeaders extends Headers {
-  constructor(init?: HeadersInit) {
-    super(init);
-    this.set = this.append = this.delete = frozenHeaders;
-  }
+  override set = frozen("set");
+  override append = frozen("append");
+  override delete = frozen("delete");
 }
 
 const emptyHeaders = /* @__PURE__ */ new FrozenHeaders({
