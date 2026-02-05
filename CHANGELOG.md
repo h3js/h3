@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## v2.0.1-rc.13
+
+[compare changes](https://github.com/h3js/h3/compare/v2.0.1-rc.12...v2.0.1-rc.13)
+
+### 💅 Refactors
+
+- Improve cli ([f107e07](https://github.com/h3js/h3/commit/f107e07))
+
+### ❤️ Contributors
+
+- Pooya Parsa ([@pi0](https://github.com/pi0))
+
 ## v2.0.1-rc.12
 
 [compare changes](https://github.com/h3js/h3/compare/v2.0.1-rc.11...v2.0.1-rc.12)
