@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## v2.0.1-rc.14
+
+[compare changes](https://github.com/h3js/h3/compare/v2.0.1-rc.13...v2.0.1-rc.14)
+
+### 💅 Refactors
+
+- **tracing:** Rename tracing channel `.fetch` to `.request` ([#1294](https://github.com/h3js/h3/pull/1294))
+- **auth:** Enhance randomJitter function for cryptographic security ([#1295](https://github.com/h3js/h3/pull/1295))
+
+### 🏡 Chore
+
+- Update h3 version in playground ([54e722e](https://github.com/h3js/h3/commit/54e722e))
+- Update deps ([d7e0fbd](https://github.com/h3js/h3/commit/d7e0fbd))
+
+### ❤️ Contributors
+
+- Pooya Parsa ([@pi0](https://github.com/pi0))
+- Sandro Circi ([@sandros94](https://github.com/sandros94))
+- Abdelrahman Awad <abdelrahman.awad@sentry.io>
+
 ## v2.0.1-rc.13
 
 [compare changes](https://github.com/h3js/h3/compare/v2.0.1-rc.12...v2.0.1-rc.13)

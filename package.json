@@ -1,6 +1,6 @@
 {
   "name": "h3",
-  "version": "2.0.1-rc.13",
+  "version": "2.0.1-rc.14",
   "description": "Minimal H(TTP) framework built for high performance and portability.",
   "homepage": "https://h3.dev",
   "license": "MIT",
