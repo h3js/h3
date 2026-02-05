@@ -21,9 +21,12 @@ export function timingSafeEqual(a: string, b: string): boolean {
 }
 
 /**
- * Add random delay (0-100ms) to prevent timing-based credential inference.
+ * Add random delay (0-99ms) to prevent timing-based credential inference.
  */
 export function randomJitter(): Promise<void> {
-  const jitter = Math.floor(Math.random() * 100);
+  const randomBuffer = new Uint32Array(1);
+  window.crypto.getRandomValues(randomBuffer);
+  const jitter = randomBuffer[0] % 100;
+
   return new Promise((resolve) => setTimeout(resolve, jitter));
 }
