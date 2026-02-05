@@ -5,7 +5,11 @@
   "homepage": "https://h3.dev",
   "license": "MIT",
   "repository": "h3js/h3",
+  "bin": {
+    "h3": "./bin/h3.mjs"
+  },
   "files": [
+    "bin",
     "dist"
   ],
   "type": "module",
@@ -47,7 +51,7 @@
   },
   "dependencies": {
     "rou3": "^0.7.12",
-    "srvx": "^0.10.1"
+    "srvx": "^0.11.0"
   },
   "devDependencies": {
     "@happy-dom/global-registrator": "^20.4.0",
@@ -69,6 +73,7 @@
     "express": "^5.2.1",
     "fetchdts": "^0.1.7",
     "get-port-please": "^3.2.0",
+    "h3": "link:.",
     "h3-nightly": "^2.0.0-20260123-202450-f6f152a",
     "happy-dom": "^20.4.0",
     "hono": "^4.11.7",
