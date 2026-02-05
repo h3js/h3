@@ -7,6 +7,6 @@
     "start": "h3 serve --prod"
   },
   "dependencies": {
-    "h3": "^2.0.0-rc.12"
+    "h3": "^2.0.1-rc.13"
   }
 }
