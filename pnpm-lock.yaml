@@ -15,8 +15,8 @@ importers:
         specifier: ^0.7.12
         version: 0.7.12
       srvx:
-        specifier: ^0.11.0
-        version: 0.11.0
+        specifier: ^0.11.1
+        version: 0.11.1
     devDependencies:
       '@happy-dom/global-registrator':
         specifier: ^20.5.0
@@ -59,7 +59,7 @@ importers:
         version: 2.0.0
       crossws:
         specifier: ^0.4.4
-        version: 0.4.4(srvx@0.11.0)
+        version: 0.4.4(srvx@0.11.1)
       elysia:
         specifier: ^1.4.22
         version: 1.4.22(@sinclair/typebox@0.34.41)(exact-mirror@0.2.2(@sinclair/typebox@0.34.41))(file-type@21.0.0)(openapi-types@12.1.3)(typescript@5.9.3)
@@ -80,7 +80,7 @@ importers:
         version: 'link:'
       h3-nightly:
         specifier: ^2.0.0-20260205-145644-e4345e9
-        version: 2.0.0-20260205-145644-e4345e9(crossws@0.4.4(srvx@0.11.0))
+        version: 2.0.0-20260205-145644-e4345e9(crossws@0.4.4(srvx@0.11.1))
       happy-dom:
         specifier: ^20.5.0
         version: 20.5.0
@@ -1812,8 +1812,8 @@ packages:
     resolution: {integrity: sha512-UXWMKhLOwVKb728IUtQPXxfYU+usdybtUrK/8uGE8CQMvrhOpwvzDBwj0QhSL7MQc7vIsISBG8VQ8+IDQxpfQA==}
     engines: {node: '>=0.10.0'}
 
-  srvx@0.11.0:
-    resolution: {integrity: sha512-pKIOmjuhgkF2uWfEt0pW5a2OR5Qm2LMBD/lCrgf1uLgzMLoRT559rby1pheQBRmlD7TNJqzmVmok3wyOb49wug==}
+  srvx@0.11.1:
+    resolution: {integrity: sha512-hs+BDmweGNT0DHlcsgB52BOKOn32v1g+CtyCavqstcz19KUDZsAoLVLFV0y03xAOd0KiXbgsguPcCivR6Lj5PA==}
     engines: {node: '>=20.16.0'}
     hasBin: true
 
@@ -2810,9 +2810,9 @@ snapshots:
 
   cookie@1.1.1: {}
 
-  crossws@0.4.4(srvx@0.11.0):
+  crossws@0.4.4(srvx@0.11.1):
     optionalDependencies:
-      srvx: 0.11.0
+      srvx: 0.11.1
 
   csstype@3.2.3: {}
 
@@ -3053,12 +3053,12 @@ snapshots:
 
   gopd@1.2.0: {}
 
-  h3-nightly@2.0.0-20260205-145644-e4345e9(crossws@0.4.4(srvx@0.11.0)):
+  h3-nightly@2.0.0-20260205-145644-e4345e9(crossws@0.4.4(srvx@0.11.1)):
     dependencies:
       rou3: 0.7.12
-      srvx: 0.11.0
+      srvx: 0.11.1
     optionalDependencies:
-      crossws: 0.4.4(srvx@0.11.0)
+      crossws: 0.4.4(srvx@0.11.1)
 
   happy-dom@20.5.0:
     dependencies:
@@ -3524,7 +3524,7 @@ snapshots:
 
   source-map-js@1.2.1: {}
 
-  srvx@0.11.0: {}
+  srvx@0.11.1: {}
 
   stackback@0.0.2: {}
 
