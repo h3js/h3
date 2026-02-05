@@ -25,7 +25,7 @@ export function timingSafeEqual(a: string, b: string): boolean {
  */
 export function randomJitter(): Promise<void> {
   const randomBuffer = new Uint32Array(1);
-  window.crypto.getRandomValues(randomBuffer);
+  crypto.getRandomValues(randomBuffer);
   const jitter = randomBuffer[0] % 100;
 
   return new Promise((resolve) => setTimeout(resolve, jitter));
