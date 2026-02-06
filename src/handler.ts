@@ -148,21 +148,17 @@ export function defineLazyEventHandler(
 ): EventHandlerWithFetch {
   let handler: EventHandler | undefined;
   let promise: Promise<EventHandler> | undefined;
-  const resolveLazyHandler = () => {
-    if (handler) {
-      return Promise.resolve(handler);
-    }
-    return (promise ??= Promise.resolve(loader()).then((r: any) => {
-      handler = toEventHandler(r) || toEventHandler(r.default);
-      if (typeof handler !== "function") {
-        // @ts-expect-error
-        throw new TypeError("Invalid lazy handler", { cause: { resolved: r } });
-      }
-      return handler;
-    }));
-  };
   return defineHandler(function lazyHandler(event) {
-    return handler ? handler(event) : resolveLazyHandler().then((r) => r(event));
+    return handler
+      ? handler(event)
+      : (promise ??= Promise.resolve(loader()).then(function resolveLazyHandler (r: any) {
+          handler = toEventHandler(r) || toEventHandler(r.default);
+          if (typeof handler !== "function") {
+            // @ts-expect-error
+            throw new TypeError("Invalid lazy handler", { cause: { resolved: r } });
+          }
+          return handler;
+        })).then((r) => r(event));
   });
 }
 
