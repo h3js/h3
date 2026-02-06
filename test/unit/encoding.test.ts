@@ -29,9 +29,7 @@ describe("encoding utilities", () => {
   describe("base64Decode", () => {
     it("should decode a base64url string to Uint8Array", () => {
       const input = "aGVsbG8gd29ybGQ";
-      const expected = new Uint8Array([
-        104, 101, 108, 108, 111, 32, 119, 111, 114, 108, 100,
-      ]);
+      const expected = new Uint8Array([104, 101, 108, 108, 111, 32, 119, 111, 114, 108, 100]);
       expect(base64Decode(input)).toEqual(expected);
     });
 

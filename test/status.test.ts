@@ -21,7 +21,7 @@ describeMatrix("event response", (t, { it, describe, expect }) => {
 
       expect(await webResponseToPlain(res)).toMatchObject({
         status: 200,
-        statusText: "",
+        statusText: "OK",
         body: "text",
         headers:
           t.target === "web"
@@ -66,8 +66,8 @@ describeMatrix("event response", (t, { it, describe, expect }) => {
 
   describe("no content response", () => {
     it("sets status 204 as default", async () => {
-      t.app.all("/test", (event) => {
-        return noContent(event);
+      t.app.all("/test", () => {
+        return noContent();
       });
 
       const res = await t.fetch("/test", {
@@ -76,7 +76,7 @@ describeMatrix("event response", (t, { it, describe, expect }) => {
 
       expect(await webResponseToPlain(res)).toMatchObject({
         status: 204,
-        statusText: "",
+        statusText: "No Content",
         body: "",
         headers: {},
       });

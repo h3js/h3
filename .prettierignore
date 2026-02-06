@@ -1,6 +1,0 @@
-dist
-lib
-.nuxt
-.output
-src/types/_headers.ts
-docs/1.guide/6.websocket.md

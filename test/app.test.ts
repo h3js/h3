@@ -1,7 +1,4 @@
-import {
-  Readable as NodeStreamReadable,
-  Transform as NodeStreamTransoform,
-} from "node:stream";
+import { Readable as NodeStreamReadable, Transform as NodeStreamTransoform } from "node:stream";
 import { HTTPError, fromNodeHandler } from "../src/index.ts";
 import { describeMatrix } from "./_setup.ts";
 
@@ -14,7 +11,7 @@ describeMatrix("app", (t, { it, expect }) => {
   });
 
   it("can return bigint directly", async () => {
-    t.app.get("/", () => BigInt(9_007_199_254_740_991));
+    t.app.get("/", () => 9_007_199_254_740_991n);
     const res = await t.fetch("/");
 
     expect(await res.text()).toBe("9007199254740991");
@@ -35,6 +32,16 @@ describeMatrix("app", (t, { it, expect }) => {
     const resSymbol = await t.fetch("/symbol");
     expect(resSymbol.status).toBe(200);
     expect(await resSymbol.text()).toMatch("Symbol(test)");
+  });
+
+  it("can return thenable", async () => {
+    t.app.get("/api", () => {
+      const p = Promise.resolve("value");
+      // eslint-disable-next-line unicorn/no-thenable
+      return { then: p.then.bind(p) };
+    });
+    const res = await t.fetch("/api");
+    expect(await res.text()).toEqual("value");
   });
 
   it("can return Response directly", async () => {
@@ -118,32 +125,29 @@ describeMatrix("app", (t, { it, expect }) => {
   });
 
   // TODO: investigate issues with stream errors on srvx
-  it.runIf(/* t.target === "node" */ false)(
-    "Node.js Readable Stream with Error",
-    async () => {
-      t.app.use(() => {
-        return new NodeStreamReadable({
-          read() {
-            this.push(Buffer.from("123", "utf8"));
-            this.push(null);
+  it.runIf(/* t.target === "node" */ false)("Node.js Readable Stream with Error", async () => {
+    t.app.use(() => {
+      return new NodeStreamReadable({
+        read() {
+          this.push(Buffer.from("123", "utf8"));
+          this.push(null);
+        },
+      }).pipe(
+        new NodeStreamTransoform({
+          transform(_chunk, _encoding, callback) {
+            const err = new HTTPError({
+              statusCode: 500,
+              statusText: "test",
+            });
+            setTimeout(() => callback(err), 0);
           },
-        }).pipe(
-          new NodeStreamTransoform({
-            transform(_chunk, _encoding, callback) {
-              const err = new HTTPError({
-                statusCode: 500,
-                statusText: "test",
-              });
-              setTimeout(() => callback(err), 0);
-            },
-          }),
-        );
-      });
-      const res = await t.fetch("/");
-      expect(res.status).toBe(500);
-      expect(JSON.parse(await res.text()).statusMessage).toBe("test");
-    },
-  );
+        }),
+      );
+    });
+    const res = await t.fetch("/");
+    expect(res.status).toBe(500);
+    expect(JSON.parse(await res.text()).statusMessage).toBe("test");
+  });
 
   it("Web Stream", async () => {
     t.app.use(() => {
@@ -220,6 +224,16 @@ describeMatrix("app", (t, { it, expect }) => {
     expect(await res.text()).toBe("42");
   });
 
+  it("can use fetchable routes", async () => {
+    t.app.get("/fetchable", {
+      fetch: async () => {
+        return new Response("fetchable");
+      },
+    });
+    const res = await t.fetch("/fetchable");
+    expect(await res.text()).toBe("fetchable");
+  });
+
   it("handles next() call with no routes matching", async () => {
     t.app.use(() => {});
     t.app.use(() => {});
@@ -243,27 +257,96 @@ describeMatrix("app", (t, { it, expect }) => {
     expect(await res.text()).toBe("valid");
   });
 
-  it("can add arabic routes", async () => {
-    t.app.get("/عربي", () => "valid");
+  it("can add and match unicode routes", async () => {
+    t.app.get("/سلام", () => "valid");
 
-    const res = await t.fetch("/عربي");
+    const res = await t.fetch("/سلام");
     expect(res.status).toBe(200);
+
+    const res2 = await t.app.request("/سلام");
+    expect(res2.status).toBe(200);
+  });
+
+  it.skipIf(t.target !== "node")("wait for node middleware (req, res, next)", async () => {
+    t.app.use(
+      fromNodeHandler((_req, res, next) => {
+        setTimeout(() => {
+          res.setHeader("content-type", "application/json");
+          res.end(JSON.stringify({ works: 1 }));
+          next();
+        }, 10);
+      }),
+    );
+    const res = await t.fetch("/");
+    expect(await res.json()).toEqual({ works: 1 });
+  });
+
+  it.skipIf(t.target !== "node")("fromNodeHandler + piping", async () => {
+    t.app.all(
+      "/*",
+      fromNodeHandler((req, res) => {
+        const iterator = (async function* () {
+          yield "item1,";
+          yield "item2,";
+          yield "item3";
+        })();
+        NodeStreamReadable.from(iterator).pipe(res);
+      }),
+    );
+    const res = await t.fetch("/");
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe("item1,item2,item3");
   });
 
   it.skipIf(t.target !== "node")(
-    "wait for node middleware (req, res, next)",
+    "fromNodeHandler + piping (with Error and custom status)",
     async () => {
-      t.app.use(
-        fromNodeHandler((_req, res, next) => {
-          setTimeout(() => {
-            res.setHeader("content-type", "application/json");
-            res.end(JSON.stringify({ works: 1 }));
-            next();
-          }, 10);
+      t.app.all(
+        "/*",
+        fromNodeHandler((req, res) => {
+          res.statusCode = 201;
+          const iterator = (async function* () {
+            yield "item1,";
+            yield "item2";
+            throw new Error("Test Error");
+          })();
+          NodeStreamReadable.from(iterator).pipe(res);
         }),
       );
       const res = await t.fetch("/");
-      expect(await res.json()).toEqual({ works: 1 });
+      expect(res.status).toBe(201);
+      expect(await res.text()).toBe("item1,item2");
     },
   );
+
+  it("set headers via event.res + Response (mutable)", async () => {
+    t.app.use((event) => {
+      event.res.headers.set("x-from-event", "1");
+      return new Response("hello", {
+        headers: { "x-from-response": "1" },
+      });
+    });
+    const res = await t.fetch("/");
+    expect(res.headers.get("x-from-event")).toBe("1");
+    expect(res.headers.get("x-from-response")).toBe("1");
+  });
+
+  it("set headers via event.res + Response (immutable)", async () => {
+    t.app.use((event) => {
+      event.res.headers.set("x-from-event", "1");
+      const res = new Response("hello", {
+        headers: { "x-from-response": "1" },
+      });
+      res.headers.set = () => {
+        throw new Error("immutable");
+      };
+      res.headers.append = () => {
+        throw new Error("immutable");
+      };
+      return res;
+    });
+    const res = await t.fetch("/");
+    expect(res.headers.get("x-from-response")).toBe("1");
+    expect(res.headers.get("x-from-event")).toBe("1");
+  });
 });

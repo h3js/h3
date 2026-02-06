@@ -2,6 +2,9 @@ import { beforeEach } from "vitest";
 import { describeMatrix } from "./_setup.ts";
 import { H3 } from "../src/h3.ts";
 import { defineHandler } from "../src/handler.ts";
+import { Hono } from "hono";
+import { toMiddleware } from "../src/middleware.ts";
+import { onResponse } from "../src/index.ts";
 
 describeMatrix("middleware", (t, { it, expect }) => {
   beforeEach(() => {
@@ -10,41 +13,48 @@ describeMatrix("middleware", (t, { it, expect }) => {
         return "Intercepted 1";
       }
       event.context._middleware = [];
-      event.context._middleware.push(`(event)`);
+      (event.context._middleware as string[]).push(`(event)`);
     });
 
     t.app.use(async (event) => {
-      event.context._middleware.push(`async (event)`);
+      (event.context._middleware as string[]).push(`async (event)`);
       await Promise.resolve();
     });
 
     t.app.use(async (event, next) => {
-      event.context._middleware.push(`async (event, next)`);
+      (event.context._middleware as string[]).push(`async (event, next)`);
       const value = await next();
       return value;
     });
 
     t.app.use(async (event, next) => {
-      event.context._middleware.push(`async (event, next) (passthrough)`);
+      (event.context._middleware as string[]).push(`async (event, next) (passthrough)`);
       await next();
     });
 
     t.app.use((event, next) => {
-      event.context._middleware.push(`(event, next)`);
+      (event.context._middleware as string[]).push(`(event, next)`);
       return next();
     });
 
     t.app.use(
       "/test/**",
       new H3().all("/test", (event) =>
-        event.req.headers.has("x-async")
-          ? Promise.resolve("Hello World!")
-          : "Hello World!",
+        event.req.headers.has("x-async") ? Promise.resolve("Hello World!") : "Hello World!",
       ).handler,
       {
         method: "GET",
         match: (event) => !event.req.headers.has("x-skip"),
       },
+    );
+
+    t.app.use(
+      "/custom-404",
+      () =>
+        new Response("Not found", {
+          status: 404,
+          statusText: "Page not found",
+        }),
     );
 
     let count = 0;
@@ -53,21 +63,21 @@ describeMatrix("middleware", (t, { it, expect }) => {
       defineHandler({
         middleware: [
           (event) => {
-            event.context._middleware.push(`route (define)`);
+            (event.context._middleware as string[]).push(`route (define)`);
           },
         ],
         handler: (event) => {
           count++;
           return {
             count,
-            log: event.context._middleware.join(" > "),
+            log: (event.context._middleware as string[]).join(" > "),
           };
         },
       }),
       {
         middleware: [
           (event) => {
-            event.context._middleware.push(`route (register)`);
+            (event.context._middleware as string[]).push(`route (register)`);
           },
         ],
       },
@@ -125,5 +135,42 @@ describeMatrix("middleware", (t, { it, expect }) => {
     const response = await t.app.request("/test/...");
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ log: expect.any(String) });
+  });
+
+  it("return custom 404 response in middleware", async () => {
+    const result = await t.fetch("/custom-404");
+    expect(result.status).toBe(404);
+    expect(result.statusText).toBe("Page not found");
+  });
+
+  it("can mount sub-router as middleware", async () => {
+    t.app.get("/", () => "hi!");
+
+    const honoApp = new Hono().get("/hello", (c) => {
+      return c.text("world");
+    });
+    t.app.use(toMiddleware(honoApp));
+
+    const res = await t.fetch("/hello");
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe("world");
+
+    const res2 = await t.fetch("/");
+    expect(res2.status).toBe(200);
+    expect(await res2.text()).toBe("hi!");
+  });
+
+  it('onResponse() does not duplicate "Set-Cookie" headers', async () => {
+    // onResponse uses toResponse() internally (#1259)
+    t.app.use(onResponse(() => {}));
+
+    t.app.use((event) => {
+      event.res.headers.append("Set-Cookie", "session=abc123; Path=/; HttpOnly");
+      return new Response("Hello");
+    });
+
+    const res = await t.fetch("/");
+    expect(res.status).toBe(200);
+    expect(res.headers.getSetCookie()).toMatchObject(["session=abc123; Path=/; HttpOnly"]);
   });
 });

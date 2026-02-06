@@ -2,9 +2,7 @@ import { describe, expect, it } from "vitest";
 
 describe("h3 package", () => {
   it("package exports (snapshot)", async () => {
-    const exportNames = Object.keys(
-      await import("../../src/_entries/generic.ts"),
-    ).sort();
+    const exportNames = Object.keys(await import("../../src/_entries/generic.ts")).sort();
     expect(exportNames).toMatchInlineSnapshot(`
       [
         "H3",
@@ -12,14 +10,18 @@ describe("h3 package", () => {
         "H3Error",
         "H3Event",
         "HTTPError",
+        "HTTPResponse",
         "appendCorsHeaders",
         "appendCorsPreflightHeaders",
         "appendHeader",
         "appendHeaders",
         "appendResponseHeader",
         "appendResponseHeaders",
+        "assertBodySize",
         "assertMethod",
         "basicAuth",
+        "bodyLimit",
+        "callMiddleware",
         "clearResponseHeaders",
         "clearSession",
         "createApp",
@@ -40,6 +42,7 @@ describe("h3 package", () => {
         "defineValidatedHandler",
         "defineWebSocket",
         "defineWebSocketHandler",
+        "deleteChunkedCookie",
         "deleteCookie",
         "dynamicEventHandler",
         "eventHandler",
@@ -48,7 +51,9 @@ describe("h3 package", () => {
         "fromNodeMiddleware",
         "fromWebHandler",
         "getBodyStream",
+        "getChunkedCookie",
         "getCookie",
+        "getEventContext",
         "getHeader",
         "getHeaders",
         "getMethod",
@@ -78,6 +83,7 @@ describe("h3 package", () => {
         "isCorsOriginAllowed",
         "isError",
         "isEvent",
+        "isHTTPEvent",
         "isMethod",
         "isPreflightRequest",
         "iterable",
@@ -110,6 +116,7 @@ describe("h3 package", () => {
         "sendWebResponse",
         "serve",
         "serveStatic",
+        "setChunkedCookie",
         "setCookie",
         "setHeader",
         "setHeaders",
@@ -117,8 +124,10 @@ describe("h3 package", () => {
         "setResponseHeaders",
         "setResponseStatus",
         "toEventHandler",
+        "toMiddleware",
         "toNodeHandler",
         "toNodeListener",
+        "toRequest",
         "toResponse",
         "toWebHandler",
         "unsealSession",

@@ -9,10 +9,7 @@ import { createHmac } from "node:crypto";
 import * as Iron from "../../src/utils/internal/iron-crypto.ts";
 import { base64Encode } from "../../src/utils/internal/encoding.ts";
 
-async function rejects(
-  promise: Promise<unknown>,
-  msgIncludes: string | RegExp,
-): Promise<void> {
+async function rejects(promise: Promise<unknown>, msgIncludes: string | RegExp): Promise<void> {
   return expect(promise).rejects.toThrow(msgIncludes);
 }
 
@@ -22,11 +19,7 @@ const password = "some_not_random_password_that_is_also_long_enough";
 describe(`iron crypto`, () => {
   it("turns object into a ticket than parses the ticket successfully", async () => {
     const sealed = await Iron.seal(obj, password, Iron.defaults);
-    const unsealed = await Iron.unseal(
-      sealed,
-      { default: password },
-      Iron.defaults,
-    );
+    const unsealed = await Iron.unseal(sealed, { default: password }, Iron.defaults);
     assert.deepEqual(unsealed, obj);
   });
 
@@ -34,11 +27,7 @@ describe(`iron crypto`, () => {
   it.skip("turns object into a ticket than parses the ticket successfully (no buffer)", async () => {
     vi.stubGlobal("Buffer", undefined);
     const sealed = await Iron.seal(obj, password, Iron.defaults);
-    const unsealed = await Iron.unseal(
-      sealed,
-      { default: password },
-      Iron.defaults,
-    );
+    const unsealed = await Iron.unseal(sealed, { default: password }, Iron.defaults);
     vi.unstubAllGlobals();
     assert.deepEqual(unsealed, obj);
   });
@@ -46,11 +35,7 @@ describe(`iron crypto`, () => {
   it("unseal and sealed object with expiration", async () => {
     const options = { ...Iron.defaults, ttl: 200 };
     const sealed = await Iron.seal(obj, password, options);
-    const unsealed = await Iron.unseal(
-      sealed,
-      { default: password },
-      Iron.defaults,
-    );
+    const unsealed = await Iron.unseal(sealed, { default: password }, Iron.defaults);
     assert.deepEqual(unsealed, obj);
   });
 
@@ -89,33 +74,19 @@ describe(`iron crypto`, () => {
 
   it("fails to turns object into a ticket (password buffer too short)", async () => {
     const key = Iron.randomBits(128);
-    await rejects(
-      Iron.seal(obj, key, Iron.defaults),
-      "Key buffer (password) too small",
-    );
+    await rejects(Iron.seal(obj, key, Iron.defaults), "Key buffer (password) too small");
   });
 
   it("fails to turn object into a ticket (failed to stringify object)", async () => {
     const cyclic: unknown[] = [];
     cyclic[0] = cyclic;
     const key = Iron.randomBits(128);
-    await rejects(
-      Iron.seal(cyclic, key, Iron.defaults),
-      "Converting circular structure to JSON",
-    );
+    await rejects(Iron.seal(cyclic, key, Iron.defaults), "Converting circular structure to JSON");
   });
 
   it("turns object into a ticket than parses the ticket successfully (password object)", async () => {
-    const sealed = await Iron.seal(
-      obj,
-      { id: "1", secret: password },
-      Iron.defaults,
-    );
-    const unsealed = await Iron.unseal(
-      sealed,
-      { "1": password },
-      Iron.defaults,
-    );
+    const sealed = await Iron.seal(obj, { id: "1", secret: password }, Iron.defaults);
+    const unsealed = await Iron.unseal(sealed, { "1": password }, Iron.defaults);
     assert.deepEqual(unsealed, obj);
   });
 
@@ -138,23 +109,13 @@ describe(`iron crypto`, () => {
   });
 
   it("fails to parse a sealed object when password not found", async () => {
-    const sealed = await Iron.seal(
-      obj,
-      { id: "1", secret: password },
-      Iron.defaults,
-    );
-    await rejects(
-      Iron.unseal(sealed, { "2": password }, Iron.defaults),
-      "Cannot find password: 1",
-    );
+    const sealed = await Iron.seal(obj, { id: "1", secret: password }, Iron.defaults);
+    await rejects(Iron.unseal(sealed, { "2": password }, Iron.defaults), "Cannot find password: 1");
   });
 
   describe("generateKey()", () => {
     it("returns an error when password is missing", async () => {
-      await rejects(
-        Iron.generateKey(null as any, null as any),
-        "Empty password",
-      );
+      await rejects(Iron.generateKey(null as any, null as any), "Empty password");
     });
 
     it("returns an error when password is too short", async () => {
@@ -183,10 +144,7 @@ describe(`iron crypto`, () => {
         iterations: 2,
         minPasswordlength: 32,
       };
-      await rejects(
-        Iron.generateKey(password, options),
-        "Missing salt and saltBits options",
-      );
+      await rejects(Iron.generateKey(password, options), "Missing salt and saltBits options");
     });
 
     it("returns an error when invalid salt bits are provided", async () => {
@@ -205,53 +163,35 @@ describe(`iron crypto`, () => {
 
   describe("encrypt()", () => {
     it("returns an error when password is missing", async () => {
-      await rejects(
-        Iron.encrypt(null as any, null as any, "data"),
-        "Empty password",
-      );
+      await rejects(Iron.encrypt(null as any, null as any, "data"), "Empty password");
     });
   });
 
   describe("decrypt", () => {
     it("returns an error when password is missing", async () => {
-      await rejects(
-        Iron.decrypt(null as any, null as any, "data"),
-        "Empty password",
-      );
+      await rejects(Iron.decrypt(null as any, null as any, "data"), "Empty password");
     });
   });
 
   describe("hmacWithPassword()", () => {
     it("returns an error when password is missing", async () => {
-      await rejects(
-        Iron.hmacWithPassword(null as any, null as any, "data"),
-        "Empty password",
-      );
+      await rejects(Iron.hmacWithPassword(null as any, null as any, "data"), "Empty password");
     });
 
     if (createHmac)
       it("produces the same mac when used with buffer password", async () => {
         const data = "Not so random";
         const key = Iron.randomBits(256);
-        const hmac = createHmac(Iron.defaults.integrity.algorithm, key).update(
-          data,
-        );
+        const hmac = createHmac(Iron.defaults.integrity.algorithm, key).update(data);
         const digest = base64Encode(hmac.digest());
-        const mac = await Iron.hmacWithPassword(
-          key,
-          Iron.defaults.integrity,
-          data,
-        );
+        const mac = await Iron.hmacWithPassword(key, Iron.defaults.integrity, data);
         assert.deepEqual(mac.digest, digest);
       });
   });
 
   describe("seal()", () => {
     it("returns an error when password is missing", async () => {
-      await rejects(
-        Iron.seal("data", null as any, Iron.defaults),
-        "Empty password",
-      );
+      await rejects(Iron.seal("data", null as any, Iron.defaults), "Empty password");
     });
 
     it("returns an error when integrity options are missing", async () => {
@@ -259,10 +199,7 @@ describe(`iron crypto`, () => {
         ...Iron.defaults,
         integrity: {} as any,
       };
-      await rejects(
-        Iron.seal("data", password, options),
-        "Unknown algorithm: undefined",
-      );
+      await rejects(Iron.seal("data", password, options), "Unknown algorithm: undefined");
     });
 
     it("returns an error when password.id is invalid", async () => {
@@ -308,28 +245,19 @@ describe(`iron crypto`, () => {
       const ticket =
         "Fe26.2**a6dc6339e5ea5dfe7a135631cf3b7dcf47ea38246369d45767c928ea81781694*D3DLEoi-Hn3c972TPpZXqw*mCBhmhHhRKk9KtBjwu3h-1lx1MHKkgloQPKRkQZxpnDwYnFkb3RqdVTQRcuhGf4M**ff2bf988aa0edf2b34c02d220a45c4a3c572dac6b995771ed20de58da919bfa5*HfWzyJlz_UP9odmXvUaVK1TtdDuOCaezr-TAg2GjBCU";
 
-      await rejects(
-        Iron.unseal(ticket, null as any, Iron.defaults),
-        "Empty password",
-      );
+      await rejects(Iron.unseal(ticket, null as any, Iron.defaults), "Empty password");
     });
 
     it("returns an error when mac prefix is wrong", async () => {
       const ticket =
         "Fe27.2**a6dc6339e5ea5dfe7a135631cf3b7dcf47ea38246369d45767c928ea81781694*D3DLEoi-Hn3c972TPpZXqw*mCBhmhHhRKk9KtBjwu3h-1lx1MHKkgloQPKRkQZxpnDwYnFkb3RqdVTQRcuhGf4M**ff2bf988aa0edf2b34c02d220a45c4a3c572dac6b995771ed20de58da919bfa5*HfWzyJlz_UP9odmXvUaVK1TtdDuOCaezr-TAg2GjBCU";
-      await rejects(
-        Iron.unseal(ticket, password, Iron.defaults),
-        "Wrong mac prefix",
-      );
+      await rejects(Iron.unseal(ticket, password, Iron.defaults), "Wrong mac prefix");
     });
 
     it("returns an error when integrity check fails", async () => {
       const ticket =
         "Fe26.2**b3ad22402ccc60fa4d527f7d1c9ff2e37e9b2e5723e9e2ffba39a489e9849609*QKCeXLs6Rp7f4LL56V7hBg*OvZEoAq_nGOpA1zae-fAtl7VNCNdhZhCqo-hWFCBeWuTTpSupJ7LxQqzSQBRAcgw**72018a21d3fac5c1608a0f9e461de0fcf17b2befe97855978c17a793faa01db1*Qj53DFE3GZd5yigt-mVl9lnp0VUoSjh5a5jgDmod1EZ";
-      await rejects(
-        Iron.unseal(ticket, password, Iron.defaults),
-        "Bad hmac value",
-      );
+      await rejects(Iron.unseal(ticket, password, Iron.defaults), "Bad hmac value");
     });
 
     it("returns an error when decryption fails", async () => {
@@ -364,19 +292,11 @@ describe(`iron crypto`, () => {
 
     it("returns an error when decrypted object is invalid", async () => {
       const badJson = "{asdasd";
-      const { encrypted, key } = await Iron.encrypt(
-        password,
-        Iron.defaults.encryption,
-        badJson,
-      );
+      const { encrypted, key } = await Iron.encrypt(password, Iron.defaults.encryption, badJson);
       const encryptedB64 = base64Encode(encrypted);
       const iv = base64Encode(key.iv);
       const macBaseString = `${Iron.macPrefix}**${key.salt}*${iv}*${encryptedB64}*`;
-      const mac = await Iron.hmacWithPassword(
-        password,
-        Iron.defaults.integrity,
-        macBaseString,
-      );
+      const mac = await Iron.hmacWithPassword(password, Iron.defaults.integrity, macBaseString);
       const ticket = `${macBaseString}*${mac.salt}*${mac.digest}`;
       await rejects(
         Iron.unseal(ticket, password, Iron.defaults),
@@ -393,10 +313,7 @@ describe(`iron crypto`, () => {
       };
       const mac = await Iron.hmacWithPassword(password, options, macBaseString);
       const ticket = `${macBaseString}*${mac.salt}*${mac.digest}`;
-      await rejects(
-        Iron.unseal(ticket, password, Iron.defaults),
-        "Expired seal",
-      );
+      await rejects(Iron.unseal(ticket, password, Iron.defaults), "Expired seal");
     });
 
     it("returns an error when expiration NaN", async () => {
@@ -409,10 +326,7 @@ describe(`iron crypto`, () => {
       };
       const mac = await Iron.hmacWithPassword(password, options, macBaseString);
       const ticket = `${macBaseString}*${mac.salt}*${mac.digest}`;
-      await rejects(
-        Iron.unseal(ticket, password, Iron.defaults),
-        "Invalid expiration",
-      );
+      await rejects(Iron.unseal(ticket, password, Iron.defaults), "Invalid expiration");
     });
   });
 });

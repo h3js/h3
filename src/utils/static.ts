@@ -2,6 +2,7 @@ import type { H3Event } from "../event.ts";
 import { HTTPError } from "../error.ts";
 import { withLeadingSlash, withoutTrailingSlash } from "./internal/path.ts";
 import { getType, getExtension } from "./internal/mime.ts";
+import { HTTPResponse } from "../response.ts";
 
 export interface StaticAssetMeta {
   type?: string;
@@ -16,16 +17,12 @@ export interface ServeStaticOptions {
   /**
    * This function should resolve asset meta
    */
-  getMeta: (
-    id: string,
-  ) => StaticAssetMeta | undefined | Promise<StaticAssetMeta | undefined>;
+  getMeta: (id: string) => StaticAssetMeta | undefined | Promise<StaticAssetMeta | undefined>;
 
   /**
    * This function should resolve asset content
    */
-  getContents: (
-    id: string,
-  ) => BodyInit | null | undefined | Promise<BodyInit | null | undefined>;
+  getContents: (id: string) => BodyInit | null | undefined | Promise<BodyInit | null | undefined>;
 
   /**
    * Headers to set on the response
@@ -66,7 +63,7 @@ export interface ServeStaticOptions {
 export async function serveStatic(
   event: H3Event,
   options: ServeStaticOptions,
-): Promise<false | undefined | null | BodyInit> {
+): Promise<HTTPResponse | undefined> {
   if (options.headers) {
     const entries = Array.isArray(options.headers)
       ? options.headers
@@ -86,9 +83,7 @@ export async function serveStatic(
     throw new HTTPError({ status: 405 });
   }
 
-  const originalId = decodeURI(
-    withLeadingSlash(withoutTrailingSlash(event.url.pathname)),
-  );
+  const originalId = decodeURI(withLeadingSlash(withoutTrailingSlash(event.url.pathname)));
 
   const acceptEncodings = parseAcceptEncoding(
     event.req.headers.get("accept-encoding") || "",
@@ -102,11 +97,7 @@ export async function serveStatic(
   let id = originalId;
   let meta: StaticAssetMeta | undefined;
 
-  const _ids = idSearchPaths(
-    originalId,
-    acceptEncodings,
-    options.indexNames || ["/index.html"],
-  );
+  const _ids = idSearchPaths(originalId, acceptEncodings, options.indexNames || ["/index.html"]);
 
   for (const _id of _ids) {
     const _meta = await options.getMeta(_id);
@@ -129,9 +120,10 @@ export async function serveStatic(
 
     const ifModifiedSinceH = event.req.headers.get("if-modified-since");
     if (ifModifiedSinceH && new Date(ifModifiedSinceH) >= mtimeDate) {
-      event.res.status = 304;
-      event.res.statusText = "Not Modified";
-      return "";
+      return new HTTPResponse(null, {
+        status: 304,
+        statusText: "Not Modified",
+      });
     }
 
     if (!event.res.headers.get("last-modified")) {
@@ -143,12 +135,12 @@ export async function serveStatic(
     event.res.headers.set("etag", meta.etag);
   }
 
-  const ifNotMatch =
-    meta.etag && event.req.headers.get("if-none-match") === meta.etag;
+  const ifNotMatch = meta.etag && event.req.headers.get("if-none-match") === meta.etag;
   if (ifNotMatch) {
-    event.res.status = 304;
-    event.res.statusText = "Not Modified";
-    return "";
+    return new HTTPResponse(null, {
+      status: 304,
+      statusText: "Not Modified",
+    });
   }
 
   if (!event.res.headers.get("content-type")) {
@@ -167,28 +159,21 @@ export async function serveStatic(
     event.res.headers.set("content-encoding", meta.encoding);
   }
 
-  if (
-    meta.size !== undefined &&
-    meta.size > 0 &&
-    !event.req.headers.get("content-length")
-  ) {
+  if (meta.size !== undefined && meta.size > 0 && !event.req.headers.get("content-length")) {
     event.res.headers.set("content-length", meta.size + "");
   }
 
   if (event.req.method === "HEAD") {
-    return "";
+    return new HTTPResponse(null, { status: 200 });
   }
 
   const contents = await options.getContents(id);
-  return contents;
+  return new HTTPResponse(contents || null, { status: 200 });
 }
 
 // --- Internal Utils ---
 
-function parseAcceptEncoding(
-  header?: string,
-  encodingMap?: Record<string, string>,
-): string[] {
+function parseAcceptEncoding(header?: string, encodingMap?: Record<string, string>): string[] {
   if (!encodingMap || !header) {
     return [];
   }

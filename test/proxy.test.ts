@@ -83,13 +83,11 @@ describeMatrix("proxy", (t, { it, expect, describe }) => {
           return proxyRequest(event, "/debug");
         });
 
-        const dummyFile = await readFile(
-          new URL("assets/dummy.pdf", import.meta.url),
-        );
+        const dummyFile = await readFile(new URL("assets/dummy.pdf", import.meta.url));
 
         const res = await t.fetch("/", {
           method: "POST",
-          body: dummyFile,
+          body: dummyFile as BufferSource,
           headers: {
             "x-req-header": "works",
           },
@@ -167,6 +165,54 @@ describeMatrix("proxy", (t, { it, expect, describe }) => {
 
         expect(resText).toEqual(message);
       });
+
+      it("preserves custom headers from proxied response", async () => {
+        t.app.all("/debug", (event) => {
+          event.res.headers.set("x-custom-header", "preserved");
+          event.res.headers.set("content-type", "text/plain");
+          return "hello";
+        });
+
+        t.app.all("/", (event) => {
+          return proxyRequest(event, "/debug");
+        });
+
+        const res = await t.fetch("/", {
+          method: "GET",
+        });
+
+        // Custom headers should be preserved
+        expect(res.headers.get("x-custom-header")).toEqual("preserved");
+        // Content should be proxied correctly
+        expect(await res.text()).toEqual("hello");
+      });
+
+      it.runIf(t.target === "web")(
+        "strips transfer-encoding header from proxied response",
+        async () => {
+          t.app.all("/debug", (event) => {
+            // Simulate an upstream that sends transfer-encoding header
+            event.res.headers.set("transfer-encoding", "chunked");
+            event.res.headers.set("x-custom-header", "preserved");
+            return "hello";
+          });
+
+          t.app.all("/", (event) => {
+            return proxyRequest(event, "/debug");
+          });
+
+          const res = await t.fetch("/", {
+            method: "GET",
+          });
+
+          // transfer-encoding should be stripped by proxy()
+          // (only testable in web mode; node's HTTP server re-adds it for streaming)
+          expect(res.headers.has("transfer-encoding")).toBe(false);
+          // Other headers should be preserved
+          expect(res.headers.get("x-custom-header")).toEqual("preserved");
+          expect(await res.text()).toEqual("hello");
+        },
+      );
 
       it(
         "can handle failed proxy requests gracefully",
@@ -438,9 +484,7 @@ describeMatrix("proxy", (t, { it, expect, describe }) => {
 
         await t.fetch("/");
 
-        expect(headers?.["content-type"]).toEqual(
-          "application/json;charset=UTF-8",
-        );
+        expect(headers?.["content-type"]).toEqual("application/json;charset=UTF-8");
       });
     });
   });

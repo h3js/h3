@@ -8,18 +8,38 @@ import {
   getRequestIP,
   getRequestFingerprint,
   handleCacheHeaders,
+  html,
+  writeEarlyHints,
 } from "../src/index.ts";
 import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("utils", (t, { it, describe, expect }) => {
+  describe("html", () => {
+    it("can return html response", async () => {
+      t.app.get("/test", () => html("<h1>Hello</h1>"));
+      const res1 = await t.fetch("/test");
+      expect(res1.headers.get("content-type")).toBe("text/html; charset=utf-8");
+      expect(await res1.text()).toBe("<h1>Hello</h1>");
+
+      t.app.get(
+        "/test2",
+        () =>
+          html`
+            <h1>Hello</h1>
+          `,
+      );
+      const res2 = await t.fetch("/test2");
+      expect(res2.headers.get("content-type")).toBe("text/html; charset=utf-8");
+      expect((await res2.text()).trim()).toBe("<h1>Hello</h1>");
+    });
+  });
+
   describe("redirect", () => {
     it("can redirect URLs", async () => {
-      t.app.use((event) => redirect(event, "https://google.com"));
+      t.app.use(() => redirect("https://google.com"));
       const result = await t.fetch("/");
       expect(result.headers.get("location")).toBe("https://google.com");
-      expect(result.headers.get("content-type")).toBe(
-        "text/html; charset=utf-8",
-      );
+      expect(result.headers.get("content-type")).toBe("text/html; charset=utf-8");
     });
   });
 
@@ -59,9 +79,7 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
     it("can get method", async () => {
       t.app.all("/*", (event) => event.req.method);
       expect(await (await t.fetch("/api")).text()).toBe("GET");
-      expect(await (await t.fetch("/api", { method: "POST" })).text()).toBe(
-        "POST",
-      );
+      expect(await (await t.fetch("/api", { method: "POST" })).text()).toBe("POST");
     });
   });
 
@@ -177,9 +195,7 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
 
   describe("getRequestFingerprint", () => {
     it("returns an hash", async () => {
-      t.app.use((event) =>
-        getRequestFingerprint(event, { xForwardedFor: true }),
-      );
+      t.app.use((event) => getRequestFingerprint(event, { xForwardedFor: true }));
 
       const res = await t.fetch("/", {
         headers: {
@@ -196,9 +212,7 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
     });
 
     it("returns the same hash every time for same request", async () => {
-      t.app.use((event) =>
-        getRequestFingerprint(event, { hash: false, xForwardedFor: true }),
-      );
+      t.app.use((event) => getRequestFingerprint(event, { hash: false, xForwardedFor: true }));
       for (let i = 0; i < 3; i++) {
         const res = await t.fetch("/", {
           headers: {
@@ -210,9 +224,7 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
     });
 
     it("returns null when all detections impossible", async () => {
-      t.app.use((event) =>
-        getRequestFingerprint(event, { hash: false, ip: false }),
-      );
+      t.app.use((event) => getRequestFingerprint(event, { hash: false, ip: false }));
       expect(await (await t.fetch("/")).text()).toBe("");
     });
 
@@ -251,9 +263,7 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
     });
 
     it("uses x-forwarded-for ip when header set", async () => {
-      t.app.use((event) =>
-        getRequestFingerprint(event, { hash: false, xForwardedFor: true }),
-      );
+      t.app.use((event) => getRequestFingerprint(event, { hash: false, xForwardedFor: true }));
 
       const res = await t.fetch("/", {
         headers: {
@@ -295,6 +305,36 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
     });
   });
 
+  describe("writeEarlyHints", () => {
+    // In Node.js, native writeEarlyHints sends 103 Early Hints status,
+    // so the Link header fallback is not used. Test fallback in web target only.
+    it.skipIf(t.target === "node")(
+      "sets Link header as fallback when native early hints not available",
+      async () => {
+        t.app.get("/", async (event) => {
+          await writeEarlyHints(event, {
+            Link: "</style.css>; rel=preload; as=style",
+          });
+          return "ok";
+        });
+        t.app.get("/multi", async (event) => {
+          await writeEarlyHints(event, {
+            Link: ["</style.css>; rel=preload; as=style", "</script.js>; rel=preload; as=script"],
+          });
+          return "ok";
+        });
+
+        const res = await t.fetch("/");
+        expect(res.headers.get("Link")).toBe("</style.css>; rel=preload; as=style");
+
+        const res2 = await t.fetch("/multi");
+        expect(res2.headers.get("Link")).toBe(
+          "</style.css>; rel=preload; as=style, </script.js>; rel=preload; as=script",
+        );
+      },
+    );
+  });
+
   describe("handleCacheHeaders", () => {
     it("can handle cache headers", async () => {
       t.app.use((event) => {
@@ -305,12 +345,8 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
         return "ok";
       });
       const res = await t.fetch("/");
-      expect(res.headers.get("cache-control")).toBe(
-        "public, max-age=60, s-maxage=60",
-      );
-      expect(res.headers.get("last-modified")).toBe(
-        "Fri, 01 Jan 2021 00:00:00 GMT",
-      );
+      expect(res.headers.get("cache-control")).toBe("public, max-age=60, s-maxage=60");
+      expect(res.headers.get("last-modified")).toBe("Fri, 01 Jan 2021 00:00:00 GMT");
       expect(await res.text()).toBe("ok");
     });
 
@@ -323,9 +359,7 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
         return "ok";
       });
       const res = await t.fetch("/");
-      expect(res.headers.get("cache-control")).toBe(
-        "public, max-age=60, s-maxage=60",
-      );
+      expect(res.headers.get("cache-control")).toBe("public, max-age=60, s-maxage=60");
       expect(res.headers.get("etag")).toBe("123");
       expect(await res.text()).toBe("ok");
     });
@@ -351,6 +385,21 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
         handleCacheHeaders(event, {
           maxAge: 60,
           modifiedTime: new Date("2021-01-01"),
+        });
+        return "ok";
+      });
+      const res = await t.fetch("/", {
+        headers: {
+          "if-modified-since": "Fri, 01 Jan 2021 00:00:00 GMT",
+        },
+      });
+      expect(res.status).toBe(304);
+    });
+
+    it("handles modifiedTime with milliseconds correctly", async () => {
+      t.app.use((event) => {
+        handleCacheHeaders(event, {
+          modifiedTime: new Date("2021-01-01T00:00:00.500Z"),
         });
         return "ok";
       });

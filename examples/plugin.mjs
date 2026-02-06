@@ -8,8 +8,6 @@ const logger = definePlugin((h3, _options) => {
   }
 });
 
-const app = new H3({ debug: true })
-  .register(logger())
-  .all("/**", () => "Hello!");
+const app = new H3({ debug: true }).register(logger()).all("/**", () => "Hello!");
 
 serve(app);

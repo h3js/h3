@@ -3,15 +3,27 @@ import type { H3EventContext } from "./types/context.ts";
 
 import { EmptyObject } from "./utils/internal/obj.ts";
 import { FastURL } from "srvx";
-import type {
-  EventHandlerRequest,
-  TypedServerRequest,
-} from "./types/handler.ts";
+import type { EventHandlerRequest, TypedServerRequest } from "./types/handler.ts";
 import type { H3Core } from "./h3.ts";
+
+const kEventNS = "h3.internal.event.";
+
+export const kEventRes: unique symbol = /* @__PURE__ */ Symbol.for(`${kEventNS}res`);
+
+export const kEventResHeaders: unique symbol = /* @__PURE__ */ Symbol.for(`${kEventNS}res.headers`);
+
+export interface HTTPEvent<_RequestT extends EventHandlerRequest = EventHandlerRequest> {
+  /**
+   * Incoming HTTP request info.
+   *
+   * [MDN Reference](https://developer.mozilla.org/en-US/docs/Web/API/Request)
+   */
+  req: TypedServerRequest<_RequestT>;
+}
 
 export class H3Event<
   _RequestT extends EventHandlerRequest = EventHandlerRequest,
-> {
+> implements HTTPEvent<_RequestT> {
   /**
    * Access to the H3 application instance.
    */
@@ -41,13 +53,8 @@ export class H3Event<
    */
   static __is_event__ = true;
 
-  /**
-   * @internal
-   */
-  _res?: H3EventResponse;
-
   constructor(req: ServerRequest, context?: H3EventContext, app?: H3Core) {
-    this.context = context || new EmptyObject();
+    this.context = context || req.context || new EmptyObject();
     this.req = req;
     this.app = app;
     // Parsed URL can be provided by srvx (node) and other runtimes
@@ -59,10 +66,7 @@ export class H3Event<
    * Prepared HTTP response.
    */
   get res(): H3EventResponse {
-    if (!this._res) {
-      this._res = new H3EventResponse();
-    }
-    return this._res;
+    return ((this as any)[kEventRes] ||= new H3EventResponse());
   }
 
   /**
@@ -133,11 +137,8 @@ export class H3Event<
 class H3EventResponse {
   status?: number;
   statusText?: string;
-  _headers?: Headers;
+
   get headers(): Headers {
-    if (!this._headers) {
-      this._headers = new Headers();
-    }
-    return this._headers;
+    return ((this as any)[kEventResHeaders] ||= new Headers());
   }
 }

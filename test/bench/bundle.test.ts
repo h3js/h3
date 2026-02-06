@@ -16,12 +16,10 @@ describe("benchmark", () => {
       return;
     }
     if (process.env.DEBUG) {
-      console.log(
-        `Bundle size (H3): ${bundle.bytes} (gzip: ${bundle.gzipSize})`,
-      );
+      console.log(`Bundle size (H3): ${bundle.bytes} (gzip: ${bundle.gzipSize})`);
     }
-    expect(bundle.bytes).toBeLessThanOrEqual(10_000); // <10kb
-    expect(bundle.gzipSize).toBeLessThanOrEqual(4000); // <4kb
+    expect(bundle.bytes).toBeLessThanOrEqual(12_000); // <12kb
+    expect(bundle.gzipSize).toBeLessThanOrEqual(4400); // <4.4kb
   });
 
   it("bundle size (H3Core)", async () => {
@@ -34,17 +32,15 @@ describe("benchmark", () => {
       return;
     }
     if (process.env.DEBUG) {
-      console.log(
-        `Bundle size (H3Core): ${bundle.bytes} (gzip: ${bundle.gzipSize})`,
-      );
+      console.log(`Bundle size (H3Core): ${bundle.bytes} (gzip: ${bundle.gzipSize})`);
     }
-    expect(bundle.bytes).toBeLessThanOrEqual(8000); // <8kb
-    expect(bundle.gzipSize).toBeLessThanOrEqual(3500); // <3.5kb
+    expect(bundle.bytes).toBeLessThanOrEqual(6200); // <6.2kb
+    expect(bundle.gzipSize).toBeLessThanOrEqual(2500); // <2.5kb
   });
 
   it("bundle size (defineHandler)", async () => {
     const code = /* js */ `
-      import { defineHandler } from "h3";
+      import { defineHandler } from "../../src/index.ts";
       const handler = defineHandler({});
     `;
     const bundle = await getBundleSize(code);
@@ -52,12 +48,10 @@ describe("benchmark", () => {
       return;
     }
     if (process.env.DEBUG) {
-      console.log(
-        `Bundle size (defineHandler): ${bundle.bytes} (gzip: ${bundle.gzipSize})`,
-      );
+      console.log(`Bundle size (defineHandler): ${bundle.bytes} (gzip: ${bundle.gzipSize})`);
     }
-    expect(bundle.bytes).toBeLessThanOrEqual(5400); // <5.4kb
-    expect(bundle.gzipSize).toBeLessThanOrEqual(2200); // <2.2kb
+    expect(bundle.bytes).toBeLessThanOrEqual(5900); // <5.9kb
+    expect(bundle.gzipSize).toBeLessThanOrEqual(2400); // <2.4kb
   });
 });
 

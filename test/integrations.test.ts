@@ -6,12 +6,13 @@ import { Hono } from "hono";
 import { Elysia } from "elysia";
 import {
   H3,
-  toNodeHandler,
   withBase,
   fromNodeHandler,
   defineNodeHandler,
   type NodeMiddleware,
 } from "../src/index.ts";
+import { toNodeHandler } from "../src/_entries/node.ts";
+
 import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("integrations", (t, { it, expect, describe }) => {
@@ -47,10 +48,7 @@ describeMatrix("integrations", (t, { it, expect, describe }) => {
     });
 
     it("can mount h3 in hono", async () => {
-      const honoApp = new Hono().mount(
-        "/h3",
-        new H3().get("/test", () => "Hello H3!").fetch,
-      );
+      const honoApp = new Hono().mount("/h3", new H3().get("/test", () => "Hello H3!").fetch);
       const res = await honoApp.request("/h3/test");
       expect(await res.text()).toBe("Hello H3!");
     });
@@ -67,13 +65,8 @@ describeMatrix("integrations", (t, { it, expect, describe }) => {
     });
 
     it("can mount h3 in elysia", async () => {
-      const elysiaApp = new Elysia().mount(
-        "/h3",
-        new H3().get("/test", () => "Hello H3!").fetch,
-      );
-      const res = await elysiaApp.fetch(
-        new Request("http://localhost/h3/test"),
-      );
+      const elysiaApp = new Elysia().mount("/h3", new H3().get("/test", () => "Hello H3!").fetch);
+      const res = await elysiaApp.fetch(new Request("http://localhost/h3/test"));
       expect(await res.text()).toBe("Hello H3!");
     });
   });
@@ -162,10 +155,7 @@ describeMatrix("integrations", (t, { it, expect, describe }) => {
 
     it("can resolve nested router paths with query string", async () => {
       const connectApp = createConnectApp();
-      const router = new H3().get(
-        "/hello",
-        (event) => event.url.searchParams.get("x") ?? "hello",
-      );
+      const router = new H3().get("/hello", (event) => event.url.searchParams.get("x") ?? "hello");
       t.app.use("/api/**", withBase("/api", router));
       connectApp.use("/api", toNodeHandler(t.app));
 

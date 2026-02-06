@@ -1,8 +1,11 @@
 import type { ServerRequest } from "srvx";
 import type { TypedRequest, TypedResponse, ResponseHeaderMap } from "fetchdts";
-import type { H3Event } from "../event.ts";
+import type { H3Event, HTTPEvent } from "../event.ts";
 import type { MaybePromise } from "./_utils.ts";
 import type { H3RouteMeta } from "./h3.ts";
+import type { H3Core } from "../h3.ts";
+
+export type HTTPHandler = EventHandler | FetchableObject | H3Core;
 
 //  --- event handler ---
 
@@ -14,15 +17,12 @@ export interface EventHandler<
   meta?: H3RouteMeta;
 }
 
-export type EventHandlerFetch<T extends Response | TypedResponse = Response> = (
-  req: ServerRequest | URL | string,
-) => Promise<T>;
-
 export interface EventHandlerObject<
   _RequestT extends EventHandlerRequest = EventHandlerRequest,
   _ResponseT extends EventHandlerResponse = EventHandlerResponse,
 > {
-  handler: EventHandler<_RequestT, _ResponseT>;
+  handler?: EventHandler<_RequestT, _ResponseT>;
+  fetch?: FetchHandler;
   middleware?: Middleware[];
   meta?: H3RouteMeta;
 }
@@ -35,6 +35,20 @@ export interface EventHandlerRequest {
 
 export type EventHandlerResponse<T = unknown> = T | Promise<T>;
 
+export type TypedServerRequest<_RequestT extends EventHandlerRequest = EventHandlerRequest> = Omit<
+  ServerRequest,
+  "json" | "headers" | "clone"
+> &
+  Pick<
+    TypedRequest<NonNullable<_RequestT["body"]>, Record<keyof ResponseHeaderMap, string>>,
+    "json" | "headers" | "clone"
+  >;
+
+// --- fetchable ---
+
+export type FetchHandler = (req: ServerRequest) => Response | Promise<Response>;
+export type FetchableObject = { fetch: FetchHandler };
+
 export type EventHandlerWithFetch<
   _RequestT extends EventHandlerRequest = EventHandlerRequest,
   _ResponseT extends EventHandlerResponse = EventHandlerResponse,
@@ -42,16 +56,9 @@ export type EventHandlerWithFetch<
   fetch: EventHandlerFetch<TypedResponse<_ResponseT, ResponseHeaderMap>>;
 };
 
-export type TypedServerRequest<
-  _RequestT extends EventHandlerRequest = EventHandlerRequest,
-> = Omit<ServerRequest, "json" | "headers" | "clone"> &
-  Pick<
-    TypedRequest<
-      NonNullable<_RequestT["body"]>,
-      Record<keyof ResponseHeaderMap, string>
-    >,
-    "json" | "headers" | "clone"
-  >;
+export type EventHandlerFetch<T extends Response | TypedResponse = Response> = (
+  req: ServerRequest | URL | string,
+) => Promise<T>;
 
 //  --- middleware ---
 
@@ -62,16 +69,19 @@ export type Middleware = (
 
 // --- lazy event handler ---
 
-export type LazyEventHandler = () => EventHandler | Promise<EventHandler>;
+export type LazyEventHandler = () =>
+  | EventHandler
+  | FetchableObject
+  | Promise<EventHandler | FetchableObject>;
 
 export interface DynamicEventHandler extends EventHandlerWithFetch {
-  set: (handler: EventHandler) => void;
+  set: (handler: EventHandler | FetchableObject) => void;
 }
 
 // --- utils ---
 
 export type InferEventInput<
   Key extends keyof EventHandlerRequest,
-  Event extends H3Event,
+  Event extends HTTPEvent,
   T,
-> = void extends T ? (Event extends H3Event<infer E> ? E[Key] : never) : T;
+> = void extends T ? (Event extends HTTPEvent<infer E> ? E[Key] : never) : T;

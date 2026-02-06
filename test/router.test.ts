@@ -168,9 +168,7 @@ describeMatrix("router", (t, { it, expect, describe }) => {
 
       it("can decode a value of router params corresponding to the given name", async () => {
         const router = new H3().get("/test/params/:name", (event) => {
-          expect(getRouterParam(event, "name", { decode: true })).toEqual(
-            "string with space",
-          );
+          expect(getRouterParam(event, "name", { decode: true })).toEqual("string with space");
           return "200";
         });
         t.app.use(router.handler);

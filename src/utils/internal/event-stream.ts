@@ -1,8 +1,5 @@
 import type { H3Event } from "../../event.ts";
-import type {
-  EventStreamMessage,
-  EventStreamOptions,
-} from "../event-stream.ts";
+import type { EventStreamMessage, EventStreamOptions } from "../event-stream.ts";
 
 /**
  * A helper class for [server sent events](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events#event_stream_format)
@@ -37,9 +34,7 @@ export class EventStream {
   async push(message: string[]): Promise<void>;
   async push(message: EventStreamMessage): Promise<void>;
   async push(message: EventStreamMessage[]): Promise<void>;
-  async push(
-    message: EventStreamMessage | EventStreamMessage[] | string | string[],
-  ) {
+  async push(message: EventStreamMessage | EventStreamMessage[] | string | string[]) {
     if (typeof message === "string") {
       await this._sendEvent({ data: message });
       return;
@@ -62,6 +57,21 @@ export class EventStream {
     await this._sendEvent(message);
   }
 
+  async pushComment(comment: string): Promise<void> {
+    if (this._writerIsClosed) {
+      return;
+    }
+    if (this._paused && !this._unsentData) {
+      this._unsentData = formatEventStreamComment(comment);
+      return;
+    }
+    if (this._paused) {
+      this._unsentData += formatEventStreamComment(comment);
+      return;
+    }
+    await this._writer.write(this._encoder.encode(formatEventStreamComment(comment))).catch();
+  }
+
   private async _sendEvent(message: EventStreamMessage) {
     if (this._writerIsClosed) {
       return;
@@ -74,9 +84,7 @@ export class EventStream {
       this._unsentData += formatEventStreamMessage(message);
       return;
     }
-    await this._writer
-      .write(this._encoder.encode(formatEventStreamMessage(message)))
-      .catch();
+    await this._writer.write(this._encoder.encode(formatEventStreamMessage(message))).catch();
   }
 
   private async _sendEvents(messages: EventStreamMessage[]) {
@@ -159,6 +167,10 @@ export function isEventStream(input: unknown): input is EventStream {
   return input instanceof EventStream;
 }
 
+export function formatEventStreamComment(comment: string): string {
+  return `: ${comment}\n\n`;
+}
+
 export function formatEventStreamMessage(message: EventStreamMessage): string {
   let result = "";
   if (message.id) {
@@ -174,9 +186,7 @@ export function formatEventStreamMessage(message: EventStreamMessage): string {
   return result;
 }
 
-export function formatEventStreamMessages(
-  messages: EventStreamMessage[],
-): string {
+export function formatEventStreamMessages(messages: EventStreamMessage[]): string {
   let result = "";
   for (const msg of messages) {
     result += formatEventStreamMessage(msg);

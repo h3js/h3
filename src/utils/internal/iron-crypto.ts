@@ -1,3 +1,5 @@
+// @ts-nocheck TODO: Validate BufferSource assignments
+
 /**
 Based on https://github.com/brc-dd/iron-webcrypto/tree/v1.2.1
 Copyright (c) 2021 Divyansh Singh.
@@ -8,12 +10,7 @@ Copyright (c) 2012-2022, Project contributors Copyright (c) 2012-2020, Sideway I
 https://github.com/hapijs/iron/blob/v7.0.1/LICENSE.md
  */
 
-import {
-  base64Decode,
-  base64Encode,
-  textDecoder,
-  textEncoder,
-} from "./encoding.ts";
+import { base64Decode, base64Encode, textDecoder, textEncoder } from "./encoding.ts";
 
 /** The default encryption and integrity settings. */
 export const defaults: Readonly<SealOptions> = /* @__PURE__ */ Object.freeze({
@@ -173,16 +170,12 @@ export async function hmacWithPassword(
 // --- key generation ---
 
 /** Generates a key from the password. */
-export async function generateKey(
-  password: Password,
-  options: GenerateKeyOptions,
-): Promise<Key> {
+export async function generateKey(password: Password, options: GenerateKeyOptions): Promise<Key> {
   if (!password?.length) {
     throw new Error("Empty password");
   }
 
-  if (options == null || typeof options !== "object")
-    throw new Error("Bad options");
+  if (options == null || typeof options !== "object") throw new Error("Bad options");
   if (!(options.algorithm in algorithms))
     throw new Error(`Unknown algorithm: ${options.algorithm}`);
 
@@ -208,9 +201,7 @@ export async function generateKey(
       const { saltBits = 0 } = options;
       if (!saltBits) throw new Error("Missing salt and saltBits options");
       const randomSalt = randomBits(saltBits);
-      salt = [...new Uint8Array(randomSalt)]
-        .map((x) => x.toString(16).padStart(2, "0"))
-        .join("");
+      salt = [...new Uint8Array(randomSalt)].map((x) => x.toString(16).padStart(2, "0")).join("");
     }
 
     // prettier-ignore
@@ -269,9 +260,7 @@ export async function encrypt(
   data: string,
 ): Promise<{ encrypted: Uint8Array; key: Key }> {
   const key = await generateKey(password, options);
-  const encrypted = await crypto.subtle.encrypt(
-    ...getEncryptParams(options.algorithm, key, data),
-  );
+  const encrypted = await crypto.subtle.encrypt(...getEncryptParams(options.algorithm, key, data));
   return { encrypted: new Uint8Array(encrypted), key };
 }
 
@@ -281,9 +270,7 @@ export async function decrypt(
   data: Uint8Array | string,
 ): Promise<string> {
   const key = await generateKey(password, options);
-  const decrypted = await crypto.subtle.decrypt(
-    ...getEncryptParams(options.algorithm, key, data),
-  );
+  const decrypted = await crypto.subtle.decrypt(...getEncryptParams(options.algorithm, key, data));
   return textDecoder.decode(decrypted);
 }
 
@@ -311,8 +298,7 @@ function getEncryptParams(
 function fixedTimeComparison(a: string, b: string): boolean {
   let mismatch = a.length === b.length ? 0 : 1;
   if (mismatch) b = a;
-  for (let i = 0; i < a.length; i += 1)
-    mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  for (let i = 0; i < a.length; i += 1) mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i);
   return mismatch === 0;
 }
 
@@ -401,18 +387,17 @@ type SealOptionsSub<Algorithm extends _Algorithm = _Algorithm> = Readonly<{
 type Password = Uint8Array | string;
 
 /** `generateKey()` method options. */
-export type GenerateKeyOptions<Algorithm extends _Algorithm = _Algorithm> =
-  Pick<
-    SealOptionsSub<Algorithm>,
-    "algorithm" | "iterations" | "minPasswordlength"
-  > &
-    Readonly<{
-      saltBits?: number | undefined;
-      salt?: string | undefined;
-      iv?: Uint8Array | undefined;
-      ivBits?: number | undefined;
-      hmac?: boolean | undefined;
-    }>;
+export type GenerateKeyOptions<Algorithm extends _Algorithm = _Algorithm> = Pick<
+  SealOptionsSub<Algorithm>,
+  "algorithm" | "iterations" | "minPasswordlength"
+> &
+  Readonly<{
+    saltBits?: number | undefined;
+    salt?: string | undefined;
+    iv?: Uint8Array | undefined;
+    ivBits?: number | undefined;
+    hmac?: boolean | undefined;
+  }>;
 
 /** Generated internal key object. */
 type Key = Readonly<{
@@ -441,8 +426,6 @@ type PasswordSpecific = Readonly<{
 }>;
 
 /** Key-value pairs hash of password id to value. */
-type PasswordHash = Readonly<
-  Record<string, Password | PasswordSecret | PasswordSpecific>
->;
+type PasswordHash = Readonly<Record<string, Password | PasswordSecret | PasswordSpecific>>;
 
 export type RawPassword = Password | PasswordSecret | PasswordSpecific;

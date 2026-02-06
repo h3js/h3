@@ -10,7 +10,7 @@
 H3 (pronounced as /eɪtʃθriː/, like h-3) is a minimal h(ttp) framework built for high performance and portability.
 
 > [!NOTE]
-> You are on the v2 development branch. Check out [v1 branch](https://github.com/h3js/h3/tree/v1) and [v1 documentation](https://v1.h3.dev/) for current v1.
+> You are on the v2 active branch. Check out [tree/v1](https://github.com/h3js/h3/tree/v1) and [v1.h3.dev](https://v1.h3.dev/) for legacy v1.
 
 👉 [Documentation](https://h3.dev)
 

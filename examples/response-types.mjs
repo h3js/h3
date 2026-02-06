@@ -13,9 +13,6 @@ app
   .get("/html", (event) => html(event, "<h1>hello world</h1>"))
   .get("/buffer", () => Buffer.from("hello world"))
   .get("/blob", () => new Blob(["hello world"]))
-  .get(
-    "/file",
-    () => new File(["hello world"], "hello.txt", { type: "text/plain" }),
-  );
+  .get("/file", () => new File(["hello world"], "hello.txt", { type: "text/plain" }));
 
 serve(app);

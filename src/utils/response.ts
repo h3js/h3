@@ -1,5 +1,5 @@
 import type { H3Event } from "../event.ts";
-import { sanitizeStatusCode } from "./sanitize.ts";
+import { HTTPResponse } from "../response.ts";
 import {
   serializeIterableValue,
   coerceIterable,
@@ -11,27 +11,15 @@ import {
  * Respond with an empty payload.<br>
  *
  * @example
- * app.get("/", (event) => noContent(event));
+ * app.get("/", () => noContent());
  *
- * @param event H3 event
- * @param code status code to be send. By default, it is `204 No Content`.
+ * @param status status code to be send. By default, it is `204 No Content`.
  */
-export function noContent(event: H3Event, code?: number): "" {
-  const currentStatus = event.res.status;
-
-  if (!code && currentStatus && currentStatus !== 200) {
-    code = event.res.status;
-  }
-
-  event.res.status = sanitizeStatusCode(code, 204);
-
-  // 204 responses MUST NOT have a Content-Length header field
-  // https://www.rfc-editor.org/rfc/rfc7230#section-3.3.2
-  if (event.res.status === 204) {
-    event.res.headers.delete("content-length");
-  }
-
-  return "";
+export function noContent(status: number = 204): HTTPResponse {
+  return new HTTPResponse(null, {
+    status,
+    statusText: "No Content",
+  });
 }
 
 /**
@@ -42,42 +30,62 @@ export function noContent(event: H3Event, code?: number): "" {
  * In the body, it sends a simple HTML page with a meta refresh tag to redirect the client in case the headers are ignored.
  *
  * @example
- * app.get("/", (event) => {
- *   return redirect(event, "https://example.com");
+ * app.get("/", () => {
+ *   return redirect("https://example.com");
  * });
  *
  * @example
- * app.get("/", (event) => {
- *   return redirect(event, "https://example.com", 301); // Permanent redirect
+ * app.get("/", () => {
+ *   return redirect("https://example.com", 301); // Permanent redirect
  * });
  */
 export function redirect(
-  event: H3Event,
   location: string,
-  code: number = 302,
-): string {
-  event.res.status = sanitizeStatusCode(code, event.res.status);
-  event.res.headers.set("location", location);
+  status: number = 302,
+  statusText?: string,
+): HTTPResponse {
   const encodedLoc = location.replace(/"/g, "%22");
-  return html(
-    event,
-    `<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0; url=${encodedLoc}"></head></html>`,
-  );
+  const body = /* html */ `<html><head><meta http-equiv="refresh" content="0; url=${encodedLoc}" /></head></html>`;
+  return new HTTPResponse(body, {
+    status,
+    statusText: statusText || (status === 301 ? "Moved Permanently" : "Found"),
+    headers: {
+      "content-type": "text/html; charset=utf-8",
+      location,
+    },
+  });
 }
 
 /**
  * Write `HTTP/1.1 103 Early Hints` to the client.
+ *
+ * In runtimes that don't support early hints natively, this function
+ * falls back to setting response headers which can be used by CDN.
  */
 export function writeEarlyHints(
   event: H3Event,
-  hints: Record<string, string>,
+  hints: Record<string, string | string[]>,
 ): void | Promise<void> {
-  if (!event.runtime?.node?.res?.writeEarlyHints) {
-    return;
+  // Use native early hints if available (Node.js)
+  if (event.runtime?.node?.res?.writeEarlyHints) {
+    return new Promise((resolve) => {
+      event.runtime?.node?.res?.writeEarlyHints(hints, () => resolve());
+    });
   }
-  return new Promise((resolve) => {
-    event.runtime?.node?.res?.writeEarlyHints(hints, () => resolve());
-  });
+
+  // Fallback: Set Link headers for CDN support (only Link headers to avoid leaking sensitive headers)
+  for (const [name, value] of Object.entries(hints)) {
+    if (name.toLowerCase() !== "link") {
+      continue;
+    }
+    if (Array.isArray(value)) {
+      for (const v of value) {
+        event.res.headers.append("link", v);
+      }
+    } else {
+      event.res.headers.append("link", value);
+    }
+  }
 }
 
 /**
@@ -88,13 +96,12 @@ export function writeEarlyHints(
  *
  * For generator (yielding) functions, the returned value is treated the same as yielded values.
  *
- * @param event - H3 event
  * @param iterable - Iterator that produces chunks of the response.
  * @param serializer - Function that converts values from the iterable into stream-compatible values.
  * @template Value - Test
  *
  * @example
- * return iterable(event, async function* work() {
+ * return iterable(async function* work() {
  *   // Open document body
  *   yield "<!DOCTYPE html>\n<html><body><h1>Executing...</h1><ol>\n";
  *   // Do work ...
@@ -113,42 +120,49 @@ export function writeEarlyHints(
  * }
  */
 export function iterable<Value = unknown, Return = unknown>(
-  _event: H3Event,
   iterable: IterationSource<Value, Return>,
   options?: {
     serializer: IteratorSerializer<Value | Return>;
   },
-): ReadableStream {
+): HTTPResponse {
   const serializer = options?.serializer ?? serializeIterableValue;
   const iterator = coerceIterable(iterable);
-  return new ReadableStream({
-    async pull(controller) {
-      const { value, done } = await iterator.next();
-      if (value !== undefined) {
-        const chunk = serializer(value);
-        if (chunk !== undefined) {
-          controller.enqueue(chunk);
+  return new HTTPResponse(
+    new ReadableStream({
+      async pull(controller) {
+        const { value, done } = await iterator.next();
+        if (value !== undefined) {
+          const chunk = serializer(value);
+          if (chunk !== undefined) {
+            controller.enqueue(chunk);
+          }
         }
-      }
-      if (done) {
-        controller.close();
-      }
-    },
-    cancel() {
-      iterator.return?.();
-    },
-  });
+        if (done) {
+          controller.close();
+        }
+      },
+      cancel() {
+        iterator.return?.();
+      },
+    }),
+  );
 }
 
 /**
  * Respond with HTML content.
  *
  * @example
- * app.get("/", (event) => html(event, "<h1>Hello, World!</h1>"));
+ * app.get("/", () => html("<h1>Hello, World!</h1>"));
+ * app.get("/", () => html`<h1>Hello, ${name}!</h1>`);
  */
-export function html(event: H3Event, content: string): string {
-  if (!event.res.headers.has("content-type")) {
-    event.res.headers.set("content-type", "text/html; charset=utf-8");
-  }
-  return content;
+export function html(strings: TemplateStringsArray, ...values: unknown[]): HTTPResponse;
+export function html(markup: string): HTTPResponse;
+export function html(first: TemplateStringsArray | string, ...values: unknown[]): HTTPResponse {
+  const body =
+    typeof first === "string"
+      ? first
+      : first.reduce((out, str, i) => out + str + (values[i] ?? ""), "");
+  return new HTTPResponse(body, {
+    headers: { "content-type": "text/html; charset=utf-8" },
+  });
 }

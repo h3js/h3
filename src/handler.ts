@@ -10,13 +10,13 @@ import type {
   EventHandlerResponse,
   DynamicEventHandler,
   EventHandlerWithFetch,
+  FetchableObject,
+  HTTPHandler,
 } from "./types/handler.ts";
-import type {
-  InferOutput,
-  StandardSchemaV1,
-} from "./utils/internal/standard-schema.ts";
+import type { StandardSchemaV1, InferOutput } from "./utils/internal/standard-schema.ts";
 import type { TypedRequest } from "fetchdts";
-import { validatedRequest, validatedURL } from "./utils/internal/validate.ts";
+import { NoHandler, type H3Core } from "./h3.ts";
+import { validatedRequest, validatedURL, type OnValidateError } from "./utils/internal/validate.ts";
 
 // --- event handler ---
 
@@ -30,18 +30,28 @@ export function defineHandler<
   Res = EventHandlerResponse,
 >(def: EventHandlerObject<Req, Res>): EventHandlerWithFetch<Req, Res>;
 
-export function defineHandler(arg1: unknown): EventHandlerWithFetch {
-  if (typeof arg1 === "function") {
-    return handlerWithFetch(arg1 as EventHandler);
+export function defineHandler(input: EventHandler | EventHandlerObject): EventHandlerWithFetch {
+  if (typeof input === "function") {
+    return handlerWithFetch(input as EventHandler);
   }
-  const { middleware, handler, meta } = arg1 as EventHandlerObject;
-  const _handler = handlerWithFetch(
-    middleware?.length
-      ? (event) => callMiddleware(event, middleware, handler)
-      : handler,
+  const handler: EventHandler =
+    input.handler ||
+    (input.fetch
+      ? function _fetchHandler(event) {
+          return input.fetch!(event.req);
+        }
+      : NoHandler);
+
+  return Object.assign(
+    handlerWithFetch(
+      input.middleware?.length
+        ? function _handlerMiddleware(event) {
+            return callMiddleware(event, input.middleware!, handler);
+          }
+        : handler,
+    ),
+    input,
   );
-  _handler.meta = meta;
-  return _handler;
 }
 
 type StringHeaders<T> = {
@@ -62,6 +72,7 @@ export function defineValidatedHandler<
       body?: RequestBody;
       headers?: RequestHeaders;
       query?: RequestQuery;
+      onError?: OnValidateError;
     };
     handler: EventHandler<
       {
@@ -71,24 +82,15 @@ export function defineValidatedHandler<
       Res
     >;
   },
-): EventHandlerWithFetch<
-  TypedRequest<InferOutput<RequestBody>, InferOutput<RequestHeaders>>,
-  Res
-> {
+): EventHandlerWithFetch<TypedRequest<InferOutput<RequestBody>, InferOutput<RequestHeaders>>, Res> {
   if (!def.validate) {
     return defineHandler(def) as any;
   }
   return defineHandler({
     ...def,
-    handler: (event) => {
-      (event as any) /* readonly */.req = validatedRequest(
-        event.req,
-        def.validate!,
-      );
-      (event as any) /* readonly */.url = validatedURL(
-        event.url,
-        def.validate!,
-      );
+    handler: function _validatedHandler(event) {
+      (event as any) /* readonly */.req = validatedRequest(event.req, def.validate!);
+      (event as any) /* readonly */.url = validatedURL(event.url, def.validate!);
       return def.handler(event as any);
     },
   }) as any;
@@ -100,6 +102,9 @@ function handlerWithFetch<
   Req extends EventHandlerRequest = EventHandlerRequest,
   Res = EventHandlerResponse,
 >(handler: EventHandler<Req, Res>): EventHandlerWithFetch<Req, Res> {
+  if ("fetch" in handler) {
+    return handler as EventHandlerWithFetch<Req, Res>;
+  }
   return Object.assign(handler, {
     fetch: (req: ServerRequest | URL | string): Promise<Response> => {
       if (typeof req === "string") {
@@ -120,15 +125,15 @@ function handlerWithFetch<
 
 //  --- dynamic event handler ---
 
-export function dynamicEventHandler(
-  initial?: EventHandler,
-): DynamicEventHandler {
-  let current: EventHandler | undefined = initial;
+export function dynamicEventHandler(initial?: EventHandler | FetchableObject): DynamicEventHandler {
+  let current: EventHandler | undefined = toEventHandler(initial);
   return Object.assign(
-    defineHandler((event: H3Event) => current?.(event)),
+    defineHandler(function _dynamicEventHandler(event: H3Event) {
+      return current?.(event);
+    }),
     {
-      set: (handler: EventHandler) => {
-        current = handler;
+      set: (handler: EventHandler | FetchableObject) => {
+        current = toEventHandler(handler);
       },
     },
   );
@@ -136,36 +141,39 @@ export function dynamicEventHandler(
 
 // --- lazy event handler ---
 
+type MaybePromise<T> = T | Promise<T>;
+
 export function defineLazyEventHandler(
-  load: () => Promise<EventHandler> | EventHandler,
+  loader: () => MaybePromise<HTTPHandler>,
 ): EventHandlerWithFetch {
-  let _promise: Promise<typeof _resolved>;
-  let _resolved: { handler: EventHandler };
-
-  const resolveHandler = () => {
-    if (_resolved) {
-      return Promise.resolve(_resolved);
-    }
-    if (!_promise) {
-      _promise = Promise.resolve(load()).then((r: any) => {
-        const handler = r.default || r;
-        if (typeof handler !== "function") {
-          throw new (TypeError as any)(
-            "Invalid lazy handler result. It should be a function:",
-            handler,
-          );
-        }
-        _resolved = { handler: r.default || r };
-        return _resolved;
-      });
-    }
-    return _promise;
-  };
-
-  return defineHandler((event) => {
-    if (_resolved) {
-      return _resolved.handler(event);
-    }
-    return resolveHandler().then((r) => r.handler(event));
+  let handler: EventHandler | undefined;
+  let promise: Promise<EventHandler> | undefined;
+  return defineHandler(function lazyHandler(event) {
+    return handler
+      ? handler(event)
+      : (promise ??= Promise.resolve(loader()).then(function resolveLazyHandler (r: any) {
+          handler = toEventHandler(r) || toEventHandler(r.default);
+          if (typeof handler !== "function") {
+            // @ts-expect-error
+            throw new TypeError("Invalid lazy handler", { cause: { resolved: r } });
+          }
+          return handler;
+        })).then((r) => r(event));
   });
+}
+
+// --- normalization utils ---
+
+export function toEventHandler(handler: HTTPHandler | undefined): EventHandler | undefined {
+  if (typeof handler === "function") {
+    return handler;
+  }
+  if (typeof (handler as H3Core)?.handler === "function") {
+    return (handler as H3Core).handler;
+  }
+  if (typeof (handler as FetchableObject)?.fetch === "function") {
+    return function _fetchHandler(event: H3Event) {
+      return (handler as FetchableObject).fetch!(event.req);
+    };
+  }
 }

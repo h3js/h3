@@ -1,14 +1,21 @@
 import { defineHandler } from "../handler.ts";
 
-import type { Hooks as WSHooks } from "crossws";
+import type { Hooks as WebSocketHooks } from "crossws";
+import type { H3Event } from "../event.ts";
 import type { EventHandler } from "../types/handler.ts";
+
+export type {
+  Hooks as WebSocketHooks,
+  Message as WebSocketMessage,
+  Peer as WebSocketPeer,
+} from "crossws";
 
 /**
  * Define WebSocket hooks.
  *
  * @see https://h3.dev/guide/websocket
  */
-export function defineWebSocket(hooks: Partial<WSHooks>): Partial<WSHooks> {
+export function defineWebSocket(hooks: Partial<WebSocketHooks>): Partial<WebSocketHooks> {
   return hooks;
 }
 
@@ -17,14 +24,20 @@ export function defineWebSocket(hooks: Partial<WSHooks>): Partial<WSHooks> {
  *
  * @see https://h3.dev/guide/websocket
  */
-export function defineWebSocketHandler(hooks: Partial<WSHooks>): EventHandler {
-  return defineHandler(() => {
+export function defineWebSocketHandler(
+  hooks:
+    | Partial<WebSocketHooks>
+    | ((event: H3Event) => Partial<WebSocketHooks> | Promise<Partial<WebSocketHooks>>),
+): EventHandler {
+  return defineHandler(function _webSocketHandler(event) {
+    const crossws = typeof hooks === "function" ? hooks(event) : hooks;
+
     return Object.assign(
       new Response("WebSocket upgrade is required.", {
         status: 426,
       }),
       {
-        crossws: hooks,
+        crossws,
       },
     );
   });

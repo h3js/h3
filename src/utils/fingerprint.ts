@@ -1,4 +1,4 @@
-import type { H3Event } from "../event.ts";
+import type { HTTPEvent } from "../event.ts";
 import { getRequestIP } from "./request.ts";
 
 export interface RequestFingerprintOptions {
@@ -28,15 +28,13 @@ export interface RequestFingerprintOptions {
  * @experimental Behavior of this utility might change in the future versions
  */
 export async function getRequestFingerprint(
-  event: H3Event,
+  event: HTTPEvent,
   opts: RequestFingerprintOptions = {},
 ): Promise<string | null> {
   const fingerprint: unknown[] = [];
 
   if (opts.ip !== false) {
-    fingerprint.push(
-      getRequestIP(event, { xForwardedFor: opts.xForwardedFor }),
-    );
+    fingerprint.push(getRequestIP(event, { xForwardedFor: opts.xForwardedFor }));
   }
 
   if (opts.method === true) {
@@ -44,7 +42,7 @@ export async function getRequestFingerprint(
   }
 
   if (opts.url === true) {
-    fingerprint.push(event.url.href);
+    fingerprint.push(event.req.url);
   }
 
   if (opts.userAgent === true) {
@@ -66,9 +64,7 @@ export async function getRequestFingerprint(
     new TextEncoder().encode(fingerprintString),
   );
 
-  const hash = [...new Uint8Array(buffer)]
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
+  const hash = [...new Uint8Array(buffer)].map((b) => b.toString(16).padStart(2, "0")).join("");
 
   return hash;
 }

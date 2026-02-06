@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-expressions */
 import type { H3Event } from "../../src/index.ts";
 import { describe, it, expectTypeOf } from "vitest";
 import {
