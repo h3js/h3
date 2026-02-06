@@ -1,12 +1,5 @@
 import { z } from "zod";
-import {
-  H3,
-  serve,
-  defineMcpHandler,
-  defineMcpTool,
-  defineMcpResource,
-  defineMcpPrompt,
-} from "h3";
+import { H3, serve, defineMcpHandler, defineMcpTool, defineMcpResource, defineMcpPrompt } from "h3";
 
 export const app = new H3();
 
@@ -46,9 +39,7 @@ const calculatorTool = defineMcpTool({
         break;
     }
     return {
-      content: [
-        { type: "text", text: JSON.stringify({ operation, a, b, result }, null, 2) },
-      ],
+      content: [{ type: "text", text: JSON.stringify({ operation, a, b, result }, null, 2) }],
     };
   },
 });

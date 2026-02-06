@@ -7,10 +7,7 @@ import type {
   ServerNotification,
 } from "@modelcontextprotocol/sdk/types.js";
 import type { RequestHandlerExtra } from "@modelcontextprotocol/sdk/shared/protocol.js";
-import type {
-  ResourceTemplate,
-  ResourceMetadata,
-} from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { ResourceTemplate, ResourceMetadata } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type {
   ZodRawShapeCompat,
   ShapeOutput,
@@ -24,16 +21,15 @@ import type { EventHandler } from "../types/handler.ts";
 
 // --- tool types ---
 
-export type McpToolCallback<
-  Args extends ZodRawShapeCompat | undefined = undefined,
-> = Args extends ZodRawShapeCompat
-  ? (
-      args: ShapeOutput<Args>,
-      extra: RequestHandlerExtra<ServerRequest, ServerNotification>,
-    ) => CallToolResult | Promise<CallToolResult>
-  : (
-      extra: RequestHandlerExtra<ServerRequest, ServerNotification>,
-    ) => CallToolResult | Promise<CallToolResult>;
+export type McpToolCallback<Args extends ZodRawShapeCompat | undefined = undefined> =
+  Args extends ZodRawShapeCompat
+    ? (
+        args: ShapeOutput<Args>,
+        extra: RequestHandlerExtra<ServerRequest, ServerNotification>,
+      ) => CallToolResult | Promise<CallToolResult>
+    : (
+        extra: RequestHandlerExtra<ServerRequest, ServerNotification>,
+      ) => CallToolResult | Promise<CallToolResult>;
 
 export interface McpToolDefinition<
   InputSchema extends ZodRawShapeCompat | undefined = undefined,
@@ -72,20 +68,17 @@ export interface McpResourceDefinition {
 
 // --- prompt types ---
 
-export type McpPromptCallback<
-  Args extends ZodRawShapeCompat | undefined = undefined,
-> = Args extends ZodRawShapeCompat
-  ? (
-      args: ShapeOutput<Args>,
-      extra: RequestHandlerExtra<ServerRequest, ServerNotification>,
-    ) => GetPromptResult | Promise<GetPromptResult>
-  : (
-      extra: RequestHandlerExtra<ServerRequest, ServerNotification>,
-    ) => GetPromptResult | Promise<GetPromptResult>;
+export type McpPromptCallback<Args extends ZodRawShapeCompat | undefined = undefined> =
+  Args extends ZodRawShapeCompat
+    ? (
+        args: ShapeOutput<Args>,
+        extra: RequestHandlerExtra<ServerRequest, ServerNotification>,
+      ) => GetPromptResult | Promise<GetPromptResult>
+    : (
+        extra: RequestHandlerExtra<ServerRequest, ServerNotification>,
+      ) => GetPromptResult | Promise<GetPromptResult>;
 
-export interface McpPromptDefinition<
-  Args extends ZodRawShapeCompat | undefined = undefined,
-> {
+export interface McpPromptDefinition<Args extends ZodRawShapeCompat | undefined = undefined> {
   name: string;
   title?: string;
   description?: string;
@@ -124,9 +117,7 @@ export function defineMcpTool<
  *
  * @see https://modelcontextprotocol.io/specification/2025-06-18/server/resources
  */
-export function defineMcpResource(
-  definition: McpResourceDefinition,
-): McpResourceDefinition {
+export function defineMcpResource(definition: McpResourceDefinition): McpResourceDefinition {
   return definition;
 }
 
@@ -135,9 +126,9 @@ export function defineMcpResource(
  *
  * @see https://modelcontextprotocol.io/specification/2025-06-18/server/prompts
  */
-export function defineMcpPrompt<
-  const Args extends ZodRawShapeCompat | undefined = undefined,
->(definition: McpPromptDefinition<Args>): McpPromptDefinition<Args> {
+export function defineMcpPrompt<const Args extends ZodRawShapeCompat | undefined = undefined>(
+  definition: McpPromptDefinition<Args>,
+): McpPromptDefinition<Args> {
   return definition;
 }
 
@@ -150,8 +141,7 @@ export function defineMcpHandler(
   options: McpHandlerOptions | ((event: H3Event) => McpHandlerOptions),
 ): EventHandler {
   return defineHandler(function _mcpHandler(event) {
-    const resolvedOptions =
-      typeof options === "function" ? options(event) : options;
+    const resolvedOptions = typeof options === "function" ? options(event) : options;
     return handleMcpRequest(resolvedOptions, event);
   });
 }

@@ -1,4 +1,7 @@
-import type { Transport, TransportSendOptions } from "@modelcontextprotocol/sdk/shared/transport.js";
+import type {
+  Transport,
+  TransportSendOptions,
+} from "@modelcontextprotocol/sdk/shared/transport.js";
 import type { JSONRPCMessage, RequestId } from "@modelcontextprotocol/sdk/types.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { H3Event } from "../../event.ts";
@@ -9,8 +12,7 @@ import { readBody } from "../body.ts";
  * Web-standard MCP transport implementing the SDK's Transport interface.
  */
 export class H3McpTransport implements Transport {
-  private _responseResolver: ((messages: JSONRPCMessage[]) => void) | null =
-    null;
+  private _responseResolver: ((messages: JSONRPCMessage[]) => void) | null = null;
   private _expectedResponses = 0;
   private _collectedResponses: JSONRPCMessage[] = [];
 
@@ -21,15 +23,9 @@ export class H3McpTransport implements Transport {
 
   async start(): Promise<void> {}
 
-  async send(
-    message: JSONRPCMessage,
-    _options?: TransportSendOptions,
-  ): Promise<void> {
+  async send(message: JSONRPCMessage, _options?: TransportSendOptions): Promise<void> {
     this._collectedResponses.push(message);
-    if (
-      this._responseResolver &&
-      this._collectedResponses.length >= this._expectedResponses
-    ) {
+    if (this._responseResolver && this._collectedResponses.length >= this._expectedResponses) {
       this._responseResolver(this._collectedResponses);
       this._responseResolver = null;
     }
@@ -39,9 +35,7 @@ export class H3McpTransport implements Transport {
     this.onclose?.();
   }
 
-  processRequest(
-    messages: JSONRPCMessage | JSONRPCMessage[],
-  ): Promise<JSONRPCMessage[]> {
+  processRequest(messages: JSONRPCMessage | JSONRPCMessage[]): Promise<JSONRPCMessage[]> {
     const messageList = Array.isArray(messages) ? messages : [messages];
 
     // count requests that expect responses (notifications have no "id")
@@ -71,12 +65,9 @@ export class H3McpTransport implements Transport {
   }
 }
 
-export async function createMcpServer(
-  options: McpHandlerOptions,
-): Promise<McpServer> {
-  const { McpServer: McpServerClass } = (await import(
-    "@modelcontextprotocol/sdk/server/mcp.js"
-  )) as { McpServer: typeof McpServer };
+export async function createMcpServer(options: McpHandlerOptions): Promise<McpServer> {
+  const { McpServer: McpServerClass } =
+    (await import("@modelcontextprotocol/sdk/server/mcp.js")) as { McpServer: typeof McpServer };
 
   const server = new McpServerClass({
     name: options.name,
@@ -154,7 +145,7 @@ export async function handleMcpRequest(
   await server.connect(transport);
 
   try {
-    const body = await readBody(event) as JSONRPCMessage | JSONRPCMessage[];
+    const body = (await readBody(event)) as JSONRPCMessage | JSONRPCMessage[];
     const isBatch = Array.isArray(body);
     const responses = await transport.processRequest(body);
 
@@ -164,9 +155,7 @@ export async function handleMcpRequest(
       return new Response(null, { status: 202 });
     }
 
-    const responseBody = isBatch
-      ? JSON.stringify(responses)
-      : JSON.stringify(responses[0]);
+    const responseBody = isBatch ? JSON.stringify(responses) : JSON.stringify(responses[0]);
 
     return new Response(responseBody, {
       status: 200,

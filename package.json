@@ -56,6 +56,7 @@
   "devDependencies": {
     "@happy-dom/global-registrator": "^20.5.0",
     "@mitata/counters": "^0.0.8",
+    "@modelcontextprotocol/sdk": "^1.26.0",
     "@types/connect": "^3.4.38",
     "@types/express": "^5.0.6",
     "@types/node": "^25.2.1",
@@ -89,12 +90,11 @@
     "typescript": "^5.9.3",
     "vite": "^7.3.1",
     "vitest": "^4.0.18",
-    "zod": "^4.3.6",
-    "@modelcontextprotocol/sdk": "^1.26.0"
+    "zod": "^4.3.6"
   },
   "peerDependencies": {
-    "crossws": "^0.4.1",
-    "@modelcontextprotocol/sdk": "^1.25.0"
+    "@modelcontextprotocol/sdk": "^1.25.0",
+    "crossws": "^0.4.1"
   },
   "peerDependenciesMeta": {
     "crossws": {

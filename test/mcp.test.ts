@@ -217,9 +217,7 @@ describeMatrix("defineMcpHandler", (t, { it, expect }) => {
     );
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.result.content).toEqual([
-      { type: "text", text: "hello world" },
-    ]);
+    expect(body.result.content).toEqual([{ type: "text", text: "hello world" }]);
   });
 
   it("should handle tools/call without arguments", async () => {
@@ -258,11 +256,7 @@ describeMatrix("defineMcpHandler", (t, { it, expect }) => {
       clientInfo: { name: "test-client", version: "1.0.0" },
     });
 
-    const res = await jsonRpc(
-      "resources/read",
-      { uri: "file:///readme" },
-      2,
-    );
+    const res = await jsonRpc("resources/read", { uri: "file:///readme" }, 2);
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.result.contents).toBeDefined();
@@ -291,11 +285,7 @@ describeMatrix("defineMcpHandler", (t, { it, expect }) => {
       clientInfo: { name: "test-client", version: "1.0.0" },
     });
 
-    const res = await jsonRpc(
-      "prompts/get",
-      { name: "greet", arguments: { name: "World" } },
-      2,
-    );
+    const res = await jsonRpc("prompts/get", { name: "greet", arguments: { name: "World" } }, 2);
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.result.messages).toBeDefined();
