@@ -198,6 +198,23 @@ export {
   defineWebSocket,
 } from "./utils/ws.ts";
 
+// MCP
+
+export {
+  type McpToolDefinition,
+  type McpToolCallback,
+  type McpResourceDefinition,
+  type McpResourceCallback,
+  type McpResourceTemplateCallback,
+  type McpPromptDefinition,
+  type McpPromptCallback,
+  type McpHandlerOptions,
+  defineMcpHandler,
+  defineMcpTool,
+  defineMcpResource,
+  defineMcpPrompt,
+} from "./utils/mcp.ts";
+
 // ---- Deprecated ----
 
 export * from "./_deprecated.ts";

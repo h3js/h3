@@ -89,13 +89,18 @@
     "typescript": "^5.9.3",
     "vite": "^7.3.1",
     "vitest": "^4.0.18",
-    "zod": "^4.3.6"
+    "zod": "^4.3.6",
+    "@modelcontextprotocol/sdk": "^1.26.0"
   },
   "peerDependencies": {
-    "crossws": "^0.4.1"
+    "crossws": "^0.4.1",
+    "@modelcontextprotocol/sdk": "^1.25.0"
   },
   "peerDependenciesMeta": {
     "crossws": {
+      "optional": true
+    },
+    "@modelcontextprotocol/sdk": {
       "optional": true
     }
   },
