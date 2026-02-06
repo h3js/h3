@@ -154,7 +154,6 @@ export function defineLazyEventHandler(
       : (promise ??= Promise.resolve(loader()).then(function resolveLazyHandler (r: any) {
           handler = toEventHandler(r) || toEventHandler(r.default);
           if (typeof handler !== "function") {
-            // @ts-expect-error
             throw new TypeError("Invalid lazy handler", { cause: { resolved: r } });
           }
           return handler;
