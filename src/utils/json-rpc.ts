@@ -1,8 +1,4 @@
-import type {
-  EventHandler,
-  EventHandlerRequest,
-  Middleware,
-} from "../types/handler.ts";
+import type { EventHandler, EventHandlerRequest, Middleware } from "../types/handler.ts";
 import type { H3Event } from "../event.ts";
 import { defineHandler } from "../handler.ts";
 import { HTTPError } from "../error.ts";
@@ -101,9 +97,7 @@ const INTERNAL_ERROR = -32_603;
  *   },
  * }));
  */
-export function defineJsonRpcHandler<
-  RequestT extends EventHandlerRequest = EventHandlerRequest,
->(
+export function defineJsonRpcHandler<RequestT extends EventHandlerRequest = EventHandlerRequest>(
   methods: JsonRpcMethodMap,
   middleware?: Middleware[],
 ): EventHandler<RequestT> {
@@ -128,18 +122,10 @@ export function defineJsonRpcHandler<
     function hasUnsafeKeys(obj: any): boolean {
       if (obj && typeof obj === "object") {
         for (const key of Object.keys(obj)) {
-          if (
-            key === "__proto__" ||
-            key === "constructor" ||
-            key === "prototype"
-          ) {
+          if (key === "__proto__" || key === "constructor" || key === "prototype") {
             return true;
           }
-          if (
-            typeof obj[key] === "object" &&
-            obj[key] !== null &&
-            hasUnsafeKeys(obj[key])
-          ) {
+          if (typeof obj[key] === "object" && obj[key] !== null && hasUnsafeKeys(obj[key])) {
             return true;
           }
         }
@@ -150,9 +136,7 @@ export function defineJsonRpcHandler<
     if (
       hasErrored ||
       !body ||
-      (Array.isArray(body)
-        ? body.some((element) => hasUnsafeKeys(element))
-        : hasUnsafeKeys(body))
+      (Array.isArray(body) ? body.some((element) => hasUnsafeKeys(element)) : hasUnsafeKeys(body))
     ) {
       return createJsonRpcError(null, PARSE_ERROR, "Parse error", error);
     }
@@ -166,11 +150,7 @@ export function defineJsonRpcHandler<
     ): Promise<JsonRpcResponse | ReadableStream | undefined> => {
       // Validate the request object.
       if (req.jsonrpc !== "2.0" || typeof req.method !== "string") {
-        return createJsonRpcError(
-          req.id ?? null,
-          INVALID_REQUEST,
-          "Invalid Request",
-        );
+        return createJsonRpcError(req.id ?? null, INVALID_REQUEST, "Invalid Request");
       }
 
       const { jsonrpc, id, method, params } = req;
@@ -215,10 +195,7 @@ export function defineJsonRpcHandler<
           const statusMessage = h3Error.message;
 
           // Map HTTP status codes to JSON-RPC error codes.
-          const errorCode =
-            statusCode >= 400 && statusCode < 500
-              ? INVALID_PARAMS
-              : INTERNAL_ERROR;
+          const errorCode = statusCode >= 400 && statusCode < 500 ? INVALID_PARAMS : INTERNAL_ERROR;
 
           return createJsonRpcError(id, errorCode, statusMessage, h3Error.data);
         }
@@ -226,20 +203,12 @@ export function defineJsonRpcHandler<
       }
     };
 
-    const responses = await Promise.all(
-      requests.map((element) => processRequest(element)),
-    );
+    const responses = await Promise.all(requests.map((element) => processRequest(element)));
 
     // Filter out undefined results from notifications.
-    const finalResponses = responses.filter(
-      (r): r is JsonRpcResponse => r !== undefined,
-    );
+    const finalResponses = responses.filter((r): r is JsonRpcResponse => r !== undefined);
 
-    if (
-      !isBatch &&
-      finalResponses.length === 1 &&
-      finalResponses[0] instanceof ReadableStream
-    ) {
+    if (!isBatch && finalResponses.length === 1 && finalResponses[0] instanceof ReadableStream) {
       event.res.headers.set("Content-Type", "text/event-stream");
       return finalResponses[0];
     }
