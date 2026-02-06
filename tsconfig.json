@@ -20,7 +20,7 @@
     "composite": true,
     "isolatedDeclarations": true,
     "allowImportingTsExtensions": true,
-    "lib": ["WebWorker", "DOM", "DOM.Iterable"]
+    "lib": ["ESNext", "WebWorker", "DOM", "DOM.Iterable"]
   },
   "include": ["src", "test"]
 }
