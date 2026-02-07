@@ -239,7 +239,7 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
       });
     });
 
-    it("should handler primitive thrown errors and map to JSON-RPC error", async () => {
+    it("should handle primitive thrown errors and map to JSON-RPC error", async () => {
       t.app.post("/json-rpc", eventHandler);
       const result = await t.fetch("/json-rpc", {
         method: "POST",
