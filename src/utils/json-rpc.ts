@@ -176,9 +176,7 @@ export function defineJsonRpcHandler<RequestT extends EventHandlerRequest = Even
     const requests: unknown[] = isBatch ? (body as unknown[]) : [body];
 
     // Processes a single JSON-RPC request (or an invalid item in a batch).
-    const processRequest = async (
-      raw: unknown,
-    ): Promise<JsonRpcResponse | ReadableStream | undefined> => {
+    const processRequest = async (raw: unknown): Promise<JsonRpcResponse | undefined> => {
       // Each item in a batch must be an object.
       // Per spec §6 examples: [1,2,3] → array of Invalid Request errors.
       if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
@@ -244,17 +242,6 @@ export function defineJsonRpcHandler<RequestT extends EventHandlerRequest = Even
 
         const result = await methodHandler(rpcReq, event);
 
-        if (isBatch && result instanceof ReadableStream) {
-          throw new HTTPError({
-            status: 400,
-            message: "Streaming responses are not supported in batch requests.",
-          });
-        }
-
-        if (result instanceof ReadableStream) {
-          return result;
-        }
-
         // For notifications, the server MUST NOT reply (§4.1).
         return notification
           ? undefined
@@ -287,11 +274,6 @@ export function defineJsonRpcHandler<RequestT extends EventHandlerRequest = Even
     };
 
     const responses = await Promise.all(requests.map((element) => processRequest(element)));
-
-    if (!isBatch && responses.length === 1 && responses[0] instanceof ReadableStream) {
-      event.res.headers.set("Content-Type", "text/event-stream");
-      return responses[0];
-    }
 
     // Filter out notifications (undefined responses) before returning.
     const finalResponses = responses.filter((r): r is JsonRpcResponse => r !== undefined);
