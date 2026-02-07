@@ -256,7 +256,9 @@ export function defineJsonRpcHandler<RequestT extends EventHandlerRequest = Even
         }
 
         // For notifications, the server MUST NOT reply (§4.1).
-        return notification ? undefined : { jsonrpc: "2.0" as const, id: id!, result };
+        return notification
+          ? undefined
+          : { jsonrpc: "2.0" as const, id: id!, result: result ?? null };
       } catch (error_: any) {
         // For notifications, errors are silently discarded (§4.1).
         if (notification) {
