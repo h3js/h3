@@ -263,15 +263,9 @@ export function defineJsonRpcHandler<RequestT extends EventHandlerRequest = Even
 
     event.res.headers.set("Content-Type", "application/json");
 
-    // Per spec §6: if a batch of only notifications, the server MUST NOT
-    // return an empty Array and should return nothing at all.
-    if (isBatch && finalResponses.length === 0) {
-      event.res.status = 202;
-      return "";
-    }
-
-    // Single notification: nothing to return.
-    if (!isBatch && finalResponses.length === 0) {
+    // Per spec §6, even when request is a batch, the server MUST NOT return an empty array.
+    // If there are no responses to return (e.g. all notifications), return nothing. 
+    if (finalResponses.length === 0) {
       event.res.status = 202;
       return "";
     }
@@ -308,7 +302,9 @@ function isValidId(id: unknown): id is string | number | null {
   return type === "string" || type === "number";
 }
 
-// Helper to construct a JSON-RPC error response.
+/**
+ * Creates a JSON-RPC error response object.
+ */
 const createJsonRpcError = (
   id: string | number | null,
   code: number,
