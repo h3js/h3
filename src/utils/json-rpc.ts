@@ -383,7 +383,7 @@ const createJsonRpcError = (
   data?: unknown,
 ): JsonRpcResponse => {
   const error: JsonRpcError = { code, message };
-  if (data !== undefined && data !== null) {
+  if (data !== undefined && (data === null || !!data)) {
     error.data = data;
   }
   return { jsonrpc: "2.0", id, error };
