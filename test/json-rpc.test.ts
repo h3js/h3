@@ -23,6 +23,9 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
     error: () => {
       throw new Error("Handler error");
     },
+    errorPrimitive: () => {
+      throw "Primitive error";
+    },
     // "constructor" is a valid method name — the null-prototype map
     // ensures it doesn't resolve to Object.prototype.constructor.
     constructor: () => {
@@ -226,6 +229,27 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
           message: "Internal error",
         },
         id: 4,
+        jsonrpc: "2.0",
+      });
+    });
+
+    it("should handler primitive thrown errors and map to JSON-RPC error", async () => {
+      t.app.post("/json-rpc", eventHandler);
+      const result = await t.fetch("/json-rpc", {
+        method: "POST",
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          method: "errorPrimitive",
+          id: 6,
+        }),
+      });
+      const json = await result.json();
+      expect(json).toEqual({
+        error: {
+          code: -32_603,
+          message: "Internal error",
+        },
+        id: 6,
         jsonrpc: "2.0",
       });
     });
