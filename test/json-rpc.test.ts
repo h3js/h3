@@ -171,6 +171,19 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
         result: "Received test on path /json-rpc",
       });
     });
+
+    it("should return array for batch requests even if batch contains only one item", async () => {
+      t.app.post("/json-rpc", eventHandler);
+      const batch = [{ jsonrpc: "2.0", method: "echo", params: ["Hello Batch"], id: 1 }];
+      const result = await t.fetch("/json-rpc", {
+        method: "POST",
+        body: JSON.stringify(batch),
+      });
+      const json = await result.json();
+      expect(json).toEqual([
+        { jsonrpc: "2.0", id: 1, result: "Received Hello Batch on path /json-rpc" },
+      ]);
+    });
   });
 
   describe("error handling", () => {

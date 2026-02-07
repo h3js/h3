@@ -148,15 +148,7 @@ export function defineJsonRpcHandler<RequestT extends EventHandlerRequest = Even
   methods: Record<string, JsonRpcMethod>,
   middleware?: Middleware[],
 ): EventHandler<RequestT> {
-  /**
-   * Implementation notes: Build a null-prototype lookup map to prevent prototype pollution.
-   * This ensures that method names like "__proto__", "constructor", "toString",
-   * "hasOwnProperty", etc. cannot resolve to inherited Object.prototype properties.
-   */
-  const methodMap: Record<string, JsonRpcMethod> = Object.create(null);
-  for (const key of Object.keys(methods)) {
-    methodMap[key] = methods[key];
-  }
+  const methodMap = createMethodMap(methods);
 
   const handler = async (event: H3Event) => {
     // JSON-RPC requests MUST be POST.
@@ -174,141 +166,176 @@ export function defineJsonRpcHandler<RequestT extends EventHandlerRequest = Even
       return createJsonRpcError(null, PARSE_ERROR, "Parse error");
     }
 
-    // Body must be a non-null object or array.
-    if (!body || typeof body !== "object") {
-      return createJsonRpcError(null, PARSE_ERROR, "Parse error");
-    }
+    const result = await processJsonRpcBody(body, methodMap, event);
 
-    const isBatch = Array.isArray(body);
-
-    // Per spec §6: an empty array is an Invalid Request.
-    if (isBatch && (body as unknown[]).length === 0) {
-      return createJsonRpcError(null, INVALID_REQUEST, "Invalid Request");
-    }
-
-    const requests: unknown[] = isBatch ? (body as unknown[]) : [body];
-
-    // Processes a single JSON-RPC request (or an invalid item in a batch).
-    const processRequest = async (raw: unknown): Promise<JsonRpcResponse | undefined> => {
-      // Each item in a batch must be an object.
-      // Per spec §6 examples: [1,2,3] → array of Invalid Request errors.
-      if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
-        return createJsonRpcError(null, INVALID_REQUEST, "Invalid Request");
-      }
-
-      const req = raw as Record<string, unknown>;
-
-      // Validate the request structure per §4.
-      if (
-        req.jsonrpc !== "2.0" ||
-        typeof req.method !== "string" ||
-        ("id" in req && !isValidId(req.id))
-      ) {
-        // When the request is invalid, use id if it's a valid type, otherwise null.
-        const id = "id" in req && isValidId(req.id) ? req.id : null;
-        return createJsonRpcError(id, INVALID_REQUEST, "Invalid Request");
-      }
-
-      // Validate params type if present (§4.2: MUST be Array or Object).
-      if (
-        "params" in req &&
-        req.params !== undefined &&
-        (typeof req.params !== "object" || req.params === null)
-      ) {
-        return isNotification(req)
-          ? undefined
-          : createJsonRpcError(req.id as string | number | null, INVALID_PARAMS, "Invalid params");
-      }
-
-      // Per spec §8: method names starting with "rpc." are reserved.
-      if ((req.method as string).startsWith("rpc.")) {
-        return isNotification(req)
-          ? undefined
-          : createJsonRpcError(
-              req.id as string | number | null,
-              METHOD_NOT_FOUND,
-              "Method not found",
-            );
-      }
-
-      const method = req.method;
-      const params = req.params as JsonRpcParams | undefined;
-      const notification = isNotification(req);
-      const id = notification ? undefined : (req.id as string | number | null);
-
-      // Safe method lookup from the null-prototype map.
-      const methodHandler = methodMap[method];
-
-      // If the method is not found return an error unless it's a notification, as per §4.1.
-      if (!methodHandler) {
-        return notification
-          ? undefined
-          : createJsonRpcError(id!, METHOD_NOT_FOUND, "Method not found");
-      }
-
-      // Execute the method handler.
-      try {
-        const rpcReq: JsonRpcRequest = { jsonrpc: "2.0", method, params };
-        if (!notification) {
-          rpcReq.id = id;
-        }
-
-        const result = await methodHandler(rpcReq, event);
-
-        // For notifications, the server MUST NOT reply (§4.1).
-        return notification
-          ? undefined
-          : { jsonrpc: "2.0" as const, id: id!, result: result ?? null };
-      } catch (error_: any) {
-        // For notifications, errors are silently discarded (§4.1).
-        if (notification) {
-          return undefined;
-        }
-
-        // If the handler throws, wrap it in a JSON-RPC error response.
-        const h3Error = HTTPError.isError(error_)
-          ? error_
-          : {
-              status: 500,
-              message: "Internal error",
-              data:
-                error_ != null && typeof error_ === "object" && "message" in error_
-                  ? error_.message
-                  : undefined,
-            };
-        const statusCode = h3Error.status;
-        const statusMessage = h3Error.message;
-
-        // Map HTTP status codes to semantically appropriate JSON-RPC error codes.
-        const errorCode = mapHttpStatusToJsonRpcError(statusCode);
-
-        return createJsonRpcError(id!, errorCode, statusMessage, h3Error.data);
-      }
-    };
-
-    const responses = await Promise.all(requests.map((element) => processRequest(element)));
-
-    // Filter out notifications (undefined responses) before returning.
-    const finalResponses = responses.filter((r): r is JsonRpcResponse => r !== undefined);
-
-    // Per spec §6, even when request is a batch, the server MUST NOT return an empty array.
-    // If there are no responses to return (e.g. all notifications), return nothing.
-    if (finalResponses.length === 0) {
+    if (result === undefined) {
       event.res.status = 202;
       return "";
     }
 
     event.res.headers.set("Content-Type", "application/json");
-
-    // For a single request, return the single response object.
-    // For a batch request, return the array of response objects.
-    return isBatch ? finalResponses : finalResponses[0];
+    return result;
   };
 
   return defineHandler<RequestT>({
     handler,
     middleware,
   });
+}
+
+// --- Internal shared helpers ---
+
+/**
+ * Build a null-prototype lookup map to prevent prototype pollution.
+ * This ensures that method names like "__proto__", "constructor", "toString",
+ * "hasOwnProperty", etc. cannot resolve to inherited Object.prototype properties.
+ */
+function createMethodMap<T extends JsonRpcMethod>(methods: Record<string, T>): Record<string, T> {
+  const methodMap: Record<string, T> = Object.create(null);
+  for (const key of Object.keys(methods)) {
+    methodMap[key] = methods[key];
+  }
+  return methodMap;
+}
+
+/**
+ * Validates and processes a parsed JSON-RPC body (single or batch).
+ *
+ * @returns The JSON-RPC response(s) to send, or `undefined` if all requests were notifications.
+ */
+async function processJsonRpcBody<C extends H3Event>(
+  body: unknown,
+  methodMap: Record<string, (data: JsonRpcRequest, context: C) => unknown | Promise<unknown>>,
+  context: C,
+): Promise<JsonRpcResponse | JsonRpcResponse[] | undefined> {
+  // Body must be a non-null object or array.
+  if (!body || typeof body !== "object") {
+    return createJsonRpcError(null, PARSE_ERROR, "Parse error");
+  }
+
+  const requests = Array.isArray(body) ? body : [body];
+
+  // Per spec §6: an empty array is an Invalid Request.
+  if (requests.length === 0) {
+    return createJsonRpcError(null, INVALID_REQUEST, "Invalid Request");
+  }
+
+  const responses = await Promise.all(
+    requests.map((raw) => processJsonRpcMethod(raw, methodMap, context)),
+  );
+
+  // Filter out notifications (undefined responses) before returning.
+  const finalResponses = responses.filter((r): r is JsonRpcResponse => r !== undefined);
+
+  // Per spec §6, even when request is a batch, the server MUST NOT return an empty array.
+  // If there are no responses to return (e.g. all notifications), return nothing.
+  if (finalResponses.length === 0) {
+    return undefined;
+  }
+
+  // For a single request, return the single response object.
+  // For a batch request, return the array of response objects.
+  return Array.isArray(body) ? finalResponses : finalResponses[0];
+}
+
+/**
+ * Processes a single JSON-RPC request (or an invalid item in a batch).
+ *
+ * @param raw The raw parsed request object.
+ * @param methodMap The null-prototype method lookup map.
+ * @param context The context passed to method handlers (H3Event for HTTP).
+ */
+async function processJsonRpcMethod<C extends H3Event>(
+  raw: unknown,
+  methodMap: Record<string, (data: JsonRpcRequest, context: C) => unknown | Promise<unknown>>,
+  context: C,
+): Promise<JsonRpcResponse | undefined> {
+  // Each item in a batch must be an object.
+  // Per spec §6 examples: [1,2,3] → array of Invalid Request errors.
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return createJsonRpcError(null, INVALID_REQUEST, "Invalid Request");
+  }
+
+  const req = raw as Record<string, unknown>;
+
+  // Validate the request structure per §4.
+  if (
+    req.jsonrpc !== "2.0" ||
+    typeof req.method !== "string" ||
+    ("id" in req && !isValidId(req.id))
+  ) {
+    // When the request is invalid, use id if it's a valid type, otherwise null.
+    const id = "id" in req && isValidId(req.id) ? req.id : null;
+    return createJsonRpcError(id, INVALID_REQUEST, "Invalid Request");
+  }
+
+  // Validate params type if present (§4.2: MUST be Array or Object).
+  if (
+    "params" in req &&
+    req.params !== undefined &&
+    (typeof req.params !== "object" || req.params === null)
+  ) {
+    return isNotification(req)
+      ? undefined
+      : createJsonRpcError(req.id as string | number | null, INVALID_PARAMS, "Invalid params");
+  }
+
+  // Per spec §8: method names starting with "rpc." are reserved.
+  if ((req.method as string).startsWith("rpc.")) {
+    return isNotification(req)
+      ? undefined
+      : createJsonRpcError(req.id as string | number | null, METHOD_NOT_FOUND, "Method not found");
+  }
+
+  const method = req.method;
+  const params = req.params as JsonRpcParams | undefined;
+  const notification = isNotification(req);
+  const id = notification ? undefined : (req.id as string | number | null);
+
+  // Safe method lookup from the null-prototype map.
+  const methodHandler = methodMap[method];
+
+  // If the method is not found return an error unless it's a notification, as per §4.1.
+  if (!methodHandler) {
+    return notification ? undefined : createJsonRpcError(id!, METHOD_NOT_FOUND, "Method not found");
+  }
+
+  // Execute the method handler.
+  try {
+    const rpcReq: JsonRpcRequest = { jsonrpc: "2.0", method, params };
+    if (!notification) {
+      rpcReq.id = id;
+    }
+
+    const result = await methodHandler(rpcReq, context);
+
+    // For notifications, the server MUST NOT reply (§4.1).
+    return notification ? undefined : { jsonrpc: "2.0" as const, id: id!, result: result ?? null };
+  } catch (error_: any) {
+    // For notifications, errors are silently discarded (§4.1).
+    if (notification) {
+      return undefined;
+    }
+
+    // If the handler throws, wrap it in a JSON-RPC error response.
+    const h3Error = HTTPError.isError(error_)
+      ? error_
+      : {
+          status: 500,
+          message: "Internal error",
+          data:
+            error_ != null && typeof error_ === "object" && "message" in error_
+              ? error_.message
+              : undefined,
+        };
+    const statusCode = h3Error.status;
+    const statusMessage = h3Error.message;
+
+    // Map HTTP status codes to semantically appropriate JSON-RPC error codes.
+    const errorCode = mapHttpStatusToJsonRpcError(statusCode);
+
+    return createJsonRpcError(id!, errorCode, statusMessage, h3Error.data);
+  }
 }
 
 /**
