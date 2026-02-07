@@ -200,7 +200,7 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
       expect(json).toEqual({
         error: {
           code: -32_603,
-          data: {},
+          data: "Handler error",
           message: "Internal error",
         },
         id: 4,

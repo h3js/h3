@@ -236,7 +236,11 @@ export function defineJsonRpcHandler<RequestT extends EventHandlerRequest = Even
         // If the handler throws, wrap it in a JSON-RPC error response.
         const h3Error = HTTPError.isError(error_)
           ? error_
-          : { status: 500, message: "Internal error", data: error_ };
+          : {
+              status: 500,
+              message: "Internal error",
+              data: "message" in error_ ? error_.message : undefined,
+            };
         const statusCode = h3Error.status;
         const statusMessage = h3Error.message;
 
