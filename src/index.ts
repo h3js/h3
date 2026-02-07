@@ -200,6 +200,7 @@ export {
 
 // JSON-RPC
 export type {
+  JsonRpcParams,
   JsonRpcRequest,
   JsonRpcResponse,
   JsonRpcError,

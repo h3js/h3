@@ -4,7 +4,8 @@ import { describeMatrix } from "./_setup.ts";
 describeMatrix("json-rpc", (t, { describe, it, expect }) => {
   const eventHandler = defineJsonRpcHandler({
     echo: ({ params }, event) => {
-      return `Recieved ${params} on path ${event.url.pathname}`;
+      const message = Array.isArray(params) ? params[0] : params?.message;
+      return `Received ${message} on path ${event.url.pathname}`;
     },
     sum: ({ params }) => {
       if (
@@ -22,6 +23,8 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
     error: () => {
       throw new Error("Handler error");
     },
+    // "constructor" is a valid method name — the null-prototype map
+    // ensures it doesn't resolve to Object.prototype.constructor.
     constructor: () => {
       return "ok";
     },
@@ -35,7 +38,7 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
         body: JSON.stringify({
           jsonrpc: "2.0",
           method: "echo",
-          params: "Hello World",
+          params: ["Hello World"],
           id: 1,
         }),
       });
@@ -43,17 +46,17 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
       expect(await result.json()).toMatchObject({
         jsonrpc: "2.0",
         id: 1,
-        result: "Recieved Hello World on path /json-rpc",
+        result: "Received Hello World on path /json-rpc",
       });
     });
 
     it("should handle batch requests with mixed results", async () => {
       t.app.post("/json-rpc", eventHandler);
       const batch = [
-        { jsonrpc: "2.0", method: "echo", params: "A", id: 1 },
+        { jsonrpc: "2.0", method: "echo", params: ["A"], id: 1 },
         { jsonrpc: "2.0", method: "sum", params: { a: 2, b: 3 }, id: 2 },
         { jsonrpc: "2.0", method: "notFound", id: 3 },
-        { jsonrpc: "2.0", method: "echo", params: "Notify" }, // notification
+        { jsonrpc: "2.0", method: "echo", params: ["Notify"] }, // notification
       ];
       const result = await t.fetch("/json-rpc", {
         method: "POST",
@@ -61,7 +64,7 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
       });
       const json = await result.json();
       expect(json).toEqual([
-        { jsonrpc: "2.0", id: 1, result: "Recieved A on path /json-rpc" },
+        { jsonrpc: "2.0", id: 1, result: "Received A on path /json-rpc" },
         { jsonrpc: "2.0", id: 2, result: 5 },
         {
           jsonrpc: "2.0",
@@ -71,14 +74,14 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
       ]);
     });
 
-    it("should respond with a 202 for a valid JSON-RPC notification", async () => {
+    it("should respond with a 202 for a single valid JSON-RPC notification", async () => {
       t.app.post("/json-rpc", eventHandler);
       const result = await t.fetch("/json-rpc", {
         method: "POST",
         body: JSON.stringify({
           jsonrpc: "2.0",
           method: "echo",
-          params: "Hello World",
+          params: ["Hello World"],
           // No ID for notification
         }),
       });
@@ -87,11 +90,11 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
       expect(result.status).toBe(202);
     });
 
-    it("should return 202 for batch with only notifications", async () => {
+    it("should return 202 for batch containing only notifications", async () => {
       t.app.post("/json-rpc", eventHandler);
       const batch = [
-        { jsonrpc: "2.0", method: "echo", params: "Notify1" },
-        { jsonrpc: "2.0", method: "echo", params: "Notify2" },
+        { jsonrpc: "2.0", method: "echo", params: ["Notify1"] },
+        { jsonrpc: "2.0", method: "echo", params: ["Notify2"] },
       ];
       const result = await t.fetch("/json-rpc", {
         method: "POST",
@@ -99,6 +102,43 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
       });
       expect(result.status).toBe(202);
       expect(await result.text()).toBe("");
+    });
+
+    it("should handle a method named 'constructor' safely", async () => {
+      t.app.post("/json-rpc", eventHandler);
+      const result = await t.fetch("/json-rpc", {
+        method: "POST",
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          method: "constructor",
+          id: 1,
+        }),
+      });
+      const json = await result.json();
+      expect(json).toEqual({
+        jsonrpc: "2.0",
+        id: 1,
+        result: "ok",
+      });
+    });
+
+    it("should treat id:null as a request (not a notification) as per spec", async () => {
+      t.app.post("/json-rpc", eventHandler);
+      const result = await t.fetch("/json-rpc", {
+        method: "POST",
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          method: "echo",
+          params: ["test"],
+          id: null,
+        }),
+      });
+      const json = await result.json();
+      expect(json).toEqual({
+        jsonrpc: "2.0",
+        id: null,
+        result: "Received test on path /json-rpc",
+      });
     });
   });
 
@@ -207,7 +247,6 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
       expect(json).toEqual({
         error: {
           code: -32_700,
-          data: {},
           message: "Parse error",
         },
         id: null,
@@ -215,8 +254,8 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
       });
     });
 
-    it("should return parse error for constructor keys", async () => {
-      t.app.all("/json-rpc", eventHandler);
+    it("should safely handle a constructor method with constructor params", async () => {
+      t.app.post("/json-rpc", eventHandler);
       const result = await t.fetch("/json-rpc", {
         method: "POST",
         body: JSON.stringify({
@@ -227,12 +266,148 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
         }),
       });
       const json = await result.json();
+      // With null-prototype map, "constructor" is a valid registered method.
       expect(json).toEqual({
-        id: null,
         jsonrpc: "2.0",
+        id: 3,
+        result: "ok",
+      });
+    });
+
+    it("should return Invalid Request for empty batch array", async () => {
+      t.app.post("/json-rpc", eventHandler);
+      const result = await t.fetch("/json-rpc", {
+        method: "POST",
+        body: JSON.stringify([]),
+      });
+      const json = await result.json();
+      expect(json).toEqual({
+        jsonrpc: "2.0",
+        id: null,
         error: {
-          code: -32_700,
-          message: "Parse error",
+          code: -32_600,
+          message: "Invalid Request",
+        },
+      });
+    });
+
+    it("should return Invalid Request for non-object batch items", async () => {
+      t.app.post("/json-rpc", eventHandler);
+      const result = await t.fetch("/json-rpc", {
+        method: "POST",
+        body: JSON.stringify([1, 2, 3]),
+      });
+      const json = await result.json();
+      expect(json).toEqual([
+        { jsonrpc: "2.0", id: null, error: { code: -32_600, message: "Invalid Request" } },
+        { jsonrpc: "2.0", id: null, error: { code: -32_600, message: "Invalid Request" } },
+        { jsonrpc: "2.0", id: null, error: { code: -32_600, message: "Invalid Request" } },
+      ]);
+    });
+
+    it("should reject rpc. prefixed method names", async () => {
+      t.app.post("/json-rpc", eventHandler);
+      const result = await t.fetch("/json-rpc", {
+        method: "POST",
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          method: "rpc.discover",
+          id: 1,
+        }),
+      });
+      const json = await result.json();
+      expect(json).toEqual({
+        jsonrpc: "2.0",
+        id: 1,
+        error: {
+          code: -32_601,
+          message: "Method not found",
+        },
+      });
+    });
+
+    it("should return Invalid Request for invalid id type", async () => {
+      t.app.post("/json-rpc", eventHandler);
+      const result = await t.fetch("/json-rpc", {
+        method: "POST",
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          method: "echo",
+          params: ["test"],
+          id: { invalid: true },
+        }),
+      });
+      const json = await result.json();
+      expect(json).toEqual({
+        jsonrpc: "2.0",
+        id: null,
+        error: {
+          code: -32_600,
+          message: "Invalid Request",
+        },
+      });
+    });
+
+    it("should return Invalid params for non-structured params", async () => {
+      t.app.post("/json-rpc", eventHandler);
+      const result = await t.fetch("/json-rpc", {
+        method: "POST",
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          method: "echo",
+          params: 42,
+          id: 1,
+        }),
+      });
+      const json = await result.json();
+      expect(json).toEqual({
+        jsonrpc: "2.0",
+        id: 1,
+        error: {
+          code: -32_602,
+          message: "Invalid params",
+        },
+      });
+    });
+
+    it("should return method not found for unregistered methods (not prototype)", async () => {
+      t.app.post("/json-rpc", eventHandler);
+      const result = await t.fetch("/json-rpc", {
+        method: "POST",
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          method: "__proto__",
+          id: 1,
+        }),
+      });
+      const json = await result.json();
+      expect(json).toEqual({
+        jsonrpc: "2.0",
+        id: 1,
+        error: {
+          code: -32_601,
+          message: "Method not found",
+        },
+      });
+    });
+
+    it("should return method not found for toString (prototype method)", async () => {
+      t.app.post("/json-rpc", eventHandler);
+      const result = await t.fetch("/json-rpc", {
+        method: "POST",
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          method: "toString",
+          id: 1,
+        }),
+      });
+      const json = await result.json();
+      expect(json).toEqual({
+        jsonrpc: "2.0",
+        id: 1,
+        error: {
+          code: -32_601,
+          message: "Method not found",
         },
       });
     });
