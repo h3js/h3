@@ -249,13 +249,13 @@ export function defineJsonRpcHandler<RequestT extends EventHandlerRequest = Even
 
     const responses = await Promise.all(requests.map((element) => processRequest(element)));
 
+    if (!isBatch && responses.length === 1 && responses[0] instanceof ReadableStream) {
+      event.res.headers.set("Content-Type", "text/event-stream");
+      return responses[0];
+    }
+
     // Filter out notifications (undefined responses) before returning.
     const finalResponses = responses.filter((r): r is JsonRpcResponse => r !== undefined);
-
-    if (!isBatch && finalResponses.length === 1 && finalResponses[0] instanceof ReadableStream) {
-      event.res.headers.set("Content-Type", "text/event-stream");
-      return finalResponses[0];
-    }
 
     event.res.headers.set("Content-Type", "application/json");
 
