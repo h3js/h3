@@ -1,25 +1,28 @@
-import { defineJsonRpcHandler, HTTPError } from "../src/index.ts";
+import { defineJsonRpcHandler, defineJsonRpc, HTTPError } from "../src/index.ts";
 import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("json-rpc", (t, { describe, it, expect }) => {
+  const echo = defineJsonRpc(({ params }, event) => {
+    const message = Array.isArray(params) ? params[0] : params?.message;
+    return `Received ${message} on path ${event.url.pathname}`;
+  });
+  const sum = defineJsonRpc(({ params }) => {
+    if (
+      !params ||
+      typeof params !== "object" ||
+      !("a" in params) ||
+      typeof params.a !== "number" ||
+      !("b" in params) ||
+      typeof params.b !== "number"
+    ) {
+      throw new Error("Invalid parameters for sum");
+    }
+    return params.a + params.b;
+  });
+
   const eventHandler = defineJsonRpcHandler({
-    echo: ({ params }, event) => {
-      const message = Array.isArray(params) ? params[0] : params?.message;
-      return `Received ${message} on path ${event.url.pathname}`;
-    },
-    sum: ({ params }) => {
-      if (
-        !params ||
-        typeof params !== "object" ||
-        !("a" in params) ||
-        typeof params.a !== "number" ||
-        !("b" in params) ||
-        typeof params.b !== "number"
-      ) {
-        throw new Error("Invalid parameters for sum");
-      }
-      return params.a + params.b;
-    },
+    echo,
+    sum,
     error: () => {
       throw new Error("Handler error");
     },

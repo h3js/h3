@@ -51,15 +51,15 @@ export type JsonRpcResponse<O = unknown> =
  * A function that handles a JSON-RPC method call.
  * It receives the parameters from the request and the original H3Event.
  */
-export type JsonRpcMethodHandler<
+export type JsonRpcMethod<
   O = unknown,
   I extends JsonRpcParams | undefined = JsonRpcParams | undefined,
 > = (data: JsonRpcRequest<I>, event: H3Event) => O | Promise<O>;
 
 /**
- * A map of method names to their corresponding handler functions.
+ * A map of method names to their corresponding functions.
  */
-export type JsonRpcMethodMap = Record<string, JsonRpcMethodHandler>;
+type JsonRpcMethodMap = Record<string, JsonRpcMethod>;
 
 // Official JSON-RPC 2.0 error codes.
 /**
@@ -115,6 +115,24 @@ const SERVER_ERROR_RATE_LIMITED = -32_029;
 const SERVER_ERROR = -32_000;
 
 /**
+ * Define a JSON-RPC method.
+ *
+ * @param method The method implementation function.
+ * @returns The method function, unmodified.
+ *
+ * @example
+ * const add = defineJsonRpc(({ params }) => {
+ *   return params.a + params.b;
+ * });
+ */
+export function defineJsonRpc<
+  O = unknown,
+  I extends JsonRpcParams | undefined = JsonRpcParams | undefined,
+>(method: JsonRpcMethod<O, I>): JsonRpcMethod<O, I> {
+  return method;
+}
+
+/**
  * Creates an H3 event handler that implements the JSON-RPC 2.0 specification.
  *
  * @param methods A map of RPC method names to their handler functions.
@@ -140,7 +158,7 @@ export function defineJsonRpcHandler<RequestT extends EventHandlerRequest = Even
    * This ensures that method names like "__proto__", "constructor", "toString",
    * "hasOwnProperty", etc. cannot resolve to inherited Object.prototype properties.
    */
-  const methodMap: Record<string, JsonRpcMethodHandler> = Object.create(null);
+  const methodMap: Record<string, JsonRpcMethod> = Object.create(null);
   for (const key of Object.keys(methods)) {
     methodMap[key] = methods[key];
   }
