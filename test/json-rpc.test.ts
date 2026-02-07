@@ -1,4 +1,4 @@
-import { defineJsonRpcHandler } from "../src/index.ts";
+import { defineJsonRpcHandler, HTTPError } from "../src/index.ts";
 import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("json-rpc", (t, { describe, it, expect }) => {
@@ -28,6 +28,28 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
     constructor: () => {
       return "ok";
     },
+    // HTTP error handlers for testing error code mapping
+    unauthorized: () => {
+      throw new HTTPError({ status: 401, message: "Authentication required" });
+    },
+    forbidden: () => {
+      throw new HTTPError({ status: 403, message: "Access denied" });
+    },
+    notFound: () => {
+      throw new HTTPError({ status: 404, message: "Resource not found" });
+    },
+    badRequest: () => {
+      throw new HTTPError({ status: 400, message: "Bad request data" });
+    },
+    conflict: () => {
+      throw new HTTPError({ status: 409, message: "Resource conflict" });
+    },
+    rateLimited: () => {
+      throw new HTTPError({ status: 429, message: "Too many requests" });
+    },
+    serverError: () => {
+      throw new HTTPError({ status: 500, message: "Server exploded" });
+    },
   });
 
   describe("success cases", () => {
@@ -55,7 +77,7 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
       const batch = [
         { jsonrpc: "2.0", method: "echo", params: ["A"], id: 1 },
         { jsonrpc: "2.0", method: "sum", params: { a: 2, b: 3 }, id: 2 },
-        { jsonrpc: "2.0", method: "notFound", id: 3 },
+        { jsonrpc: "2.0", method: "unknownMethod", id: 3 },
         { jsonrpc: "2.0", method: "echo", params: ["Notify"] }, // notification
       ];
       const result = await t.fetch("/json-rpc", {
@@ -214,7 +236,7 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
         method: "POST",
         body: JSON.stringify({
           jsonrpc: "2.0",
-          method: "notFound",
+          method: "unknownMethod",
           id: 2,
         }),
       });
@@ -408,6 +430,177 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
         error: {
           code: -32_601,
           message: "Method not found",
+        },
+      });
+    });
+  });
+
+  describe("HTTP error code mapping", () => {
+    it("should map 401 Unauthorized to SERVER_ERROR_UNAUTHORIZED (-32001)", async () => {
+      t.app.post("/json-rpc", eventHandler);
+      const result = await t.fetch("/json-rpc", {
+        method: "POST",
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          method: "unauthorized",
+          id: 1,
+        }),
+      });
+      const json = await result.json();
+      expect(json).toEqual({
+        jsonrpc: "2.0",
+        id: 1,
+        error: {
+          code: -32_001,
+          message: "Authentication required",
+        },
+      });
+    });
+
+    it("should map 403 Forbidden to SERVER_ERROR_FORBIDDEN (-32003)", async () => {
+      t.app.post("/json-rpc", eventHandler);
+      const result = await t.fetch("/json-rpc", {
+        method: "POST",
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          method: "forbidden",
+          id: 1,
+        }),
+      });
+      const json = await result.json();
+      expect(json).toEqual({
+        jsonrpc: "2.0",
+        id: 1,
+        error: {
+          code: -32_003,
+          message: "Access denied",
+        },
+      });
+    });
+
+    it("should map 404 Not Found to SERVER_ERROR_NOT_FOUND (-32004)", async () => {
+      t.app.post("/json-rpc", eventHandler);
+      const result = await t.fetch("/json-rpc", {
+        method: "POST",
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          method: "notFound",
+          id: 1,
+        }),
+      });
+      const json = await result.json();
+      expect(json).toEqual({
+        jsonrpc: "2.0",
+        id: 1,
+        error: {
+          code: -32_004,
+          message: "Resource not found",
+        },
+      });
+    });
+
+    it("should map 400 Bad Request to INVALID_PARAMS (-32602)", async () => {
+      t.app.post("/json-rpc", eventHandler);
+      const result = await t.fetch("/json-rpc", {
+        method: "POST",
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          method: "badRequest",
+          id: 1,
+        }),
+      });
+      const json = await result.json();
+      expect(json).toEqual({
+        jsonrpc: "2.0",
+        id: 1,
+        error: {
+          code: -32_602,
+          message: "Bad request data",
+        },
+      });
+    });
+
+    it("should map 409 Conflict to SERVER_ERROR_CONFLICT (-32009)", async () => {
+      t.app.post("/json-rpc", eventHandler);
+      const result = await t.fetch("/json-rpc", {
+        method: "POST",
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          method: "conflict",
+          id: 1,
+        }),
+      });
+      const json = await result.json();
+      expect(json).toEqual({
+        jsonrpc: "2.0",
+        id: 1,
+        error: {
+          code: -32_009,
+          message: "Resource conflict",
+        },
+      });
+    });
+
+    it("should map 429 Too Many Requests to SERVER_ERROR_RATE_LIMITED (-32029)", async () => {
+      t.app.post("/json-rpc", eventHandler);
+      const result = await t.fetch("/json-rpc", {
+        method: "POST",
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          method: "rateLimited",
+          id: 1,
+        }),
+      });
+      const json = await result.json();
+      expect(json).toEqual({
+        jsonrpc: "2.0",
+        id: 1,
+        error: {
+          code: -32_029,
+          message: "Too many requests",
+        },
+      });
+    });
+
+    it("should map 500 Internal Server Error to INTERNAL_ERROR (-32603)", async () => {
+      t.app.post("/json-rpc", eventHandler);
+      const result = await t.fetch("/json-rpc", {
+        method: "POST",
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          method: "serverError",
+          id: 1,
+        }),
+      });
+      const json = await result.json();
+      expect(json).toEqual({
+        jsonrpc: "2.0",
+        id: 1,
+        error: {
+          code: -32_603,
+          message: "Server exploded",
+        },
+      });
+    });
+
+    it("should map generic errors to INTERNAL_ERROR (-32603)", async () => {
+      t.app.post("/json-rpc", eventHandler);
+      const result = await t.fetch("/json-rpc", {
+        method: "POST",
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          method: "error",
+          id: 1,
+        }),
+      });
+      const json = await result.json();
+      expect(json).toEqual({
+        jsonrpc: "2.0",
+        id: 1,
+        error: {
+          code: -32_603,
+          message: "Internal error",
+          data: "Handler error",
         },
       });
     });

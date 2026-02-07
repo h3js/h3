@@ -82,7 +82,37 @@ const INVALID_PARAMS = -32_602;
  * Internal JSON-RPC error.
  */
 const INTERNAL_ERROR = -32_603;
-// -32_000 to -32_099 	Reserved for implementation-defined server-errors.
+
+// Implementation-defined server errors (-32000 to -32099).
+// These map HTTP status codes to semantically appropriate JSON-RPC errors.
+/**
+ * Authentication required or failed (HTTP 401).
+ */
+const SERVER_ERROR_UNAUTHORIZED = -32_001;
+/**
+ * Access denied / insufficient permissions (HTTP 403).
+ */
+const SERVER_ERROR_FORBIDDEN = -32_003;
+/**
+ * Resource not found (HTTP 404).
+ */
+const SERVER_ERROR_NOT_FOUND = -32_004;
+/**
+ * Request timeout (HTTP 408).
+ */
+const SERVER_ERROR_TIMEOUT = -32_008;
+/**
+ * Resource conflict (HTTP 409).
+ */
+const SERVER_ERROR_CONFLICT = -32_009;
+/**
+ * Rate limited / too many requests (HTTP 429).
+ */
+const SERVER_ERROR_RATE_LIMITED = -32_029;
+/**
+ * Generic server error for unmapped 5xx errors.
+ */
+const SERVER_ERROR = -32_000;
 
 /**
  * Creates an H3 event handler that implements the JSON-RPC 2.0 specification.
@@ -247,8 +277,8 @@ export function defineJsonRpcHandler<RequestT extends EventHandlerRequest = Even
         const statusCode = h3Error.status;
         const statusMessage = h3Error.message;
 
-        // Map HTTP status codes to JSON-RPC error codes.
-        const errorCode = statusCode >= 400 && statusCode < 500 ? INVALID_PARAMS : INTERNAL_ERROR;
+        // Map HTTP status codes to semantically appropriate JSON-RPC error codes.
+        const errorCode = mapHttpStatusToJsonRpcError(statusCode);
 
         return createJsonRpcError(id!, errorCode, statusMessage, h3Error.data);
       }
@@ -282,6 +312,44 @@ export function defineJsonRpcHandler<RequestT extends EventHandlerRequest = Even
     handler,
     middleware,
   });
+}
+
+/**
+ * Maps HTTP status codes to semantically appropriate JSON-RPC error codes.
+ *
+ * Uses the reserved server error range (-32000 to -32099) for HTTP-specific
+ * errors, allowing LLM clients and other consumers to distinguish between
+ * different types of failures.
+ */
+function mapHttpStatusToJsonRpcError(status: number): number {
+  switch (status) {
+    // Parameter validation errors → INVALID_PARAMS
+    case 400: // Bad Request
+    case 422: // Unprocessable Entity
+      return INVALID_PARAMS;
+
+    // Authentication/Authorization → dedicated server error codes
+    case 401:
+      return SERVER_ERROR_UNAUTHORIZED;
+    case 403:
+      return SERVER_ERROR_FORBIDDEN;
+    case 404:
+      return SERVER_ERROR_NOT_FOUND;
+    case 408:
+      return SERVER_ERROR_TIMEOUT;
+    case 409:
+      return SERVER_ERROR_CONFLICT;
+    case 429:
+      return SERVER_ERROR_RATE_LIMITED;
+
+    // Other 4xx errors → generic server error with negative offset
+    default:
+      if (status >= 400 && status < 500) {
+        return SERVER_ERROR;
+      }
+      // 5xx and other errors → Internal error
+      return INTERNAL_ERROR;
+  }
 }
 
 /**
