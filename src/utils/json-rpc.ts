@@ -239,7 +239,10 @@ export function defineJsonRpcHandler<RequestT extends EventHandlerRequest = Even
           : {
               status: 500,
               message: "Internal error",
-              data: "message" in error_ ? error_.message : undefined,
+              data:
+                error_ != null && typeof error_ === "object" && "message" in error_
+                  ? error_.message
+                  : undefined,
             };
         const statusCode = h3Error.status;
         const statusMessage = h3Error.message;
@@ -264,7 +267,7 @@ export function defineJsonRpcHandler<RequestT extends EventHandlerRequest = Even
     event.res.headers.set("Content-Type", "application/json");
 
     // Per spec §6, even when request is a batch, the server MUST NOT return an empty array.
-    // If there are no responses to return (e.g. all notifications), return nothing. 
+    // If there are no responses to return (e.g. all notifications), return nothing.
     if (finalResponses.length === 0) {
       event.res.status = 202;
       return "";
