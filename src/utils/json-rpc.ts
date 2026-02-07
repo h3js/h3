@@ -56,11 +56,6 @@ export type JsonRpcMethod<
   I extends JsonRpcParams | undefined = JsonRpcParams | undefined,
 > = (data: JsonRpcRequest<I>, event: H3Event) => O | Promise<O>;
 
-/**
- * A map of method names to their corresponding functions.
- */
-type JsonRpcMethodMap = Record<string, JsonRpcMethod>;
-
 // Official JSON-RPC 2.0 error codes.
 /**
  * Invalid JSON was received by the server. An error occurred on the server while parsing the JSON text.
@@ -150,7 +145,7 @@ export function defineJsonRpc<
  * }));
  */
 export function defineJsonRpcHandler<RequestT extends EventHandlerRequest = EventHandlerRequest>(
-  methods: JsonRpcMethodMap,
+  methods: Record<string, JsonRpcMethod>,
   middleware?: Middleware[],
 ): EventHandler<RequestT> {
   /**
