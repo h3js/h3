@@ -294,14 +294,14 @@ export function defineJsonRpcHandler<RequestT extends EventHandlerRequest = Even
     // Filter out notifications (undefined responses) before returning.
     const finalResponses = responses.filter((r): r is JsonRpcResponse => r !== undefined);
 
-    event.res.headers.set("Content-Type", "application/json");
-
     // Per spec §6, even when request is a batch, the server MUST NOT return an empty array.
     // If there are no responses to return (e.g. all notifications), return nothing.
     if (finalResponses.length === 0) {
       event.res.status = 202;
       return "";
     }
+
+    event.res.headers.set("Content-Type", "application/json");
 
     // For a single request, return the single response object.
     // For a batch request, return the array of response objects.
