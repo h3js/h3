@@ -53,6 +53,9 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
     serverError: () => {
       throw new HTTPError({ status: 500, message: "Server exploded" });
     },
+    redirect: () => {
+      throw new HTTPError({ status: 301, message: "Resource moved permanently" });
+    },
   });
 
   describe("success cases", () => {
@@ -625,6 +628,27 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
           code: -32_603,
           message: "Internal error",
           data: "Handler error",
+        },
+      });
+    });
+
+    it("should map 3xx redirects to SERVER_ERROR (-32000)", async () => {
+      t.app.post("/json-rpc", eventHandler);
+      const result = await t.fetch("/json-rpc", {
+        method: "POST",
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          method: "redirect",
+          id: 1,
+        }),
+      });
+      const json = await result.json();
+      expect(json).toEqual({
+        jsonrpc: "2.0",
+        id: 1,
+        error: {
+          code: -32_000,
+          message: "Resource moved permanently",
         },
       });
     });

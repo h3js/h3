@@ -344,9 +344,10 @@ function mapHttpStatusToJsonRpcError(status: number): number {
     case 429:
       return SERVER_ERROR_RATE_LIMITED;
 
-    // Other 4xx errors → generic server error with negative offset
     default:
-      if (status >= 400 && status < 500) {
+      // 3xx redirects → generic server error (unusual but possible)
+      // Other 4xx errors → generic server error
+      if (status >= 300 && status < 500) {
         return SERVER_ERROR;
       }
       // 5xx and other errors → Internal error
