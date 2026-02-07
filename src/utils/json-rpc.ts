@@ -90,7 +90,7 @@ const INTERNAL_ERROR = -32_603;
  * @example
  * app.post("/rpc", defineJsonRpcHandler({
  *   echo: ({ params }, event) => {
- *     return `Recieved \`${params}\` on path \`${event.url.pathname}\``;
+ *     return `Received \`${params}\` on path \`${event.url.pathname}\``;
  *   },
  *   sum: ({ params }, event) => {
  *     return params.a + params.b;
