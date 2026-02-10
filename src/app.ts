@@ -1,5 +1,5 @@
 import { joinURL, parseURL, withoutTrailingSlash } from "ufo";
-import type { AdapterOptions as WSOptions, Peer } from "crossws";
+import type { AdapterOptions as WSOptions } from "crossws";
 import {
   lazyEventHandler,
   toEventHandler,
@@ -346,12 +346,8 @@ function websocketOptions(
 ): WSOptions {
   return {
     ...appOptions.websocket,
-    async resolve(info) {
-      const url =
-        (info as Peer).request?.url ||
-        (info as { url: string | URL }).url ||
-        "/";
-      const { pathname } = typeof url === "string" ? parseURL(url) : url;
+    async resolve(request) {
+      const { pathname } = parseURL(request.url || "/");
       const resolved = await evResolver(pathname);
       return resolved?.handler?.__websocket__ || {};
     },
