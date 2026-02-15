@@ -1,7 +1,10 @@
 import type { EventHandler, EventHandlerRequest, Middleware } from "../types/handler.ts";
 import type { H3Event } from "../event.ts";
 import { defineHandler } from "../handler.ts";
+import { defineWebSocketHandler } from "./ws.ts";
 import { HTTPError } from "../error.ts";
+
+import type { Hooks as WebSocketHooks, Peer as WebSocketPeer } from "crossws";
 
 /**
  * JSON-RPC 2.0 Interfaces based on the specification.
@@ -55,6 +58,15 @@ export type JsonRpcMethod<
   O = unknown,
   I extends JsonRpcParams | undefined = JsonRpcParams | undefined,
 > = (data: JsonRpcRequest<I>, event: H3Event) => O | Promise<O>;
+
+/**
+ * A function that handles a JSON-RPC method call over WebSocket.
+ * It receives the parameters from the request and the WebSocket peer.
+ */
+export type JsonRpcWebSocketMethod<
+  O = unknown,
+  I extends JsonRpcParams | undefined = JsonRpcParams | undefined,
+> = (data: JsonRpcRequest<I>, peer: WebSocketPeer) => O | Promise<O>;
 
 // Official JSON-RPC 2.0 error codes.
 /**
@@ -183,6 +195,91 @@ export function defineJsonRpcHandler<RequestT extends EventHandlerRequest = Even
   });
 }
 
+/**
+ * Define a JSON-RPC method for WebSocket.
+ *
+ * @param method The method implementation function.
+ * @returns The method function, unmodified.
+ *
+ * @example
+ * const add = defineJsonRpcWebSocket(({ params }) => {
+ *   return params.a + params.b;
+ * });
+ */
+export function defineJsonRpcWebSocket<
+  O = unknown,
+  I extends JsonRpcParams | undefined = JsonRpcParams | undefined,
+>(method: JsonRpcWebSocketMethod<O, I>): JsonRpcWebSocketMethod<O, I> {
+  return method;
+}
+
+/**
+ * Creates an H3 event handler that implements JSON-RPC 2.0 over WebSocket.
+ *
+ * This is an opt-in feature that allows JSON-RPC communication over WebSocket
+ * connections for bi-directional messaging. Each incoming WebSocket text message
+ * is processed as a JSON-RPC request, and responses are sent back to the peer.
+ *
+ * @param methods A map of RPC method names to their handler functions.
+ * @param options Optional configuration including additional WebSocket hooks.
+ * @returns An H3 EventHandler that upgrades to a WebSocket connection.
+ *
+ * @example
+ * app.get("/rpc/ws", defineJsonRpcWebSocketHandler({
+ *   echo: ({ params }) => {
+ *     return `Received: ${Array.isArray(params) ? params[0] : params?.message}`;
+ *   },
+ *   sum: ({ params }) => {
+ *     return params.a + params.b;
+ *   },
+ * }));
+ *
+ * @example
+ * // With additional WebSocket hooks
+ * app.get("/rpc/ws", defineJsonRpcWebSocketHandler({
+ *   greet: ({ params }) => `Hello, ${params.name}!`,
+ * }, {
+ *   hooks: {
+ *     open(peer) {
+ *       console.log(`Peer connected: ${peer.id}`);
+ *     },
+ *     close(peer, details) {
+ *       console.log(`Peer disconnected: ${peer.id}`, details);
+ *     },
+ *   },
+ * }));
+ */
+export function defineJsonRpcWebSocketHandler(
+  methods: Record<string, JsonRpcWebSocketMethod>,
+  options?: {
+    hooks?: Partial<Omit<WebSocketHooks, "message">>;
+  },
+): EventHandler {
+  const methodMap = createMethodMap(methods);
+
+  return defineWebSocketHandler({
+    upgrade: options?.hooks?.upgrade,
+    open: options?.hooks?.open,
+    close: options?.hooks?.close,
+    error: options?.hooks?.error,
+    async message(peer, message) {
+      let body: unknown;
+      try {
+        body = message.json();
+      } catch {
+        peer.send(JSON.stringify(createJsonRpcError(null, PARSE_ERROR, "Parse error")));
+        return;
+      }
+
+      const result = await processJsonRpcBody(body, methodMap, peer);
+
+      if (result !== undefined) {
+        peer.send(JSON.stringify(result));
+      }
+    },
+  });
+}
+
 // --- Internal shared helpers ---
 
 /**
@@ -190,7 +287,9 @@ export function defineJsonRpcHandler<RequestT extends EventHandlerRequest = Even
  * This ensures that method names like "__proto__", "constructor", "toString",
  * "hasOwnProperty", etc. cannot resolve to inherited Object.prototype properties.
  */
-function createMethodMap<T extends JsonRpcMethod>(methods: Record<string, T>): Record<string, T> {
+function createMethodMap<T extends JsonRpcMethod | JsonRpcWebSocketMethod>(
+  methods: Record<string, T>,
+): Record<string, T> {
   const methodMap: Record<string, T> = Object.create(null);
   for (const key of Object.keys(methods)) {
     methodMap[key] = methods[key];
@@ -203,7 +302,7 @@ function createMethodMap<T extends JsonRpcMethod>(methods: Record<string, T>): R
  *
  * @returns The JSON-RPC response(s) to send, or `undefined` if all requests were notifications.
  */
-async function processJsonRpcBody<C extends H3Event>(
+async function processJsonRpcBody<C extends H3Event | WebSocketPeer>(
   body: unknown,
   methodMap: Record<string, (data: JsonRpcRequest, context: C) => unknown | Promise<unknown>>,
   context: C,
@@ -243,9 +342,9 @@ async function processJsonRpcBody<C extends H3Event>(
  *
  * @param raw The raw parsed request object.
  * @param methodMap The null-prototype method lookup map.
- * @param context The context passed to method handlers (H3Event for HTTP).
+ * @param context The context passed to method handlers (H3Event for HTTP, WebSocketPeer for WS).
  */
-async function processJsonRpcMethod<C extends H3Event>(
+async function processJsonRpcMethod<C extends H3Event | WebSocketPeer>(
   raw: unknown,
   methodMap: Record<string, (data: JsonRpcRequest, context: C) => unknown | Promise<unknown>>,
   context: C,

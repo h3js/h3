@@ -33,6 +33,8 @@ describe("h3 package", () => {
         "defineHandler",
         "defineJsonRpc",
         "defineJsonRpcHandler",
+        "defineJsonRpcWebSocket",
+        "defineJsonRpcWebSocketHandler",
         "defineLazyEventHandler",
         "defineMiddleware",
         "defineNodeHandler",

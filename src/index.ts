@@ -205,8 +205,14 @@ export type {
   JsonRpcResponse,
   JsonRpcError,
   JsonRpcMethod,
+  JsonRpcWebSocketMethod,
 } from "./utils/json-rpc.ts";
-export { defineJsonRpcHandler, defineJsonRpc } from "./utils/json-rpc.ts";
+export {
+  defineJsonRpc,
+  defineJsonRpcHandler,
+  defineJsonRpcWebSocket,
+  defineJsonRpcWebSocketHandler,
+} from "./utils/json-rpc.ts";
 
 // ---- Deprecated ----
 
