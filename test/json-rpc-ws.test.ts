@@ -177,7 +177,7 @@ describe("defineJsonRpcWebSocketHandler", () => {
       });
     });
 
-    it("should return Invalid Request for non-object body", async () => {
+    it("should return Parse error for non-object body", async () => {
       const { sent } = await sendMessage('"just a string"');
 
       expect(sent).toHaveLength(1);
