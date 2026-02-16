@@ -99,7 +99,7 @@ export class HTTPError<DataT = unknown> extends Error implements ErrorBody<DataT
   /**
    * Original error object that caused this error.
    */
-  readonly cause: unknown | undefined;
+  override readonly cause: unknown | undefined;
 
   /**
    * Additional data attached in the error JSON body under `data` key.
@@ -123,7 +123,7 @@ export class HTTPError<DataT = unknown> extends Error implements ErrorBody<DataT
    *
    * It is safer than using `instanceof` because it works across different contexts (e.g., if the error was thrown in a different module).
    */
-  static isError(input: any): input is HTTPError {
+  static override isError(input: any): input is HTTPError {
     return input instanceof Error && input?.name === "HTTPError";
   }
 

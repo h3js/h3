@@ -108,7 +108,7 @@ describeMatrix("errors", (t, { it, expect }) => {
 
   it("can inherit from cause", async () => {
     class CustomError extends Error {
-      cause = new HTTPError({
+      override cause = new HTTPError({
         status: 400,
         statusText: "Bad Request",
         unhandled: true,
