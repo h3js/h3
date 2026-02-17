@@ -386,7 +386,7 @@ async function processJsonRpcMethod<C extends H3Event | WebSocketPeer>(
       : createJsonRpcError(req.id as string | number | null, METHOD_NOT_FOUND, "Method not found");
   }
 
-  const method = req.method;
+  const method = req.method as string;
   const params = req.params as JsonRpcParams | undefined;
   const notification = isNotification(req);
   const id = notification ? undefined : (req.id as string | number | null);
