@@ -19,7 +19,6 @@ export function withBase(base: string, input: HTTPHandler): EventHandler {
 
   const handler = toEventHandler(input);
   if (!handler) {
-    // @ts-expect-error
     throw new Error("Invalid handler", { cause: input });
   }
 
