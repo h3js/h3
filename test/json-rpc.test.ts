@@ -59,6 +59,15 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
     redirect: () => {
       throw new HTTPError({ status: 301, message: "Resource moved permanently" });
     },
+    errorWithZeroData: () => {
+      throw new HTTPError({ status: 400, message: "Validation failed", data: 0 });
+    },
+    errorWithEmptyStringData: () => {
+      throw new HTTPError({ status: 400, message: "Validation failed", data: "" });
+    },
+    errorWithFalseData: () => {
+      throw new HTTPError({ status: 400, message: "Validation failed", data: false });
+    },
   });
 
   describe("success cases", () => {
@@ -413,6 +422,28 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
       });
     });
 
+    it("should return Invalid Request for fractional id", async () => {
+      t.app.post("/json-rpc", eventHandler);
+      const result = await t.fetch("/json-rpc", {
+        method: "POST",
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          method: "echo",
+          params: ["test"],
+          id: 1.5,
+        }),
+      });
+      const json = await result.json();
+      expect(json).toEqual({
+        jsonrpc: "2.0",
+        id: null,
+        error: {
+          code: -32_600,
+          message: "Invalid Request",
+        },
+      });
+    });
+
     it("should return Invalid params for non-structured params", async () => {
       t.app.post("/json-rpc", eventHandler);
       const result = await t.fetch("/json-rpc", {
@@ -644,6 +675,72 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
           code: -32_603,
           message: "Internal error",
           data: "Handler error",
+        },
+      });
+    });
+
+    it("should preserve falsy data values (0) in error responses", async () => {
+      t.app.post("/json-rpc", eventHandler);
+      const result = await t.fetch("/json-rpc", {
+        method: "POST",
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          method: "errorWithZeroData",
+          id: 1,
+        }),
+      });
+      const json = await result.json();
+      expect(json).toEqual({
+        jsonrpc: "2.0",
+        id: 1,
+        error: {
+          code: -32_602,
+          message: "Validation failed",
+          data: 0,
+        },
+      });
+    });
+
+    it("should preserve falsy data values (empty string) in error responses", async () => {
+      t.app.post("/json-rpc", eventHandler);
+      const result = await t.fetch("/json-rpc", {
+        method: "POST",
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          method: "errorWithEmptyStringData",
+          id: 1,
+        }),
+      });
+      const json = await result.json();
+      expect(json).toEqual({
+        jsonrpc: "2.0",
+        id: 1,
+        error: {
+          code: -32_602,
+          message: "Validation failed",
+          data: "",
+        },
+      });
+    });
+
+    it("should preserve falsy data values (false) in error responses", async () => {
+      t.app.post("/json-rpc", eventHandler);
+      const result = await t.fetch("/json-rpc", {
+        method: "POST",
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          method: "errorWithFalseData",
+          id: 1,
+        }),
+      });
+      const json = await result.json();
+      expect(json).toEqual({
+        jsonrpc: "2.0",
+        id: 1,
+        error: {
+          code: -32_602,
+          message: "Validation failed",
+          data: false,
         },
       });
     });

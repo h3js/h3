@@ -493,8 +493,8 @@ function isNotification(req: Record<string, unknown>): boolean {
  */
 function isValidId(id: unknown): id is string | number | null {
   if (id === null) return true;
-  const type = typeof id;
-  return type === "string" || type === "number";
+  if (typeof id === "string") return true;
+  return typeof id === "number" && Number.isInteger(id);
 }
 
 /**
@@ -507,7 +507,7 @@ const createJsonRpcError = (
   data?: unknown,
 ): JsonRpcResponse => {
   const error: JsonRpcError = { code, message };
-  if (data !== undefined && (data === null || !!data)) {
+  if (data !== undefined) {
     error.data = data;
   }
   return { jsonrpc: "2.0", id, error };
