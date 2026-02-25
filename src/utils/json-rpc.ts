@@ -68,11 +68,11 @@ export type JsonRpcWebSocketMethod<
   I extends JsonRpcParams | undefined = JsonRpcParams | undefined,
 > = (data: JsonRpcRequest<I>, peer: WebSocketPeer) => O | Promise<O>;
 
-// Official JSON-RPC 2.0 error codes.
 /**
  * Invalid JSON was received by the server. An error occurred on the server while parsing the JSON text.
  */
 const PARSE_ERROR = -32_700;
+
 /**
  * The JSON sent is not a valid Request object.
  */
@@ -80,46 +80,13 @@ const INVALID_REQUEST = -32_600;
 /**
  * The method does not exist / is not available.
  */
+
 const METHOD_NOT_FOUND = -32_601;
+
 /**
  * Invalid method parameter(s).
  */
 const INVALID_PARAMS = -32_602;
-/**
- * Internal JSON-RPC error.
- */
-const INTERNAL_ERROR = -32_603;
-
-// Implementation-defined server errors (-32000 to -32099).
-// These map HTTP status codes to semantically appropriate JSON-RPC errors.
-/**
- * Authentication required or failed (HTTP 401).
- */
-const SERVER_ERROR_UNAUTHORIZED = -32_001;
-/**
- * Access denied / insufficient permissions (HTTP 403).
- */
-const SERVER_ERROR_FORBIDDEN = -32_003;
-/**
- * Resource not found (HTTP 404).
- */
-const SERVER_ERROR_NOT_FOUND = -32_004;
-/**
- * Request timeout (HTTP 408).
- */
-const SERVER_ERROR_TIMEOUT = -32_008;
-/**
- * Resource conflict (HTTP 409).
- */
-const SERVER_ERROR_CONFLICT = -32_009;
-/**
- * Rate limited / too many requests (HTTP 429).
- */
-const SERVER_ERROR_RATE_LIMITED = -32_029;
-/**
- * Generic server error for unmapped 5xx errors.
- */
-const SERVER_ERROR = -32_000;
 
 /**
  * Define a JSON-RPC method.
@@ -451,28 +418,27 @@ function mapHttpStatusToJsonRpcError(status: number): number {
     case 422: // Unprocessable Entity
       return INVALID_PARAMS;
 
-    // Authentication/Authorization → dedicated server error codes
+    // Authentication/Authorization → implementation-defined server errors (-32000 to -32099)
     case 401:
-      return SERVER_ERROR_UNAUTHORIZED;
+      return -32_001; // Unauthorized
     case 403:
-      return SERVER_ERROR_FORBIDDEN;
+      return -32_003; // Forbidden
     case 404:
-      return SERVER_ERROR_NOT_FOUND;
+      return -32_004; // Not Found
     case 408:
-      return SERVER_ERROR_TIMEOUT;
+      return -32_008; // Timeout
     case 409:
-      return SERVER_ERROR_CONFLICT;
+      return -32_009; // Conflict
     case 429:
-      return SERVER_ERROR_RATE_LIMITED;
+      return -32_029; // Rate Limited
 
     default:
       // 3xx redirects → generic server error (unusual but possible)
       // Other 4xx errors → generic server error
       if (status >= 300 && status < 500) {
-        return SERVER_ERROR;
+        return -32_000;
       }
-      // 5xx and other errors → Internal error
-      return INTERNAL_ERROR;
+      return -32_603; // 5xx and other errors → Internal error
   }
 }
 
