@@ -118,7 +118,7 @@ describeMatrix("defineMcpHandler", (t, { it, expect }) => {
     name: "readme",
     uri: "file:///readme",
     description: "Project README",
-    handler: async (uri) => ({
+    handler: async (uri: any) => ({
       contents: [{ uri: uri.toString(), text: "# My Project\nHello world" }],
     }),
   });
@@ -323,7 +323,7 @@ describeMatrix("defineMcpHandler", (t, { it, expect }) => {
   it("should support dynamic options via function", async () => {
     t.app.all(
       "/mcp-dynamic",
-      defineMcpHandler((event) => ({
+      defineMcpHandler(() => ({
         name: "dynamic-server",
         version: "2.0.0",
         tools: [echoTool],

@@ -10,7 +10,7 @@ jobs:
       - uses: actions/setup-node@v5
         with: { node-version: lts/*, cache: pnpm }
       - run: pnpm install
-      - run: pnpm format
+      - run: pnpm fmt
       - run: pnpm automd
       - uses: autofix-ci/action@635ffb0c9798bd160680f18fd73371e355b85f27
         with: { commit-message: "chore: apply automated updates" }
