@@ -73,16 +73,19 @@ const INVALID_PARAMS = -32_602; // Invalid method parameter(s).
  * @returns An H3 EventHandler.
  *
  * @example
- * app.post("/rpc", defineJsonRpcHandler({
- *   methods: {
- *     echo: ({ params }, event) => {
- *       return `Received \`${params}\` on path \`${event.url.pathname}\``;
+ * app.post(
+ *   "/rpc",
+ *   defineJsonRpcHandler({
+ *     methods: {
+ *       echo: ({ params }, event) => {
+ *         return `Received \`${params}\` on path \`${event.url.pathname}\``;
+ *       },
+ *       sum: ({ params }, event) => {
+ *         return params.a + params.b;
+ *       },
  *     },
- *     sum: ({ params }, event) => {
- *       return params.a + params.b;
- *     },
- *   },
- * }));
+ *   }),
+ * );
  */
 export function defineJsonRpcHandler<RequestT extends EventHandlerRequest = EventHandlerRequest>(
   opts: Omit<EventHandlerObject<RequestT>, "handler" | "fetch"> & {
@@ -118,32 +121,38 @@ export function defineJsonRpcHandler<RequestT extends EventHandlerRequest = Even
  * @returns An H3 EventHandler that upgrades to a WebSocket connection.
  *
  * @example
- * app.get("/rpc/ws", defineJsonRpcWebSocketHandler({
- *   methods: {
- *     echo: ({ params }) => {
- *       return `Received: ${Array.isArray(params) ? params[0] : params?.message}`;
+ * app.get(
+ *   "/rpc/ws",
+ *   defineJsonRpcWebSocketHandler({
+ *     methods: {
+ *       echo: ({ params }) => {
+ *         return `Received: ${Array.isArray(params) ? params[0] : params?.message}`;
+ *       },
+ *       sum: ({ params }) => {
+ *         return params.a + params.b;
+ *       },
  *     },
- *     sum: ({ params }) => {
- *       return params.a + params.b;
- *     },
- *   },
- * }));
+ *   }),
+ * );
  *
  * @example
  * // With additional WebSocket hooks
- * app.get("/rpc/ws", defineJsonRpcWebSocketHandler({
- *   methods: {
- *     greet: ({ params }) => `Hello, ${params.name}!`,
- *   },
- *   hooks: {
- *     open(peer) {
- *       console.log(`Peer connected: ${peer.id}`);
+ * app.get(
+ *   "/rpc/ws",
+ *   defineJsonRpcWebSocketHandler({
+ *     methods: {
+ *       greet: ({ params }) => `Hello, ${params.name}!`,
  *     },
- *     close(peer, details) {
- *       console.log(`Peer disconnected: ${peer.id}`, details);
+ *     hooks: {
+ *       open(peer) {
+ *         console.log(`Peer connected: ${peer.id}`);
+ *       },
+ *       close(peer, details) {
+ *         console.log(`Peer disconnected: ${peer.id}`, details);
+ *       },
  *     },
- *   },
- * }));
+ *   }),
+ * );
  */
 export function defineJsonRpcWebSocketHandler(opts: {
   methods: Record<string, JsonRpcWebSocketMethod>;
