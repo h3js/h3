@@ -1,12 +1,13 @@
-import { defineJsonRpcHandler, defineJsonRpc, HTTPError } from "../src/index.ts";
+import { defineJsonRpcHandler, HTTPError, type JsonRpcMethod } from "../src/index.ts";
 import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("json-rpc", (t, { describe, it, expect }) => {
-  const echo = defineJsonRpc(({ params }, event) => {
+  const echo: JsonRpcMethod = ({ params }, event) => {
     const message = Array.isArray(params) ? params[0] : params?.message;
     return `Received ${message} on path ${event.url.pathname}`;
-  });
-  const sum = defineJsonRpc(({ params }) => {
+  };
+
+  const sum: JsonRpcMethod = ({ params }) => {
     if (
       !params ||
       typeof params !== "object" ||
@@ -18,7 +19,7 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
       throw new Error("Invalid parameters for sum");
     }
     return params.a + params.b;
-  });
+  };
 
   const eventHandler = defineJsonRpcHandler({
     echo,

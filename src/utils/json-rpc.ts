@@ -89,24 +89,6 @@ const METHOD_NOT_FOUND = -32_601;
 const INVALID_PARAMS = -32_602;
 
 /**
- * Define a JSON-RPC method.
- *
- * @param method The method implementation function.
- * @returns The method function, unmodified.
- *
- * @example
- * const add = defineJsonRpc(({ params }) => {
- *   return params.a + params.b;
- * });
- */
-export function defineJsonRpc<
-  O = unknown,
-  I extends JsonRpcParams | undefined = JsonRpcParams | undefined,
->(method: JsonRpcMethod<O, I>): JsonRpcMethod<O, I> {
-  return method;
-}
-
-/**
  * Creates an H3 event handler that implements the JSON-RPC 2.0 specification.
  *
  * @param methods A map of RPC method names to their handler functions.
@@ -160,24 +142,6 @@ export function defineJsonRpcHandler<RequestT extends EventHandlerRequest = Even
     handler,
     middleware,
   });
-}
-
-/**
- * Define a JSON-RPC method for WebSocket.
- *
- * @param method The method implementation function.
- * @returns The method function, unmodified.
- *
- * @example
- * const add = defineJsonRpcWebSocket(({ params }) => {
- *   return params.a + params.b;
- * });
- */
-export function defineJsonRpcWebSocket<
-  O = unknown,
-  I extends JsonRpcParams | undefined = JsonRpcParams | undefined,
->(method: JsonRpcWebSocketMethod<O, I>): JsonRpcWebSocketMethod<O, I> {
-  return method;
 }
 
 /**
