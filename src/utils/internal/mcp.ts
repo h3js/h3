@@ -1,126 +1,10 @@
-import type {
-  Transport,
-  TransportSendOptions,
-} from "@modelcontextprotocol/sdk/shared/transport.js";
-import type { JSONRPCMessage, RequestId } from "@modelcontextprotocol/sdk/types.js";
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { H3Event } from "../../event.ts";
+import type { JsonRpcMethod, JsonRpcRequest } from "../json-rpc.ts";
 import type { McpHandlerOptions } from "../mcp.ts";
-import { readBody } from "../body.ts";
+import { processJsonRpcBody, createJsonRpcError, createMethodMap } from "../json-rpc.ts";
+import { HTTPError } from "../../error.ts";
 
-/**
- * Web-standard MCP transport implementing the SDK's Transport interface.
- */
-export class H3McpTransport implements Transport {
-  private _responseResolver: ((messages: JSONRPCMessage[]) => void) | null = null;
-  private _expectedResponses = 0;
-  private _collectedResponses: JSONRPCMessage[] = [];
-
-  onmessage?: <T extends JSONRPCMessage>(message: T) => void;
-  onerror?: (error: Error) => void;
-  onclose?: () => void;
-  sessionId?: string;
-
-  async start(): Promise<void> {}
-
-  async send(message: JSONRPCMessage, _options?: TransportSendOptions): Promise<void> {
-    this._collectedResponses.push(message);
-    if (this._responseResolver && this._collectedResponses.length >= this._expectedResponses) {
-      this._responseResolver(this._collectedResponses);
-      this._responseResolver = null;
-    }
-  }
-
-  async close(): Promise<void> {
-    this.onclose?.();
-  }
-
-  processRequest(messages: JSONRPCMessage | JSONRPCMessage[]): Promise<JSONRPCMessage[]> {
-    const messageList = Array.isArray(messages) ? messages : [messages];
-
-    // count requests that expect responses (notifications have no "id")
-    this._expectedResponses = 0;
-    for (const msg of messageList) {
-      if ("id" in msg && (msg as { id?: RequestId }).id !== undefined) {
-        this._expectedResponses++;
-      }
-    }
-
-    // all notifications, no responses expected
-    if (this._expectedResponses === 0) {
-      for (const msg of messageList) {
-        this.onmessage?.(msg);
-      }
-      return Promise.resolve([]);
-    }
-
-    this._collectedResponses = [];
-
-    return new Promise<JSONRPCMessage[]>((resolve) => {
-      this._responseResolver = resolve;
-      for (const msg of messageList) {
-        this.onmessage?.(msg);
-      }
-    });
-  }
-}
-
-export async function createMcpServer(options: McpHandlerOptions): Promise<McpServer> {
-  const { McpServer: McpServerClass } =
-    (await import("@modelcontextprotocol/sdk/server/mcp.js")) as { McpServer: typeof McpServer };
-
-  const server = new McpServerClass({
-    name: options.name,
-    version: options.version,
-  });
-
-  if (options.tools) {
-    for (const tool of options.tools) {
-      server.registerTool(
-        tool.name,
-        {
-          title: tool.title,
-          description: tool.description,
-          inputSchema: tool.inputSchema,
-          outputSchema: tool.outputSchema,
-          annotations: tool.annotations,
-        },
-        tool.handler as any,
-      );
-    }
-  }
-
-  if (options.resources) {
-    for (const resource of options.resources) {
-      server.registerResource(
-        resource.name,
-        resource.uri as any,
-        {
-          title: resource.title,
-          description: resource.description,
-          ...resource.metadata,
-        },
-        resource.handler as any,
-      );
-    }
-  }
-
-  if (options.prompts) {
-    for (const prompt of options.prompts) {
-      server.registerPrompt(
-        prompt.name,
-        {
-          title: prompt.title,
-          description: prompt.description,
-          argsSchema: prompt.argsSchema,
-        },
-        prompt.handler as any,
-      );
-    }
-  }
-
-  return server;
-}
+const MCP_PROTOCOL_VERSION = "2025-03-26";
 
 export async function handleMcpRequest(
   options: McpHandlerOptions,
@@ -139,30 +23,164 @@ export async function handleMcpRequest(
     });
   }
 
-  const server = await createMcpServer(options);
-  const transport = new H3McpTransport();
+  const methods = buildMcpMethodMap(options);
+  const methodMap = createMethodMap(methods);
 
-  await server.connect(transport);
-
+  let body: unknown;
   try {
-    const body = (await readBody(event)) as JSONRPCMessage | JSONRPCMessage[];
-    const isBatch = Array.isArray(body);
-    const responses = await transport.processRequest(body);
-
-    await server.close();
-
-    if (responses.length === 0) {
-      return new Response(null, { status: 202 });
-    }
-
-    const responseBody = isBatch ? JSON.stringify(responses) : JSON.stringify(responses[0]);
-
-    return new Response(responseBody, {
+    body = await event.req.json();
+  } catch {
+    return new Response(JSON.stringify(createJsonRpcError(null, -32_700, "Parse error")), {
       status: 200,
       headers: { "content-type": "application/json" },
     });
-  } catch (error) {
-    await server.close();
-    throw error;
   }
+
+  const result = await processJsonRpcBody(body, methodMap, event);
+
+  if (result === undefined) {
+    return new Response(null, { status: 202 });
+  }
+
+  return new Response(JSON.stringify(result), {
+    status: 200,
+    headers: { "content-type": "application/json" },
+  });
+}
+
+// --- Internal helpers ---
+
+function buildMcpMethodMap(options: McpHandlerOptions): Record<string, JsonRpcMethod> {
+  const methods: Record<string, JsonRpcMethod> = {};
+
+  // initialize
+  methods["initialize"] = () => {
+    const capabilities: Record<string, unknown> = {};
+    if (options.tools?.length) {
+      capabilities.tools = {};
+    }
+    if (options.resources?.length) {
+      capabilities.resources = {};
+    }
+    if (options.prompts?.length) {
+      capabilities.prompts = {};
+    }
+    return {
+      protocolVersion: MCP_PROTOCOL_VERSION,
+      serverInfo: { name: options.name, version: options.version },
+      capabilities,
+    };
+  };
+
+  // ping
+  methods["ping"] = () => ({});
+
+  // notifications/initialized (no-op, handled as notification by JSON-RPC layer)
+  methods["notifications/initialized"] = () => undefined;
+
+  // tools
+  if (options.tools?.length) {
+    const tools = options.tools;
+
+    methods["tools/list"] = () => ({
+      tools: tools.map((tool) => {
+        const entry: Record<string, unknown> = {
+          name: tool.name,
+          inputSchema: tool.inputSchema ?? { type: "object" },
+        };
+        if (tool.title !== undefined) entry.title = tool.title;
+        if (tool.description !== undefined) entry.description = tool.description;
+        if (tool.annotations !== undefined) entry.annotations = tool.annotations;
+        return entry;
+      }),
+    });
+
+    methods["tools/call"] = async (req: JsonRpcRequest, event: H3Event) => {
+      const params = req.params as Record<string, unknown> | undefined;
+      const name = params?.name as string;
+      const args = (params?.arguments ?? {}) as Record<string, unknown>;
+
+      const tool = tools.find((t) => t.name === name);
+      if (!tool) {
+        throw new HTTPError({ status: 404, message: `Tool not found: ${name}` });
+      }
+
+      if (tool.inputSchema) {
+        return await (tool.handler as (args: Record<string, unknown>, event: H3Event) => unknown)(
+          args,
+          event,
+        );
+      }
+      return await (tool.handler as (event: H3Event) => unknown)(event);
+    };
+  }
+
+  // resources
+  if (options.resources?.length) {
+    const resources = options.resources;
+
+    methods["resources/list"] = () => ({
+      resources: resources.map((r) => {
+        const entry: Record<string, unknown> = {
+          name: r.name,
+          uri: r.uri,
+        };
+        if (r.title !== undefined) entry.title = r.title;
+        if (r.description !== undefined) entry.description = r.description;
+        if (r.mimeType !== undefined) entry.mimeType = r.mimeType;
+        return entry;
+      }),
+    });
+
+    methods["resources/read"] = async (req: JsonRpcRequest, event: H3Event) => {
+      const params = req.params as Record<string, unknown> | undefined;
+      const uriStr = params?.uri as string;
+      const uri = new URL(uriStr);
+
+      const resource = resources.find((r) => r.uri === uri.toString());
+      if (!resource) {
+        throw new HTTPError({ status: 404, message: `Resource not found: ${uriStr}` });
+      }
+
+      return await resource.handler(uri, event);
+    };
+  }
+
+  // prompts
+  if (options.prompts?.length) {
+    const prompts = options.prompts;
+
+    methods["prompts/list"] = () => ({
+      prompts: prompts.map((p) => {
+        const entry: Record<string, unknown> = {
+          name: p.name,
+        };
+        if (p.title !== undefined) entry.title = p.title;
+        if (p.description !== undefined) entry.description = p.description;
+        if (p.args?.length) entry.arguments = p.args;
+        return entry;
+      }),
+    });
+
+    methods["prompts/get"] = async (req: JsonRpcRequest, event: H3Event) => {
+      const params = req.params as Record<string, unknown> | undefined;
+      const name = params?.name as string;
+      const args = (params?.arguments ?? {}) as Record<string, string>;
+
+      const prompt = prompts.find((p) => p.name === name);
+      if (!prompt) {
+        throw new HTTPError({ status: 404, message: `Prompt not found: ${name}` });
+      }
+
+      if (prompt.args?.length) {
+        return await (prompt.handler as (args: Record<string, string>, event: H3Event) => unknown)(
+          args,
+          event,
+        );
+      }
+      return await (prompt.handler as (event: H3Event) => unknown)(event);
+    };
+  }
+
+  return methods;
 }

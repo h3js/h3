@@ -56,7 +56,6 @@
   "devDependencies": {
     "@happy-dom/global-registrator": "^20.7.0",
     "@mitata/counters": "^0.0.8",
-    "@modelcontextprotocol/sdk": "^1.26.0",
     "@types/connect": "^3.4.38",
     "@types/express": "^5.0.6",
     "@types/node": "^25.3.2",
@@ -93,14 +92,10 @@
     "zod": "^4.3.6"
   },
   "peerDependencies": {
-    "@modelcontextprotocol/sdk": "^1.25.0",
     "crossws": "^0.4.1"
   },
   "peerDependenciesMeta": {
     "crossws": {
-      "optional": true
-    },
-    "@modelcontextprotocol/sdk": {
       "optional": true
     }
   },

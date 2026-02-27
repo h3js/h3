@@ -1,5 +1,4 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { z } from "zod/v4";
 import {
   defineMcpTool,
   defineMcpResource,
@@ -28,14 +27,18 @@ describe("defineMcpTool", () => {
   it("should preserve inputSchema", () => {
     const tool = defineMcpTool({
       name: "with-schema",
-      inputSchema: { message: z.string() },
+      inputSchema: {
+        type: "object",
+        properties: { message: { type: "string" } },
+        required: ["message"],
+      },
       handler: async ({ message }) => ({
-        content: [{ type: "text" as const, text: message }],
+        content: [{ type: "text" as const, text: message as string }],
       }),
     });
     expect(tool.name).toBe("with-schema");
     expect(tool.inputSchema).toBeDefined();
-    expect(tool.inputSchema!.message).toBeDefined();
+    expect(tool.inputSchema!.type).toBe("object");
   });
 });
 
@@ -76,21 +79,21 @@ describe("defineMcpPrompt", () => {
     expect(prompt.handler).toBe(handler);
   });
 
-  it("should preserve argsSchema", () => {
+  it("should preserve args", () => {
     const prompt = defineMcpPrompt({
       name: "with-args",
-      argsSchema: { name: z.string() },
-      handler: async ({ name }) => ({
+      args: [{ name: "name", required: true }],
+      handler: async (args: Record<string, string>) => ({
         messages: [
           {
             role: "user" as const,
-            content: { type: "text" as const, text: `Hello ${name}!` },
+            content: { type: "text" as const, text: `Hello ${args.name}!` },
           },
         ],
       }),
     });
-    expect(prompt.argsSchema).toBeDefined();
-    expect(prompt.argsSchema!.name).toBeDefined();
+    expect(prompt.args).toBeDefined();
+    expect(prompt.args![0].name).toBe("name");
   });
 });
 
@@ -100,9 +103,13 @@ describeMatrix("defineMcpHandler", (t, { it, expect }) => {
   const echoTool = defineMcpTool({
     name: "echo",
     description: "Echo back a message",
-    inputSchema: { message: z.string() },
+    inputSchema: {
+      type: "object",
+      properties: { message: { type: "string" } },
+      required: ["message"],
+    },
     handler: async ({ message }) => ({
-      content: [{ type: "text" as const, text: message }],
+      content: [{ type: "text" as const, text: message as string }],
     }),
   });
 
@@ -118,7 +125,7 @@ describeMatrix("defineMcpHandler", (t, { it, expect }) => {
     name: "readme",
     uri: "file:///readme",
     description: "Project README",
-    handler: async (uri: any) => ({
+    handler: async (uri) => ({
       contents: [{ uri: uri.toString(), text: "# My Project\nHello world" }],
     }),
   });
@@ -126,12 +133,12 @@ describeMatrix("defineMcpHandler", (t, { it, expect }) => {
   const greetPrompt = defineMcpPrompt({
     name: "greet",
     description: "Generate a greeting",
-    argsSchema: { name: z.string() },
-    handler: async ({ name }) => ({
+    args: [{ name: "name", required: true }],
+    handler: async (args: Record<string, string>) => ({
       messages: [
         {
           role: "user" as const,
-          content: { type: "text" as const, text: `Hello ${name}!` },
+          content: { type: "text" as const, text: `Hello ${args.name}!` },
         },
       ],
     }),
@@ -185,13 +192,6 @@ describeMatrix("defineMcpHandler", (t, { it, expect }) => {
   });
 
   it("should handle tools/list", async () => {
-    // First initialize
-    await jsonRpc("initialize", {
-      protocolVersion: "2025-03-26",
-      capabilities: {},
-      clientInfo: { name: "test-client", version: "1.0.0" },
-    });
-
     const res = await jsonRpc("tools/list", {}, 2);
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -204,12 +204,6 @@ describeMatrix("defineMcpHandler", (t, { it, expect }) => {
   });
 
   it("should handle tools/call", async () => {
-    await jsonRpc("initialize", {
-      protocolVersion: "2025-03-26",
-      capabilities: {},
-      clientInfo: { name: "test-client", version: "1.0.0" },
-    });
-
     const res = await jsonRpc(
       "tools/call",
       { name: "echo", arguments: { message: "hello world" } },
@@ -221,12 +215,6 @@ describeMatrix("defineMcpHandler", (t, { it, expect }) => {
   });
 
   it("should handle tools/call without arguments", async () => {
-    await jsonRpc("initialize", {
-      protocolVersion: "2025-03-26",
-      capabilities: {},
-      clientInfo: { name: "test-client", version: "1.0.0" },
-    });
-
     const res = await jsonRpc("tools/call", { name: "greet" }, 2);
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -234,12 +222,6 @@ describeMatrix("defineMcpHandler", (t, { it, expect }) => {
   });
 
   it("should handle resources/list", async () => {
-    await jsonRpc("initialize", {
-      protocolVersion: "2025-03-26",
-      capabilities: {},
-      clientInfo: { name: "test-client", version: "1.0.0" },
-    });
-
     const res = await jsonRpc("resources/list", {}, 2);
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -250,12 +232,6 @@ describeMatrix("defineMcpHandler", (t, { it, expect }) => {
   });
 
   it("should handle resources/read", async () => {
-    await jsonRpc("initialize", {
-      protocolVersion: "2025-03-26",
-      capabilities: {},
-      clientInfo: { name: "test-client", version: "1.0.0" },
-    });
-
     const res = await jsonRpc("resources/read", { uri: "file:///readme" }, 2);
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -264,12 +240,6 @@ describeMatrix("defineMcpHandler", (t, { it, expect }) => {
   });
 
   it("should handle prompts/list", async () => {
-    await jsonRpc("initialize", {
-      protocolVersion: "2025-03-26",
-      capabilities: {},
-      clientInfo: { name: "test-client", version: "1.0.0" },
-    });
-
     const res = await jsonRpc("prompts/list", {}, 2);
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -279,12 +249,6 @@ describeMatrix("defineMcpHandler", (t, { it, expect }) => {
   });
 
   it("should handle prompts/get", async () => {
-    await jsonRpc("initialize", {
-      protocolVersion: "2025-03-26",
-      capabilities: {},
-      clientInfo: { name: "test-client", version: "1.0.0" },
-    });
-
     const res = await jsonRpc("prompts/get", { name: "greet", arguments: { name: "World" } }, 2);
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -293,12 +257,6 @@ describeMatrix("defineMcpHandler", (t, { it, expect }) => {
   });
 
   it("should handle ping", async () => {
-    await jsonRpc("initialize", {
-      protocolVersion: "2025-03-26",
-      capabilities: {},
-      clientInfo: { name: "test-client", version: "1.0.0" },
-    });
-
     const res = await jsonRpc("ping", {}, 2);
     expect(res.status).toBe(200);
     const body = await res.json();
