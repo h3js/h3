@@ -1,9 +1,4 @@
-import type {
-  EventHandler,
-  EventHandlerObject,
-  EventHandlerRequest,
-  Middleware,
-} from "../types/handler.ts";
+import type { EventHandler, EventHandlerObject, EventHandlerRequest } from "../types/handler.ts";
 import type { Hooks as WebSocketHooks, Peer as WebSocketPeer } from "crossws";
 import type { H3Event } from "../event.ts";
 import { defineHandler } from "../handler.ts";
