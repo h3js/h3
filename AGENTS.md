@@ -80,6 +80,7 @@ src/
 │   ├── proxy.ts          # proxy, proxyRequest, fetchWithEvent
 │   ├── ws.ts             # defineWebSocketHandler, defineWebSocket
 │   ├── json-rpc.ts       # defineJsonRpcHandler, defineJsonRpcWebSocketHandler
+│   ├── mcp.ts            # defineMcpHandler, defineMcpTool, defineMcpResource, defineMcpPrompt
 │   ├── event-stream.ts   # createEventStream (SSE)
 │   ├── static.ts         # serveStatic
 │   ├── cache.ts          # handleCacheHeaders
@@ -89,6 +90,7 @@ src/
 │   └── internal/         # Internal helpers (not exported)
 │       ├── auth.ts, body.ts, cors.ts, encoding.ts, ...
 │       ├── iron-crypto.ts    # Session sealing crypto
+│       ├── mcp.ts            # MCP internal handler logic (handleMcpRequest, resolveMcpOptions)
 │       ├── standard-schema.ts # Standard schema validation
 │       └── validate.ts
 ├── _entries/             # Platform-specific entry points
@@ -225,6 +227,30 @@ h3/tracing   → Tracing plugin
 | `rou3`    | Route matching engine                     |
 | `srvx`    | Server abstraction (multi-runtime)        |
 | `crossws` | WebSocket abstraction (optional peer dep) |
+
+## MCP (Model Context Protocol)
+
+h3 implements MCP as a built-in utility — no SDK dependency. Wire format is JSON-RPC 2.0 over HTTP. Protocol version: `"2025-06-18"` (also accepts `"2025-03-26"`).
+
+### Architecture
+
+- **Public API** (`src/utils/mcp.ts`): Types + `defineMcpHandler`, `defineMcpTool`, `defineMcpResource`, `defineMcpPrompt`
+- **Internal handler** (`src/utils/internal/mcp.ts`): `handleMcpRequest` processes HTTP → JSON-RPC, `resolveMcpOptions` handles lazy resolution
+- Built on top of `src/utils/json-rpc.ts` (`processJsonRpcBody`, `createMethodMap`)
+
+### Key patterns
+
+- **`MaybeLazy<T>`**: `tools`, `resources`, `prompts` accept `T | (() => T | Promise<T>)`. Lazy values are resolved once and cached via `_resolveLazy()`. For static handler options, caching persists across requests. For dynamic `(event) => options`, each request gets fresh resolution.
+- **`McpResolvedOptions`**: Internal type with pre-bound lazy resolvers. Created by `resolveMcpOptions()` and passed to `handleMcpRequest()`.
+- `defineMcpHandler` supports both static options and `(event: H3Event) => McpHandlerOptions` for per-request config.
+
+### MCP methods implemented
+
+`initialize`, `ping`, `notifications/initialized`, `tools/list`, `tools/call`, `resources/list`, `resources/read`, `prompts/list`, `prompts/get`
+
+### Tests
+
+`test/mcp.test.ts` — unit tests for define helpers + integration tests via `describeMatrix` (web + node).
 
 ## Best Practices for Contributing
 

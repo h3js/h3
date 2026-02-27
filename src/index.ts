@@ -211,6 +211,39 @@ export type {
   JsonRpcWebSocketMethod,
 } from "./utils/json-rpc.ts";
 
+// MCP
+
+export {
+  type McpTextContent,
+  type McpImageContent,
+  type McpAudioContent,
+  type McpResourceLink,
+  type McpEmbeddedResource,
+  type McpContentBlock,
+  type McpAnnotations,
+  type McpTextResourceContents,
+  type McpBlobResourceContents,
+  type McpResourceContents,
+  type McpCallToolResult,
+  type McpReadResourceResult,
+  type McpPromptMessage,
+  type McpGetPromptResult,
+  type McpToolAnnotations,
+  type McpToolCallback,
+  type McpToolDefinition,
+  type McpResourceCallback,
+  type McpResourceDefinition,
+  type McpPromptCallback,
+  type McpPromptArgument,
+  type McpPromptDefinition,
+  type MaybeLazy,
+  type McpHandlerOptions,
+  defineMcpHandler,
+  defineMcpTool,
+  defineMcpResource,
+  defineMcpPrompt,
+} from "./utils/mcp.ts";
+
 // ---- Deprecated ----
 
 export * from "./_deprecated.ts";
