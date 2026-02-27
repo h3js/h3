@@ -22,52 +22,54 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
   };
 
   const eventHandler = defineJsonRpcHandler({
-    echo,
-    sum,
-    error: () => {
-      throw new Error("Handler error");
-    },
-    errorPrimitive: () => {
-      throw "Primitive error";
-    },
-    // "constructor" is a valid method name — the null-prototype map
-    // ensures it doesn't resolve to Object.prototype.constructor.
-    constructor: () => {
-      return "ok";
-    },
-    // HTTP error handlers for testing error code mapping
-    unauthorized: () => {
-      throw new HTTPError({ status: 401, message: "Authentication required" });
-    },
-    forbidden: () => {
-      throw new HTTPError({ status: 403, message: "Access denied" });
-    },
-    notFound: () => {
-      throw new HTTPError({ status: 404, message: "Resource not found" });
-    },
-    badRequest: () => {
-      throw new HTTPError({ status: 400, message: "Bad request data" });
-    },
-    conflict: () => {
-      throw new HTTPError({ status: 409, message: "Resource conflict" });
-    },
-    rateLimited: () => {
-      throw new HTTPError({ status: 429, message: "Too many requests" });
-    },
-    serverError: () => {
-      throw new HTTPError({ status: 500, message: "Server exploded" });
-    },
-    redirect: () => {
-      throw new HTTPError({ status: 301, message: "Resource moved permanently" });
-    },
-    errorWithZeroData: () => {
-      throw new HTTPError({ status: 400, message: "Validation failed", data: 0 });
-    },
-    errorWithEmptyStringData: () => {
-      throw new HTTPError({ status: 400, message: "Validation failed", data: "" });
-    },
-    errorWithFalseData: () => {
-      throw new HTTPError({ status: 400, message: "Validation failed", data: false });
+    methods: {
+      echo,
+      sum,
+      error: () => {
+        throw new Error("Handler error");
+      },
+      errorPrimitive: () => {
+        throw "Primitive error";
+      },
+      // "constructor" is a valid method name — the null-prototype map
+      // ensures it doesn't resolve to Object.prototype.constructor.
+      constructor: () => {
+        return "ok";
+      },
+      // HTTP error handlers for testing error code mapping
+      unauthorized: () => {
+        throw new HTTPError({ status: 401, message: "Authentication required" });
+      },
+      forbidden: () => {
+        throw new HTTPError({ status: 403, message: "Access denied" });
+      },
+      notFound: () => {
+        throw new HTTPError({ status: 404, message: "Resource not found" });
+      },
+      badRequest: () => {
+        throw new HTTPError({ status: 400, message: "Bad request data" });
+      },
+      conflict: () => {
+        throw new HTTPError({ status: 409, message: "Resource conflict" });
+      },
+      rateLimited: () => {
+        throw new HTTPError({ status: 429, message: "Too many requests" });
+      },
+      serverError: () => {
+        throw new HTTPError({ status: 500, message: "Server exploded" });
+      },
+      redirect: () => {
+        throw new HTTPError({ status: 301, message: "Resource moved permanently" });
+      },
+      errorWithZeroData: () => {
+        throw new HTTPError({ status: 400, message: "Validation failed", data: 0 });
+      },
+      errorWithEmptyStringData: () => {
+        throw new HTTPError({ status: 400, message: "Validation failed", data: "" });
+      },
+      errorWithFalseData: () => {
+        throw new HTTPError({ status: 400, message: "Validation failed", data: false });
+      },
     },
   });
 
@@ -309,7 +311,6 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
         method: "GET",
       });
       expect(result.status).toBe(405);
-      expect(await result.text()).toContain("Method Not Allowed");
     });
 
     it("should return parse error for invalid JSON", async () => {

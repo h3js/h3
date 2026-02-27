@@ -52,7 +52,7 @@ describe("defineJsonRpcWebSocketHandler", () => {
 
   describe("handler structure", () => {
     it("should return an EventHandler that produces a 426 response with crossws hooks", () => {
-      const handler = defineJsonRpcWebSocketHandler(methods);
+      const handler = defineJsonRpcWebSocketHandler({ methods });
       const res = handler({} as any);
       expect(res).toBeInstanceOf(Response);
       expect((res as Response).status).toBe(426);
@@ -65,7 +65,8 @@ describe("defineJsonRpcWebSocketHandler", () => {
       const closeFn = vi.fn();
       const errorFn = vi.fn();
 
-      const handler = defineJsonRpcWebSocketHandler(methods, {
+      const handler = defineJsonRpcWebSocketHandler({
+        methods,
         hooks: {
           open: openFn,
           close: closeFn,
@@ -81,7 +82,7 @@ describe("defineJsonRpcWebSocketHandler", () => {
     });
 
     it("should not override message hook with user hooks", () => {
-      const handler = defineJsonRpcWebSocketHandler(methods);
+      const handler = defineJsonRpcWebSocketHandler({ methods });
       const res = handler({} as any);
       const hooks = (res as any).crossws;
       // The message hook should be the internal JSON-RPC processor.
@@ -94,7 +95,7 @@ describe("defineJsonRpcWebSocketHandler", () => {
       messageData: unknown,
       methodsMap?: Record<string, any>,
     ): Promise<{ peer: ReturnType<typeof createMockPeer>; sent: string[] }> {
-      const handler = defineJsonRpcWebSocketHandler(methodsMap || methods);
+      const handler = defineJsonRpcWebSocketHandler({ methods: methodsMap || methods });
       const res = handler({} as any);
       const hooks = (res as any).crossws;
 
@@ -331,12 +332,14 @@ describe("defineJsonRpcWebSocketHandler", () => {
       messageData: unknown,
     ): Promise<{ peer: ReturnType<typeof createMockPeer>; sent: string[] }> {
       const handler = defineJsonRpcWebSocketHandler({
-        echo: ({ params }: any) => {
-          const message = Array.isArray(params) ? params[0] : params?.message;
-          return `Received ${message}`;
-        },
-        sum: ({ params }: any) => {
-          return params.a + params.b;
+        methods: {
+          echo: ({ params }: any) => {
+            const message = Array.isArray(params) ? params[0] : params?.message;
+            return `Received ${message}`;
+          },
+          sum: ({ params }: any) => {
+            return params.a + params.b;
+          },
         },
       });
       const res = handler({} as any);
@@ -404,7 +407,7 @@ describe("defineJsonRpcWebSocketHandler", () => {
       });
 
       const handler = defineJsonRpcWebSocketHandler({
-        test: methodSpy,
+        methods: { test: methodSpy },
       });
       const res = handler({} as any);
       const hooks = (res as any).crossws;

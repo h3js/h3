@@ -1,10 +1,15 @@
-import type { EventHandler, EventHandlerRequest, Middleware } from "../types/handler.ts";
+import type {
+  EventHandler,
+  EventHandlerObject,
+  EventHandlerRequest,
+  Middleware,
+} from "../types/handler.ts";
+import type { Hooks as WebSocketHooks, Peer as WebSocketPeer } from "crossws";
 import type { H3Event } from "../event.ts";
 import { defineHandler } from "../handler.ts";
 import { defineWebSocketHandler } from "./ws.ts";
 import { HTTPError } from "../error.ts";
-
-import type { Hooks as WebSocketHooks, Peer as WebSocketPeer } from "crossws";
+import { HTTPResponse } from "../response.ts";
 
 /**
  * JSON-RPC 2.0 Interfaces based on the specification.
@@ -39,16 +44,8 @@ export interface JsonRpcError {
  * JSON-RPC 2.0 Response object.
  */
 export type JsonRpcResponse<O = unknown> =
-  | {
-      jsonrpc: "2.0";
-      id: string | number | null;
-      result: O;
-    }
-  | {
-      jsonrpc: "2.0";
-      id: string | number | null;
-      error: JsonRpcError;
-    };
+  | { jsonrpc: "2.0"; id: string | number | null; result: O }
+  | { jsonrpc: "2.0"; id: string | number | null; error: JsonRpcError };
 
 /**
  * A function that handles a JSON-RPC method call.
@@ -68,25 +65,10 @@ export type JsonRpcWebSocketMethod<
   I extends JsonRpcParams | undefined = JsonRpcParams | undefined,
 > = (data: JsonRpcRequest<I>, peer: WebSocketPeer) => O | Promise<O>;
 
-/**
- * Invalid JSON was received by the server. An error occurred on the server while parsing the JSON text.
- */
-const PARSE_ERROR = -32_700;
-
-/**
- * The JSON sent is not a valid Request object.
- */
-const INVALID_REQUEST = -32_600;
-/**
- * The method does not exist / is not available.
- */
-
-const METHOD_NOT_FOUND = -32_601;
-
-/**
- * Invalid method parameter(s).
- */
-const INVALID_PARAMS = -32_602;
+const PARSE_ERROR = -32_700; // Invalid JSON was received by the server.
+const INVALID_REQUEST = -32_600; // The JSON sent is not a valid Request object.
+const METHOD_NOT_FOUND = -32_601; // The method does not exist / is not available.
+const INVALID_PARAMS = -32_602; // Invalid method parameter(s).
 
 /**
  * Creates an H3 event handler that implements the JSON-RPC 2.0 specification.
@@ -97,51 +79,37 @@ const INVALID_PARAMS = -32_602;
  *
  * @example
  * app.post("/rpc", defineJsonRpcHandler({
- *   echo: ({ params }, event) => {
- *     return `Received \`${params}\` on path \`${event.url.pathname}\``;
- *   },
- *   sum: ({ params }, event) => {
- *     return params.a + params.b;
+ *   methods: {
+ *     echo: ({ params }, event) => {
+ *       return `Received \`${params}\` on path \`${event.url.pathname}\``;
+ *     },
+ *     sum: ({ params }, event) => {
+ *       return params.a + params.b;
+ *     },
  *   },
  * }));
  */
 export function defineJsonRpcHandler<RequestT extends EventHandlerRequest = EventHandlerRequest>(
-  methods: Record<string, JsonRpcMethod>,
-  middleware?: Middleware[],
+  opts: Omit<EventHandlerObject<RequestT>, "handler" | "fetch"> & {
+    methods: Record<string, JsonRpcMethod>;
+  } = {} as any,
 ): EventHandler<RequestT> {
-  const methodMap = createMethodMap(methods);
-
+  const methodMap = createMethodMap(opts.methods);
   const handler = async (event: H3Event) => {
     // JSON-RPC requests MUST be POST.
     if (event.req.method !== "POST") {
-      throw new HTTPError({
-        status: 405,
-        message: "Method Not Allowed",
-      });
+      throw new HTTPError({ status: 405 });
     }
-
     let body: unknown;
     try {
       body = await event.req.json();
     } catch {
       return createJsonRpcError(null, PARSE_ERROR, "Parse error");
     }
-
     const result = await processJsonRpcBody(body, methodMap, event);
-
-    if (result === undefined) {
-      event.res.status = 202;
-      return "";
-    }
-
-    event.res.headers.set("Content-Type", "application/json");
-    return result;
+    return result === undefined ? new HTTPResponse("", { status: 202 }) : result;
   };
-
-  return defineHandler<RequestT>({
-    handler,
-    middleware,
-  });
+  return defineHandler<RequestT>({ ...opts, handler });
 }
 
 /**
@@ -151,25 +119,27 @@ export function defineJsonRpcHandler<RequestT extends EventHandlerRequest = Even
  * connections for bi-directional messaging. Each incoming WebSocket text message
  * is processed as a JSON-RPC request, and responses are sent back to the peer.
  *
- * @param methods A map of RPC method names to their handler functions.
- * @param options Optional configuration including additional WebSocket hooks.
+ * @param opts Options including methods map and optional WebSocket hooks.
  * @returns An H3 EventHandler that upgrades to a WebSocket connection.
  *
  * @example
  * app.get("/rpc/ws", defineJsonRpcWebSocketHandler({
- *   echo: ({ params }) => {
- *     return `Received: ${Array.isArray(params) ? params[0] : params?.message}`;
- *   },
- *   sum: ({ params }) => {
- *     return params.a + params.b;
+ *   methods: {
+ *     echo: ({ params }) => {
+ *       return `Received: ${Array.isArray(params) ? params[0] : params?.message}`;
+ *     },
+ *     sum: ({ params }) => {
+ *       return params.a + params.b;
+ *     },
  *   },
  * }));
  *
  * @example
  * // With additional WebSocket hooks
  * app.get("/rpc/ws", defineJsonRpcWebSocketHandler({
- *   greet: ({ params }) => `Hello, ${params.name}!`,
- * }, {
+ *   methods: {
+ *     greet: ({ params }) => `Hello, ${params.name}!`,
+ *   },
  *   hooks: {
  *     open(peer) {
  *       console.log(`Peer connected: ${peer.id}`);
@@ -180,19 +150,13 @@ export function defineJsonRpcHandler<RequestT extends EventHandlerRequest = Even
  *   },
  * }));
  */
-export function defineJsonRpcWebSocketHandler(
-  methods: Record<string, JsonRpcWebSocketMethod>,
-  options?: {
-    hooks?: Partial<Omit<WebSocketHooks, "message">>;
-  },
-): EventHandler {
-  const methodMap = createMethodMap(methods);
-
+export function defineJsonRpcWebSocketHandler(opts: {
+  methods: Record<string, JsonRpcWebSocketMethod>;
+  hooks?: Partial<Omit<WebSocketHooks, "message">>;
+}): EventHandler {
+  const methodMap = createMethodMap(opts.methods);
   return defineWebSocketHandler({
-    upgrade: options?.hooks?.upgrade,
-    open: options?.hooks?.open,
-    close: options?.hooks?.close,
-    error: options?.hooks?.error,
+    ...opts.hooks,
     async message(peer, message) {
       let body: unknown;
       try {
@@ -201,9 +165,7 @@ export function defineJsonRpcWebSocketHandler(
         peer.send(JSON.stringify(createJsonRpcError(null, PARSE_ERROR, "Parse error")));
         return;
       }
-
       const result = await processJsonRpcBody(body, methodMap, peer);
-
       if (result !== undefined) {
         peer.send(JSON.stringify(result));
       }
