@@ -31,6 +31,8 @@ describe("h3 package", () => {
         "defaultContentType",
         "defineEventHandler",
         "defineHandler",
+        "defineJsonRpcHandler",
+        "defineJsonRpcWebSocketHandler",
         "defineLazyEventHandler",
         "defineMiddleware",
         "defineNodeHandler",
