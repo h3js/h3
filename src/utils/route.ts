@@ -2,7 +2,9 @@ import type { H3RouteMeta, HTTPMethod } from "../types/h3.ts";
 import type { EventHandler, Middleware } from "../types/handler.ts";
 import type { H3Plugin, H3 } from "../types/h3.ts";
 import type { StandardSchemaV1 } from "./internal/standard-schema.ts";
+import type { Hooks as WSHooks } from "crossws";
 import { defineValidatedHandler } from "../handler.ts";
+import { defineWebSocketHandler } from "./ws.ts";
 
 /**
  * Route definition options
@@ -67,5 +69,58 @@ export function defineRoute(def: RouteDefinition): H3Plugin {
   const handler = defineValidatedHandler(def) as any;
   return (h3: H3) => {
     h3.on(def.method, def.route, handler);
+  };
+}
+
+/**
+ * WebSocket route definition options
+ */
+export interface WebSocketRouteDefinition {
+  /**
+   * Route pattern, e.g. '/api/ws'
+   */
+  route: string;
+
+  /**
+   * WebSocket hooks
+   */
+  websocket: Partial<WSHooks>;
+
+  // TODO: Support middleware when implemented in defineWebSocketHandler
+  // middleware?: Middleware[];
+
+  // TODO: Support metadata when implemented in WebSocket routing
+  // meta?: Record<string, unknown>;
+}
+
+/**
+ * Define a WebSocket route as a plugin that can be registered with app.register()
+ *
+ * @example
+ * ```js
+ * const wsRoute = defineWebSocketRoute({
+ *   route: '/api/ws',
+ *   websocket: {
+ *     open: (peer) => {
+ *       console.log('WebSocket connected:', peer.id);
+ *       peer.send('Welcome!');
+ *     },
+ *     message: (peer, message) => {
+ *       console.log('Received:', message);
+ *       peer.send(`Echo: ${message}`);
+ *     },
+ *     close: (peer) => {
+ *       console.log('WebSocket closed:', peer.id);
+ *     }
+ *   }
+ * });
+ *
+ * app.register(wsRoute);
+ * ```
+ */
+export function defineWebSocketRoute(def: WebSocketRouteDefinition): H3Plugin {
+  const handler = defineWebSocketHandler(def.websocket);
+  return (h3: H3) => {
+    h3.on("GET", def.route, handler);
   };
 }

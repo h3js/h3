@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { defineRoute } from "../src/utils/route.ts";
+import { defineRoute, defineWebSocketRoute } from "../src/utils/route.ts";
 import { H3 } from "../src/h3.ts";
 import { z } from "zod";
 
@@ -72,5 +72,105 @@ describe("defineRoute", () => {
       statusText: "Validation failed",
       data: { issues: [{ path: ["id"] }] },
     });
+  });
+});
+
+describe("defineWebSocketRoute", () => {
+  it("should create a plugin that registers WebSocket route", async () => {
+    const app = new H3();
+    const wsRoute = defineWebSocketRoute({
+      route: "/ws",
+      websocket: {
+        open: () => {},
+        message: () => {},
+      },
+    });
+    app.register(wsRoute);
+
+    const route = app["~routes"].find((r) => r.route === "/ws");
+    expect(route).toBeDefined();
+    expect(route?.method).toBe("GET");
+  });
+
+  it("should use GET method for WebSocket routes", async () => {
+    const app = new H3();
+    const wsRoute = defineWebSocketRoute({
+      route: "/ws",
+      websocket: {},
+    });
+    app.register(wsRoute);
+
+    const route = app["~routes"].find((r) => r.route === "/ws");
+    expect(route?.method).toBe("GET");
+  });
+
+  it("should test WebSocket upgrade response", async () => {
+    const app = new H3();
+    const wsRoute = defineWebSocketRoute({
+      route: "/ws",
+      websocket: {
+        open: (peer) => {
+          peer.send("Welcome!");
+        },
+      },
+    });
+    app.register(wsRoute);
+
+    const res = await app.request("/ws");
+    expect(res.status).toBe(426);
+    expect(await res.text()).toContain("WebSocket upgrade is required");
+    expect((res as any).crossws).toBeDefined();
+  });
+
+  it("should work with different route patterns", async () => {
+    const app = new H3();
+    const patterns = ["/api/ws", "/ws/:id", "/chat/:room/:user"];
+
+    for (const pattern of patterns) {
+      const wsRoute = defineWebSocketRoute({
+        route: pattern,
+        websocket: {},
+      });
+      app.register(wsRoute);
+
+      const route = app["~routes"].find((r) => r.route === pattern);
+      expect(route).toBeDefined();
+      expect(route?.route).toBe(pattern);
+    }
+  });
+
+  it("should be compatible with existing WebSocket handler methods", async () => {
+    const app = new H3();
+    const hooks = {
+      open: () => {},
+      message: () => {},
+      close: () => {},
+    };
+
+    // Test compatibility with defineWebSocketRoute
+    const wsRoute = defineWebSocketRoute({
+      route: "/new-ws",
+      websocket: hooks,
+    });
+    app.register(wsRoute);
+
+    // Test compatibility with traditional approach
+    const { defineWebSocketHandler } = await import("../src/index.ts");
+    app.on("GET", "/old-ws", defineWebSocketHandler(hooks));
+
+    // Both routes should be registered
+    const newRoute = app["~routes"].find((r) => r.route === "/new-ws");
+    const oldRoute = app["~routes"].find((r) => r.route === "/old-ws");
+
+    expect(newRoute).toBeDefined();
+    expect(oldRoute).toBeDefined();
+
+    // Both should return similar responses
+    const newRes = await app.request("/new-ws");
+    const oldRes = await app.request("/old-ws");
+
+    expect(newRes.status).toBe(oldRes.status);
+    expect((newRes as any).crossws).toBeDefined();
+    expect((oldRes as any).crossws).toBeDefined();
   });
 });
