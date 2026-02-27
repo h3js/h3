@@ -46,7 +46,7 @@ describeMatrix("event", (t, { it, expect }) => {
   it("can read request body", async () => {
     t.app.all("/*", async (event) => {
       let bytes = 0;
-      // @ts-expect-error iterator
+      // @ts-ignore
       for await (const chunk of event.req.body!) {
         bytes += chunk.length;
       }
