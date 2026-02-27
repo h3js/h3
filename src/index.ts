@@ -236,6 +236,7 @@ export {
   type McpPromptCallback,
   type McpPromptArgument,
   type McpPromptDefinition,
+  type MaybeLazy,
   type McpHandlerOptions,
   defineMcpHandler,
   defineMcpTool,

@@ -1,5 +1,5 @@
 import { defineHandler } from "../handler.ts";
-import { handleMcpRequest } from "./internal/mcp.ts";
+import { handleMcpRequest, resolveMcpOptions } from "./internal/mcp.ts";
 
 import type { H3Event } from "../event.ts";
 import type { EventHandler } from "../types/handler.ts";
@@ -173,6 +173,7 @@ export interface McpToolDefinition<
   title?: string;
   description?: string;
   inputSchema?: InputSchema;
+  outputSchema?: Record<string, unknown>;
   annotations?: McpToolAnnotations;
   handler: McpToolCallback<InputSchema>;
 }
@@ -196,6 +197,7 @@ export interface McpResourceDefinition {
   description?: string;
   uri: string;
   mimeType?: string;
+  size?: number;
   handler: McpResourceCallback;
 }
 
@@ -260,14 +262,22 @@ export type McpPromptDefinition = McpPromptDefinitionWithArgs | McpPromptDefinit
 // --- handler options ---
 
 /**
+ * A value that can be provided directly or as a lazy function that returns
+ * a (possibly async) value. Lazy values are resolved once and cached.
+ */
+export type MaybeLazy<T> = T | (() => T | Promise<T>);
+
+/**
  * Options for `defineMcpHandler`.
  */
 export interface McpHandlerOptions {
   name: string;
   version: string;
-  tools?: McpToolDefinition<any>[];
-  resources?: McpResourceDefinition[];
-  prompts?: McpPromptDefinition[];
+  title?: string;
+  instructions?: string;
+  tools?: MaybeLazy<McpToolDefinition<any>>[];
+  resources?: MaybeLazy<McpResourceDefinition>[];
+  prompts?: MaybeLazy<McpPromptDefinition>[];
 }
 
 // --- definition helpers ---
@@ -410,8 +420,11 @@ export function defineMcpPrompt(definition: McpPromptDefinition): McpPromptDefin
 export function defineMcpHandler(
   options: McpHandlerOptions | ((event: H3Event) => McpHandlerOptions),
 ): EventHandler {
+  // For static options, resolve lazy values once and cache across requests
+  const staticResolved = typeof options !== "function" ? resolveMcpOptions(options) : undefined;
   return defineHandler(function _mcpHandler(event) {
-    const resolvedOptions = typeof options === "function" ? options(event) : options;
-    return handleMcpRequest(resolvedOptions, event);
+    const resolved =
+      staticResolved ?? resolveMcpOptions(typeof options === "function" ? options(event) : options);
+    return handleMcpRequest(resolved, event);
   });
 }

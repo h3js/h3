@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import {
   defineMcpTool,
   defineMcpResource,
@@ -177,7 +177,7 @@ describeMatrix("defineMcpHandler", (t, { it, expect }) => {
 
   it("should handle initialize", async () => {
     const res = await jsonRpc("initialize", {
-      protocolVersion: "2025-03-26",
+      protocolVersion: "2025-06-18",
       capabilities: {},
       clientInfo: { name: "test-client", version: "1.0.0" },
     });
@@ -186,6 +186,7 @@ describeMatrix("defineMcpHandler", (t, { it, expect }) => {
     const body = await res.json();
     expect(body.jsonrpc).toBe("2.0");
     expect(body.id).toBe(1);
+    expect(body.result.protocolVersion).toBe("2025-06-18");
     expect(body.result.serverInfo.name).toBe("test-server");
     expect(body.result.serverInfo.version).toBe("1.0.0");
     expect(body.result.capabilities).toBeDefined();
@@ -278,6 +279,157 @@ describeMatrix("defineMcpHandler", (t, { it, expect }) => {
     expect(res.status).toBe(200);
   });
 
+  it("should include title and instructions in initialize", async () => {
+    t.app.all(
+      "/mcp-full",
+      defineMcpHandler({
+        name: "full-server",
+        version: "1.0.0",
+        title: "Full Server Display Name",
+        instructions: "Use this server for testing",
+        tools: [echoTool],
+      }),
+    );
+
+    const res = await t.fetch("/mcp-full", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "initialize",
+        params: {
+          protocolVersion: "2025-06-18",
+          capabilities: {},
+          clientInfo: { name: "test-client", version: "1.0.0" },
+        },
+      }),
+    });
+
+    const body = await res.json();
+    expect(body.result.serverInfo.title).toBe("Full Server Display Name");
+    expect(body.result.instructions).toBe("Use this server for testing");
+  });
+
+  it("should not include title/instructions when not set", async () => {
+    const res = await jsonRpc("initialize", {
+      protocolVersion: "2025-06-18",
+      capabilities: {},
+      clientInfo: { name: "test-client", version: "1.0.0" },
+    });
+
+    const body = await res.json();
+    expect(body.result.serverInfo.title).toBeUndefined();
+    expect(body.result.instructions).toBeUndefined();
+  });
+
+  it("should reject unsupported MCP-Protocol-Version header", async () => {
+    const res = await t.fetch("/mcp", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "mcp-protocol-version": "9999-01-01",
+      },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "ping",
+      }),
+    });
+
+    expect(res.status).toBe(400);
+  });
+
+  it("should accept supported MCP-Protocol-Version header", async () => {
+    const res = await t.fetch("/mcp", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "mcp-protocol-version": "2025-06-18",
+      },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "ping",
+      }),
+    });
+
+    expect(res.status).toBe(200);
+  });
+
+  it("should include outputSchema in tools/list", async () => {
+    const toolWithOutput = defineMcpTool({
+      name: "structured",
+      description: "Returns structured data",
+      outputSchema: {
+        type: "object",
+        properties: { result: { type: "string" } },
+      },
+      handler: async () => ({
+        content: [{ type: "text" as const, text: "ok" }],
+        structuredContent: { result: "ok" },
+      }),
+    });
+
+    t.app.all(
+      "/mcp-output",
+      defineMcpHandler({
+        name: "output-server",
+        version: "1.0.0",
+        tools: [toolWithOutput],
+      }),
+    );
+
+    const res = await t.fetch("/mcp-output", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "tools/list",
+      }),
+    });
+
+    const body = await res.json();
+    expect(body.result.tools[0].outputSchema).toEqual({
+      type: "object",
+      properties: { result: { type: "string" } },
+    });
+  });
+
+  it("should include size in resources/list", async () => {
+    const sizedResource = defineMcpResource({
+      name: "sized",
+      uri: "file:///sized",
+      size: 1024,
+      handler: async (uri) => ({
+        contents: [{ uri: uri.toString(), text: "data" }],
+      }),
+    });
+
+    t.app.all(
+      "/mcp-sized",
+      defineMcpHandler({
+        name: "sized-server",
+        version: "1.0.0",
+        resources: [sizedResource],
+      }),
+    );
+
+    const res = await t.fetch("/mcp-sized", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "resources/list",
+      }),
+    });
+
+    const body = await res.json();
+    expect(body.result.resources[0].size).toBe(1024);
+  });
+
   it("should support dynamic options via function", async () => {
     t.app.all(
       "/mcp-dynamic",
@@ -296,7 +448,7 @@ describeMatrix("defineMcpHandler", (t, { it, expect }) => {
         id: 1,
         method: "initialize",
         params: {
-          protocolVersion: "2025-03-26",
+          protocolVersion: "2025-06-18",
           capabilities: {},
           clientInfo: { name: "test-client", version: "1.0.0" },
         },
@@ -307,5 +459,151 @@ describeMatrix("defineMcpHandler", (t, { it, expect }) => {
     const body = await res.json();
     expect(body.result.serverInfo.name).toBe("dynamic-server");
     expect(body.result.serverInfo.version).toBe("2.0.0");
+  });
+});
+
+// ---- Lazy options (integration tests) ----
+
+describeMatrix("defineMcpHandler (lazy options)", (t, { it, expect }) => {
+  const echoTool = defineMcpTool({
+    name: "echo",
+    description: "Echo back a message",
+    inputSchema: {
+      type: "object",
+      properties: { message: { type: "string" } },
+      required: ["message"],
+    },
+    handler: async ({ message }) => ({
+      content: [{ type: "text" as const, text: message as string }],
+    }),
+  });
+
+  const readmeResource = defineMcpResource({
+    name: "readme",
+    uri: "file:///readme",
+    description: "Project README",
+    handler: async (uri) => ({
+      contents: [{ uri: uri.toString(), text: "# Lazy Resource" }],
+    }),
+  });
+
+  const helpPrompt = defineMcpPrompt({
+    name: "help",
+    description: "Show help",
+    handler: async () => ({
+      messages: [
+        {
+          role: "user" as const,
+          content: { type: "text" as const, text: "How can I help?" },
+        },
+      ],
+    }),
+  });
+
+  const readmeToolDummy = defineMcpTool({
+    name: "dummy",
+    description: "A dummy tool",
+    handler: async () => ({
+      content: [{ type: "text" as const, text: "dummy" }],
+    }),
+  });
+
+  // Helper to send JSON-RPC requests
+  function jsonRpc(path: string, method: string, params?: unknown, id: number = 1) {
+    return t.fetch(path, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id, method, params }),
+    });
+  }
+
+  it("should resolve lazy tool items", async () => {
+    const toolFn = vi.fn(async () => echoTool);
+    t.app.all("/mcp-lazy", defineMcpHandler({ name: "lazy", version: "1.0.0", tools: [toolFn] }));
+
+    const listRes = await jsonRpc("/mcp-lazy", "tools/list");
+    expect((await listRes.json()).result.tools[0].name).toBe("echo");
+
+    const callRes = await jsonRpc("/mcp-lazy", "tools/call", {
+      name: "echo",
+      arguments: { message: "lazy!" },
+    });
+    expect((await callRes.json()).result.content).toEqual([{ type: "text", text: "lazy!" }]);
+
+    // Factory function should be called only once (cached)
+    expect(toolFn).toHaveBeenCalledTimes(1);
+  });
+
+  it("should resolve lazy resource items", async () => {
+    const resourceFn = vi.fn(async () => readmeResource);
+    t.app.all(
+      "/mcp-lazy-res",
+      defineMcpHandler({ name: "lazy", version: "1.0.0", resources: [resourceFn] }),
+    );
+
+    const listRes = await jsonRpc("/mcp-lazy-res", "resources/list");
+    expect((await listRes.json()).result.resources[0].name).toBe("readme");
+
+    const readRes = await jsonRpc("/mcp-lazy-res", "resources/read", { uri: "file:///readme" });
+    expect((await readRes.json()).result.contents[0].text).toBe("# Lazy Resource");
+
+    expect(resourceFn).toHaveBeenCalledTimes(1);
+  });
+
+  it("should resolve lazy prompt items", async () => {
+    const promptFn = vi.fn(async () => helpPrompt);
+    t.app.all(
+      "/mcp-lazy-prompt",
+      defineMcpHandler({ name: "lazy", version: "1.0.0", prompts: [promptFn] }),
+    );
+
+    const listRes = await jsonRpc("/mcp-lazy-prompt", "prompts/list");
+    expect((await listRes.json()).result.prompts[0].name).toBe("help");
+
+    const getRes = await jsonRpc("/mcp-lazy-prompt", "prompts/get", { name: "help" });
+    expect((await getRes.json()).result.messages[0].content.text).toBe("How can I help?");
+
+    expect(promptFn).toHaveBeenCalledTimes(1);
+  });
+
+  it("should resolve mixed static and lazy items", async () => {
+    const lazyTool = vi.fn(async () => echoTool);
+    t.app.all(
+      "/mcp-lazy-mixed",
+      defineMcpHandler({
+        name: "lazy",
+        version: "1.0.0",
+        tools: [lazyTool, readmeToolDummy],
+      }),
+    );
+
+    const listRes = await jsonRpc("/mcp-lazy-mixed", "tools/list");
+    const tools = (await listRes.json()).result.tools;
+    expect(tools.length).toBe(2);
+    expect(tools[0].name).toBe("echo");
+    expect(tools[1].name).toBe("dummy");
+  });
+
+  it("should report lazy capabilities in initialize", async () => {
+    t.app.all(
+      "/mcp-lazy-init",
+      defineMcpHandler({
+        name: "lazy",
+        version: "1.0.0",
+        tools: [async () => echoTool],
+        resources: [async () => readmeResource],
+        prompts: [async () => helpPrompt],
+      }),
+    );
+
+    const res = await jsonRpc("/mcp-lazy-init", "initialize", {
+      protocolVersion: "2025-06-18",
+      capabilities: {},
+      clientInfo: { name: "test-client", version: "1.0.0" },
+    });
+    const body = await res.json();
+    expect(body.result.capabilities.tools).toBeDefined();
+    expect(body.result.capabilities.resources).toBeDefined();
+    expect(body.result.capabilities.prompts).toBeDefined();
   });
 });
