@@ -39,7 +39,7 @@
     "build": "obuild",
     "dev": "vitest",
     "lint": "oxlint . && oxfmt --check .",
-    "format": "automd && oxlint --fix . && oxfmt .",
+    "fmt": "automd && oxlint --fix . && oxfmt .",
     "prepack": "pnpm build",
     "play:bun": "bun ./test/fixture/bun.ts",
     "play:node": "pnpm test/fixture/node.ts",
