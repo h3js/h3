@@ -4,6 +4,7 @@ export type {
   H3Config,
   H3CoreConfig,
   H3Plugin,
+  H3Response,
   H3Route,
   H3RouteMeta,
   HTTPMethod,
@@ -190,10 +191,13 @@ export { type RequestFingerprintOptions, getRequestFingerprint } from "./utils/f
 
 // WebSocket
 
+// WebSocket
+
 export {
   type WebSocketHooks,
   type WebSocketPeer,
   type WebSocketMessage,
+  type WebSocketResponse,
   defineWebSocketHandler,
   defineWebSocket,
 } from "./utils/ws.ts";

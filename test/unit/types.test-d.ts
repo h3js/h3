@@ -1,7 +1,9 @@
-import type { H3Event } from "../../src/index.ts";
+import type { H3Event, WebSocketResponse, H3Response } from "../../src/index.ts";
 import { describe, it, expectTypeOf } from "vitest";
 import {
+  H3,
   defineHandler,
+  defineWebSocketHandler,
   getQuery,
   readBody,
   readValidatedBody,
@@ -121,6 +123,24 @@ describe("types", () => {
         expectTypeOf(query).not.toBeAny();
         expectTypeOf(query).toEqualTypeOf<{ id: string }>();
       });
+    });
+  });
+
+  describe("defineWebSocketHandler", () => {
+    it("should return a handler with a typed crossws property", () => {
+      const handler = defineWebSocketHandler({ message: () => {} });
+      const result = handler({} as H3Event);
+      expectTypeOf(result).toHaveProperty("crossws");
+      expectTypeOf(result.crossws).toEqualTypeOf<WebSocketResponse["crossws"]>();
+    });
+  });
+
+  describe("app.fetch", () => {
+    it("should return H3Response with optional crossws", async () => {
+      const app = new H3();
+      const res = await app.fetch(new Request("http://localhost"));
+      expectTypeOf(res).toEqualTypeOf<H3Response>();
+      expectTypeOf(res.crossws).toEqualTypeOf<H3Response["crossws"]>();
     });
   });
 });

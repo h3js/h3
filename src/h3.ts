@@ -4,7 +4,14 @@ import { toResponse, kNotFound } from "./response.ts";
 import { callMiddleware, normalizeMiddleware } from "./middleware.ts";
 
 import type { ServerRequest } from "srvx";
-import type { H3Config, H3CoreConfig, H3Plugin, MatchedRoute, RouterContext } from "./types/h3.ts";
+import type {
+  H3Config,
+  H3CoreConfig,
+  H3Plugin,
+  H3Response,
+  MatchedRoute,
+  RouterContext,
+} from "./types/h3.ts";
 import type { H3EventContext } from "./types/context.ts";
 import type {
   EventHandler,
@@ -40,7 +47,7 @@ export class H3Core implements H3CoreType {
     this.handler = this.handler.bind(this);
   }
 
-  fetch(request: ServerRequest): Response | Promise<Response> {
+  fetch(request: ServerRequest): H3Response | Promise<H3Response> {
     return this["~request"](request);
   }
 
@@ -57,7 +64,7 @@ export class H3Core implements H3CoreType {
       : routeHandler(event);
   }
 
-  "~request"(request: ServerRequest, context?: H3EventContext): Response | Promise<Response> {
+  "~request"(request: ServerRequest, context?: H3EventContext): H3Response | Promise<H3Response> {
     // Create a new event instance
     const event = new H3Event(request, context, this as unknown as H3Type);
 
@@ -114,7 +121,7 @@ export const H3 = /* @__PURE__ */ (() => {
       _req: ServerRequest | URL | string,
       _init?: RequestInit,
       context?: H3EventContext,
-    ): Response | Promise<Response> {
+    ): H3Response | Promise<H3Response> {
       return this["~request"](toRequest(_req, _init), context);
     }
 
