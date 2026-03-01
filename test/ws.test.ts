@@ -17,7 +17,7 @@ describe("defineWebSocketHandler", () => {
     expect(res).toBeInstanceOf(Response);
     expect((res as Response).status).toBe(426);
     // expect((res as Response).statusText).toBe("Upgrade Required");
-    expect((res as any).crossws).toEqual(hooks);
+    expect(res.crossws).toEqual(hooks);
   });
 
   it("should attach the provided hooks with function argument", () => {
@@ -26,6 +26,6 @@ describe("defineWebSocketHandler", () => {
     expect(res).toBeInstanceOf(Response);
     expect((res as Response).status).toBe(426);
     // expect((res as Response).statusText).toBe("Upgrade Required");
-    expect((res as any).crossws).toEqual(hooks);
+    expect(res.crossws).toEqual(hooks);
   });
 });
