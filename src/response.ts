@@ -16,7 +16,7 @@ export function toResponse(
   if (typeof (val as PromiseLike<unknown>)?.then === "function") {
     return ((val as Promise<unknown>).catch?.((error) => error) || Promise.resolve(val)).then(
       (resolvedVal) => toResponse(resolvedVal, event, config),
-    ) as Promise<Response>;
+    ) as Promise<H3Response>;
   }
 
   const response = prepareResponse(val, event, config);
