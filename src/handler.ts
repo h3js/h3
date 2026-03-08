@@ -14,7 +14,6 @@ import type {
   HTTPHandler,
 } from "./types/handler.ts";
 import type { InferOutput, StandardSchemaV1 } from "./utils/internal/standard-schema.ts";
-import type { TypedRequest } from "fetchdts";
 import { NoHandler, type H3Core } from "./h3.ts";
 import {
   validatedRequest,
@@ -106,13 +105,10 @@ export function defineValidatedHandler<
       >,
     ) => InferOutput<ResponseBody> | Promise<InferOutput<ResponseBody>>;
   },
-): EventHandlerWithFetch<
-  TypedRequest<InferOutput<RequestBody>, InferOutput<RequestHeaders>> & EventHandlerRequest,
-  InferOutput<ResponseBody>
-> {
+): EventHandlerWithFetch<EventHandlerRequest, InferOutput<ResponseBody>> {
   if (!def.validate) {
     return defineHandler(def) as EventHandlerWithFetch<
-      TypedRequest<InferOutput<RequestBody>, InferOutput<RequestHeaders>> & EventHandlerRequest,
+      EventHandlerRequest,
       InferOutput<ResponseBody>
     >;
   }
@@ -151,10 +147,7 @@ export function defineValidatedHandler<
 
       return result;
     },
-  }) as EventHandlerWithFetch<
-    TypedRequest<InferOutput<RequestBody>, InferOutput<RequestHeaders>> & EventHandlerRequest,
-    InferOutput<ResponseBody>
-  >;
+  }) as EventHandlerWithFetch<EventHandlerRequest, InferOutput<ResponseBody>>;
 }
 
 // --- handler .fetch ---
