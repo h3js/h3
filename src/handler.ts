@@ -107,14 +107,12 @@ export function defineValidatedHandler<
     ) => InferOutput<ResponseBody> | Promise<InferOutput<ResponseBody>>;
   },
 ): EventHandlerWithFetch<
-  TypedRequest<InferOutput<RequestBody>, InferOutput<RequestHeaders>> &
-    EventHandlerRequest,
+  TypedRequest<InferOutput<RequestBody>, InferOutput<RequestHeaders>> & EventHandlerRequest,
   InferOutput<ResponseBody>
 > {
   if (!def.validate) {
     return defineHandler(def) as EventHandlerWithFetch<
-      TypedRequest<InferOutput<RequestBody>, InferOutput<RequestHeaders>> &
-        EventHandlerRequest,
+      TypedRequest<InferOutput<RequestBody>, InferOutput<RequestHeaders>> & EventHandlerRequest,
       InferOutput<ResponseBody>
     >;
   }
@@ -124,22 +122,15 @@ export function defineValidatedHandler<
       // Validate route params
       if (def.validate!.params) {
         const params = event.context.params || {};
-        event.context.params = syncValidate(
-          "params",
-          params,
-          def.validate!.params,
-        ) as Record<string, string>;
+        event.context.params = syncValidate("params", params, def.validate!.params) as Record<
+          string,
+          string
+        >;
       }
 
       // Validate request and URL
-      (event as any) /* readonly */.req = validatedRequest(
-        event.req,
-        def.validate!,
-      );
-      (event as any) /* readonly */.url = validatedURL(
-        event.url,
-        def.validate!,
-      );
+      (event as any) /* readonly */.req = validatedRequest(event.req, def.validate!);
+      (event as any) /* readonly */.url = validatedURL(event.url, def.validate!);
 
       // Execute handler - context.params is validated at this point
       const result = await def.handler(
@@ -161,8 +152,7 @@ export function defineValidatedHandler<
       return result;
     },
   }) as EventHandlerWithFetch<
-    TypedRequest<InferOutput<RequestBody>, InferOutput<RequestHeaders>> &
-      EventHandlerRequest,
+    TypedRequest<InferOutput<RequestBody>, InferOutput<RequestHeaders>> & EventHandlerRequest,
     InferOutput<ResponseBody>
   >;
 }

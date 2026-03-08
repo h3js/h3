@@ -77,11 +77,7 @@ export {
 
 // Route
 
-export {
-  type RouteDefinition,
-  type RouteValidation,
-  defineRoute,
-} from "./utils/route.ts";
+export { type RouteDefinition, type RouteValidation, defineRoute } from "./utils/route.ts";
 
 // Request
 

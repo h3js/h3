@@ -70,18 +70,15 @@ describe("Full validation type inference", () => {
     app.register(fullRoute);
 
     // Test with valid data
-    const res = await app.request(
-      "/users/123e4567-e89b-12d3-a456-426614174000?limit=20",
-      {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          name: "John Doe",
-          email: "john@example.com",
-          age: 30,
-        }),
-      },
-    );
+    const res = await app.request("/users/123e4567-e89b-12d3-a456-426614174000?limit=20", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        name: "John Doe",
+        email: "john@example.com",
+        age: 30,
+      }),
+    });
 
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
@@ -146,17 +143,14 @@ describe("Full validation type inference", () => {
 
     app.post("/posts/:userId", handler);
 
-    const res = await app.request(
-      "/posts/123e4567-e89b-12d3-a456-426614174000?format=json",
-      {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          title: "Test Post",
-          content: "This is a test",
-        }),
-      },
-    );
+    const res = await app.request("/posts/123e4567-e89b-12d3-a456-426614174000?format=json", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        title: "Test Post",
+        content: "This is a test",
+      }),
+    });
 
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
@@ -197,13 +191,10 @@ describe("Full validation type inference", () => {
     expect(paramsError.statusText).toBe("Validation failed");
 
     // Test 2: Invalid query
-    const invalidQuery = await app.request(
-      "/api/123e4567-e89b-12d3-a456-426614174000?key=bad",
-      {
-        method: "POST",
-        body: JSON.stringify({ value: 123 }),
-      },
-    );
+    const invalidQuery = await app.request("/api/123e4567-e89b-12d3-a456-426614174000?key=bad", {
+      method: "POST",
+      body: JSON.stringify({ value: 123 }),
+    });
     const queryError = await invalidQuery.json();
     expect(queryError.status).toBe(400);
     expect(queryError.data.issues).toEqual(

@@ -92,9 +92,7 @@ describe("defineRoute", () => {
     app.register(routePlugin);
 
     // Valid UUID
-    const validRes = await app.request(
-      "/users/123e4567-e89b-12d3-a456-426614174000",
-    );
+    const validRes = await app.request("/users/123e4567-e89b-12d3-a456-426614174000");
     expect(await validRes.json()).toEqual({
       userId: "123e4567-e89b-12d3-a456-426614174000",
     });

@@ -254,9 +254,7 @@ describe("handler.ts", () => {
       });
       app.get("/user/:id", paramsHandler);
 
-      const res = await app.request(
-        "/user/123e4567-e89b-12d3-a456-426614174000",
-      );
+      const res = await app.request("/user/123e4567-e89b-12d3-a456-426614174000");
       expect(await res.json()).toMatchObject({
         params: { id: "123e4567-e89b-12d3-a456-426614174000" },
       });

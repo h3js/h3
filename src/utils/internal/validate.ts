@@ -194,8 +194,8 @@ function createValidationError(cause: Error | HTTPError | ErrorDetails | Failure
           issues: (cause as FailureResult)?.issues,
           message:
             cause instanceof Error
-          ? VALIDATION_FAILED
-          : (cause as ErrorDetails)?.message || VALIDATION_FAILED,
+              ? VALIDATION_FAILED
+              : (cause as ErrorDetails)?.message || VALIDATION_FAILED,
         },
       });
 }
