@@ -81,6 +81,13 @@ export async function serveStatic(
     withLeadingSlash(withoutTrailingSlash(parseURL(event.path).pathname)),
   );
 
+  if (originalId.includes("..")) {
+    if (!options.fallthrough) {
+      throw createError({ statusCode: 404 });
+    }
+    return false;
+  }
+
   const acceptEncodings = parseAcceptEncoding(
     getRequestHeader(event, "accept-encoding"),
     options.encodings,
