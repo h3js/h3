@@ -101,6 +101,16 @@ describeMatrix("serve static", (t, { it, expect }) => {
     const res = await t.fetch("/test.png", { method: "POST" });
     expect(res.status).toEqual(405);
   });
+
+  it("Prevents path traversal via encoded dot segments", async () => {
+    const res = await t.fetch("/%2e%2e/%2e%2e/etc/passwd");
+    expect(res.status).toEqual(200);
+    const text = await res.text();
+    // After resolving dot segments, `/../../../etc/passwd` becomes `/etc/passwd`
+    // The id must NOT contain `..` traversal sequences
+    expect(text).not.toContain("..");
+    expect(text).toMatch(/^asset:\/etc\/passwd/);
+  });
 });
 
 describeMatrix("serve static with fallthrough", (t, { it, expect }) => {

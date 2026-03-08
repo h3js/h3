@@ -47,3 +47,26 @@ export function withoutBase(input: string = "", base: string = ""): string {
 export function getPathname(path: string = "/"): string {
   return path.startsWith("/") ? path.split("?")[0] : new URL(path, "http://localhost").pathname;
 }
+
+/**
+ * Resolve dot segments (`.` and `..`) in a path to prevent path traversal.
+ * Ensures the resulting path never escapes above the root `/`.
+ */
+export function resolveDotSegments(path: string): string {
+  if (!path.includes(".")) {
+    return path;
+  }
+  const segments = path.split("/");
+  const resolved: string[] = [];
+  for (const segment of segments) {
+    if (segment === "..") {
+      // Never pop past the root (first empty segment from leading slash)
+      if (resolved.length > 1) {
+        resolved.pop();
+      }
+    } else if (segment !== ".") {
+      resolved.push(segment);
+    }
+  }
+  return resolved.join("/") || "/";
+}
