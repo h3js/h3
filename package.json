@@ -2,9 +2,15 @@
   "name": "h3",
   "version": "1.15.5",
   "description": "Minimal H(TTP) framework built for high performance and portability.",
-  "repository": "h3js/h3",
   "license": "MIT",
+  "repository": "h3js/h3",
+  "files": [
+    "dist"
+  ],
   "sideEffects": false,
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
   "exports": {
     "./package.json": "./package.json",
     ".": {
@@ -13,12 +19,6 @@
       "require": "./dist/index.cjs"
     }
   },
-  "main": "./dist/index.cjs",
-  "module": "./dist/index.mjs",
-  "types": "./dist/index.d.ts",
-  "files": [
-    "dist"
-  ],
   "scripts": {
     "build": "unbuild",
     "dev": "vitest",
@@ -30,9 +30,6 @@
     "release": "pnpm test && pnpm build && changelogen --release --publish --publishTag 1x && git push --follow-tags",
     "test": "pnpm lint && vitest --run --coverage && pnpm test:types",
     "test:types": "tsgo --noEmit"
-  },
-  "resolutions": {
-    "h3": "^1.14.0"
   },
   "dependencies": {
     "cookie-es": "^1.2.2",
@@ -48,31 +45,34 @@
   "devDependencies": {
     "0x": "^6.0.0",
     "@types/express": "^5.0.6",
-    "@types/node": "^25.0.8",
-    "@types/supertest": "^6.0.3",
-    "@typescript/native-preview": "7.0.0-dev.20260115.1",
-    "@vitest/coverage-v8": "^4.0.17",
+    "@types/node": "^25.3.5",
+    "@types/supertest": "^7.2.0",
+    "@typescript/native-preview": "latest",
+    "@vitest/coverage-v8": "^4.0.18",
     "autocannon": "^8.0.0",
-    "automd": "^0.4.2",
+    "automd": "^0.4.3",
     "changelogen": "^0.6.2",
     "connect": "^3.7.0",
-    "eslint": "^9.39.2",
+    "eslint": "^10.0.3",
     "eslint-config-unjs": "^0.6.2",
     "express": "^5.2.1",
     "get-port": "^7.1.0",
-    "h3": "^2.0.1-rc.8",
+    "h3": "^1.15.5",
     "jiti": "^2.6.1",
     "listhen": "^1.9.0",
     "node-fetch-native": "^1.6.7",
-    "prettier": "^3.8.0",
-    "react": "^19.2.3",
-    "react-dom": "^19.2.3",
+    "prettier": "^3.8.1",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
     "supertest": "^7.2.2",
     "typescript": "^5.9.3",
     "unbuild": "^3.6.1",
-    "undici": "^7.18.2",
-    "vitest": "^4.0.17",
-    "zod": "^4.3.5"
+    "undici": "^7.22.0",
+    "vitest": "^4.0.18",
+    "zod": "^4.3.6"
+  },
+  "resolutions": {
+    "h3": "^1.14.0"
   },
   "packageManager": "pnpm@10.28.0"
 }
