@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## v1.15.6
+
+[compare changes](https://github.com/h3js/h3/compare/v1.15.5...v1.15.6)
+
+### 🩹 Fixes
+
+- **sse:** Sanitize newlines in event stream fields to prevent SSE injection ([840ac5c](https://github.com/h3js/h3/commit/840ac5c))
+- **static:** Prevent path traversal via percent-encoded dot segments ([6465e1b](https://github.com/h3js/h3/commit/6465e1b))
+
+### 🏡 Chore
+
+- Update deps ([65da0e4](https://github.com/h3js/h3/commit/65da0e4))
+
+### ❤️ Contributors
+
+- Pooya Parsa ([@pi0](https://github.com/pi0))
+
 ## v1.15.5
 
 [compare changes](https://github.com/h3js/h3/compare/v1.15.4...v1.15.5)
