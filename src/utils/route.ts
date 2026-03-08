@@ -3,6 +3,7 @@ import type { EventHandlerRequest, Middleware } from "../types/handler.ts";
 import type { H3Plugin, H3 } from "../types/h3.ts";
 import type { H3Event } from "../event.ts";
 import type { StandardSchemaV1, InferOutput } from "./internal/standard-schema.ts";
+import type { OnValidateError } from "./internal/validate.ts";
 import { defineValidatedHandler } from "../handler.ts";
 
 type StringHeaders<T> = {
@@ -18,7 +19,34 @@ export interface RouteValidation {
   query?: StandardSchemaV1;
   params?: StandardSchemaV1;
   response?: StandardSchemaV1;
+  onError?: OnValidateError;
 }
+
+type RouteValidationConfig<V extends RouteValidation> = Omit<V, "onError"> & {
+  onError?: OnValidateError;
+};
+
+type RouteEventRequest<V extends RouteValidation> = EventHandlerRequest & {
+  body: NonNullable<V["body"]> extends StandardSchemaV1
+    ? InferOutput<NonNullable<V["body"]>>
+    : unknown;
+  query: NonNullable<V["query"]> extends StandardSchemaV1
+    ? StringHeaders<InferOutput<NonNullable<V["query"]>>>
+    : Partial<Record<string, string>>;
+  routerParams: NonNullable<V["params"]> extends StandardSchemaV1
+    ? InferOutput<NonNullable<V["params"]>>
+    : Record<string, string>;
+};
+
+type RouteEventParams<V extends RouteValidation> =
+  NonNullable<V["params"]> extends StandardSchemaV1
+    ? InferOutput<NonNullable<V["params"]>>
+    : Record<string, string>;
+
+type RouteResponse<V extends RouteValidation> =
+  NonNullable<V["response"]> extends StandardSchemaV1
+    ? InferOutput<NonNullable<V["response"]>>
+    : unknown;
 
 /**
  * Route definition options with type-safe validation
@@ -38,20 +66,8 @@ export interface RouteDefinition<V extends RouteValidation = RouteValidation> {
    * Handler function for the route.
    */
   handler: (
-    event: H3Event<
-      EventHandlerRequest & {
-        body: V["body"] extends StandardSchemaV1 ? InferOutput<V["body"]> : unknown;
-        query: V["query"] extends StandardSchemaV1
-          ? StringHeaders<InferOutput<V["query"]>>
-          : Partial<Record<string, string>>;
-        routerParams: V["params"] extends StandardSchemaV1
-          ? InferOutput<V["params"]>
-          : Record<string, string>;
-      }
-    >,
-  ) =>
-    | (V["response"] extends StandardSchemaV1 ? InferOutput<V["response"]> : unknown)
-    | Promise<V["response"] extends StandardSchemaV1 ? InferOutput<V["response"]> : unknown>;
+    event: ValidatedRouteEvent<RouteEventRequest<V>, RouteEventParams<V>>,
+  ) => RouteResponse<V> | Promise<RouteResponse<V>>;
 
   /**
    * Optional middleware to run before the handler.
@@ -66,7 +82,7 @@ export interface RouteDefinition<V extends RouteValidation = RouteValidation> {
   /**
    * Validation schemas for request and response
    */
-  validate?: V;
+  validate?: RouteValidationConfig<V>;
 }
 
 // Helper type for validated H3Event with typed context.params
@@ -79,7 +95,7 @@ type ValidatedRouteEvent<RequestT extends EventHandlerRequest, ParamsT> = Omit<
   };
 };
 
-// Overload: With validation (any combination of validation schemas)
+// Overload: With validation
 export function defineRoute<
   Body extends StandardSchemaV1 = never,
   Headers extends StandardSchemaV1 = never,
@@ -95,6 +111,7 @@ export function defineRoute<
     query?: Query;
     params?: Params;
     response?: Response;
+    onError?: OnValidateError;
   };
   handler: (
     event: ValidatedRouteEvent<

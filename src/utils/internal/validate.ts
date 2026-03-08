@@ -207,15 +207,24 @@ function createValidationError(cause: Error | HTTPError | ErrorDetails | Failure
 export async function validateResponse<Schema extends StandardSchemaV1>(
   value: unknown,
   schema: Schema,
+  onError?: OnValidateError<"response">,
 ): Promise<InferOutput<Schema>> {
   try {
-    return await validateData(value, schema);
+    return await validateData(value, schema, {
+      onError: onError ? (result) => onError({ ...result, _source: "response" }) : undefined,
+    });
   } catch (error: any) {
     throw new HTTPError({
       cause: error,
       status: 500,
-      statusText: "Response validation failed",
-      message: error?.message || "Response validation failed",
+      statusText:
+        error?.statusText && error.statusText !== VALIDATION_FAILED
+          ? error.statusText
+          : "Response validation failed",
+      message:
+        error?.message && error.message !== VALIDATION_FAILED
+          ? error.message
+          : "Response validation failed",
       data: error?.data,
     });
   }

@@ -74,6 +74,32 @@ describe("defineRoute", () => {
     });
   });
 
+  it("should support custom validation errors", async () => {
+    const app = new H3();
+    const routePlugin = defineRoute({
+      method: "GET",
+      route: "/users/:id",
+      validate: {
+        params: z.object({ id: z.string().uuid() }),
+        onError: ({ _source, issues }) => ({
+          status: 500,
+          statusText: `Custom Zod ${_source} validation error`,
+          message: issues[0]?.message || "invalid",
+        }),
+      },
+      handler: (event) => {
+        return { userId: event.context.params!.id };
+      },
+    });
+    app.register(routePlugin);
+
+    const res = await app.request("/users/invalid-uuid");
+    expect(await res.json()).toMatchObject({
+      status: 500,
+      statusText: "Custom Zod params validation error",
+    });
+  });
+
   it("should validate route params", async () => {
     const app = new H3();
     const routePlugin = defineRoute({

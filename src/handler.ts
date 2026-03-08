@@ -118,10 +118,12 @@ export function defineValidatedHandler<
       // Validate route params
       if (def.validate!.params) {
         const params = event.context.params || {};
-        event.context.params = syncValidate("params", params, def.validate!.params) as Record<
-          string,
-          string
-        >;
+        event.context.params = syncValidate(
+          "params",
+          params,
+          def.validate!.params,
+          def.validate!.onError,
+        ) as Record<string, string>;
       }
 
       // Validate request and URL
@@ -142,7 +144,11 @@ export function defineValidatedHandler<
 
       // Validate response
       if (def.validate!.response) {
-        return await validateResponse(result, def.validate!.response);
+        return await validateResponse(
+          result,
+          def.validate!.response,
+          def.validate!.onError as OnValidateError<"response"> | undefined,
+        );
       }
 
       return result;
