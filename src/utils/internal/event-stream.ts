@@ -168,22 +168,35 @@ export function isEventStream(input: unknown): input is EventStream {
 }
 
 export function formatEventStreamComment(comment: string): string {
-  return `: ${comment}\n\n`;
+  return (
+    comment
+      .split("\n")
+      .map((l) => `: ${l}\n`)
+      .join("") + "\n"
+  );
 }
 
 export function formatEventStreamMessage(message: EventStreamMessage): string {
   let result = "";
   if (message.id) {
-    result += `id: ${message.id}\n`;
+    result += `id: ${_sanitizeSingleLine(message.id)}\n`;
   }
   if (message.event) {
-    result += `event: ${message.event}\n`;
+    result += `event: ${_sanitizeSingleLine(message.event)}\n`;
   }
   if (typeof message.retry === "number" && Number.isInteger(message.retry)) {
     result += `retry: ${message.retry}\n`;
   }
-  result += `data: ${message.data}\n\n`;
+  const data = typeof message.data === "string" ? message.data : "";
+  for (const line of data.split("\n")) {
+    result += `data: ${line}\n`;
+  }
+  result += "\n";
   return result;
+}
+
+function _sanitizeSingleLine(value: string): string {
+  return value.replace(/[\n\r]/g, "");
 }
 
 export function formatEventStreamMessages(messages: EventStreamMessage[]): string {
