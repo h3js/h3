@@ -10,7 +10,8 @@
   },
   "files": [
     "bin",
-    "dist"
+    "dist",
+    "skills"
   ],
   "type": "module",
   "sideEffects": false,
@@ -78,6 +79,7 @@
     "happy-dom": "^20.7.0",
     "hono": "^4.12.3",
     "magic-string": "^0.30.21",
+    "mdzilla": "^0.0.3",
     "memoirist": "^0.4.0",
     "mitata": "^1.0.34",
     "obuild": "^0.4.31",

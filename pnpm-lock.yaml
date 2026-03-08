@@ -80,7 +80,7 @@ importers:
         version: 'link:'
       h3-nightly:
         specifier: latest
-        version: 2.0.0-20260225-085652-6f71db2(crossws@0.4.4(srvx@0.11.8))
+        version: 2.0.0-20260227-202640-52c82e1(crossws@0.4.4(srvx@0.11.8))
       happy-dom:
         specifier: ^20.7.0
         version: 20.7.0
@@ -90,6 +90,9 @@ importers:
       magic-string:
         specifier: ^0.30.21
         version: 0.30.21
+      mdzilla:
+        specifier: ^0.0.3
+        version: 0.0.3
       memoirist:
         specifier: ^0.4.0
         version: 0.4.0
@@ -98,7 +101,7 @@ importers:
         version: 1.0.34
       obuild:
         specifier: ^0.4.31
-        version: 0.4.31(@typescript/native-preview@7.0.0-dev.20260227.1)(chokidar@5.0.0)(dotenv@17.3.1)(giget@2.0.0)(jiti@2.6.1)(magicast@0.5.2)(picomatch@4.0.3)(rollup@4.59.0)(typescript@5.9.3)
+        version: 0.4.31(@typescript/native-preview@7.0.0-dev.20260227.1)(chokidar@5.0.0)(dotenv@17.3.1)(giget@3.1.2)(jiti@2.6.1)(magicast@0.5.2)(picomatch@4.0.3)(rollup@4.59.0)(typescript@5.9.3)
       oxc-parser:
         specifier: ^0.115.0
         version: 0.115.0
@@ -1065,6 +1068,9 @@ packages:
   '@sinclair/typebox@0.34.41':
     resolution: {integrity: sha512-6gS8pZzSXdyRHTIqoqSVknxolr1kzfy4/CeDnrzsVz8TTIWUbOBr6gnzOmTYJ3eXQNh4IYHIGi5aIL7sOZ2G/g==}
 
+  '@speed-highlight/core@1.2.14':
+    resolution: {integrity: sha512-G4ewlBNhUtlLvrJTb88d2mdy2KRijzs4UhnlrOSRT4bmjh/IqNElZa3zkrZ+TC47TwtlDWzVLFADljF1Ijp5hA==}
+
   '@standard-schema/spec@1.1.0':
     resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
 
@@ -1281,6 +1287,10 @@ packages:
         optional: true
       magicast:
         optional: true
+
+  cac@6.7.14:
+    resolution: {integrity: sha512-b6Ilus+c3RrdDk+JhLKUAQfzzgLEPy6wcXqS7f/xe1EETvsDP6GORG7SFuOs6cID5YkqchW/LXZbX5bc8j7ZcQ==}
+    engines: {node: '>=8'}
 
   call-bind-apply-helpers@1.0.2:
     resolution: {integrity: sha512-Sp1ablJ0ivDkSzjcaJdxEunN5/XvksFJ2sMBFfq6x0ryhQV/2b/KwFe21cMpmHtPOSij8K99/wSfoEuTObmuMQ==}
@@ -1573,12 +1583,16 @@ packages:
     resolution: {integrity: sha512-L5bGsVkxJbJgdnwyuheIunkGatUF/zssUoxxjACCseZYAVbaqdh9Tsmmlkl8vYan09H7sbvKt4pS8GqKLBrEzA==}
     hasBin: true
 
+  giget@3.1.2:
+    resolution: {integrity: sha512-T2qUpKBHeUTwHcIhydgnJzhL0Hj785ms+JkxaaWQH9SDM/llXeewnOkfJcFShAHjWI+26hOChwUfCoupaXLm8g==}
+    hasBin: true
+
   gopd@1.2.0:
     resolution: {integrity: sha512-ZUKRh6/kUFoAiTAtTYPZJ3hw9wNxx+BIBOijnlG9PnrJsCcSjs1wyyD6vJpaYtgnzDrKYRSqf3OO6Rfa93xsRg==}
     engines: {node: '>= 0.4'}
 
-  h3-nightly@2.0.0-20260225-085652-6f71db2:
-    resolution: {integrity: sha512-BWHPIx1ujx6sGCTx41D4VwQnbjqg0zUJqKZt1pFnfH7wAJrRDumi5Tu8b16y6j1ZgmGCWYX2xNRTNr4svwqP2A==}
+  h3-nightly@2.0.0-20260227-202640-52c82e1:
+    resolution: {integrity: sha512-3ZwZrvUtOm1xYqnt3vMOYY4qrgkpmNG+M6HUzCOZfxb25Zrv8FNm3hRtEuLHZCU6TZHxmsbzirwCejJdrsf4EQ==}
     engines: {node: '>=20.11.1'}
     hasBin: true
     peerDependencies:
@@ -1703,8 +1717,20 @@ packages:
   md4w@0.2.7:
     resolution: {integrity: sha512-lFM7vwk3d4MzkV2mija7aPkK6OjKXZDQsH2beX+e2cvccBoqc6RraheMtAO0Wcr/gjj5L+WS5zhb+06AmuGZrg==}
 
+  md4x@0.0.22:
+    resolution: {integrity: sha512-jUI7AES+9/xq3gqxbz4Bkj/BGQ6ndtE4apvi7hu6zeixwfcDS+JaflKIckc81e81W5gk7Gg0XRCTBzxZEVXPBw==}
+    hasBin: true
+
   mdbox@0.1.1:
     resolution: {integrity: sha512-jvLISenzbLRPWWamTG3THlhTcMbKWzJQNyTi61AVXhCBOC+gsldNTUfUNH8d3Vay83zGehFw3wZpF3xChzkTIQ==}
+
+  mdream@0.16.0:
+    resolution: {integrity: sha512-NepM+F1weEFRox8YQ6C23T1DTIWra9wCmHYuobfiljxK3LiWYkeBQg7p1teggaNzMUrKsD+jbfjyXXF112Ipcg==}
+    hasBin: true
+
+  mdzilla@0.0.3:
+    resolution: {integrity: sha512-5E2OhqJ11F/tUjCRbGTO9uSUWtoqccgC1Wy+sp1TvmJ5wPF0RT8vI/17XQg5nWdjxu8rfOoKM+PMCSYPxdSsLw==}
+    hasBin: true
 
   media-typer@1.1.0:
     resolution: {integrity: sha512-aisnrDP4GNe06UcKFnV5bfMNPBUw4jsLGaWwWfnH3v02GnBuXX2MCVn5RbrWo0j3pczUilYblq7fQ7Nw2t5XKw==}
@@ -2027,6 +2053,9 @@ packages:
 
   std-env@3.10.0:
     resolution: {integrity: sha512-5GS12FdOZNliM5mAOxFRg7Ir0pWz8MdpYm6AY6VPkGpbA7ZzmbzNcBJQ0GPvvyWgcY7QAhCgf9Uy89I03faLkg==}
+
+  std-env@4.0.0-rc.1:
+    resolution: {integrity: sha512-2gE+MEGsqvDEjl7LqbrCEB3Lo6+Pmt8ULCIsutKTesFBzSuNIkiWPSy65sa7WrlLebc9LcfnS5eyj69mutUp1A==}
 
   strtok3@10.3.4:
     resolution: {integrity: sha512-KIy5nylvC5le1OdaaoCJ07L+8iQzJHGH6pWDuzS+d07Cu7n1MZ2x26P8ZKIWfbK02+XIL8Mp4RkWeqdUCrDMfg==}
@@ -2732,6 +2761,8 @@ snapshots:
 
   '@sinclair/typebox@0.34.41': {}
 
+  '@speed-highlight/core@1.2.14': {}
+
   '@standard-schema/spec@1.1.0': {}
 
   '@tokenizer/inflate@0.2.7':
@@ -2983,7 +3014,7 @@ snapshots:
     optionalDependencies:
       magicast: 0.5.2
 
-  c12@4.0.0-beta.3(chokidar@5.0.0)(dotenv@17.3.1)(giget@2.0.0)(jiti@2.6.1)(magicast@0.5.2):
+  c12@4.0.0-beta.3(chokidar@5.0.0)(dotenv@17.3.1)(giget@3.1.2)(jiti@2.6.1)(magicast@0.5.2):
     dependencies:
       confbox: 0.2.4
       defu: 6.1.4
@@ -2994,9 +3025,11 @@ snapshots:
     optionalDependencies:
       chokidar: 5.0.0
       dotenv: 17.3.1
-      giget: 2.0.0
+      giget: 3.1.2
       jiti: 2.6.1
       magicast: 0.5.2
+
+  cac@6.7.14: {}
 
   call-bind-apply-helpers@1.0.2:
     dependencies:
@@ -3310,9 +3343,11 @@ snapshots:
       nypm: 0.6.5
       pathe: 2.0.3
 
+  giget@3.1.2: {}
+
   gopd@1.2.0: {}
 
-  h3-nightly@2.0.0-20260225-085652-6f71db2(crossws@0.4.4(srvx@0.11.8)):
+  h3-nightly@2.0.0-20260227-202640-52c82e1(crossws@0.4.4(srvx@0.11.8)):
     dependencies:
       rou3: 0.7.12
       srvx: 0.11.8
@@ -3422,9 +3457,25 @@ snapshots:
 
   md4w@0.2.7: {}
 
+  md4x@0.0.22: {}
+
   mdbox@0.1.1:
     dependencies:
       md4w: 0.2.7
+
+  mdream@0.16.0:
+    dependencies:
+      cac: 6.7.14
+      pathe: 2.0.3
+      tinyglobby: 0.2.15
+
+  mdzilla@0.0.3:
+    dependencies:
+      '@speed-highlight/core': 1.2.14
+      giget: 3.1.2
+      md4x: 0.0.22
+      mdream: 0.16.0
+      std-env: 4.0.0-rc.1
 
   media-typer@1.1.0: {}
 
@@ -3473,9 +3524,9 @@ snapshots:
 
   obug@2.1.1: {}
 
-  obuild@0.4.31(@typescript/native-preview@7.0.0-dev.20260227.1)(chokidar@5.0.0)(dotenv@17.3.1)(giget@2.0.0)(jiti@2.6.1)(magicast@0.5.2)(picomatch@4.0.3)(rollup@4.59.0)(typescript@5.9.3):
+  obuild@0.4.31(@typescript/native-preview@7.0.0-dev.20260227.1)(chokidar@5.0.0)(dotenv@17.3.1)(giget@3.1.2)(jiti@2.6.1)(magicast@0.5.2)(picomatch@4.0.3)(rollup@4.59.0)(typescript@5.9.3):
     dependencies:
-      c12: 4.0.0-beta.3(chokidar@5.0.0)(dotenv@17.3.1)(giget@2.0.0)(jiti@2.6.1)(magicast@0.5.2)
+      c12: 4.0.0-beta.3(chokidar@5.0.0)(dotenv@17.3.1)(giget@3.1.2)(jiti@2.6.1)(magicast@0.5.2)
       consola: 3.4.2
       defu: 6.1.4
       exsolve: 1.0.8
@@ -3872,6 +3923,8 @@ snapshots:
   statuses@2.0.2: {}
 
   std-env@3.10.0: {}
+
+  std-env@4.0.0-rc.1: {}
 
   strtok3@10.3.4:
     dependencies:
