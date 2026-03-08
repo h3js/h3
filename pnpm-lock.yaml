@@ -91,8 +91,8 @@ importers:
         specifier: ^0.30.21
         version: 0.30.21
       mdzilla:
-        specifier: ^0.0.3
-        version: 0.0.3
+        specifier: ^0.0.4
+        version: 0.0.4
       memoirist:
         specifier: ^0.4.0
         version: 0.4.0
@@ -1728,8 +1728,8 @@ packages:
     resolution: {integrity: sha512-NepM+F1weEFRox8YQ6C23T1DTIWra9wCmHYuobfiljxK3LiWYkeBQg7p1teggaNzMUrKsD+jbfjyXXF112Ipcg==}
     hasBin: true
 
-  mdzilla@0.0.3:
-    resolution: {integrity: sha512-5E2OhqJ11F/tUjCRbGTO9uSUWtoqccgC1Wy+sp1TvmJ5wPF0RT8vI/17XQg5nWdjxu8rfOoKM+PMCSYPxdSsLw==}
+  mdzilla@0.0.4:
+    resolution: {integrity: sha512-z7qCgRNAKf2vxA1Z4UXZPNXIKSUKy2teBsEBlna9EWzHGQkTr45T2y+yDXNNcmh7whBxOZnbBwFAfEt3W2dp1g==}
     hasBin: true
 
   media-typer@1.1.0:
@@ -3469,7 +3469,7 @@ snapshots:
       pathe: 2.0.3
       tinyglobby: 0.2.15
 
-  mdzilla@0.0.3:
+  mdzilla@0.0.4:
     dependencies:
       '@speed-highlight/core': 1.2.14
       giget: 3.1.2

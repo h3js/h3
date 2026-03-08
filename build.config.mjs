@@ -17,16 +17,17 @@ export default defineBuildConfig({
       config.codeSplitting = {};
       config.chunkFileNames = "h3-[hash].mjs";
     },
-    async end(ctx) {
-      const { DocsManager, DocsSourceFS, exportDocsToFS } = await import('mdzilla')
-      const man = new DocsManager(new DocsSourceFS('./docs'))
-      await man.load()
-      await rmdir('./skills/h3/docs', { recursive: true }).catch(() => {})
-      await mkdir('./skills/h3/docs', { recursive: true })
-      await exportDocsToFS(man, './skills/h3/docs', {
+    async end() {
+      const { DocsManager, DocsSourceFS, exportDocsToFS } = await import("mdzilla");
+      const man = new DocsManager(new DocsSourceFS("./docs"));
+      await man.load();
+      await rmdir("./skills/h3/docs", { recursive: true }).catch(() => {});
+      await mkdir("./skills/h3/docs", { recursive: true });
+      await exportDocsToFS(man, "./skills/h3/docs", {
         title: "H3 Documentation",
-        filter: e => !e.entry.path.startsWith('/blog')
-      })
+        tocFile: "TOC.md",
+        filter: (e) => !e.entry.path.startsWith("/blog"),
+      });
     },
     rolldownConfig(config) {
       config.experimental ??= {};
