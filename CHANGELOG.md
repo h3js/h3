@@ -2,6 +2,48 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## v2.0.1-rc.15
+
+[compare changes](https://github.com/h3js/h3/compare/v2.0.1-rc.14...v2.0.1-rc.15)
+
+### 🚀 Enhancements
+
+- **handler:** New `defineJsonRpcHandler` and `defineJsonRpcWebSocketHandler` ([#1180](https://github.com/h3js/h3/pull/1180))
+
+### 🔥 Performance
+
+- **resolveLazyHandler:** Replace with inline expression ([#1296](https://github.com/h3js/h3/pull/1296))
+
+### 🩹 Fixes
+
+- **sse:** Sanitize newlines in event stream fields to prevent SSE injection ([7791538](https://github.com/h3js/h3/commit/7791538))
+- **static:** Prevent path traversal via percent-encoded dot segments ([0e751b4](https://github.com/h3js/h3/commit/0e751b4))
+
+### 📖 Documentation
+
+- **community:** Add clear router ([#1303](https://github.com/h3js/h3/pull/1303))
+- Add `unjwt` community library entry ([#1309](https://github.com/h3js/h3/pull/1309))
+
+### 📦 Build
+
+- Bundle docs as skill + `h3 docs` ([#1311](https://github.com/h3js/h3/pull/1311))
+
+### 🏡 Chore
+
+- Add `ESNext` to tsconfig's `lib` ([#1297](https://github.com/h3js/h3/pull/1297))
+- Update deps ([7e7309a](https://github.com/h3js/h3/commit/7e7309a))
+- Update deps ([c037c0d](https://github.com/h3js/h3/commit/c037c0d))
+- Rename format script to fmt ([8d0dda8](https://github.com/h3js/h3/commit/8d0dda8))
+- Add agents.md ([52c82e1](https://github.com/h3js/h3/commit/52c82e1))
+- Update deps ([6da10a9](https://github.com/h3js/h3/commit/6da10a9))
+
+### ❤️ Contributors
+
+- Pooya Parsa ([@pi0](https://github.com/pi0))
+- Sandro Circi ([@sandros94](https://github.com/sandros94))
+- Octavio Araiza ([@8ctavio](https://github.com/8ctavio))
+- Legacy ([@3m1n3nc3](https://github.com/3m1n3nc3))
+
 ## v2.0.1-rc.14
 
 [compare changes](https://github.com/h3js/h3/compare/v2.0.1-rc.13...v2.0.1-rc.14)
