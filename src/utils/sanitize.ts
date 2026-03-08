@@ -14,10 +14,7 @@ export function sanitizeStatusMessage(statusMessage = ""): string {
 /**
  * Make sure the status code is a valid HTTP status code.
  */
-export function sanitizeStatusCode(
-  statusCode?: string | number,
-  defaultStatusCode = 200,
-): number {
+export function sanitizeStatusCode(statusCode?: string | number, defaultStatusCode = 200): number {
   if (!statusCode) {
     return defaultStatusCode;
   }

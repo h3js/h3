@@ -18,16 +18,12 @@ app
   )
   .use(
     onResponse((response, event) => {
-      console.log(
-        `[${event.req.method}] ${event.url.pathname} ~> ${response.statusCode}`,
-      );
+      console.log(`[${event.req.method}] ${event.url.pathname} ~> ${response.statusCode}`);
     }),
   )
   .use(
     onError((event, error) => {
-      console.log(
-        `[${event.req.method}] ${event.url.pathname} !! ${error.message}`,
-      );
+      console.log(`[${event.req.method}] ${event.url.pathname} !! ${error.message}`);
     }),
   );
 

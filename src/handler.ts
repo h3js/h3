@@ -13,16 +13,15 @@ import type {
   FetchableObject,
   HTTPHandler,
 } from "./types/handler.ts";
-import type {
-  InferOutput,
-  StandardSchemaV1,
-} from "./utils/internal/standard-schema.ts";
+import type { InferOutput, StandardSchemaV1 } from "./utils/internal/standard-schema.ts";
+import type { TypedRequest } from "fetchdts";
 import { NoHandler, type H3Core } from "./h3.ts";
 import {
   validatedRequest,
   validatedURL,
   syncValidate,
   validateResponse,
+  type OnValidateError,
 } from "./utils/internal/validate.ts";
 
 // --- event handler ---
@@ -37,9 +36,7 @@ export function defineHandler<
   Res = EventHandlerResponse,
 >(def: EventHandlerObject<Req, Res>): EventHandlerWithFetch<Req, Res>;
 
-export function defineHandler(
-  input: EventHandler | EventHandlerObject,
-): EventHandlerWithFetch {
+export function defineHandler(input: EventHandler | EventHandlerObject): EventHandlerWithFetch {
   if (typeof input === "function") {
     return handlerWithFetch(input as EventHandler);
   }
@@ -83,12 +80,10 @@ type ValidatedH3Event<RequestT extends EventHandlerRequest, Params> = Omit<
 };
 
 export function defineValidatedHandler<
-  RequestBody extends StandardSchemaV1 = StandardSchemaV1<any>,
-  RequestHeaders extends StandardSchemaV1 = StandardSchemaV1<any>,
-  RequestQuery extends StandardSchemaV1 = StandardSchemaV1<any>,
-  RouteParams extends StandardSchemaV1 = StandardSchemaV1<
-    Record<string, string>
-  >,
+  RequestBody extends StandardSchemaV1,
+  RequestHeaders extends StandardSchemaV1,
+  RequestQuery extends StandardSchemaV1,
+  RouteParams extends StandardSchemaV1 = StandardSchemaV1<Record<string, string>>,
   ResponseBody extends StandardSchemaV1 = StandardSchemaV1<any>,
 >(
   def: Omit<EventHandlerObject, "handler"> & {
@@ -98,6 +93,7 @@ export function defineValidatedHandler<
       query?: RequestQuery;
       params?: RouteParams;
       response?: ResponseBody;
+      onError?: OnValidateError;
     };
     handler: (
       event: ValidatedH3Event<
@@ -110,10 +106,15 @@ export function defineValidatedHandler<
       >,
     ) => InferOutput<ResponseBody> | Promise<InferOutput<ResponseBody>>;
   },
-): EventHandlerWithFetch<EventHandlerRequest, InferOutput<ResponseBody>> {
+): EventHandlerWithFetch<
+  TypedRequest<InferOutput<RequestBody>, InferOutput<RequestHeaders>> &
+    EventHandlerRequest,
+  InferOutput<ResponseBody>
+> {
   if (!def.validate) {
     return defineHandler(def) as EventHandlerWithFetch<
-      EventHandlerRequest,
+      TypedRequest<InferOutput<RequestBody>, InferOutput<RequestHeaders>> &
+        EventHandlerRequest,
       InferOutput<ResponseBody>
     >;
   }
@@ -159,7 +160,11 @@ export function defineValidatedHandler<
 
       return result;
     },
-  }) as EventHandlerWithFetch<EventHandlerRequest, InferOutput<ResponseBody>>;
+  }) as EventHandlerWithFetch<
+    TypedRequest<InferOutput<RequestBody>, InferOutput<RequestHeaders>> &
+      EventHandlerRequest,
+    InferOutput<ResponseBody>
+  >;
 }
 
 // --- handler .fetch ---
@@ -191,9 +196,7 @@ function handlerWithFetch<
 
 //  --- dynamic event handler ---
 
-export function dynamicEventHandler(
-  initial?: EventHandler | FetchableObject,
-): DynamicEventHandler {
+export function dynamicEventHandler(initial?: EventHandler | FetchableObject): DynamicEventHandler {
   let current: EventHandler | undefined = toEventHandler(initial);
   return Object.assign(
     defineHandler(function _dynamicEventHandler(event: H3Event) {
@@ -216,31 +219,22 @@ export function defineLazyEventHandler(
 ): EventHandlerWithFetch {
   let handler: EventHandler | undefined;
   let promise: Promise<EventHandler> | undefined;
-  const resolveLazyHandler = () => {
-    if (handler) {
-      return Promise.resolve(handler);
-    }
-    return (promise ??= Promise.resolve(loader()).then((r: any) => {
-      handler = toEventHandler(r) || toEventHandler(r.default);
-      if (typeof handler !== "function") {
-        // @ts-expect-error
-        throw new TypeError("Invalid lazy handler", { cause: { resolved: r } });
-      }
-      return handler;
-    }));
-  };
   return defineHandler(function lazyHandler(event) {
     return handler
       ? handler(event)
-      : resolveLazyHandler().then((r) => r(event));
+      : (promise ??= Promise.resolve(loader()).then(function resolveLazyHandler(r: any) {
+          handler = toEventHandler(r) || toEventHandler(r.default);
+          if (typeof handler !== "function") {
+            throw new TypeError("Invalid lazy handler", { cause: { resolved: r } });
+          }
+          return handler;
+        })).then((r) => r(event));
   });
 }
 
 // --- normalization utils ---
 
-export function toEventHandler(
-  handler: HTTPHandler | undefined,
-): EventHandler | undefined {
+export function toEventHandler(handler: HTTPHandler | undefined): EventHandler | undefined {
   if (typeof handler === "function") {
     return handler;
   }

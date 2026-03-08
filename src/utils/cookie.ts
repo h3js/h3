@@ -1,10 +1,6 @@
 import type { CookieSerializeOptions, SetCookie } from "cookie-es";
 import type { H3Event, HTTPEvent } from "../event.ts";
-import {
-  parse as parseCookie,
-  serialize as serializeCookie,
-  parseSetCookie,
-} from "cookie-es";
+import { parse as parseCookie, serialize as serializeCookie, parseSetCookie } from "cookie-es";
 
 const CHUNKED_COOKIE = "__chunked__";
 
@@ -63,16 +59,10 @@ export function setCookie(
   }
 
   // Merge and deduplicate unique set-cookie headers
-  const newCookieKey = _getDistinctCookieKey(
-    name,
-    (options || {}) as SetCookie,
-  );
+  const newCookieKey = _getDistinctCookieKey(name, (options || {}) as SetCookie);
   event.res.headers.delete("set-cookie");
   for (const cookie of currentCookies) {
-    const _key = _getDistinctCookieKey(
-      cookie.split("=")?.[0],
-      parseSetCookie(cookie),
-    );
+    const _key = _getDistinctCookieKey(cookie.split("=")?.[0], parseSetCookie(cookie));
     if (_key === newCookieKey) {
       continue;
     }
@@ -110,10 +100,7 @@ export function deleteCookie(
  * const authorization = getCookie(request, 'Session')
  * ```
  */
-export function getChunkedCookie(
-  event: HTTPEvent,
-  name: string,
-): string | undefined {
+export function getChunkedCookie(event: HTTPEvent, name: string): string | undefined {
   const mainCookie = getCookie(event, name);
   if (!mainCookie || !mainCookie.startsWith(CHUNKED_COOKIE)) {
     return mainCookie;

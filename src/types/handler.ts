@@ -35,14 +35,12 @@ export interface EventHandlerRequest {
 
 export type EventHandlerResponse<T = unknown> = T | Promise<T>;
 
-export type TypedServerRequest<
-  _RequestT extends EventHandlerRequest = EventHandlerRequest,
-> = Omit<ServerRequest, "json" | "headers" | "clone"> &
+export type TypedServerRequest<_RequestT extends EventHandlerRequest = EventHandlerRequest> = Omit<
+  ServerRequest,
+  "json" | "headers" | "clone"
+> &
   Pick<
-    TypedRequest<
-      NonNullable<_RequestT["body"]>,
-      Record<keyof ResponseHeaderMap, string>
-    >,
+    TypedRequest<NonNullable<_RequestT["body"]>, Record<keyof ResponseHeaderMap, string>>,
     "json" | "headers" | "clone"
   >;
 

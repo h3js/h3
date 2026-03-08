@@ -25,10 +25,7 @@ export interface ErrorInput<DataT = unknown> extends Partial<ErrorBody<DataT>> {
   statusMessage?: string;
 }
 
-export type ErrorDetails =
-  | (Error & { cause?: unknown })
-  | HTTPError
-  | ErrorInput;
+export type ErrorDetails = (Error & { cause?: unknown }) | HTTPError | ErrorInput;
 
 export interface ErrorBody<DataT = unknown> {
   /**
@@ -74,10 +71,7 @@ export interface ErrorBody<DataT = unknown> {
 /**
  * HTTPError
  */
-export class HTTPError<DataT = unknown>
-  extends Error
-  implements ErrorBody<DataT>
-{
+export class HTTPError<DataT = unknown> extends Error implements ErrorBody<DataT> {
   override get name(): string {
     return "HTTPError";
   }
@@ -105,7 +99,7 @@ export class HTTPError<DataT = unknown>
   /**
    * Original error object that caused this error.
    */
-  readonly cause: unknown | undefined;
+  override readonly cause: unknown | undefined;
 
   /**
    * Additional data attached in the error JSON body under `data` key.
@@ -129,7 +123,7 @@ export class HTTPError<DataT = unknown>
    *
    * It is safer than using `instanceof` because it works across different contexts (e.g., if the error was thrown in a different module).
    */
-  static isError(input: any): input is HTTPError {
+  static override isError(input: any): input is HTTPError {
     return input instanceof Error && input?.name === "HTTPError";
   }
 
@@ -145,10 +139,7 @@ export class HTTPError<DataT = unknown>
   static status(
     status: number,
     statusText?: string,
-    details?: Exclude<
-      ErrorDetails,
-      "status" | "statusText" | "statusCode" | "statusMessage"
-    >,
+    details?: Exclude<ErrorDetails, "status" | "statusText" | "statusCode" | "statusMessage">,
   ): HTTPError {
     return new HTTPError({ ...details, statusText, status });
   }
@@ -199,20 +190,15 @@ export class HTTPError<DataT = unknown>
     // @ts-ignore https://v8.dev/features/error-cause
     super(message, { cause: details });
     this.cause = details;
-    Error.captureStackTrace?.(this, this.constructor);
 
     this.status = status;
     this.statusText = statusText || undefined;
 
-    const rawHeaders =
-      (details as ErrorInput)?.headers ||
-      (details?.cause as ErrorInput)?.headers;
+    const rawHeaders = (details as ErrorInput)?.headers || (details?.cause as ErrorInput)?.headers;
     this.headers = rawHeaders ? new Headers(rawHeaders) : undefined;
 
     this.unhandled =
-      (details as ErrorBody)?.unhandled ??
-      (details?.cause as ErrorBody)?.unhandled ??
-      undefined;
+      (details as ErrorBody)?.unhandled ?? (details?.cause as ErrorBody)?.unhandled ?? undefined;
 
     this.data = (details as ErrorBody)?.data as DataT | undefined;
     this.body = (details as ErrorBody)?.body;

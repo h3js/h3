@@ -19,28 +19,13 @@ describe("body limit (unit)", () => {
         body: BODY,
       });
 
-      await expect(
-        assertBodySize(eventMock, BODY.length),
-      ).resolves.toBeUndefined();
-      await expect(
-        assertBodySize(eventMock, BODY.length + 10),
-      ).resolves.toBeUndefined();
-      await expect(assertBodySize(eventMock, BODY.length - 2)).rejects.toThrow(
-        HTTPError,
-      );
+      await expect(assertBodySize(eventMock, BODY.length)).resolves.toBeUndefined();
+      await expect(assertBodySize(eventMock, BODY.length + 10)).resolves.toBeUndefined();
+      await expect(assertBodySize(eventMock, BODY.length - 2)).rejects.toThrow(HTTPError);
     });
 
     it("streaming body", async () => {
-      const BODY_PARTS = [
-        "parts",
-        "of",
-        "the",
-        "body",
-        "that",
-        "are",
-        "streamed",
-        "in",
-      ];
+      const BODY_PARTS = ["parts", "of", "the", "body", "that", "are", "streamed", "in"];
 
       const eventMock = mockEvent("/", {
         method: "POST",
@@ -52,16 +37,7 @@ describe("body limit (unit)", () => {
     });
 
     it("streaming body with content-length header", async () => {
-      const BODY_PARTS = [
-        "parts",
-        "of",
-        "the",
-        "body",
-        "that",
-        "are",
-        "streamed",
-        "in",
-      ];
+      const BODY_PARTS = ["parts", "of", "the", "body", "that", "are", "streamed", "in"];
 
       const eventMock = mockEvent("/", {
         method: "POST",

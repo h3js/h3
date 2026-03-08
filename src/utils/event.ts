@@ -15,7 +15,7 @@ export function isEvent(input: any): input is H3Event {
 /**
  * Checks if the input is an object with `{ req: Request }` signature.
  * @param input - The input to check.
- * @returns True if the input is is `{ req: Request }`
+ * @returns True if the input is `{ req: Request }`
  */
 export function isHTTPEvent(input: any): input is HTTPEvent {
   return input?.req instanceof Request;
@@ -24,9 +24,9 @@ export function isHTTPEvent(input: any): input is HTTPEvent {
 /**
  * Gets the context of the event, if it does not exists, initializes a new context on `req.context`.
  */
-export function getEventContext<
-  T extends ServerRequestContext | H3EventContext,
->(event: HTTPEvent | H3Event): T {
+export function getEventContext<T extends ServerRequestContext | H3EventContext>(
+  event: HTTPEvent | H3Event,
+): T {
   if ((event as H3Event).context) {
     return (event as H3Event).context as T;
   }
@@ -39,6 +39,9 @@ export function mockEvent(
   options?: RequestInit & { h3?: H3EventContext },
 ): H3Event {
   let request: Request;
+  if (options?.body && !(options as any).duplex) {
+    (options as any).duplex = "half";
+  }
   if (typeof _request === "string") {
     let url = _request;
     if (url[0] === "/") {

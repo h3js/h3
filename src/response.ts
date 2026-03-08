@@ -14,11 +14,8 @@ export function toResponse(
   config: H3Config = {},
 ): Response | Promise<Response> {
   if (typeof (val as PromiseLike<unknown>)?.then === "function") {
-    return (
-      (val as Promise<unknown>).catch?.((error) => error) ||
-      Promise.resolve(val)
-    ).then((resolvedVal) =>
-      toResponse(resolvedVal, event, config),
+    return ((val as Promise<unknown>).catch?.((error) => error) || Promise.resolve(val)).then(
+      (resolvedVal) => toResponse(resolvedVal, event, config),
     ) as Promise<Response>;
   }
 
@@ -29,9 +26,7 @@ export function toResponse(
 
   const { onResponse } = config;
   return onResponse
-    ? Promise.resolve(onResponse(response as Response, event)).then(
-        () => response,
-      )
+    ? Promise.resolve(onResponse(response as Response, event)).then(() => response)
     : response;
 }
 
@@ -98,25 +93,23 @@ function prepareResponse(
   // Only set if event.res.headers is accessed
   const preparedRes:
     | undefined
-    | { status?: number; statusText?: string; [kEventResHeaders]?: Headers } = (
-    event as any
-  )[kEventRes];
+    | { status?: number; statusText?: string; [kEventResHeaders]?: Headers } = (event as any)[
+    kEventRes
+  ];
   const preparedHeaders = preparedRes?.[kEventResHeaders];
+  (event as any)[kEventRes] = undefined; // Clear prepared response to avoid duplication
 
   if (!(val instanceof Response)) {
     const res = prepareResponseBody(val, event, config);
     const status = res.status || preparedRes?.status;
-    return new FastResponse(
-      nullBody(event.req.method, status) ? null : res.body,
-      {
-        status,
-        statusText: res.statusText || preparedRes?.statusText,
-        headers:
-          res.headers && preparedHeaders
-            ? mergeHeaders(res.headers, preparedHeaders)
-            : res.headers || preparedHeaders,
-      },
-    );
+    return new FastResponse(nullBody(event.req.method, status) ? null : res.body, {
+      status,
+      statusText: res.statusText || preparedRes?.statusText,
+      headers:
+        res.headers && preparedHeaders
+          ? mergeHeaders(res.headers, preparedHeaders)
+          : res.headers || preparedHeaders,
+    });
   }
 
   // Avoid merging if no prepared headers are provided or we are rendering an Error
@@ -128,22 +121,15 @@ function prepareResponse(
     return val;
   } catch {
     // Headers are immutable
-    return new FastResponse(
-      nullBody(event.req.method, val.status) ? null : val.body,
-      {
-        status: val.status,
-        statusText: val.statusText,
-        headers: mergeHeaders(val.headers, preparedHeaders),
-      },
-    ) as Response;
+    return new FastResponse(nullBody(event.req.method, val.status) ? null : val.body, {
+      status: val.status,
+      statusText: val.statusText,
+      headers: mergeHeaders(val.headers, preparedHeaders),
+    }) as Response;
   }
 }
 
-function mergeHeaders(
-  base: HeadersInit,
-  overrides: Headers,
-  target = new Headers(base),
-): Headers {
+function mergeHeaders(base: HeadersInit, overrides: Headers, target = new Headers(base)): Headers {
   for (const [name, value] of overrides) {
     if (name === "set-cookie") {
       target.append(name, value);
@@ -154,15 +140,16 @@ function mergeHeaders(
   return target;
 }
 
-const frozenHeaders = () => {
-  throw new Error("Headers are frozen");
-};
+const frozen =
+  (name: string) =>
+  (...args: any[]) => {
+    throw new Error(`Headers are frozen (${name} ${args.join(", ")})`);
+  };
 
 class FrozenHeaders extends Headers {
-  constructor(init?: HeadersInit) {
-    super(init);
-    this.set = this.append = this.delete = frozenHeaders;
-  }
+  override set = frozen("set");
+  override append = frozen("append");
+  override delete = frozen("delete");
 }
 
 const emptyHeaders = /* @__PURE__ */ new FrozenHeaders({
@@ -199,10 +186,7 @@ function prepareResponseBody(
   }
 
   // Partial Response
-  if (
-    val instanceof HTTPResponse ||
-    val?.constructor?.name === "HTTPResponse"
-  ) {
+  if (val instanceof HTTPResponse || val?.constructor?.name === "HTTPResponse") {
     return val;
   }
 
@@ -231,10 +215,7 @@ function prepareResponseBody(
     if (filename) {
       filename = encodeURIComponent(filename);
       // Omit the disposition type ("inline" or "attachment") and let the client (browser) decide.
-      headers.set(
-        "content-disposition",
-        `filename="${filename}"; filename*=UTF-8''${filename}`,
-      );
+      headers.set("content-disposition", `filename="${filename}"; filename*=UTF-8''${filename}`);
     }
 
     return { body: val.stream(), headers };
@@ -251,10 +232,7 @@ function prepareResponseBody(
   return { body: val as BodyInit };
 }
 
-function nullBody(
-  method: string,
-  status: number | undefined,
-): boolean | 0 | undefined {
+function nullBody(method: string, status: number | undefined): boolean | 0 | undefined {
   // prettier-ignore
   return (method === "HEAD" ||
     status === 100 || status === 101 || status === 102 ||
@@ -267,10 +245,7 @@ function errorResponse(error: HTTPError, debug?: boolean): Response {
     JSON.stringify(
       {
         ...error.toJSON(),
-        stack:
-          debug && error.stack
-            ? error.stack.split("\n").map((l) => l.trim())
-            : undefined,
+        stack: debug && error.stack ? error.stack.split("\n").map((l) => l.trim()) : undefined,
       },
       undefined,
       debug ? 2 : undefined,
@@ -278,9 +253,7 @@ function errorResponse(error: HTTPError, debug?: boolean): Response {
     {
       status: error.status,
       statusText: error.statusText,
-      headers: error.headers
-        ? mergeHeaders(jsonHeaders, error.headers)
-        : new Headers(jsonHeaders),
+      headers: error.headers ? mergeHeaders(jsonHeaders, error.headers) : new Headers(jsonHeaders),
     },
   );
 }

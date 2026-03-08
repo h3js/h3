@@ -4,6 +4,7 @@ import { H3 } from "../src/h3.ts";
 import { defineHandler } from "../src/handler.ts";
 import { Hono } from "hono";
 import { toMiddleware } from "../src/middleware.ts";
+import { onResponse } from "../src/index.ts";
 
 describeMatrix("middleware", (t, { it, expect }) => {
   beforeEach(() => {
@@ -27,9 +28,7 @@ describeMatrix("middleware", (t, { it, expect }) => {
     });
 
     t.app.use(async (event, next) => {
-      (event.context._middleware as string[]).push(
-        `async (event, next) (passthrough)`,
-      );
+      (event.context._middleware as string[]).push(`async (event, next) (passthrough)`);
       await next();
     });
 
@@ -41,9 +40,7 @@ describeMatrix("middleware", (t, { it, expect }) => {
     t.app.use(
       "/test/**",
       new H3().all("/test", (event) =>
-        event.req.headers.has("x-async")
-          ? Promise.resolve("Hello World!")
-          : "Hello World!",
+        event.req.headers.has("x-async") ? Promise.resolve("Hello World!") : "Hello World!",
       ).handler,
       {
         method: "GET",
@@ -161,5 +158,19 @@ describeMatrix("middleware", (t, { it, expect }) => {
     const res2 = await t.fetch("/");
     expect(res2.status).toBe(200);
     expect(await res2.text()).toBe("hi!");
+  });
+
+  it('onResponse() does not duplicate "Set-Cookie" headers', async () => {
+    // onResponse uses toResponse() internally (#1259)
+    t.app.use(onResponse(() => {}));
+
+    t.app.use((event) => {
+      event.res.headers.append("Set-Cookie", "session=abc123; Path=/; HttpOnly");
+      return new Response("Hello");
+    });
+
+    const res = await t.fetch("/");
+    expect(res.status).toBe(200);
+    expect(res.headers.getSetCookie()).toMatchObject(["session=abc123; Path=/; HttpOnly"]);
   });
 });

@@ -1,13 +1,6 @@
-import {
-  seal,
-  unseal,
-  defaults as sealDefaults,
-} from "./internal/iron-crypto.ts";
+import { seal, unseal, defaults as sealDefaults } from "./internal/iron-crypto.ts";
 import { getChunkedCookie, setChunkedCookie } from "./cookie.ts";
-import {
-  DEFAULT_SESSION_NAME,
-  DEFAULT_SESSION_COOKIE,
-} from "./internal/session.ts";
+import { DEFAULT_SESSION_NAME, DEFAULT_SESSION_COOKIE } from "./internal/session.ts";
 import { EmptyObject } from "./internal/obj.ts";
 import { kGetSession } from "./internal/session.ts";
 
@@ -145,8 +138,7 @@ export async function getSession<T extends SessionData = SessionData>(
 
   // New session store in response cookies
   if (!session.id) {
-    session.id =
-      config.generateId?.() ?? (config.crypto || crypto).randomUUID();
+    session.id = config.generateId?.() ?? (config.crypto || crypto).randomUUID();
     session.createdAt = Date.now();
     await updateSession(event, config);
   }
@@ -171,8 +163,7 @@ export async function updateSession<T extends SessionData = SessionData>(
   // Access current session
   const context = getEventContext<H3EventContext>(event);
   const session: Session<T> =
-    (context.sessions?.[sessionName] as Session<T>) ||
-    (await getSession<T>(event, config));
+    (context.sessions?.[sessionName] as Session<T>) || (await getSession<T>(event, config));
 
   // Update session data if provided
   if (typeof update === "function") {
@@ -187,9 +178,7 @@ export async function updateSession<T extends SessionData = SessionData>(
     const sealed = await sealSession(event, config);
     setChunkedCookie(event as H3Event, sessionName, sealed, {
       ...DEFAULT_SESSION_COOKIE,
-      expires: config.maxAge
-        ? new Date(session.createdAt + config.maxAge * 1000)
-        : undefined,
+      expires: config.maxAge ? new Date(session.createdAt + config.maxAge * 1000) : undefined,
       ...config.cookie,
     });
   }
@@ -209,8 +198,7 @@ export async function sealSession<T extends SessionData = SessionData>(
   // Access current session
   const context = getEventContext<H3EventContext>(event);
   const session: Session<T> =
-    (context.sessions?.[sessionName] as Session<T>) ||
-    (await getSession<T>(event, config));
+    (context.sessions?.[sessionName] as Session<T>) || (await getSession<T>(event, config));
 
   const sealed = await seal(session, config.password, {
     ...sealDefaults,
@@ -246,10 +234,7 @@ export async function unsealSession(
 /**
  * Clear the session data for the current request.
  */
-export function clearSession(
-  event: HTTPEvent,
-  config: Partial<SessionConfig>,
-): Promise<void> {
+export function clearSession(event: HTTPEvent, config: Partial<SessionConfig>): Promise<void> {
   const context = getEventContext<H3EventContext>(event);
   const sessionName = config.name || DEFAULT_SESSION_NAME;
   if (context.sessions?.[sessionName]) {

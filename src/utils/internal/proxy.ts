@@ -1,9 +1,4 @@
-export const PayloadMethods: Set<string> = new Set([
-  "PATCH",
-  "POST",
-  "PUT",
-  "DELETE",
-]);
+export const PayloadMethods: Set<string> = new Set(["PATCH", "POST", "PUT", "DELETE"]);
 
 export const ignoredHeaders: Set<string> = new Set([
   "transfer-encoding",

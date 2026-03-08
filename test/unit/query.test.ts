@@ -18,9 +18,7 @@ function createWithNoPrototype(properties: any) {
   }
   return noProto;
 }
-export const foreignObject: any = vm.runInNewContext(
-  '({"foo": ["bar", "baz"]})',
-);
+export const foreignObject: any = vm.runInNewContext('({"foo": ["bar", "baz"]})');
 
 const qsNoMungeTestCases = [
   ["", {}],
@@ -40,16 +38,8 @@ const qsNoMungeTestCases = [
 ];
 
 const qsTestCases = [
-  [
-    "__proto__=1",
-    "__proto__=1",
-    createWithNoPrototype([{ key: "__proto__", value: "1" }]),
-  ],
-  [
-    "__defineGetter__=asdf",
-    "__defineGetter__=asdf",
-    JSON.parse('{"__defineGetter__":"asdf"}'),
-  ],
+  ["__proto__=1", "__proto__=1", createWithNoPrototype([{ key: "__proto__", value: "1" }])],
+  ["__defineGetter__=asdf", "__defineGetter__=asdf", JSON.parse('{"__defineGetter__":"asdf"}')],
   [
     "foo=918854443121279438895193",
     "foo=918854443121279438895193",
@@ -166,10 +156,7 @@ describe("node.js tests", () => {
   describe("weird", () => {
     for (const t of qsWeirdObjects)
       test(JSON.stringify(t[1]), () => {
-        assert.deepEqual(
-          parseQuery(t[1] as string),
-          t[2] as Record<string, unknown>,
-        );
+        assert.deepEqual(parseQuery(t[1] as string), t[2] as Record<string, unknown>);
       });
   });
 });
@@ -210,8 +197,5 @@ test("should handle really large object", () => {
 });
 
 test("should parse large numbers", () => {
-  assert.strictEqual(
-    parseQuery("id=918854443121279438895193").id,
-    "918854443121279438895193",
-  );
+  assert.strictEqual(parseQuery("id=918854443121279438895193").id, "918854443121279438895193");
 });

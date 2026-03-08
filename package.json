@@ -1,12 +1,20 @@
 {
   "name": "h3",
-  "version": "2.0.1-rc.5",
+  "version": "2.0.1-rc.14",
   "description": "Minimal H(TTP) framework built for high performance and portability.",
   "homepage": "https://h3.dev",
-  "repository": "h3js/h3",
   "license": "MIT",
-  "sideEffects": false,
+  "repository": "h3js/h3",
+  "bin": {
+    "h3": "./bin/h3.mjs"
+  },
+  "files": [
+    "bin",
+    "dist"
+  ],
   "type": "module",
+  "sideEffects": false,
+  "types": "./dist/_entries/generic.d.mts",
   "exports": {
     "./package.json": "./package.json",
     ".": {
@@ -22,71 +30,66 @@
     "./cloudflare": "./dist/_entries/cloudflare.mjs",
     "./service-worker": "./dist/_entries/service-worker.mjs",
     "./node": "./dist/_entries/node.mjs",
-    "./generic": "./dist/_entries/generic.mjs"
+    "./generic": "./dist/_entries/generic.mjs",
+    "./tracing": "./dist/tracing.mjs"
   },
-  "types": "./dist/_entries/generic.d.mts",
-  "files": [
-    "dist"
-  ],
   "scripts": {
     "bench:bun": "bun run ./test/bench/bench.ts",
     "bench:node": "node --expose-gc --allow-natives-syntax ./test/bench/bench.ts",
     "build": "obuild",
     "dev": "vitest",
-    "lint": "eslint --cache . && prettier -c src test examples docs",
-    "lint:fix": "automd && eslint --cache . --fix && prettier -c src test examples docs -w",
+    "lint": "oxlint . && oxfmt --check .",
+    "fmt": "automd && oxlint --fix . && oxfmt .",
     "prepack": "pnpm build",
     "play:bun": "bun ./test/fixture/bun.ts",
     "play:node": "pnpm test/fixture/node.ts",
     "play:plain": "pnpm test/fixture/plain.ts",
     "play:web": "pnpm test/fixture/web.ts",
     "release": "pnpm test && pnpm build && changelogen --release --prerelease --publish && git push --follow-tags",
-    "test": "pnpm lint && pnpm test:types && vitest --run --coverage",
-    "test:types": "tsc --noEmit --skipLibCheck"
-  },
-  "resolutions": {
-    "h3": "link:."
+    "test": "pnpm lint && pnpm typecheck && vitest --run --coverage",
+    "typecheck": "tsgo --noEmit --skipLibCheck"
   },
   "dependencies": {
-    "rou3": "^0.7.9",
-    "srvx": "^0.9.1"
+    "rou3": "^0.7.12",
+    "srvx": "^0.11.8"
   },
   "devDependencies": {
-    "@happy-dom/global-registrator": "^20.0.8",
+    "@happy-dom/global-registrator": "^20.7.0",
     "@mitata/counters": "^0.0.8",
     "@types/connect": "^3.4.38",
-    "@types/express": "^5.0.4",
-    "@types/node": "^24.9.1",
-    "@types/react": "^19.2.2",
-    "@types/react-dom": "^19.2.2",
-    "@vitest/coverage-v8": "^4.0.4",
-    "automd": "^0.4.2",
+    "@types/express": "^5.0.6",
+    "@types/node": "^25.3.2",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@typescript/native-preview": "7.0.0-dev.20260227.1",
+    "@vitest/coverage-v8": "^4.0.18",
+    "automd": "^0.4.3",
     "changelogen": "^0.6.2",
     "connect": "^3.7.0",
     "cookie-es": "^2.0.0",
-    "crossws": "^0.4.1",
-    "elysia": "^1.4.13",
-    "esbuild": "^0.25.11",
-    "eslint": "^9.38.0",
-    "eslint-config-unjs": "^0.5.0",
-    "express": "^5.1.0",
+    "crossws": "^0.4.4",
+    "elysia": "^1.4.26",
+    "esbuild": "^0.27.3",
+    "express": "^5.2.1",
     "fetchdts": "^0.1.7",
     "get-port-please": "^3.2.0",
-    "h3-nightly": "^2.0.0-20251027-114947-241a45b",
-    "happy-dom": "^20.0.8",
-    "hono": "^4.10.3",
+    "h3": "link:",
+    "h3-nightly": "latest",
+    "happy-dom": "^20.7.0",
+    "hono": "^4.12.3",
     "magic-string": "^0.30.21",
     "memoirist": "^0.4.0",
     "mitata": "^1.0.34",
-    "obuild": "^0.3.0",
-    "oxc-parser": "^0.95.0",
-    "prettier": "^3.6.2",
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0",
+    "obuild": "^0.4.31",
+    "oxc-parser": "^0.115.0",
+    "oxfmt": "^0.35.0",
+    "oxlint": "^1.50.0",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
     "typescript": "^5.9.3",
-    "vite": "^7.1.12",
-    "vitest": "^4.0.4",
-    "zod": "^4.1.12"
+    "vite": "^7.3.1",
+    "vitest": "^4.0.18",
+    "zod": "^4.3.6"
   },
   "peerDependencies": {
     "crossws": "^0.4.1"
@@ -96,8 +99,11 @@
       "optional": true
     }
   },
-  "packageManager": "pnpm@10.19.0",
+  "resolutions": {
+    "h3": "link:."
+  },
   "engines": {
     "node": ">=20.11.1"
-  }
+  },
+  "packageManager": "pnpm@10.30.2"
 }

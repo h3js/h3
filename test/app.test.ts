@@ -1,7 +1,4 @@
-import {
-  Readable as NodeStreamReadable,
-  Transform as NodeStreamTransoform,
-} from "node:stream";
+import { Readable as NodeStreamReadable, Transform as NodeStreamTransoform } from "node:stream";
 import { HTTPError, fromNodeHandler } from "../src/index.ts";
 import { describeMatrix } from "./_setup.ts";
 
@@ -14,7 +11,7 @@ describeMatrix("app", (t, { it, expect }) => {
   });
 
   it("can return bigint directly", async () => {
-    t.app.get("/", () => BigInt(9_007_199_254_740_991));
+    t.app.get("/", () => 9_007_199_254_740_991n);
     const res = await t.fetch("/");
 
     expect(await res.text()).toBe("9007199254740991");
@@ -128,32 +125,29 @@ describeMatrix("app", (t, { it, expect }) => {
   });
 
   // TODO: investigate issues with stream errors on srvx
-  it.runIf(/* t.target === "node" */ false)(
-    "Node.js Readable Stream with Error",
-    async () => {
-      t.app.use(() => {
-        return new NodeStreamReadable({
-          read() {
-            this.push(Buffer.from("123", "utf8"));
-            this.push(null);
+  it.runIf(/* t.target === "node" */ false)("Node.js Readable Stream with Error", async () => {
+    t.app.use(() => {
+      return new NodeStreamReadable({
+        read() {
+          this.push(Buffer.from("123", "utf8"));
+          this.push(null);
+        },
+      }).pipe(
+        new NodeStreamTransoform({
+          transform(_chunk, _encoding, callback) {
+            const err = new HTTPError({
+              statusCode: 500,
+              statusText: "test",
+            });
+            setTimeout(() => callback(err), 0);
           },
-        }).pipe(
-          new NodeStreamTransoform({
-            transform(_chunk, _encoding, callback) {
-              const err = new HTTPError({
-                statusCode: 500,
-                statusText: "test",
-              });
-              setTimeout(() => callback(err), 0);
-            },
-          }),
-        );
-      });
-      const res = await t.fetch("/");
-      expect(res.status).toBe(500);
-      expect(JSON.parse(await res.text()).statusMessage).toBe("test");
-    },
-  );
+        }),
+      );
+    });
+    const res = await t.fetch("/");
+    expect(res.status).toBe(500);
+    expect(JSON.parse(await res.text()).statusMessage).toBe("test");
+  });
 
   it("Web Stream", async () => {
     t.app.use(() => {
@@ -273,20 +267,55 @@ describeMatrix("app", (t, { it, expect }) => {
     expect(res2.status).toBe(200);
   });
 
+  it.skipIf(t.target !== "node")("wait for node middleware (req, res, next)", async () => {
+    t.app.use(
+      fromNodeHandler((_req, res, next) => {
+        setTimeout(() => {
+          res.setHeader("content-type", "application/json");
+          res.end(JSON.stringify({ works: 1 }));
+          next();
+        }, 10);
+      }),
+    );
+    const res = await t.fetch("/");
+    expect(await res.json()).toEqual({ works: 1 });
+  });
+
+  it.skipIf(t.target !== "node")("fromNodeHandler + piping", async () => {
+    t.app.all(
+      "/*",
+      fromNodeHandler((req, res) => {
+        const iterator = (async function* () {
+          yield "item1,";
+          yield "item2,";
+          yield "item3";
+        })();
+        NodeStreamReadable.from(iterator).pipe(res);
+      }),
+    );
+    const res = await t.fetch("/");
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe("item1,item2,item3");
+  });
+
   it.skipIf(t.target !== "node")(
-    "wait for node middleware (req, res, next)",
+    "fromNodeHandler + piping (with Error and custom status)",
     async () => {
-      t.app.use(
-        fromNodeHandler((_req, res, next) => {
-          setTimeout(() => {
-            res.setHeader("content-type", "application/json");
-            res.end(JSON.stringify({ works: 1 }));
-            next();
-          }, 10);
+      t.app.all(
+        "/*",
+        fromNodeHandler((req, res) => {
+          res.statusCode = 201;
+          const iterator = (async function* () {
+            yield "item1,";
+            yield "item2";
+            throw new Error("Test Error");
+          })();
+          NodeStreamReadable.from(iterator).pipe(res);
         }),
       );
       const res = await t.fetch("/");
-      expect(await res.json()).toEqual({ works: 1 });
+      expect(res.status).toBe(201);
+      expect(await res.text()).toBe("item1,item2");
     },
   );
 

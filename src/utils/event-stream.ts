@@ -49,9 +49,6 @@ export interface EventStreamMessage {
  * });
  * ```
  */
-export function createEventStream(
-  event: H3Event,
-  opts?: EventStreamOptions,
-): EventStream {
+export function createEventStream(event: H3Event, opts?: EventStreamOptions): EventStream {
   return new EventStream(event, opts);
 }

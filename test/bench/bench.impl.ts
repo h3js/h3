@@ -27,8 +27,7 @@ export function h3(lib: typeof _h3src, compiled?: boolean): AppFetch {
     .post("/json", (event) => event.req.json());
   if (compiled) {
     const findRoute = compileRouter(app["~rou3"]);
-    app["~findRoute"] = (event) =>
-      findRoute(event.req.method, event.url.pathname) as any;
+    app["~findRoute"] = (event) => findRoute(event.req.method, event.url.pathname) as any;
   }
   return app.fetch;
 }

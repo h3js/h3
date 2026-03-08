@@ -20,9 +20,7 @@ describe("sse (unit)", () => {
       retry: 10,
       data: "hello world",
     });
-    expect(result2).toEqual(
-      `id: 1\nevent: custom-event\nretry: 10\ndata: hello world\n\n`,
-    );
+    expect(result2).toEqual(`id: 1\nevent: custom-event\nretry: 10\ndata: hello world\n\n`);
   });
 
   it("properly formats multiple sse messages", () => {
@@ -33,8 +31,6 @@ describe("sse (unit)", () => {
 
       { id: "1", data: "hello world 2" },
     ]);
-    expect(result).toEqual(
-      `data: hello world\n\nid: 1\ndata: hello world 2\n\n`,
-    );
+    expect(result).toEqual(`data: hello world\n\nid: 1\ndata: hello world 2\n\n`);
   });
 });

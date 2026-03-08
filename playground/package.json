@@ -3,11 +3,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "node --watch ./server.mjs",
-    "bun": "bun --watch server.mjs",
-    "deno": "deno --watch -A server.mjs"
+    "dev": "h3 serve",
+    "start": "h3 serve --prod"
   },
   "dependencies": {
-    "h3": "v2.0.0-beta.0"
+    "h3": "^2.0.1-rc.13"
   }
 }

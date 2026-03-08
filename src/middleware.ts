@@ -3,12 +3,7 @@ import { kNotFound } from "./response.ts";
 
 import type { H3Event } from "./event.ts";
 import type { MiddlewareOptions } from "./types/h3.ts";
-import type {
-  EventHandler,
-  FetchableObject,
-  HTTPHandler,
-  Middleware,
-} from "./types/handler.ts";
+import type { EventHandler, FetchableObject, HTTPHandler, Middleware } from "./types/handler.ts";
 import type { H3Core } from "./h3.ts";
 
 export function defineMiddleware(input: Middleware): Middleware {
@@ -20,10 +15,7 @@ export function normalizeMiddleware(
   opts: MiddlewareOptions & { route?: string } = {},
 ): Middleware {
   const matcher = createMatcher(opts);
-  if (
-    !matcher &&
-    (input.length > 1 || input.constructor?.name === "AsyncFunction")
-  ) {
+  if (!matcher && (input.length > 1 || input.constructor?.name === "AsyncFunction")) {
     return input; // Fast path: async or with explicit next() and no matcher filters
   }
   return (event, next) => {
@@ -107,9 +99,7 @@ function isUnhandledResponse(val: unknown) {
  *
  * If FetchableObject or Handler returns a Response with 404 status, the next middleware will be called.
  */
-export function toMiddleware(
-  input: HTTPHandler | Middleware | undefined,
-): Middleware {
+export function toMiddleware(input: HTTPHandler | Middleware | undefined): Middleware {
   let h = (input as H3Core).handler || (input as EventHandler | Middleware);
   let isFunction: boolean = typeof h === "function";
   if (!isFunction && typeof (input as FetchableObject)?.fetch === "function") {
@@ -139,8 +129,5 @@ export function toMiddleware(
 }
 
 function is404(val: unknown): boolean {
-  return (
-    isUnhandledResponse(val) ||
-    ((val as Response)?.status === 404 && val instanceof Response)
-  );
+  return isUnhandledResponse(val) || ((val as Response)?.status === 404 && val instanceof Response);
 }
