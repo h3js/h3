@@ -12,8 +12,8 @@ importers:
   .:
     dependencies:
       rou3:
-        specifier: ^0.7.12
-        version: 0.7.12
+        specifier: ^0.8.0
+        version: 0.8.0
       srvx:
         specifier: ^0.11.8
         version: 0.11.8
@@ -1991,6 +1991,9 @@ packages:
   rou3@0.7.12:
     resolution: {integrity: sha512-iFE4hLDuloSWcD7mjdCDhx2bKcIsYbtOTpfH5MHHLSKMOUyjqQXTeZVa289uuwEGEKFoE/BAPbhaU4B774nceg==}
 
+  rou3@0.8.0:
+    resolution: {integrity: sha512-AU5RsnYC2Y3OCP2zvig+wC2ipdMAk6ocvcYmTQks0/uMUnAL0FpRCITZEkG2aM1p0eiTJPUK+vq8Jap3ZY9HDg==}
+
   router@2.2.0:
     resolution: {integrity: sha512-nLTrUKm2UyiL7rlhapu/Zl45FwNgkZGaCpZbIHajDYgwlJCOzLSk+cIPAnsEqV955GjILJnKbdQC1nVPz+gAYQ==}
     engines: {node: '>= 18'}
@@ -3865,6 +3868,8 @@ snapshots:
       fsevents: 2.3.3
 
   rou3@0.7.12: {}
+
+  rou3@0.8.0: {}
 
   router@2.2.0:
     dependencies:

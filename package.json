@@ -51,7 +51,7 @@
     "typecheck": "tsgo --noEmit --skipLibCheck"
   },
   "dependencies": {
-    "rou3": "^0.7.12",
+    "rou3": "^0.8.0",
     "srvx": "^0.11.8"
   },
   "devDependencies": {
