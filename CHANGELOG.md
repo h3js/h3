@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## v2.0.1-rc.16
+
+[compare changes](https://github.com/h3js/h3/compare/v2.0.1-rc.15...v2.0.1-rc.16)
+
+### 🏡 Chore
+
+- Update deps ([e69f0c4](https://github.com/h3js/h3/commit/e69f0c4))
+- Update rou3 to 0.8 ([4701dc4](https://github.com/h3js/h3/commit/4701dc4))
+- Update srvx ([05959e38](https://github.com/h3js/h3/commit/05959e38))
+
+### ❤️ Contributors
+
+- Pooya Parsa ([@pi0](https://github.com/pi0))
+
 ## v2.0.1-rc.15
 
 [compare changes](https://github.com/h3js/h3/compare/v2.0.1-rc.14...v2.0.1-rc.15)
