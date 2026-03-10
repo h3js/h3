@@ -33,7 +33,7 @@
   },
   "dependencies": {
     "cookie-es": "^1.2.2",
-    "crossws": "^0.3.5",
+    "crossws": "^0.4.4",
     "defu": "^6.1.4",
     "destr": "^2.0.5",
     "iron-webcrypto": "^1.2.1",
@@ -45,7 +45,7 @@
   "devDependencies": {
     "0x": "^6.0.0",
     "@types/express": "^5.0.6",
-    "@types/node": "^25.3.5",
+    "@types/node": "^25.4.0",
     "@types/supertest": "^7.2.0",
     "@typescript/native-preview": "latest",
     "@vitest/coverage-v8": "^4.0.18",
@@ -57,7 +57,7 @@
     "eslint-config-unjs": "^0.6.2",
     "express": "^5.2.1",
     "get-port": "^7.1.0",
-    "h3": "^1.15.5",
+    "h3": "^1.15.6",
     "jiti": "^2.6.1",
     "listhen": "^1.9.0",
     "node-fetch-native": "^1.6.7",
@@ -72,7 +72,7 @@
     "zod": "^4.3.6"
   },
   "resolutions": {
-    "h3": "^1.14.0"
+    "h3": "^1.15.6"
   },
-  "packageManager": "pnpm@10.28.0"
+  "packageManager": "pnpm@10.32.0"
 }
