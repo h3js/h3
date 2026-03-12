@@ -294,7 +294,8 @@ export function isMethod(
 /**
  * Asserts that the incoming request method is of the expected type using `isMethod`.
  *
- * If the method is not allowed, it will throw a 405 error with the message "HTTP method is not allowed".
+ * If the method is not allowed, it will throw a 405 error and include an `Allow`
+ * response header listing the permitted methods, as required by RFC 9110.
  *
  * If `allowHead` is `true`, it will allow `HEAD` requests to pass if the expected method is `GET`.
  *
@@ -310,7 +311,14 @@ export function assertMethod(
   allowHead?: boolean,
 ): void {
   if (!isMethod(event, expected, allowHead)) {
-    throw new HTTPError({ status: 405 });
+    const allowedMethods = new Set(Array.isArray(expected) ? expected : [expected]);
+    if (allowHead) {
+      allowedMethods.add("HEAD" as HTTPMethod);
+    }
+    throw new HTTPError({
+      status: 405,
+      headers: { Allow: [...allowedMethods].join(", ") },
+    });
   }
 }
 
