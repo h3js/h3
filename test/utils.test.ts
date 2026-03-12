@@ -301,7 +301,9 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
       });
       const res405 = await t.fetch("/post");
       expect(res405.status).toBe(405);
-      expect(res405.headers.get("Allow")).toBe("POST, HEAD");
+      expect(new Set(res405.headers.get("Allow")?.split(/\s*,\s*/))).toEqual(
+        new Set(["POST", "HEAD"]),
+      );
       expect((await t.fetch("/post", { method: "POST" })).status).toBe(200);
       expect((await t.fetch("/post", { method: "HEAD" })).status).toBe(200);
     });
@@ -313,7 +315,9 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
       });
       const res405 = await t.fetch("/multi", { method: "DELETE" });
       expect(res405.status).toBe(405);
-      expect(res405.headers.get("Allow")).toBe("GET, POST");
+      expect(new Set(res405.headers.get("Allow")?.split(/\s*,\s*/))).toEqual(
+        new Set(["GET", "POST"]),
+      );
     });
   });
 
