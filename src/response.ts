@@ -83,11 +83,15 @@ function prepareResponse(
       console.error(error);
     }
     const { onError } = config;
-    return onError && !nested
-      ? Promise.resolve(onError(error, event))
-          .catch((error) => error)
-          .then((newVal) => prepareResponse(newVal ?? val, event, config, true))
-      : errorResponse(error, config.debug);
+    if (onError && !nested) {
+      return Promise.resolve(onError(error, event))
+        .catch((error) => error)
+        .then((newVal) => prepareResponse(newVal ?? val, event, config, true));
+    }
+    // Include event.res headers (e.g. CORS) in the error response
+    const eventResHeaders = (event as any)[kEventRes]?.[kEventResHeaders] as Headers | undefined;
+    (event as any)[kEventRes] = undefined;
+    return errorResponse(error, config.debug, eventResHeaders);
   }
 
   // Only set if event.res.headers is accessed
@@ -240,7 +244,13 @@ function nullBody(method: string, status: number | undefined): boolean | 0 | und
   )
 }
 
-function errorResponse(error: HTTPError, debug?: boolean): Response {
+function errorResponse(error: HTTPError, debug?: boolean, preparedHeaders?: Headers): Response {
+  let headers: Headers = error.headers
+    ? mergeHeaders(jsonHeaders, error.headers)
+    : new Headers(jsonHeaders);
+  if (preparedHeaders) {
+    headers = mergeHeaders(headers, preparedHeaders);
+  }
   return new FastResponse(
     JSON.stringify(
       {
@@ -253,7 +263,7 @@ function errorResponse(error: HTTPError, debug?: boolean): Response {
     {
       status: error.status,
       statusText: error.statusText,
-      headers: error.headers ? mergeHeaders(jsonHeaders, error.headers) : new Headers(jsonHeaders),
+      headers,
     },
   );
 }

@@ -1,5 +1,5 @@
 import { vi } from "vitest";
-import { HTTPError } from "../src/index.ts";
+import { HTTPError, handleCors } from "../src/index.ts";
 import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("errors", (t, { it, expect }) => {
@@ -145,5 +145,25 @@ describeMatrix("errors", (t, { it, expect }) => {
     expect(res.headers.getSetCookie()).toEqual(["error=1"]);
 
     t.errors = [];
+  });
+
+  it("preserves CORS headers on HTTPError", async () => {
+    t.app.post("/api", (event) => {
+      const corsRes = handleCors(event, {
+        origin: ["http://localhost"],
+      });
+      if (corsRes !== false) {
+        return corsRes;
+      }
+      throw new HTTPError({ status: 400, statusText: "Bad Request" });
+    });
+
+    const res = await t.fetch("/api", {
+      method: "POST",
+      headers: { origin: "http://localhost" },
+    });
+
+    expect(res.status).toBe(400);
+    expect(res.headers.get("access-control-allow-origin")).toBe("http://localhost");
   });
 });
