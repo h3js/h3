@@ -104,6 +104,7 @@ describe("h3 package", () => {
         "readRawBody",
         "readValidatedBody",
         "redirect",
+        "redirectBack",
         "removeResponseHeader",
         "requireBasicAuth",
         "sanitizeStatusCode",

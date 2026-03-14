@@ -1,6 +1,7 @@
 import { beforeEach } from "vitest";
 import {
   redirect,
+  redirectBack,
   withBase,
   assertMethod,
   getQuery,
@@ -40,6 +41,45 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
       const result = await t.fetch("/");
       expect(result.headers.get("location")).toBe("https://google.com");
       expect(result.headers.get("content-type")).toBe("text/html; charset=utf-8");
+    });
+  });
+
+  describe("redirectBack", () => {
+    it("redirects to referer when same origin", async () => {
+      t.app.post("/submit", (event) => redirectBack(event));
+      // Build referer from the test server's actual URL
+      const baseUrl = t.url || "http://localhost";
+      const res = await t.fetch("/submit", {
+        method: "POST",
+        headers: { referer: `${baseUrl}/form` },
+      });
+      expect(res.status).toBe(302);
+      expect(res.headers.get("location")).toBe(`${baseUrl}/form`);
+    });
+
+    it("uses fallback when referer is cross-origin", async () => {
+      t.app.post("/submit", (event) =>
+        redirectBack(event, { fallback: "/home" }),
+      );
+      const res = await t.fetch("/submit", {
+        method: "POST",
+        headers: { referer: "https://evil.com/steal" },
+      });
+      expect(res.headers.get("location")).toBe("/home");
+    });
+
+    it("uses fallback when no referer", async () => {
+      t.app.post("/submit", (event) =>
+        redirectBack(event, { fallback: "/dashboard" }),
+      );
+      const res = await t.fetch("/submit", { method: "POST" });
+      expect(res.headers.get("location")).toBe("/dashboard");
+    });
+
+    it("defaults fallback to /", async () => {
+      t.app.post("/submit", (event) => redirectBack(event));
+      const res = await t.fetch("/submit", { method: "POST" });
+      expect(res.headers.get("location")).toBe("/");
     });
   });
 

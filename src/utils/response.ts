@@ -57,6 +57,37 @@ export function redirect(
 }
 
 /**
+ * Redirect the client back to the previous page using the `referer` header.
+ *
+ * If the `referer` header is missing or is a different origin, it falls back to the provided URL (default `"/"`).
+ *
+ * @example
+ * app.post("/submit", (event) => {
+ *   // process form...
+ *   return redirectBack(event, { fallback: "/form" });
+ * });
+ */
+export function redirectBack(
+  event: H3Event,
+  opts: { fallback?: string; status?: number } = {},
+): HTTPResponse {
+  const referer = event.req.headers.get("referer");
+  let location = opts.fallback || "/";
+  if (referer) {
+    try {
+      const refererUrl = new URL(referer);
+      const requestUrl = new URL(event.req.url);
+      if (refererUrl.origin === requestUrl.origin) {
+        location = referer;
+      }
+    } catch {
+      // Invalid referer URL, use fallback
+    }
+  }
+  return redirect(location, opts.status);
+}
+
+/**
  * Write `HTTP/1.1 103 Early Hints` to the client.
  *
  * In runtimes that don't support early hints natively, this function
