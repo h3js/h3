@@ -39,6 +39,26 @@ describe("handler.ts", () => {
     });
   });
 
+  describe("handler.fetch with invalid input", () => {
+    it("returns 500 response for null input", async () => {
+      const handler = defineHandler(() => "ok");
+      const res = await handler.fetch(null as any);
+      expect(res.status).toBe(500);
+    });
+
+    it("returns 500 response for undefined input", async () => {
+      const handler = defineHandler(() => "ok");
+      const res = await handler.fetch(undefined as any);
+      expect(res.status).toBe(500);
+    });
+
+    it("returns 500 response for numeric input", async () => {
+      const handler = defineHandler(() => "ok");
+      const res = await handler.fetch(123 as any);
+      expect(res.status).toBe(500);
+    });
+  });
+
   describe("dynamicEventHandler", () => {
     it("should call the initial handler if set", async () => {
       const initialHandler = vi.fn(async (_: H3Event) => "initial");
