@@ -90,7 +90,9 @@ function prepareResponse(
     }
     const _h = (event as any)[kEventRes]?.[kEventResHeaders];
     (event as any)[kEventRes] = undefined;
-    if (_h) (error as any).headers = _h;
+    if (_h) {
+      (error as any).headers = error.headers ? mergeHeaders(error.headers, _h) : _h;
+    }
     return errorResponse(error, config.debug);
   }
 
