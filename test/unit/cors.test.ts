@@ -1,4 +1,4 @@
-import { expect, it, describe } from "vitest";
+import { expect, it, describe, vi } from "vitest";
 import {
   mockEvent,
   isPreflightRequest,
@@ -56,6 +56,37 @@ describe("cors (unit)", () => {
           statusCode: 404,
         },
       });
+    });
+
+    it("warns when credentials is used with wildcard origin", () => {
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      resolveCorsOptions({ credentials: true });
+      expect(warnSpy).toHaveBeenCalledOnce();
+      expect(warnSpy.mock.calls[0][0]).toContain("credentials");
+
+      warnSpy.mockRestore();
+    });
+
+    it("does not warn when credentials is used with specific origin", () => {
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      resolveCorsOptions({
+        credentials: true,
+        origin: ["https://example.com"],
+      });
+      expect(warnSpy).not.toHaveBeenCalled();
+
+      warnSpy.mockRestore();
+    });
+
+    it("does not warn when credentials is false", () => {
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      resolveCorsOptions({ credentials: false, origin: "*" });
+      expect(warnSpy).not.toHaveBeenCalled();
+
+      warnSpy.mockRestore();
     });
   });
 
