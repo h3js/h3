@@ -93,9 +93,7 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
     });
 
     it("uses x-forwarded-host when enabled", async () => {
-      t.app.get("/", (event) =>
-        getRequestHost(event, { xForwardedHost: true }),
-      );
+      t.app.get("/", (event) => getRequestHost(event, { xForwardedHost: true }));
       const res = await t.fetch("/", {
         headers: { "x-forwarded-host": "proxy.example.com" },
       });
@@ -103,9 +101,7 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
     });
 
     it("uses first value from x-forwarded-host with multiple entries", async () => {
-      t.app.get("/", (event) =>
-        getRequestHost(event, { xForwardedHost: true }),
-      );
+      t.app.get("/", (event) => getRequestHost(event, { xForwardedHost: true }));
       const res = await t.fetch("/", {
         headers: { "x-forwarded-host": "first.com, second.com" },
       });
