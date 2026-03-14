@@ -121,20 +121,28 @@ export const H3 = /* @__PURE__ */ (() => {
     mount(base: string, input: FetchHandler | FetchableObject | H3Type) {
       if ("handler" in input) {
         if (input["~middleware"].length > 0) {
-          this["~middleware"].push(async (event, next) => {
+          this["~middleware"].push((event, next) => {
             const originalPathname = event.url.pathname;
             if (!originalPathname.startsWith(base)) {
               return next();
             }
             event.url.pathname = event.url.pathname.slice(base.length) || "/";
+            let result: unknown;
             try {
-              return await callMiddleware(event, input["~middleware"], () => {
+              result = callMiddleware(event, input["~middleware"], () => {
                 event.url.pathname = originalPathname;
                 return next();
               });
-            } finally {
+            } catch (err) {
               event.url.pathname = originalPathname;
+              throw err;
             }
+            if (typeof (result as PromiseLike<unknown>)?.then === "function") {
+              return (result as Promise<unknown>).finally(() => {
+                event.url.pathname = originalPathname;
+              });
+            }
+            return result;
           });
         }
         for (const r of input["~routes"]) {
