@@ -16,8 +16,7 @@ export interface WebEventContext {
 
 export class H3Event<
   _RequestT extends EventHandlerRequest = EventHandlerRequest,
-> implements Pick<FetchEvent, "respondWith">
-{
+> implements Pick<FetchEvent, "respondWith"> {
   "__is_event__" = true;
 
   // Context

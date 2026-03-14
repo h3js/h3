@@ -1,5 +1,6 @@
 import { Readable, Transform } from "node:stream";
-import supertest, { SuperTest, Test } from "supertest";
+import supertest from "supertest";
+import type TestAgent from "supertest/lib/agent";
 import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
 import {
   createApp,
@@ -12,7 +13,7 @@ import {
 
 describe("app", () => {
   let app: App;
-  let request: SuperTest<Test>;
+  let request: TestAgent;
 
   const onRequest = vi.fn();
   const onBeforeResponse = vi.fn();
@@ -47,7 +48,7 @@ describe("app", () => {
   it("can return bigint directly", async () => {
     app.use(
       "/",
-      eventHandler(() => BigInt(9_007_199_254_740_991)),
+      eventHandler(() => 9_007_199_254_740_991n),
     );
     const res = await request.get("/");
 

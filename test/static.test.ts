@@ -1,3 +1,4 @@
+import { request as httpRequest } from "node:http";
 import supertest, { SuperTest, Test } from "supertest";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
@@ -107,5 +108,33 @@ describe("Serve Static", () => {
   it("Returns 405 if other methods used", async () => {
     const res = await request.post("/test.png");
     expect(res.status).toEqual(405);
+  });
+
+  it("Prevents path traversal via percent-encoded dot segments", async () => {
+    const listener = toNodeListener(app);
+    const server = await import("node:http").then((m) =>
+      m.createServer(listener),
+    );
+    await new Promise<void>((resolve) => server.listen(0, resolve));
+    const port = (server.address() as any).port;
+    try {
+      const res = await new Promise<{ statusCode: number }>((resolve) => {
+        httpRequest(
+          {
+            hostname: "127.0.0.1",
+            port,
+            path: "/%2e%2e/%2e%2e/etc/passwd",
+            method: "GET",
+          },
+          (res) => resolve({ statusCode: res.statusCode! }),
+        ).end();
+      });
+      expect(serveStaticOptions.getMeta).not.toHaveBeenCalledWith(
+        expect.stringContaining(".."),
+      );
+      expect(res.statusCode).toEqual(404);
+    } finally {
+      server.close();
+    }
   });
 });

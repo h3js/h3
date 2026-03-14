@@ -94,6 +94,42 @@ describe("body", () => {
       expect(await result.body.text()).toBe("200");
     });
 
+    it("handles case-insensitive Transfer-Encoding: chunked header (CVE)", async () => {
+      // Test that Transfer-Encoding header check is case-insensitive per RFC 7230
+      // This prevents HTTP Request Smuggling via TE.TE desynchronization attacks
+
+      const testCases = [
+        { encoding: "ChunKed", expected: '{"test":"data"}' },
+        { encoding: "CHUNKED", expected: '{"test":"data"}' },
+        { encoding: "Chunked", expected: '{"test":"data"}' },
+      ];
+
+      for (const testCase of testCases) {
+        // Simulate a raw HTTP request with mixed-case Transfer-Encoding
+        const mockReq = {
+          method: "POST",
+          headers: { "transfer-encoding": testCase.encoding },
+          on(event: string, handler: (chunk?: Buffer) => void) {
+            if (event === "data") {
+              // Simulate chunked data arrival
+              handler(Buffer.from(testCase.expected));
+            } else if (event === "end") {
+              handler();
+            }
+            return this;
+          },
+        };
+
+        const mockEvent = { method: "POST", node: { req: mockReq } };
+
+        const result = await readRawBody(mockEvent as any);
+
+        // Should properly read the body regardless of Transfer-Encoding case
+        // If the check is case-sensitive, this will fail and return undefined
+        expect(result).toEqual(testCase.expected);
+      }
+    });
+
     it("returns an empty string if body is empty", async () => {
       let _body: string | undefined = "initial";
       app.use(
