@@ -44,7 +44,12 @@ export function redirect(
   status: number = 302,
   statusText?: string,
 ): HTTPResponse {
-  const encodedLoc = location.replace(/"/g, "%22");
+  const encodedLoc = location
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "%22")
+    .replace(/'/g, "%27")
+    .replace(/</g, "%3C")
+    .replace(/>/g, "%3E");
   const body = /* html */ `<html><head><meta http-equiv="refresh" content="0; url=${encodedLoc}" /></head></html>`;
   return new HTTPResponse(body, {
     status,
