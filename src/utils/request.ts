@@ -334,7 +334,7 @@ export function getRequestHost(event: HTTPEvent, opts: { xForwardedHost?: boolea
       return xForwardedHost;
     }
   }
-  return event.req.headers.get("host") || "";
+  return event.req.headers.get("host") || "localhost";
 }
 
 /**
@@ -385,10 +385,13 @@ export function getRequestURL(
   const url = new URL((event as H3Event).url || event.req.url);
   url.protocol = getRequestProtocol(event, opts);
   if (opts.xForwardedHost) {
-    const host = getRequestHost(event, opts);
-    if (host) {
-      url.host = host;
-      if (!host.includes(":")) {
+    const xForwardedHost = (event.req.headers.get("x-forwarded-host") || "")
+      .split(",")
+      .shift()
+      ?.trim();
+    if (xForwardedHost) {
+      url.host = xForwardedHost;
+      if (!xForwardedHost.includes(":")) {
         url.port = "";
       }
     }
