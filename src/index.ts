@@ -26,6 +26,8 @@ export { isEvent, isHTTPEvent, mockEvent, getEventContext } from "./utils/event.
 
 // Handler and Middleware
 
+export type { ExtractRouteParams } from "./types/_utils.ts";
+
 export type {
   EventHandler,
   DynamicEventHandler,

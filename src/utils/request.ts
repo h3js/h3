@@ -138,10 +138,14 @@ export function getValidatedQuery(
  *   const params = getRouterParams(event); // { key: "value" }
  * });
  */
-export function getRouterParams(
-  event: HTTPEvent,
+export function getRouterParams<
+  T,
+  _Event extends HTTPEvent = HTTPEvent,
+  _T = InferEventInput<"routerParams", _Event, T>,
+>(
+  event: _Event,
   opts: { decode?: boolean } = {},
-): NonNullable<H3Event["context"]["params"]> {
+): _T {
   // Fallback object needs to be returned in case router is not used (#149)
   const context = getEventContext<H3EventContext>(event);
   let params = (context.params || {}) as NonNullable<H3Event["context"]["params"]>;
@@ -151,7 +155,7 @@ export function getRouterParams(
       params[key] = decodeURIComponent(params[key]);
     }
   }
-  return params;
+  return params as _T;
 }
 
 export function getValidatedRouterParams<Event extends HTTPEvent, S extends StandardSchemaV1>(
@@ -252,7 +256,7 @@ export function getRouterParam(
   name: string,
   opts: { decode?: boolean } = {},
 ): string | undefined {
-  const params = getRouterParams(event, opts);
+  const params = getRouterParams(event, opts) as Record<string, string>;
   return params[name];
 }
 

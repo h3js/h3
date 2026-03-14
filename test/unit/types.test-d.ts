@@ -1,8 +1,10 @@
-import type { H3Event } from "../../src/index.ts";
+import type { H3Event, ExtractRouteParams } from "../../src/index.ts";
 import { describe, it, expectTypeOf } from "vitest";
 import {
+  H3,
   defineHandler,
   getQuery,
+  getRouterParams,
   readBody,
   readValidatedBody,
   getValidatedQuery,
@@ -120,6 +122,55 @@ describe("types", () => {
         const query = getQuery(event);
         expectTypeOf(query).not.toBeAny();
         expectTypeOf(query).toEqualTypeOf<{ id: string }>();
+      });
+    });
+  });
+
+  describe("ExtractRouteParams", () => {
+    it("extracts single param", () => {
+      expectTypeOf<ExtractRouteParams<"/users/:id">>().toEqualTypeOf<{
+        id: string;
+      }>();
+    });
+
+    it("extracts multiple params", () => {
+      expectTypeOf<
+        ExtractRouteParams<"/users/:id/posts/:slug">
+      >().toEqualTypeOf<{ id: string; slug: string }>();
+    });
+
+    it("returns Record<string, string> for no params", () => {
+      expectTypeOf<
+        ExtractRouteParams<"/users">
+      >().toEqualTypeOf<Record<string, string>>();
+    });
+  });
+
+  describe("route param inference", () => {
+    it("infers params from app.get path", () => {
+      const app = new H3();
+      app.get("/users/:id", (event) => {
+        const params = getRouterParams(event);
+        expectTypeOf(params).toEqualTypeOf<{ id: string }>();
+      });
+    });
+
+    it("infers multiple params from app.post path", () => {
+      const app = new H3();
+      app.post("/users/:userId/posts/:postId", (event) => {
+        const params = getRouterParams(event);
+        expectTypeOf(params).toEqualTypeOf<{
+          userId: string;
+          postId: string;
+        }>();
+      });
+    });
+
+    it("infers Record<string, string> for static route", () => {
+      const app = new H3();
+      app.get("/users", (event) => {
+        const params = getRouterParams(event);
+        expectTypeOf(params).toEqualTypeOf<Record<string, string>>();
       });
     });
   });

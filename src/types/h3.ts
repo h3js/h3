@@ -1,7 +1,7 @@
 import type { H3EventContext } from "./context.ts";
-import type { HTTPHandler, EventHandler, Middleware } from "./handler.ts";
+import type { HTTPHandler, EventHandler, Middleware, EventHandlerResponse } from "./handler.ts";
 import type { HTTPError } from "../error.ts";
-import type { MaybePromise } from "./_utils.ts";
+import type { MaybePromise, ExtractRouteParams } from "./_utils.ts";
 import type { FetchHandler, ServerRequest } from "srvx";
 // import type { MatchedRoute, RouterContext } from "rou3";
 import type { H3Event } from "../event.ts";
@@ -173,15 +173,25 @@ export declare class H3 extends H3Core {
   /**
    * Register a route handler for all HTTP methods.
    */
+  all<P extends string>(route: P, handler: (event: H3Event<{ routerParams: ExtractRouteParams<P> }>) => unknown, opts?: RouteOptions): this;
   all(route: string, handler: HTTPHandler, opts?: RouteOptions): this;
 
+  get<P extends string>(route: P, handler: (event: H3Event<{ routerParams: ExtractRouteParams<P> }>) => unknown, opts?: RouteOptions): this;
   get(route: string, handler: HTTPHandler, opts?: RouteOptions): this;
+  post<P extends string>(route: P, handler: (event: H3Event<{ routerParams: ExtractRouteParams<P> }>) => unknown, opts?: RouteOptions): this;
   post(route: string, handler: HTTPHandler, opts?: RouteOptions): this;
+  put<P extends string>(route: P, handler: (event: H3Event<{ routerParams: ExtractRouteParams<P> }>) => unknown, opts?: RouteOptions): this;
   put(route: string, handler: HTTPHandler, opts?: RouteOptions): this;
+  delete<P extends string>(route: P, handler: (event: H3Event<{ routerParams: ExtractRouteParams<P> }>) => unknown, opts?: RouteOptions): this;
   delete(route: string, handler: HTTPHandler, opts?: RouteOptions): this;
+  patch<P extends string>(route: P, handler: (event: H3Event<{ routerParams: ExtractRouteParams<P> }>) => unknown, opts?: RouteOptions): this;
   patch(route: string, handler: HTTPHandler, opts?: RouteOptions): this;
+  head<P extends string>(route: P, handler: (event: H3Event<{ routerParams: ExtractRouteParams<P> }>) => unknown, opts?: RouteOptions): this;
   head(route: string, handler: HTTPHandler, opts?: RouteOptions): this;
+  options<P extends string>(route: P, handler: (event: H3Event<{ routerParams: ExtractRouteParams<P> }>) => unknown, opts?: RouteOptions): this;
   options(route: string, handler: HTTPHandler, opts?: RouteOptions): this;
+  connect<P extends string>(route: P, handler: (event: H3Event<{ routerParams: ExtractRouteParams<P> }>) => unknown, opts?: RouteOptions): this;
   connect(route: string, handler: HTTPHandler, opts?: RouteOptions): this;
+  trace<P extends string>(route: P, handler: (event: H3Event<{ routerParams: ExtractRouteParams<P> }>) => unknown, opts?: RouteOptions): this;
   trace(route: string, handler: HTTPHandler, opts?: RouteOptions): this;
 }
