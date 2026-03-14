@@ -107,25 +107,20 @@ function handlerWithFetch<
   }
   return Object.assign(handler, {
     fetch: (req: ServerRequest | URL | string): Promise<Response> => {
-      if (!req || (typeof req !== "string" && typeof req !== "object")) {
-        return Promise.resolve(
-          toResponse(
-            new TypeError("Invalid fetch input", { cause: req }),
-            new H3Event(new Request("http://_")),
-          ),
-        );
-      }
-      if (typeof req === "string") {
-        req = new URL(req, "http://_");
-      }
-      if (req instanceof URL) {
-        req = new Request(req);
-      }
-      const event = new H3Event(req) as H3Event<Req>;
       try {
+        if (typeof req === "string") {
+          req = new URL(req, "http://_");
+        }
+        if (req instanceof URL) {
+          req = new Request(req);
+        }
+        if (!req || typeof req !== "object") {
+          throw new TypeError("Invalid fetch input");
+        }
+        const event = new H3Event(req) as H3Event<Req>;
         return Promise.resolve(toResponse(handler(event), event));
       } catch (error: any) {
-        return Promise.resolve(toResponse(error, event));
+        return Promise.resolve(toResponse(error, new H3Event(new Request("http://_"))));
       }
     },
   });
