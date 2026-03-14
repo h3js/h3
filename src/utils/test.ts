@@ -11,16 +11,10 @@ export interface TestClientOptions {
 
 interface TestClientResult {
   /** Make a raw request and get the Response */
-  request(
-    path: string,
-    opts?: TestClientOptions & { method?: string },
-  ): Promise<Response>;
+  request(path: string, opts?: TestClientOptions & { method?: string }): Promise<Response>;
 
   /** GET request, returns parsed response */
-  $fetch(
-    path: string,
-    opts?: TestClientOptions & { method?: string },
-  ): Promise<unknown>;
+  $fetch(path: string, opts?: TestClientOptions & { method?: string }): Promise<unknown>;
 
   /** GET request */
   get(path: string, opts?: TestClientOptions): Promise<unknown>;
