@@ -158,7 +158,8 @@ describeMatrix("mount", (t, { it, expect, describe }) => {
 
     it("restores pathname when mounted middleware throws", async () => {
       const subApp = new H3();
-      subApp.use((_event) => {
+      subApp.use(async (_event) => {
+        await Promise.resolve();
         throw new HTTPError({ status: 500, statusText: "Test Error" });
       });
       subApp.get("/test", () => new Response("ok"));
