@@ -126,6 +126,20 @@ describeMatrix("errors", (t, { it, expect }) => {
     t.errors = [];
   });
 
+  it("can inherit deprecated statusCode/statusMessage from cause", async () => {
+    const cause = { statusCode: 404, statusMessage: "Not Found" };
+
+    t.app.get("/", () => {
+      throw new HTTPError({ cause });
+    });
+
+    const res = await t.fetch("/");
+    expect(res.status).toBe(404);
+    expect(res.statusText).toBe("Not Found");
+
+    t.errors = [];
+  });
+
   it("error headers", async () => {
     t.app.config.onError = async (error, event) => {
       const headers = new Headers(event.res.headers);
