@@ -121,16 +121,20 @@ export const H3 = /* @__PURE__ */ (() => {
     mount(base: string, input: FetchHandler | FetchableObject | H3Type) {
       if ("handler" in input) {
         if (input["~middleware"].length > 0) {
-          this["~middleware"].push((event, next) => {
+          this["~middleware"].push(async (event, next) => {
             const originalPathname = event.url.pathname;
             if (!originalPathname.startsWith(base)) {
               return next();
             }
             event.url.pathname = event.url.pathname.slice(base.length) || "/";
-            return callMiddleware(event, input["~middleware"], () => {
+            try {
+              return await callMiddleware(event, input["~middleware"], () => {
+                event.url.pathname = originalPathname;
+                return next();
+              });
+            } finally {
               event.url.pathname = originalPathname;
-              return next();
-            });
+            }
           });
         }
         for (const r of input["~routes"]) {

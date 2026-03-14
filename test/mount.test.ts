@@ -1,4 +1,5 @@
 import { H3 } from "../src/h3.ts";
+import { HTTPError } from "../src/error.ts";
 import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("mount", (t, { it, expect, describe }) => {
@@ -153,6 +154,25 @@ describeMatrix("mount", (t, { it, expect, describe }) => {
       await t.fetch("/api/admin/users");
 
       expect(logs).toContain("admin: /admin/users"); // Adjusted path
+    });
+
+    it("restores pathname when mounted middleware throws", async () => {
+      const subApp = new H3();
+      subApp.use((_event) => {
+        throw new HTTPError({ status: 500, statusText: "Test Error" });
+      });
+      subApp.get("/test", () => new Response("ok"));
+
+      t.app.mount("/api", subApp);
+
+      t.app.config.onError = (error, event) => {
+        return Response.json({ path: event.url.pathname }, { status: 500 });
+      };
+
+      const res = await t.fetch("/api/test");
+      const body = await res.json();
+      expect(body.path).toBe("/api/test");
+      t.errors = [];
     });
 
     it("middleware should not execute for non-matching paths", async () => {
