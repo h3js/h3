@@ -157,6 +157,11 @@ export declare class H3 extends H3Core {
   ): this;
 
   /**
+   * Remove a route handler for the specified HTTP method and route.
+   */
+  off(method: HTTPMethod | Lowercase<HTTPMethod> | "", route: string): this;
+
+  /**
    * Immediately register an H3 plugin.
    */
   register(plugin: H3Plugin): this;

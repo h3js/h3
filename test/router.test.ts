@@ -221,4 +221,33 @@ describeMatrix("router", (t, { it, expect, describe }) => {
       });
     });
   });
+
+  describe("off (remove route)", () => {
+    it("removes a registered route", async () => {
+      t.app.get("/removable", () => "exists");
+
+      const res1 = await t.fetch("/removable");
+      expect(res1.status).toBe(200);
+      expect(await res1.text()).toBe("exists");
+
+      t.app.off("GET", "/removable");
+
+      const res2 = await t.fetch("/removable");
+      expect(res2.status).toBe(404);
+    });
+
+    it("removes only the specified method", async () => {
+      t.app.get("/multi", () => "get");
+      t.app.post("/multi", () => "post");
+
+      t.app.off("GET", "/multi");
+
+      const getRes = await t.fetch("/multi");
+      expect(getRes.status).toBe(404);
+
+      const postRes = await t.fetch("/multi", { method: "POST" });
+      expect(postRes.status).toBe(200);
+      expect(await postRes.text()).toBe("post");
+    });
+  });
 });
