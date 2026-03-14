@@ -211,6 +211,10 @@ export type {
   JsonRpcWebSocketMethod,
 } from "./utils/json-rpc.ts";
 
+// Test
+
+export { type TestClientOptions, createTestClient } from "./utils/test.ts";
+
 // ---- Deprecated ----
 
 export * from "./_deprecated.ts";
