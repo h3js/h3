@@ -124,6 +124,7 @@ describe("h3 package", () => {
         "setResponseHeader",
         "setResponseHeaders",
         "setResponseStatus",
+        "setServerTiming",
         "toEventHandler",
         "toMiddleware",
         "toNodeHandler",
@@ -136,6 +137,7 @@ describe("h3 package", () => {
         "useBase",
         "useSession",
         "withBase",
+        "withServerTiming",
         "writeEarlyHints",
       ]
     `);
