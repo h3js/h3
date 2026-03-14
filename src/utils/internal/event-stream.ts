@@ -71,7 +71,7 @@ export class EventStream {
       this._unsentData += formatEventStreamComment(comment);
       return;
     }
-    await this._writer.write(this._encoder.encode(formatEventStreamComment(comment))).catch(_noop);
+    await this._writer.write(this._encoder.encode(formatEventStreamComment(comment))).catch(() => { this._writerIsClosed = true; });
   }
 
   private async _sendEvent(message: EventStreamMessage) {
@@ -86,7 +86,7 @@ export class EventStream {
       this._unsentData += formatEventStreamMessage(message);
       return;
     }
-    await this._writer.write(this._encoder.encode(formatEventStreamMessage(message))).catch(_noop);
+    await this._writer.write(this._encoder.encode(formatEventStreamMessage(message))).catch(() => { this._writerIsClosed = true; });
   }
 
   private async _sendEvents(messages: EventStreamMessage[]) {
@@ -103,7 +103,7 @@ export class EventStream {
       return;
     }
 
-    await this._writer.write(this._encoder.encode(payload)).catch(_noop);
+    await this._writer.write(this._encoder.encode(payload)).catch(() => { this._writerIsClosed = true; });
   }
 
   pause(): void {
