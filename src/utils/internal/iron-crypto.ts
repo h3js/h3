@@ -20,13 +20,13 @@ export const defaults: Readonly<SealOptions> = /* @__PURE__ */ Object.freeze({
   encryption: /* @__PURE__ */ Object.freeze({
     saltBits: 256,
     algorithm: "aes-256-cbc",
-    iterations: 1,
+    iterations: 600_000,
     minPasswordlength: 32,
   }),
   integrity: /* @__PURE__ */ Object.freeze({
     saltBits: 256,
     algorithm: "sha256",
-    iterations: 1,
+    iterations: 600_000,
     minPasswordlength: 32,
   }),
 });
