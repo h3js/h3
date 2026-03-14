@@ -171,6 +171,7 @@ async function isBodySizeWithin(event: HTTPEvent, limit: number): Promise<boolea
   while (!chunk.done) {
     size += chunk.value.byteLength;
     if (size > limit) {
+      reader.cancel();
       return false;
     }
     chunk = await reader.read();
