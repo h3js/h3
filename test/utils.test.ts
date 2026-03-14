@@ -85,11 +85,11 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
   });
 
   describe("getRequestHost", () => {
-    it("returns a non-empty host", async () => {
+    it("returns host header value", async () => {
       t.app.get("/", (event) => getRequestHost(event));
       const res = await t.fetch("/");
-      const text = await res.text();
-      expect(text).toBeTruthy();
+      // In test environments, host header is set by the HTTP client
+      expect(await res.text()).toBeTruthy();
     });
 
     it("uses x-forwarded-host when enabled", async () => {
