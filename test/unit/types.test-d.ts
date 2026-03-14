@@ -134,15 +134,14 @@ describe("types", () => {
     });
 
     it("extracts multiple params", () => {
-      expectTypeOf<
-        ExtractRouteParams<"/users/:id/posts/:slug">
-      >().toEqualTypeOf<{ id: string; slug: string }>();
+      expectTypeOf<ExtractRouteParams<"/users/:id/posts/:slug">>().toEqualTypeOf<{
+        id: string;
+        slug: string;
+      }>();
     });
 
     it("returns Record<string, string> for no params", () => {
-      expectTypeOf<
-        ExtractRouteParams<"/users">
-      >().toEqualTypeOf<Record<string, string>>();
+      expectTypeOf<ExtractRouteParams<"/users">>().toEqualTypeOf<Record<string, string>>();
     });
   });
 
