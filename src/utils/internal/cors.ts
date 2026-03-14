@@ -1,6 +1,8 @@
 import type { H3Event } from "../../event.ts";
 import type { CorsOptions } from "../cors.ts";
 
+const _corsWarned = new WeakSet<CorsOptions>();
+
 interface ResolvedCorsOptions {
   origin: "*" | "null" | (string | RegExp)[] | ((origin: string) => boolean);
   methods: "*" | string[];
@@ -38,7 +40,7 @@ export function resolveCorsOptions(options: CorsOptions = {}): ResolvedCorsOptio
     },
   };
 
-  if (resolved.credentials) {
+  if (resolved.credentials && !_corsWarned.has(options)) {
     const wildcardFields = [];
     if (!options.origin || options.origin === "*") {
       wildcardFields.push("origin");
@@ -53,6 +55,7 @@ export function resolveCorsOptions(options: CorsOptions = {}): ResolvedCorsOptio
       wildcardFields.push("exposeHeaders");
     }
     if (wildcardFields.length > 0) {
+      _corsWarned.add(options);
       console.warn(
         `[h3] CORS: When \`credentials: true\`, ${wildcardFields.join(", ")} cannot be wildcard (\`*\`). Browsers will reject the response. See https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Access-Control-Allow-Origin#directives`,
       );
