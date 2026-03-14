@@ -88,10 +88,10 @@ function prepareResponse(
         .catch((error) => error)
         .then((newVal) => prepareResponse(newVal ?? val, event, config, true));
     }
-    // Include event.res headers (e.g. CORS) in the error response
-    const eventResHeaders = (event as any)[kEventRes]?.[kEventResHeaders] as Headers | undefined;
+    const _h = (event as any)[kEventRes]?.[kEventResHeaders];
     (event as any)[kEventRes] = undefined;
-    return errorResponse(error, config.debug, eventResHeaders);
+    if (_h) (error as any).headers = _h;
+    return errorResponse(error, config.debug);
   }
 
   // Only set if event.res.headers is accessed
@@ -244,13 +244,7 @@ function nullBody(method: string, status: number | undefined): boolean | 0 | und
   )
 }
 
-function errorResponse(error: HTTPError, debug?: boolean, preparedHeaders?: Headers): Response {
-  let headers: Headers = error.headers
-    ? mergeHeaders(jsonHeaders, error.headers)
-    : new Headers(jsonHeaders);
-  if (preparedHeaders) {
-    headers = mergeHeaders(headers, preparedHeaders);
-  }
+function errorResponse(error: HTTPError, debug?: boolean): Response {
   return new FastResponse(
     JSON.stringify(
       {
@@ -263,7 +257,7 @@ function errorResponse(error: HTTPError, debug?: boolean, preparedHeaders?: Head
     {
       status: error.status,
       statusText: error.statusText,
-      headers,
+      headers: error.headers ? mergeHeaders(jsonHeaders, error.headers) : new Headers(jsonHeaders),
     },
   );
 }
