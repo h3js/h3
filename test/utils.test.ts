@@ -58,9 +58,7 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
     });
 
     it("uses fallback when referer is cross-origin", async () => {
-      t.app.post("/submit", (event) =>
-        redirectBack(event, { fallback: "/home" }),
-      );
+      t.app.post("/submit", (event) => redirectBack(event, { fallback: "/home" }));
       const res = await t.fetch("/submit", {
         method: "POST",
         headers: { referer: "https://evil.com/steal" },
@@ -69,9 +67,7 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
     });
 
     it("uses fallback when no referer", async () => {
-      t.app.post("/submit", (event) =>
-        redirectBack(event, { fallback: "/dashboard" }),
-      );
+      t.app.post("/submit", (event) => redirectBack(event, { fallback: "/dashboard" }));
       const res = await t.fetch("/submit", { method: "POST" });
       expect(res.headers.get("location")).toBe("/dashboard");
     });
