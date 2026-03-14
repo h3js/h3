@@ -385,13 +385,10 @@ export function getRequestURL(
   const url = new URL((event as H3Event).url || event.req.url);
   url.protocol = getRequestProtocol(event, opts);
   if (opts.xForwardedHost) {
-    const xForwardedHost = (event.req.headers.get("x-forwarded-host") || "")
-      .split(",")
-      .shift()
-      ?.trim();
-    if (xForwardedHost) {
-      url.host = xForwardedHost;
-      if (!xForwardedHost.includes(":")) {
+    const host = getRequestHost(event, opts);
+    if (host) {
+      url.host = host;
+      if (!host.includes(":")) {
         url.port = "";
       }
     }
