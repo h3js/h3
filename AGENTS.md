@@ -226,6 +226,79 @@ h3/tracing   → Tracing plugin
 | `srvx`    | Server abstraction (multi-runtime)        |
 | `crossws` | WebSocket abstraction (optional peer dep) |
 
+## How to Contribute (PR Philosophy)
+
+This project has a high quality bar. Understanding the maintainer's expectations before writing code prevents wasted effort and rejected PRs.
+
+### 1. Understand before you touch
+
+Before changing any code, deeply understand **why** the existing code is written the way it is. h3 makes deliberate trade-offs that may look "wrong" at first glance but exist for specific reasons:
+
+- `iterations: 1` in iron-crypto looks insecure but is intentional — it relies on 32-char minimum password entropy instead of iteration count, because session sealing runs on every request (not at login like password hashing)
+- The middleware chain avoids `async/await` everywhere — not by accident, but because `async` forces a microtask Promise allocation even when the underlying work is synchronous
+- `.catch()` with no callback in EventStream looks like a mistake but is intentional error suppression for closed streams
+
+**Before proposing a fix**: Read the surrounding code, check git blame for context, search issues for prior discussion. If something looks wrong, it might be a deliberate design decision.
+
+### 2. Prove it with tests first
+
+Every code change requires a regression test. The test must:
+
+1. **Fail** on the original code (without your fix)
+2. **Pass** with your fix applied
+
+```bash
+# Verify your test is a true regression test:
+# 1. Write the test, commit with your fix
+# 2. Temporarily restore original code — test must FAIL
+git show main:src/file.ts > /tmp/original.ts
+cp src/file.ts /tmp/fixed.ts
+cp /tmp/original.ts src/file.ts
+pnpm vitest run test/file.test.ts  # must FAIL
+# 3. Restore fix — test must PASS
+cp /tmp/fixed.ts src/file.ts
+pnpm vitest run test/file.test.ts  # must PASS
+```
+
+A PR with code changes but no tests will be asked to add them. A PR with tests that pass on both old and new code proves nothing.
+
+### 3. Performance is not optional
+
+h3 is a minimal HTTP framework where every microsecond in the hot path matters. The middleware dispatch chain (`h3.ts` handler/mount, `middleware.ts` callMiddleware, `response.ts` toResponse) runs on **every single request**.
+
+**Critical rules for the hot path**:
+
+- **Never use `async/await`** — it forces a Promise allocation even for synchronous code paths. Use the duck-type check pattern instead:
+
+```typescript
+// ✅ Stays sync when possible
+const result = callMiddleware(event, middleware, handler);
+if (typeof (result as PromiseLike<unknown>)?.then === "function") {
+  return (result as Promise<unknown>).then(onSuccess, onError);
+}
+return result;
+
+// ❌ Forces Promise allocation on every call
+return await callMiddleware(event, middleware, handler);
+```
+
+- **`async/await` is fine** in user-facing utilities (`withBase`, `readBody`, `useSession`, etc.) — these are not in the per-request dispatch path or the user has already entered async territory.
+
+- **Bundle size is enforced** via `test/bench/bundle.test.ts`. If your change increases the bundle, you must justify the added bytes and update the limits.
+
+### 4. Research claims before making them
+
+If you cite a security standard, performance number, or spec requirement — verify it independently. Don't rely on what an issue reporter claims without checking primary sources.
+
+Example: An issue cited "OWASP recommends 600,000 PBKDF2 iterations" — but h3 uses SHA-1 for PBKDF2, and the actual OWASP recommendation for SHA-1 is 1,300,000 (600,000 is for SHA-256). Getting this wrong in a security PR erodes trust.
+
+### 5. Keep changes minimal
+
+- One fix per PR. Don't bundle unrelated improvements.
+- Don't refactor code you didn't need to change for the fix.
+- Every added byte to the bundle needs justification.
+- If you need to increase a bundle size limit, explain why the added code is necessary.
+
 ## Best Practices for Contributing
 
 - Prefer web standard APIs over runtime-specific ones
