@@ -29,7 +29,7 @@ export function resolveCorsOptions(options: CorsOptions = {}): ResolvedCorsOptio
     },
   };
 
-  return {
+  const resolved = {
     ...defaultOptions,
     ...options,
     preflight: {
@@ -37,6 +37,29 @@ export function resolveCorsOptions(options: CorsOptions = {}): ResolvedCorsOptio
       ...options.preflight,
     },
   };
+
+  if (resolved.credentials) {
+    const wildcardFields = [];
+    if (!options.origin || options.origin === "*") {
+      wildcardFields.push("origin");
+    }
+    if (!options.methods || options.methods === "*") {
+      wildcardFields.push("methods");
+    }
+    if (!options.allowHeaders || options.allowHeaders === "*") {
+      wildcardFields.push("allowHeaders");
+    }
+    if (!options.exposeHeaders || options.exposeHeaders === "*") {
+      wildcardFields.push("exposeHeaders");
+    }
+    if (wildcardFields.length > 0) {
+      console.warn(
+        `[h3] CORS: When \`credentials: true\`, ${wildcardFields.join(", ")} cannot be wildcard (\`*\`). Browsers will reject the response. See https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Access-Control-Allow-Origin#directives`,
+      );
+    }
+  }
+
+  return resolved;
 }
 
 /**
