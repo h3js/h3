@@ -167,7 +167,7 @@ export class HTTPError<DataT = unknown> extends Error implements ErrorBody<DataT
     const status = sanitizeStatusCode(
       (details as ErrorBody)?.status ||
         (details?.cause as ErrorBody)?.status ||
-        (details as ErrorBody)?.status ||
+        (details?.cause as ErrorInput)?.statusCode ||
         (details as ErrorInput)?.statusCode,
       500,
     );
@@ -175,7 +175,7 @@ export class HTTPError<DataT = unknown> extends Error implements ErrorBody<DataT
     const statusText = sanitizeStatusMessage(
       (details as ErrorBody)?.statusText ||
         (details?.cause as ErrorBody)?.statusText ||
-        (details as ErrorBody)?.statusText ||
+        (details?.cause as ErrorInput)?.statusMessage ||
         (details as ErrorInput)?.statusMessage,
     );
 
