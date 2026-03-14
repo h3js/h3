@@ -117,22 +117,51 @@ describe("sse (unit)", () => {
       await stream.pushComment("comment2");
     });
 
-    it("marks writer as closed on write failure to prevent silent retries", async () => {
+    it("marks writer as closed on push write failure (L89 _sendEvent)", async () => {
       const event = mockEvent("/");
       const stream = new EventStream(event);
 
-      // Access internals to verify state
       const writeSpy = vi.fn().mockRejectedValue(new Error("write failed"));
       (stream as any)._writer.write = writeSpy;
       (stream as any)._writerIsClosed = false;
 
       await stream.push("test");
-      // After a failed write, _writerIsClosed should be true
       expect((stream as any)._writerIsClosed).toBe(true);
 
-      // Subsequent push should skip without calling write again
       writeSpy.mockClear();
       await stream.push("test2");
+      expect(writeSpy).not.toHaveBeenCalled();
+    });
+
+    it("marks writer as closed on pushComment write failure (L74)", async () => {
+      const event = mockEvent("/");
+      const stream = new EventStream(event);
+
+      const writeSpy = vi.fn().mockRejectedValue(new Error("write failed"));
+      (stream as any)._writer.write = writeSpy;
+      (stream as any)._writerIsClosed = false;
+
+      await stream.pushComment("test");
+      expect((stream as any)._writerIsClosed).toBe(true);
+
+      writeSpy.mockClear();
+      await stream.pushComment("test2");
+      expect(writeSpy).not.toHaveBeenCalled();
+    });
+
+    it("marks writer as closed on batch push write failure (L110 _sendEvents)", async () => {
+      const event = mockEvent("/");
+      const stream = new EventStream(event);
+
+      const writeSpy = vi.fn().mockRejectedValue(new Error("write failed"));
+      (stream as any)._writer.write = writeSpy;
+      (stream as any)._writerIsClosed = false;
+
+      await stream.push([{ data: "msg1" }, { data: "msg2" }]);
+      expect((stream as any)._writerIsClosed).toBe(true);
+
+      writeSpy.mockClear();
+      await stream.push([{ data: "msg3" }]);
       expect(writeSpy).not.toHaveBeenCalled();
     });
   });
