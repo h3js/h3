@@ -108,7 +108,12 @@ function handlerWithFetch<
   return Object.assign(handler, {
     fetch: (req: ServerRequest | URL | string): Promise<Response> => {
       if (!req || (typeof req !== "string" && typeof req !== "object")) {
-        return Promise.resolve(toResponse(new TypeError("Invalid fetch input", { cause: req }), new H3Event(new Request("http://_"))));
+        return Promise.resolve(
+          toResponse(
+            new TypeError("Invalid fetch input", { cause: req }),
+            new H3Event(new Request("http://_")),
+          ),
+        );
       }
       if (typeof req === "string") {
         req = new URL(req, "http://_");
