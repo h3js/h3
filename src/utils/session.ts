@@ -1,5 +1,5 @@
 import { seal, unseal, defaults as sealDefaults } from "./internal/iron-crypto.ts";
-import { getChunkedCookie, setChunkedCookie } from "./cookie.ts";
+import { getChunkedCookie, setChunkedCookie, deleteChunkedCookie } from "./cookie.ts";
 import { DEFAULT_SESSION_NAME, DEFAULT_SESSION_COOKIE } from "./internal/session.ts";
 import { EmptyObject } from "./internal/obj.ts";
 import { kGetSession } from "./internal/session.ts";
@@ -241,7 +241,7 @@ export function clearSession(event: HTTPEvent, config: Partial<SessionConfig>): 
     delete context.sessions![sessionName];
   }
   if ((event as H3Event).res && config.cookie !== false) {
-    setChunkedCookie(event as H3Event, sessionName, "", {
+    deleteChunkedCookie(event as H3Event, sessionName, {
       ...DEFAULT_SESSION_COOKIE,
       ...config.cookie,
     });
