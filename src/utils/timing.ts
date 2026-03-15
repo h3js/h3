@@ -25,7 +25,10 @@ export function setServerTiming(
   if (opts?.dur !== undefined && (!Number.isFinite(opts.dur) || opts.dur < 0)) {
     throw new TypeError(`Invalid Server-Timing duration: ${opts.dur}`);
   }
-  const value = name + (opts?.desc ? `;desc="${_escapeDesc(opts.desc)}"` : "") + (opts?.dur !== undefined ? `;dur=${opts.dur}` : "");
+  const value =
+    name +
+    (opts?.desc ? `;desc="${_escapeDesc(opts.desc)}"` : "") +
+    (opts?.dur !== undefined ? `;dur=${opts.dur}` : "");
   event.res.headers.append("server-timing", value);
   const ctx = event.context as Record<string, unknown>;
   ((ctx.timing as Record<string, unknown>[]) ||= []).push({ name, ...opts });
