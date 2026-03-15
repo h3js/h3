@@ -142,6 +142,7 @@ export const H3 = /* @__PURE__ */ (() => {
                 event.url.pathname = originalPathname;
               });
             }
+            event.url.pathname = originalPathname;
             return result;
           });
         }
