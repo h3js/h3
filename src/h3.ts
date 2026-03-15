@@ -193,6 +193,9 @@ export const H3 = /* @__PURE__ */ (() => {
         fn = arg1 as Middleware | H3Type;
         opts = arg2 as MiddlewareOptions;
       }
+      if (typeof fn !== "function" && "handler" in (fn as object)) {
+        return this.mount(route || "", fn as unknown as H3Type);
+      }
       this["~middleware"].push(normalizeMiddleware(fn as Middleware, { ...opts, route }));
       return this;
     }
