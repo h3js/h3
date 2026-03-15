@@ -105,7 +105,7 @@ export function writeEarlyHints(
  *   // Open document body
  *   yield "<!DOCTYPE html>\n<html><body><h1>Executing...</h1><ol>\n";
  *   // Do work ...
- *   for (let i = 0; i < 1000) {
+ *   for (let i = 0; i < 1000; i++) {
  *     await delay(1000);
  *     // Report progress
  *     yield `<li>Completed job #`;
@@ -114,9 +114,9 @@ export function writeEarlyHints(
  *   }
  *   // Close out the report
  *   return `</ol></body></html>`;
- * })
+ * });
  * async function delay(ms) {
- *   return new Promise(resolve => setTimeout(resolve, ms));
+ *   return new Promise((resolve) => setTimeout(resolve, ms));
  * }
  */
 export function iterable<Value = unknown, Return = unknown>(
