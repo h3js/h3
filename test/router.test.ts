@@ -1,5 +1,5 @@
 import { beforeEach } from "vitest";
-import { getRouterParams, getRouterParam, H3 } from "../src/index.ts";
+import { getRouterParams, getRouterParam, removeRoute, H3 } from "../src/index.ts";
 import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("router", (t, { it, expect, describe }) => {
@@ -222,7 +222,7 @@ describeMatrix("router", (t, { it, expect, describe }) => {
     });
   });
 
-  describe("off (remove route)", () => {
+  describe("removeRoute", () => {
     it("removes a registered route", async () => {
       t.app.get("/removable", () => "exists");
 
@@ -230,7 +230,7 @@ describeMatrix("router", (t, { it, expect, describe }) => {
       expect(res1.status).toBe(200);
       expect(await res1.text()).toBe("exists");
 
-      t.app.off("GET", "/removable");
+      removeRoute(t.app, "GET", "/removable");
 
       const res2 = await t.fetch("/removable");
       expect(res2.status).toBe(404);
@@ -240,7 +240,7 @@ describeMatrix("router", (t, { it, expect, describe }) => {
       t.app.get("/multi", () => "get");
       t.app.post("/multi", () => "post");
 
-      t.app.off("GET", "/multi");
+      removeRoute(t.app, "GET", "/multi");
 
       const getRes = await t.fetch("/multi");
       expect(getRes.status).toBe(404);

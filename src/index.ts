@@ -79,6 +79,8 @@ export {
 
 export { type RouteDefinition, defineRoute } from "./utils/route.ts";
 
+export { removeRoute } from "./utils/route.remove.ts";
+
 // Request
 
 export {

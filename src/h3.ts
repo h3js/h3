@@ -1,4 +1,4 @@
-import { createRouter, addRoute, findRoute, removeRoute } from "rou3";
+import { createRouter, addRoute, findRoute } from "rou3";
 import { H3Event } from "./event.ts";
 import { toResponse, kNotFound } from "./response.ts";
 import { callMiddleware, normalizeMiddleware } from "./middleware.ts";
@@ -146,19 +146,6 @@ export const H3 = /* @__PURE__ */ (() => {
           url.pathname = url.pathname.slice(base.length) || "/";
           return fetchHandler(new Request(url, event.req));
         });
-      }
-      return this;
-    }
-
-    off(method: HTTPMethod | Lowercase<HTTPMethod> | "", route: string): this {
-      const _method = (method || "").toUpperCase();
-      route = new URL(route, "http://_").pathname;
-      removeRoute(this["~rou3"], _method, route);
-      const idx = this["~routes"].findIndex(
-        (r) => r.route === route && (!_method || r.method === _method),
-      );
-      if (idx !== -1) {
-        this["~routes"].splice(idx, 1);
       }
       return this;
     }
