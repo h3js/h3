@@ -35,6 +35,16 @@ describe("server-timing (unit)", () => {
     expect(header).toContain('cache;desc="Redis";dur=1.2');
   });
 
+  it("stores timings in event.context.timing", () => {
+    const event = mockEvent("/");
+    setServerTiming(event, "db", { dur: 53, desc: "Query" });
+    setServerTiming(event, "cache", { dur: 1.2 });
+    expect((event.context as any).timing).toEqual([
+      { name: "db", dur: 53, desc: "Query" },
+      { name: "cache", dur: 1.2 },
+    ]);
+  });
+
   it("withServerTiming measures and appends timing", async () => {
     const event = mockEvent("/");
     const result = await withServerTiming(event, "work", async () => {
