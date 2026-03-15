@@ -139,6 +139,10 @@ export {
   createEventStream,
 } from "./utils/event-stream.ts";
 
+// Timing
+
+export { setServerTiming, withServerTiming } from "./utils/timing.ts";
+
 // Sanitize
 
 export { sanitizeStatusCode, sanitizeStatusMessage } from "./utils/sanitize.ts";
