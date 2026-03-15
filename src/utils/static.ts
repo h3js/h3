@@ -161,7 +161,36 @@ export async function serveStatic(
     event.res.headers.set("content-encoding", meta.encoding);
   }
 
-  if (meta.size !== undefined && meta.size > 0 && !event.req.headers.get("content-length")) {
+  if (meta.size !== undefined && meta.size > 0) {
+    event.res.headers.set("accept-ranges", "bytes");
+  }
+
+  // Handle Range requests (RFC 7233)
+  const rangeHeader = event.req.headers.get("range");
+  if (rangeHeader && meta.size !== undefined && meta.size > 0) {
+    const range = parseRange(rangeHeader, meta.size);
+    if (range === -1) {
+      // Unsatisfiable range
+      event.res.headers.set("content-range", `bytes */${meta.size}`);
+      return new HTTPResponse(null, { status: 416, statusText: "Range Not Satisfiable" });
+    }
+    if (range) {
+      const { start, end } = range;
+      const length = end - start + 1;
+      event.res.headers.set("content-range", `bytes ${start}-${end}/${meta.size}`);
+      event.res.headers.set("content-length", length + "");
+
+      if (event.req.method === "HEAD") {
+        return new HTTPResponse(null, { status: 206, statusText: "Partial Content" });
+      }
+
+      const contents = await options.getContents(id);
+      const sliced = contents ? await sliceBody(contents, start, end) : null;
+      return new HTTPResponse(sliced, { status: 206, statusText: "Partial Content" });
+    }
+  }
+
+  if (meta.size !== undefined && meta.size > 0 && !event.res.headers.has("content-length")) {
     event.res.headers.set("content-length", meta.size + "");
   }
 
@@ -183,6 +212,81 @@ function parseAcceptEncoding(header?: string, encodingMap?: Record<string, strin
     .split(",")
     .map((e) => encodingMap[e.trim()])
     .filter(Boolean);
+}
+
+/**
+ * Parse a single byte Range header value.
+ * Returns { start, end } for valid range, -1 for unsatisfiable, undefined for malformed/multi-range.
+ */
+function parseRange(header: string, size: number): { start: number; end: number } | -1 | undefined {
+  if (!header.startsWith("bytes=")) {
+    return undefined;
+  }
+  const rangeStr = header.slice(6);
+  // Only support single range
+  if (rangeStr.includes(",")) {
+    return undefined;
+  }
+  const [startStr, endStr] = rangeStr.split("-");
+  let start: number;
+  let end: number;
+  if (startStr === "") {
+    // Suffix range: bytes=-500 (last 500 bytes)
+    const suffix = Number.parseInt(endStr, 10);
+    if (Number.isNaN(suffix) || suffix <= 0) {
+      return -1;
+    }
+    start = Math.max(0, size - suffix);
+    end = size - 1;
+  } else {
+    start = Number.parseInt(startStr, 10);
+    end = endStr ? Number.parseInt(endStr, 10) : size - 1;
+    if (Number.isNaN(start) || start < 0 || start >= size) {
+      return -1;
+    }
+    if (Number.isNaN(end) || end >= size) {
+      end = size - 1;
+    }
+    if (start > end) {
+      return -1;
+    }
+  }
+  return { start, end };
+}
+
+async function sliceBody(body: BodyInit, start: number, end: number): Promise<BodyInit> {
+  if (body instanceof ArrayBuffer) {
+    return body.slice(start, end + 1);
+  }
+  if (body instanceof Uint8Array || ArrayBuffer.isView(body)) {
+    return new Uint8Array(body.buffer, body.byteOffset + start, end - start + 1);
+  }
+  if (body instanceof Blob) {
+    return body.slice(start, end + 1);
+  }
+  // For strings and other types, convert to bytes first
+  if (typeof body === "string") {
+    const bytes = new TextEncoder().encode(body);
+    return bytes.slice(start, end + 1);
+  }
+  // ReadableStream or other — read full and slice
+  if (body instanceof ReadableStream) {
+    const reader = body.getReader();
+    const chunks: Uint8Array[] = [];
+    let chunk = await reader.read();
+    while (!chunk.done) {
+      chunks.push(chunk.value);
+      chunk = await reader.read();
+    }
+    const full = new Uint8Array(chunks.reduce((a, c) => a + c.length, 0));
+    let offset = 0;
+    for (const c of chunks) {
+      full.set(c, offset);
+      offset += c.length;
+    }
+    return full.slice(start, end + 1);
+  }
+  return body;
 }
 
 function idSearchPaths(id: string, encodings: string[], indexNames: string[]) {

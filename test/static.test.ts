@@ -259,4 +259,43 @@ describeMatrix("serve static MIME types", (t, { it, expect }) => {
       t.target === "web" ? null : "text/plain; charset=UTF-8",
     );
   });
+
+  it("advertises accept-ranges: bytes when size is known", async () => {
+    const res = await t.fetch("/test.txt");
+    expect(res.headers.get("accept-ranges")).toBe("bytes");
+  });
+
+  it("responds with 206 for valid range request", async () => {
+    const res = await t.fetch("/test.txt", {
+      headers: { range: "bytes=0-4" },
+    });
+    expect(res.status).toBe(206);
+    expect(res.headers.get("content-range")).toMatch(/^bytes 0-4\/\d+$/);
+    expect(res.headers.get("content-length")).toBe("5");
+    const body = await res.text();
+    expect(body.length).toBe(5);
+  });
+
+  it("responds with 206 for suffix range", async () => {
+    const res = await t.fetch("/test.txt", {
+      headers: { range: "bytes=-5" },
+    });
+    expect(res.status).toBe(206);
+    expect(res.headers.get("content-range")).toMatch(/^bytes \d+-\d+\/\d+$/);
+  });
+
+  it("responds with 416 for unsatisfiable range", async () => {
+    const res = await t.fetch("/test.txt", {
+      headers: { range: "bytes=9999-" },
+    });
+    expect(res.status).toBe(416);
+    expect(res.headers.get("content-range")).toMatch(/^bytes \*\/\d+$/);
+  });
+
+  it("ignores malformed range header", async () => {
+    const res = await t.fetch("/test.txt", {
+      headers: { range: "invalid" },
+    });
+    expect(res.status).toBe(200);
+  });
 });
