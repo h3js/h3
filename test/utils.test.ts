@@ -6,6 +6,7 @@ import {
   assertMethod,
   getQuery,
   getRequestURL,
+  getRequestHost,
   getRequestIP,
   getRequestFingerprint,
   handleCacheHeaders,
@@ -125,6 +126,31 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
       t.app.all("/*", (event) => event.req.method);
       expect(await (await t.fetch("/api")).text()).toBe("GET");
       expect(await (await t.fetch("/api", { method: "POST" })).text()).toBe("POST");
+    });
+  });
+
+  describe("getRequestHost", () => {
+    it("returns host header value", async () => {
+      t.app.get("/", (event) => getRequestHost(event));
+      const res = await t.fetch("/");
+      // In test environments, host header is set by the HTTP client
+      expect(await res.text()).toBeTruthy();
+    });
+
+    it("uses x-forwarded-host when enabled", async () => {
+      t.app.get("/", (event) => getRequestHost(event, { xForwardedHost: true }));
+      const res = await t.fetch("/", {
+        headers: { "x-forwarded-host": "proxy.example.com" },
+      });
+      expect(await res.text()).toBe("proxy.example.com");
+    });
+
+    it("uses first value from x-forwarded-host with multiple entries", async () => {
+      t.app.get("/", (event) => getRequestHost(event, { xForwardedHost: true }));
+      const res = await t.fetch("/", {
+        headers: { "x-forwarded-host": "first.com, second.com" },
+      });
+      expect(await res.text()).toBe("first.com");
     });
   });
 

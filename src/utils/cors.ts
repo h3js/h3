@@ -126,8 +126,7 @@ export function appendCorsHeaders(event: H3Event, options: CorsOptions): void {
  *
  * @example
  * const app = new H3();
- * const router = createRouter();
- * router.use("/", async (event) => {
+ * app.all("/", async (event) => {
  *   const corsRes = handleCors(event, {
  *     origin: "*",
  *     preflight: {

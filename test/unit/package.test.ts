@@ -76,6 +76,7 @@ describe("h3 package", () => {
         "getRouterParam",
         "getRouterParams",
         "getSession",
+        "getValidatedCookies",
         "getValidatedQuery",
         "getValidatedRouterParams",
         "handleCacheHeaders",

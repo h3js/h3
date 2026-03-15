@@ -319,7 +319,7 @@ export function assertMethod(
  *
  * If `xForwardedHost` is `true`, it will use the `x-forwarded-host` header if it exists.
  *
- * If no host header is found, it will default to "localhost".
+ * If no host header is found, it will return an empty string.
  *
  * @example
  * app.get("/", (event) => {

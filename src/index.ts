@@ -129,6 +129,7 @@ export { readBody, readValidatedBody, assertBodySize } from "./utils/body.ts";
 
 export {
   getCookie,
+  getValidatedCookies,
   deleteCookie,
   parseCookies,
   setCookie,
