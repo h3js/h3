@@ -96,12 +96,12 @@ export async function readMultipartFormData(event: H3Event): Promise<
 
   return Promise.all(
     [...formData.entries()].map(async ([key, value]) => {
-      return value instanceof Blob
+      return typeof value === "object"
         ? {
             name: key,
-            type: value.type,
-            filename: value.name,
-            data: await value.bytes(),
+            type: (value as Blob).type,
+            filename: (value as File).name,
+            data: await (value as Blob).bytes(),
           }
         : { name: key, data: new TextEncoder().encode(value) };
     }),
