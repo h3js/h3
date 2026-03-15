@@ -265,15 +265,14 @@ async function sliceBody(body: BodyInit, start: number, end: number): Promise<Bo
     return body.slice(start, end + 1);
   }
   if (body instanceof Uint8Array || ArrayBuffer.isView(body)) {
-    return new Uint8Array(body.buffer, body.byteOffset + start, end - start + 1);
+    return (body.buffer as ArrayBuffer).slice(body.byteOffset + start, body.byteOffset + end + 1);
   }
   if (body instanceof Blob) {
     return body.slice(start, end + 1);
   }
   // For strings and other types, convert to bytes first
   if (typeof body === "string") {
-    const bytes = new TextEncoder().encode(body);
-    return bytes.slice(start, end + 1);
+    return (new TextEncoder().encode(body).buffer as ArrayBuffer).slice(start, end + 1);
   }
   // ReadableStream or other — read full and slice
   if (body instanceof ReadableStream) {
@@ -290,7 +289,7 @@ async function sliceBody(body: BodyInit, start: number, end: number): Promise<Bo
       full.set(c, offset);
       offset += c.length;
     }
-    return full.slice(start, end + 1);
+    return (full.buffer as ArrayBuffer).slice(start, end + 1);
   }
   return body;
 }
