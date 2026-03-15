@@ -79,9 +79,7 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
     });
 
     it("uses fallback when referer is invalid URL", async () => {
-      t.app.post("/submit", (event) =>
-        redirectBack(event, { fallback: "/safe" }),
-      );
+      t.app.post("/submit", (event) => redirectBack(event, { fallback: "/safe" }));
       const res = await t.fetch("/submit", {
         method: "POST",
         headers: { referer: "not-a-valid-url" },
