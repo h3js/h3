@@ -156,6 +156,26 @@ describeMatrix("mount", (t, { it, expect, describe }) => {
       expect(logs).toContain("admin: /admin/users"); // Adjusted path
     });
 
+    it("restores pathname when mounted middleware returns without calling next", async () => {
+      let pathInResponse = "";
+      t.app.config.onResponse = (_res, event) => {
+        pathInResponse = event.url.pathname;
+      };
+
+      const subApp = new H3();
+      subApp.use((_event) => {
+        return "intercepted";
+      });
+      subApp.get("/test", () => new Response("ok"));
+
+      t.app.mount("/api", subApp);
+
+      const res = await t.fetch("/api/test");
+      expect(await res.text()).toBe("intercepted");
+      // onResponse must see the original pathname, not the stripped one
+      expect(pathInResponse).toBe("/api/test");
+    });
+
     it("restores pathname when mounted middleware throws synchronously", async () => {
       const subApp = new H3();
       subApp.use((_event) => {
