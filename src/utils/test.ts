@@ -1,4 +1,4 @@
-import type { H3Core } from "../h3.ts";
+import type { H3 } from "../types/h3.ts";
 
 export interface TestClientOptions {
   /** Request headers */
@@ -49,7 +49,7 @@ interface TestClientResult {
  * // Raw Response object
  * ```
  */
-export function createTestClient(app: H3Core): TestClientResult {
+export function createTestClient(app: H3): TestClientResult {
   function request(
     path: string,
     opts?: TestClientOptions & { method?: string },

@@ -12,8 +12,8 @@ describe("createTestClient", () => {
 
   it("makes POST requests with JSON body", async () => {
     const app = new H3().post("/users", async (event) => {
-      const body = await readBody(event);
-      return { created: true, name: body.name };
+      const body = await readBody<{ name: string }>(event);
+      return { created: true, name: body?.name };
     });
     const client = createTestClient(app);
 
