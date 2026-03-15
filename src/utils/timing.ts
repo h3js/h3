@@ -19,13 +19,13 @@ export function setServerTiming(
   name: string,
   opts?: { dur?: number; desc?: string },
 ): void {
-  let value = name;
-  if (opts?.desc) {
-    value += `;desc="${opts.desc}"`;
+  if (!_isValidToken(name)) {
+    throw new TypeError(`Invalid Server-Timing metric name: ${name}`);
   }
-  if (opts?.dur !== undefined) {
-    value += `;dur=${opts.dur}`;
+  if (opts?.dur !== undefined && (!Number.isFinite(opts.dur) || opts.dur < 0)) {
+    throw new TypeError(`Invalid Server-Timing duration: ${opts.dur}`);
   }
+  const value = name + (opts?.desc ? `;desc="${_escapeDesc(opts.desc)}"` : "") + (opts?.dur !== undefined ? `;dur=${opts.dur}` : "");
   event.res.headers.append("server-timing", value);
   const ctx = event.context as Record<string, unknown>;
   ((ctx.timing as Record<string, unknown>[]) ||= []).push({ name, ...opts });
@@ -56,4 +56,15 @@ export async function withServerTiming<T>(
   } finally {
     setServerTiming(event, name, { dur: performance.now() - start });
   }
+}
+
+// RFC 7230 token: !#$%&'*+-.^_`|~ DIGIT ALPHA
+const _tokenRE = /^[\w!#$%&'*+.^`|~-]+$/;
+
+function _isValidToken(value: string): boolean {
+  return _tokenRE.test(value);
+}
+
+function _escapeDesc(value: string): string {
+  return value.replaceAll("\\", "\\\\").replaceAll('"', '\\"');
 }

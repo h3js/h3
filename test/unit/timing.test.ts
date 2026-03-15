@@ -73,6 +73,32 @@ describe("server-timing (unit)", () => {
     expect(event.res.headers.get("server-timing")).toMatch(/^fail;dur=/);
   });
 
+  it("rejects invalid metric name", () => {
+    const event = mockEvent("/");
+    expect(() => setServerTiming(event, "invalid name")).toThrow(TypeError);
+    expect(() => setServerTiming(event, "bad;token")).toThrow(TypeError);
+    expect(() => setServerTiming(event, "")).toThrow(TypeError);
+  });
+
+  it("rejects invalid duration", () => {
+    const event = mockEvent("/");
+    expect(() => setServerTiming(event, "db", { dur: NaN })).toThrow(TypeError);
+    expect(() => setServerTiming(event, "db", { dur: Infinity })).toThrow(TypeError);
+    expect(() => setServerTiming(event, "db", { dur: -1 })).toThrow(TypeError);
+  });
+
+  it("escapes quotes and backslashes in desc", () => {
+    const event = mockEvent("/");
+    setServerTiming(event, "db", { desc: 'say "hello"' });
+    expect(event.res.headers.get("server-timing")).toBe('db;desc="say \\"hello\\""');
+  });
+
+  it("escapes backslashes in desc", () => {
+    const event = mockEvent("/");
+    setServerTiming(event, "db", { desc: "path\\to\\file" });
+    expect(event.res.headers.get("server-timing")).toBe('db;desc="path\\\\to\\\\file"');
+  });
+
   it("withServerTiming records timing on async error", async () => {
     const event = mockEvent("/");
     await expect(
