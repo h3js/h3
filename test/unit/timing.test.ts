@@ -63,12 +63,24 @@ describe("server-timing (unit)", () => {
     expect(event.res.headers.get("server-timing")).toMatch(/^sync;dur=/);
   });
 
-  it("withServerTiming propagates errors", async () => {
+  it("withServerTiming records timing on sync error", async () => {
     const event = mockEvent("/");
     await expect(
       withServerTiming(event, "fail", () => {
         throw new Error("boom");
       }),
     ).rejects.toThrow("boom");
+    expect(event.res.headers.get("server-timing")).toMatch(/^fail;dur=/);
+  });
+
+  it("withServerTiming records timing on async error", async () => {
+    const event = mockEvent("/");
+    await expect(
+      withServerTiming(event, "fail-async", async () => {
+        await new Promise((r) => setTimeout(r, 10));
+        throw new Error("async boom");
+      }),
+    ).rejects.toThrow("async boom");
+    expect(event.res.headers.get("server-timing")).toMatch(/^fail-async;dur=\d/);
   });
 });

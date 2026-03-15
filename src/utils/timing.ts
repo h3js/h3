@@ -51,7 +51,9 @@ export async function withServerTiming<T>(
   fn: () => T | Promise<T>,
 ): Promise<T> {
   const start = performance.now();
-  const result = await fn();
-  setServerTiming(event, name, { dur: performance.now() - start });
-  return result;
+  try {
+    return await fn();
+  } finally {
+    setServerTiming(event, name, { dur: performance.now() - start });
+  }
 }
