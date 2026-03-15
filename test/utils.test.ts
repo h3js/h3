@@ -140,6 +140,42 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
       });
     }
 
+    it("x-forwarded-host clears port for plain host", async () => {
+      const res = await t
+        .fetch("http://localhost:3000/test", {
+          headers: { "x-forwarded-host": "example.com" },
+        })
+        .then((r) => r.text());
+      expect(res).toBe("http://example.com/test");
+    });
+
+    it("x-forwarded-host preserves explicit port", async () => {
+      const res = await t
+        .fetch("http://localhost/test", {
+          headers: { "x-forwarded-host": "example.com:8080" },
+        })
+        .then((r) => r.text());
+      expect(res).toBe("http://example.com:8080/test");
+    });
+
+    it("x-forwarded-host with IPv6 clears port", async () => {
+      const res = await t
+        .fetch("http://localhost:3000/test", {
+          headers: { "x-forwarded-host": "[2001:db8::1]" },
+        })
+        .then((r) => r.text());
+      expect(res).toBe("http://[2001:db8::1]/test");
+    });
+
+    it("x-forwarded-host with IPv6 and port preserves port", async () => {
+      const res = await t
+        .fetch("http://localhost/test", {
+          headers: { "x-forwarded-host": "[2001:db8::1]:8080" },
+        })
+        .then((r) => r.text());
+      expect(res).toBe("http://[2001:db8::1]:8080/test");
+    });
+
     it('x-forwarded-proto: "https"', async () => {
       expect(
         await t

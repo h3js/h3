@@ -388,7 +388,7 @@ export function getRequestURL(
     const host = getRequestHost(event, opts);
     if (host) {
       url.host = host;
-      if (!host.includes(":")) {
+      if (!/:\d+$/.test(host)) {
         url.port = "";
       }
     }
