@@ -77,6 +77,17 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
       const res = await t.fetch("/submit", { method: "POST" });
       expect(res.headers.get("location")).toBe("/");
     });
+
+    it("uses fallback when referer is invalid URL", async () => {
+      t.app.post("/submit", (event) =>
+        redirectBack(event, { fallback: "/safe" }),
+      );
+      const res = await t.fetch("/submit", {
+        method: "POST",
+        headers: { referer: "not-a-valid-url" },
+      });
+      expect(res.headers.get("location")).toBe("/safe");
+    });
   });
 
   describe("withBase", () => {
