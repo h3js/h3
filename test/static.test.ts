@@ -310,5 +310,4 @@ describeMatrix("serve static MIME types", (t, { it, expect }) => {
       t.target === "web" ? null : "text/plain; charset=UTF-8",
     );
   });
-
 });
