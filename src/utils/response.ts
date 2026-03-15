@@ -44,7 +44,7 @@ export function redirect(
   status: number = 302,
   statusText?: string,
 ): HTTPResponse {
-  const encodedLoc = URL.canParse(location) ? new URL(location).href : encodeURI(location);
+  const encodedLoc = encodeURI(location);
   const body = /* html */ `<html><head><meta http-equiv="refresh" content="0; url=${encodedLoc}" /></head></html>`;
   return new HTTPResponse(body, {
     status,
