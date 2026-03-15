@@ -118,6 +118,10 @@ export {
 
 export { readBody, readValidatedBody, assertBodySize } from "./utils/body.ts";
 
+// Payload
+
+export { getPayload, getValidatedPayload } from "./utils/payload.ts";
+
 // Cookie
 
 export {
