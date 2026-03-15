@@ -1,4 +1,5 @@
 import { H3 } from "../src/h3.ts";
+import { HTTPError } from "../src/error.ts";
 import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("mount", (t, { it, expect, describe }) => {
@@ -153,6 +154,65 @@ describeMatrix("mount", (t, { it, expect, describe }) => {
       await t.fetch("/api/admin/users");
 
       expect(logs).toContain("admin: /admin/users"); // Adjusted path
+    });
+
+    it("restores pathname when mounted middleware returns without calling next", async () => {
+      let pathInResponse = "";
+      t.app.config.onResponse = (_res, event) => {
+        pathInResponse = event.url.pathname;
+      };
+
+      const subApp = new H3();
+      subApp.use((_event) => {
+        return "intercepted";
+      });
+      subApp.get("/test", () => new Response("ok"));
+
+      t.app.mount("/api", subApp);
+
+      const res = await t.fetch("/api/test");
+      expect(await res.text()).toBe("intercepted");
+      // onResponse must see the original pathname, not the stripped one
+      expect(pathInResponse).toBe("/api/test");
+    });
+
+    it("restores pathname when mounted middleware throws synchronously", async () => {
+      const subApp = new H3();
+      subApp.use((_event) => {
+        throw new HTTPError({ status: 500, statusText: "Sync Error" });
+      });
+      subApp.get("/test", () => new Response("ok"));
+
+      t.app.mount("/api", subApp);
+
+      t.app.config.onError = (error, event) => {
+        return Response.json({ path: event.url.pathname }, { status: 500 });
+      };
+
+      const res = await t.fetch("/api/test");
+      const body = await res.json();
+      expect(body.path).toBe("/api/test");
+      t.errors = [];
+    });
+
+    it("restores pathname when mounted middleware throws asynchronously", async () => {
+      const subApp = new H3();
+      subApp.use(async (_event) => {
+        await Promise.resolve();
+        throw new HTTPError({ status: 500, statusText: "Async Error" });
+      });
+      subApp.get("/test", () => new Response("ok"));
+
+      t.app.mount("/api", subApp);
+
+      t.app.config.onError = (error, event) => {
+        return Response.json({ path: event.url.pathname }, { status: 500 });
+      };
+
+      const res = await t.fetch("/api/test");
+      const body = await res.json();
+      expect(body.path).toBe("/api/test");
+      t.errors = [];
     });
 
     it("middleware should not execute for non-matching paths", async () => {

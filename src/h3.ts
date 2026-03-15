@@ -127,10 +127,23 @@ export const H3 = /* @__PURE__ */ (() => {
               return next();
             }
             event.url.pathname = event.url.pathname.slice(base.length) || "/";
-            return callMiddleware(event, input["~middleware"], () => {
+            let result: unknown;
+            try {
+              result = callMiddleware(event, input["~middleware"], () => {
+                event.url.pathname = originalPathname;
+                return next();
+              });
+            } catch (err) {
               event.url.pathname = originalPathname;
-              return next();
-            });
+              throw err;
+            }
+            if (typeof (result as PromiseLike<unknown>)?.then === "function") {
+              return (result as Promise<unknown>).finally(() => {
+                event.url.pathname = originalPathname;
+              });
+            }
+            event.url.pathname = originalPathname;
+            return result;
           });
         }
         for (const r of input["~routes"]) {
