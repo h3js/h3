@@ -165,9 +165,15 @@ export async function serveStatic(
     event.res.headers.set("accept-ranges", "bytes");
   }
 
-  // Handle Range requests (RFC 7233)
+  // Handle Range requests (RFC 9110 Section 14)
   const rangeHeader = event.req.headers.get("range");
-  if (rangeHeader && meta.size !== undefined && meta.size > 0) {
+  const ifRange = event.req.headers.get("if-range");
+  const rangeValid =
+    !ifRange ||
+    (meta.etag && ifRange === meta.etag) ||
+    (meta.mtime && new Date(ifRange).getTime() === new Date(meta.mtime).getTime());
+
+  if (rangeHeader && rangeValid && meta.size !== undefined && meta.size > 0) {
     const range = parseRange(rangeHeader, meta.size);
     if (range === -1) {
       // Unsatisfiable range
