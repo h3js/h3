@@ -51,10 +51,7 @@ describe("getValidatedCookies", () => {
   it("returns empty object when no cookies", async () => {
     const event = mockEvent("/");
 
-    const cookies = await getValidatedCookies(
-      event,
-      z.object({}).passthrough(),
-    );
+    const cookies = await getValidatedCookies(event, z.object({}).passthrough());
 
     expect(cookies).toEqual({});
   });
@@ -65,17 +62,13 @@ describe("getValidatedCookies", () => {
     });
 
     await expect(
-      getValidatedCookies(
-        event,
-        z.object({ required: z.string() }),
-        {
-          onError: ({ issues }) => ({
-            status: 422,
-            statusText: "Cookie validation failed",
-            message: issues.map((i: { message: string }) => i.message).join(", "),
-          }),
-        },
-      ),
+      getValidatedCookies(event, z.object({ required: z.string() }), {
+        onError: ({ issues }) => ({
+          status: 422,
+          statusText: "Cookie validation failed",
+          message: issues.map((i: { message: string }) => i.message).join(", "),
+        }),
+      }),
     ).rejects.toMatchObject({ status: 422 });
   });
 });

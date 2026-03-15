@@ -34,10 +34,7 @@ export function parseCookies(event: HTTPEvent): Record<string, string> {
  *   }));
  * });
  */
-export function getValidatedCookies<
-  Event extends HTTPEvent,
-  S extends StandardSchemaV1<any, any>,
->(
+export function getValidatedCookies<Event extends HTTPEvent, S extends StandardSchemaV1<any, any>>(
   event: Event,
   validate: S,
   options?: { onError?: (result: FailureResult) => ErrorDetails },
