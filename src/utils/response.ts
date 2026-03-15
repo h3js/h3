@@ -73,15 +73,9 @@ export function redirectBack(
 ): HTTPResponse {
   const referer = event.req.headers.get("referer");
   let location = opts.fallback || "/";
-  if (referer) {
-    try {
-      const refererUrl = new URL(referer);
-      const requestUrl = new URL(event.req.url);
-      if (refererUrl.origin === requestUrl.origin) {
-        location = referer;
-      }
-    } catch {
-      // Invalid referer URL, use fallback
+  if (referer && URL.canParse(referer)) {
+    if (new URL(referer).origin === event.url.origin) {
+      location = referer;
     }
   }
   return redirect(location, opts.status);
