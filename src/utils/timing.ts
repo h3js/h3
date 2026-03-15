@@ -1,4 +1,5 @@
 import type { H3Event } from "../event.ts";
+import type { H3EventContext } from "../types/context.ts";
 
 /**
  * Append a `Server-Timing` entry to the response.
@@ -30,8 +31,11 @@ export function setServerTiming(
     (opts?.desc ? `;desc="${_escapeDesc(opts.desc)}"` : "") +
     (opts?.dur !== undefined ? `;dur=${opts.dur}` : "");
   event.res.headers.append("server-timing", value);
-  const ctx = event.context as Record<string, unknown>;
-  ((ctx.timing as Record<string, unknown>[]) ||= []).push({ name, ...opts });
+  const ctx = event.context as H3EventContext;
+  if (!Array.isArray(ctx.timing)) {
+    ctx.timing = [];
+  }
+  ctx.timing.push({ name, ...opts });
 }
 
 /**
