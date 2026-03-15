@@ -140,7 +140,7 @@ H3 v2 deprecated some legacy and aliased utilities.
 - `getMethod`: Migrate to `event.req.method`.
 
 > [!NOTE]
-> The following `H3Event` properties are deprecated in v2 and will be removed in a future version:
+> The following `H3Event` properties are deprecated in v2 and might be removed in a future version:
 >
 > - `event.path` → use `event.url.pathname + event.url.search`
 > - `event.method` → use `event.req.method`
