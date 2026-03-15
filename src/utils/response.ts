@@ -114,9 +114,9 @@ export function writeEarlyHints(
  *   }
  *   // Close out the report
  *   return `</ol></body></html>`;
- * })
+ * });
  * async function delay(ms) {
- *   return new Promise(resolve => setTimeout(resolve, ms));
+ *   return new Promise((resolve) => setTimeout(resolve, ms));
  * }
  */
 export function iterable<Value = unknown, Return = unknown>(
