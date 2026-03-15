@@ -97,7 +97,7 @@ export function deleteCookie(
  * @param name Name of the cookie to get
  * @returns {*} Value of the cookie (String or undefined)
  * ```ts
- * const authorization = getCookie(request, 'Session')
+ * const session = getChunkedCookie(event, 'Session')
  * ```
  */
 export function getChunkedCookie(event: HTTPEvent, name: string): string | undefined {

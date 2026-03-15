@@ -50,12 +50,12 @@ If you were previously using methods below, you can replace them with `return` s
 
 Other send utils that are renamed and need explicit `return`:
 
-- `sendNoContent(event)` / `return null`: Migrate to `return noContent(event)`.
-- `sendIterable(event, <value>)`: Migrate to `return iterable(event, <value>)`.
+- `sendNoContent(event)` / `return null`: Migrate to `return noContent()`.
+- `sendIterable(event, <value>)`: Migrate to `return iterable(<value>)`.
 - `sendProxy(event, target)`: Migrate to `return proxy(event, target)`.
 - `handleCors(event)`: Check return value and early `return` if handled(not `false`).
 - `serveStatic(event, content)`: Make sure to add `return` before.
-- `sendRedirect(event, location, code)`: Migrate to `return redirect(event, location, code)`.
+- `sendRedirect(event, location, code)`: Migrate to `return redirect(location, code)`.
 
 :read-more{to="/guide/basics/response" title="Sending Response"}
 
@@ -136,8 +136,16 @@ H3 v2 deprecated some legacy and aliased utilities.
 
 - `getHeader` / `getRequestHeader`: Migrate to `event.req.headers.get(name)`.
 - `getHeaders` / `getRequestHeaders`: Migrate to `Object.fromEntries(event.req.headers.entries())`.
-- `getRequestPath`: Migrate to `event.path` or `event.url`.
-- `getMethod`: Migrate to `event.method`.
+- `getRequestPath`: Migrate to `event.url.pathname`.
+- `getMethod`: Migrate to `event.req.method`.
+
+> [!NOTE]
+> The following `H3Event` properties are deprecated in v2 and will be removed in a future version:
+>
+> - `event.path` → use `event.url.pathname + event.url.search`
+> - `event.method` → use `event.req.method`
+> - `event.headers` → use `event.req.headers`
+> - `event.node` → use `event.runtime.node`
 
 ### Response utils
 
