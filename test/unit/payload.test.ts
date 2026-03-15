@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { H3, getPayload } from "../../src/index.ts";
+import { H3, getPayload, getValidatedPayload } from "../../src/index.ts";
+import { z } from "zod/v4";
 import { describeMatrix } from "../_setup.ts";
 
 describeMatrix("getPayload", (t, { it, expect }) => {
@@ -57,5 +58,29 @@ describeMatrix("getPayload", (t, { it, expect }) => {
       body: JSON.stringify({ id: "new" }),
     });
     expect((await res.json()).id).toBe("new");
+  });
+
+  it("getValidatedPayload validates with zod schema", async () => {
+    t.app.post("/items", async (event) => {
+      return getValidatedPayload(event, z.object({ name: z.string(), price: z.number() }));
+    });
+    const res = await t.fetch("/items", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "Widget", price: 9.99 }),
+    });
+    expect(await res.json()).toMatchObject({ name: "Widget", price: 9.99 });
+  });
+
+  it("getValidatedPayload throws on invalid data", async () => {
+    t.app.post("/items", async (event) => {
+      return getValidatedPayload(event, z.object({ name: z.string(), price: z.number() }));
+    });
+    const res = await t.fetch("/items", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: 123 }),
+    });
+    expect(res.status).toBe(400);
   });
 });
