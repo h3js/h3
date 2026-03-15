@@ -119,13 +119,6 @@ export function toEventHandler(
   _?: any,
   _route?: string,
 ): EventHandler {
-  if (!isEventHandler(input)) {
-    console.warn(
-      "[h3] Implicit event handler conversion is deprecated. Use `eventHandler()` or `fromNodeMiddleware()` to define event handlers.",
-      _route && _route !== "/" ? "\n" + `     Route: ${_route}` : "",
-      "\n" + `     Handler: ${input}`,
-    );
-  }
   return input;
 }
 
