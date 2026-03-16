@@ -43,8 +43,7 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
     });
 
     it("escapes special characters in HTML body", async () => {
-      const malicious =
-        'https://example.com/"><script>alert(1)</script>&foo=bar';
+      const malicious = 'https://example.com/"><script>alert(1)</script>&foo=bar';
       t.app.use(() => redirect(malicious));
       const result = await t.fetch("/");
       expect(result.headers.get("location")).toBe(malicious);
