@@ -11,6 +11,36 @@ import type { HTTPMethod } from "../types/h3.ts";
 import type { H3EventContext } from "../types/context.ts";
 import type { ServerRequest } from "srvx";
 
+const _urlOverrides = new WeakMap<Request, string>();
+
+const _proxyHandler: ProxyHandler<Request> = {
+  get(target, prop, receiver) {
+    if (prop === "url") return _urlOverrides.get(receiver);
+    const value = Reflect.get(target, prop);
+    return typeof value === "function" ? value.bind(target) : value;
+  },
+};
+
+/**
+ * Create a lightweight request proxy that overrides only the URL.
+ *
+ * Avoids cloning the original request (no `new Request()` allocation).
+ */
+export function requestWithURL(req: ServerRequest, url: string): ServerRequest {
+  const proxy = new Proxy(req, _proxyHandler);
+  _urlOverrides.set(proxy, url);
+  return proxy;
+}
+
+/**
+ * Create a lightweight request proxy with the base path stripped from the URL pathname.
+ */
+export function requestWithBaseURL(req: ServerRequest, base: string): ServerRequest {
+  const url = new URL(req.url);
+  url.pathname = url.pathname.slice(base.length) || "/";
+  return requestWithURL(req, url.href);
+}
+
 /**
  * Convert input into a web [Request](https://developer.mozilla.org/en-US/docs/Web/API/Request).
  *

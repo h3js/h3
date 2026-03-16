@@ -82,6 +82,8 @@ export { type RouteDefinition, defineRoute } from "./utils/route.ts";
 // Request
 
 export {
+  requestWithURL,
+  requestWithBaseURL,
   toRequest,
   getRequestHost,
   getRequestIP,
