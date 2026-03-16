@@ -66,6 +66,7 @@ async function getBundleSize(code: string) {
     outfile: "index.mjs",
     treeShaking: true,
     conditions: ["browser"],
+    logOverride: { "ignored-bare-import": "silent" },
     stdin: {
       contents: code,
       resolveDir: fileURLToPath(new URL(".", import.meta.url)),

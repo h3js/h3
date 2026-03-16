@@ -32,7 +32,7 @@ describeMatrix(
 
       const wasDestroyed = await Promise.race([
         destroyed,
-        new Promise<boolean>((r) => setTimeout(() => r(false), 500)),
+        new Promise<boolean>((r) => setTimeout(() => r(false), 100)),
       ]);
 
       expect(wasDestroyed).toBe(true);
@@ -57,19 +57,20 @@ describeMatrix(
         return stream;
       });
 
-      const res = await ctx.fetch("/stream");
-
-      // The response should complete (possibly truncated) rather than hanging forever
+      // The response should complete (possibly truncated) or error, but NOT hang forever.
+      // In node mode the socket may close before headers arrive (fetch rejects),
+      // in web mode the body read may fail or return truncated data.
       const result = await Promise.race([
-        res.text().then(
-          () => "completed",
-          () => "errored",
-        ),
-        new Promise<string>((r) => setTimeout(() => r("hung"), 3000)),
+        ctx
+          .fetch("/stream")
+          .then((res) => res.text())
+          .then(
+            () => "completed",
+            () => "errored",
+          ),
+        new Promise<string>((r) => setTimeout(() => r("hung"), 100)),
       ]);
 
-      // BUG: currently the response hangs because the stream error is not propagated
-      // to close the HTTP response. Expected: "completed" or "errored", got: "hung"
       expect(result).not.toBe("hung");
     });
 
@@ -99,7 +100,7 @@ describeMatrix(
 
       const wasCancelled = await Promise.race([
         cancelled,
-        new Promise<boolean>((r) => setTimeout(() => r(false), 500)),
+        new Promise<boolean>((r) => setTimeout(() => r(false), 100)),
       ]);
 
       expect(wasCancelled).toBe(true);
