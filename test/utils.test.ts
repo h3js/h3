@@ -42,6 +42,17 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
       expect(result.headers.get("location")).toBe("https://google.com");
       expect(result.headers.get("content-type")).toBe("text/html; charset=utf-8");
     });
+
+    it("escapes special characters in HTML body", async () => {
+      const malicious = 'https://example.com/"><script>alert(1)</script>&foo=bar';
+      t.app.use(() => redirect(malicious));
+      const result = await t.fetch("/");
+      expect(result.headers.get("location")).toBe(malicious);
+      const body = await result.text();
+      expect(body).toBe(
+        `<html><head><meta http-equiv="refresh" content="0; url=https://example.com/&quot;&gt;&lt;script&gt;alert(1)&lt;/script&gt;&amp;foo=bar" /></head></html>`,
+      );
+    });
   });
 
   describe("withBase", () => {

@@ -44,8 +44,11 @@ export function redirect(
   status: number = 302,
   statusText?: string,
 ): HTTPResponse {
-  const encodedLoc = location.replace(/"/g, "%22");
-  const body = /* html */ `<html><head><meta http-equiv="refresh" content="0; url=${encodedLoc}" /></head></html>`;
+  const htmlLoc = location.replace(
+    /[&"<>]/g,
+    (c) => ({ "&": "&amp;", '"': "&quot;", "<": "&lt;", ">": "&gt;" })[c]!,
+  );
+  const body = /* html */ `<html><head><meta http-equiv="refresh" content="0; url=${htmlLoc}" /></head></html>`;
   return new HTTPResponse(body, {
     status,
     statusText: statusText || (status === 301 ? "Moved Permanently" : "Found"),
