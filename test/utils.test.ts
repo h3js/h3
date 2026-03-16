@@ -49,7 +49,8 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
       expect(result.headers.get("location")).toBe(malicious);
       const body = await result.text();
       expect(body).not.toContain("<script>");
-      expect(body).toContain("%3Cscript%3E");
+      expect(body).toContain("&lt;script&gt;");
+      expect(body).toContain("&quot;");
     });
   });
 
