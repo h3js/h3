@@ -25,7 +25,9 @@ export const H3Error: typeof HTTPError = HTTPError;
 
 /** @deprecated Use new HTTPError() */
 export function createError(message: number, details?: ErrorDetails): HTTPError;
+/** @deprecated Use new HTTPError() */
 export function createError(details: ErrorDetails): HTTPError;
+/** @deprecated Use new HTTPError() */
 export function createError(arg1: any, arg2?: any): HTTPError {
   return new HTTPError(arg1, arg2);
 }
