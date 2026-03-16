@@ -2,6 +2,7 @@ import { createRouter, addRoute, findRoute } from "rou3";
 import { H3Event } from "./event.ts";
 import { toResponse, kNotFound } from "./response.ts";
 import { callMiddleware, normalizeMiddleware } from "./middleware.ts";
+import { requestWithBaseURL } from "./utils/request.ts";
 
 import type { ServerRequest } from "srvx";
 import type { H3Config, H3CoreConfig, H3Plugin, MatchedRoute, RouterContext } from "./types/h3.ts";
@@ -142,9 +143,7 @@ export const H3 = /* @__PURE__ */ (() => {
       } else {
         const fetchHandler = "fetch" in input ? input.fetch : input;
         this.all(`${base}/**`, function _mountedMiddleware(event) {
-          const url = new URL(event.url);
-          url.pathname = url.pathname.slice(base.length) || "/";
-          return fetchHandler(new Request(url, event.req));
+          return fetchHandler(requestWithBaseURL(event.req, base));
         });
       }
       return this;

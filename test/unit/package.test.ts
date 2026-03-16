@@ -106,6 +106,8 @@ describe("h3 package", () => {
         "readValidatedBody",
         "redirect",
         "removeResponseHeader",
+        "requestWithBaseURL",
+        "requestWithURL",
         "requireBasicAuth",
         "sanitizeStatusCode",
         "sanitizeStatusMessage",
