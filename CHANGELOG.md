@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## v1.15.7
+
+[compare changes](https://github.com/h3js/h3/compare/v1.15.6...v1.15.7)
+
+### 🩹 Fixes
+
+- **static:** Narrow path traversal check to match `..` as a path segment only ([c049dc0](https://github.com/h3js/h3/commit/c049dc0))
+- **app:** Decode percent-encoded path segments to prevent auth bypass ([313ea52](https://github.com/h3js/h3/commit/313ea52))
+
+### 💅 Refactors
+
+- Remove implicit event handler conversion warning ([#1340](https://github.com/h3js/h3/pull/1340))
+
+### ❤️ Contributors
+
+- Pooya Parsa ([@pi0](https://github.com/pi0))
+- Wind ([@productdevbook](https://github.com/productdevbook))
+
 ## v1.15.6
 
 [compare changes](https://github.com/h3js/h3/compare/v1.15.5...v1.15.6)
