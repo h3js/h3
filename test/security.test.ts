@@ -53,7 +53,6 @@ describeMatrix("security: path encoding bypass", (ctx, { it, expect }) => {
     const res = await ctx.fetch("/%61pi/admin/users");
     expect(res.status).not.toBe(200);
   });
-
 });
 
 describeMatrix("security: path encoding bypass with wildcard routes", (ctx, { it, expect }) => {

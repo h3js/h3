@@ -64,9 +64,7 @@ export class H3Event<
     // Preserve %25 (encoded %) to avoid unintended double-decoding
     if (url.pathname.includes("%")) {
       url.pathname = decodeURI(
-        url.pathname.includes("%25")
-          ? url.pathname.replace(/%25/g, "%2525")
-          : url.pathname,
+        url.pathname.includes("%25") ? url.pathname.replace(/%25/g, "%2525") : url.pathname,
       );
     }
     this.url = url;
