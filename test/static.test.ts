@@ -110,31 +110,101 @@ describe("Serve Static", () => {
     expect(res.status).toEqual(405);
   });
 
-  it("Prevents path traversal via percent-encoded dot segments", async () => {
-    const listener = toNodeListener(app);
-    const server = await import("node:http").then((m) =>
-      m.createServer(listener),
-    );
-    await new Promise<void>((resolve) => server.listen(0, resolve));
-    const port = (server.address() as any).port;
-    try {
-      const res = await new Promise<{ statusCode: number }>((resolve) => {
-        httpRequest(
-          {
-            hostname: "127.0.0.1",
-            port,
-            path: "/%2e%2e/%2e%2e/etc/passwd",
-            method: "GET",
-          },
-          (res) => resolve({ statusCode: res.statusCode! }),
-        ).end();
-      });
+  describe("Path traversal prevention", () => {
+    // Helper to send raw HTTP requests without URL normalization
+    async function rawRequest(path: string) {
+      const listener = toNodeListener(app);
+      const server = await import("node:http").then((m) =>
+        m.createServer(listener),
+      );
+      await new Promise<void>((resolve) => server.listen(0, resolve));
+      const port = (server.address() as any).port;
+      try {
+        return await new Promise<{ statusCode: number }>((resolve) => {
+          httpRequest(
+            { hostname: "127.0.0.1", port, path, method: "GET" },
+            (res) => resolve({ statusCode: res.statusCode! }),
+          ).end();
+        });
+      } finally {
+        server.close();
+      }
+    }
+
+    // --- Blocked paths (must return 404) ---
+
+    it("blocks basic ../", async () => {
+      const res = await rawRequest("/../etc/passwd");
+      expect(res.statusCode).toEqual(404);
+    });
+
+    it("blocks percent-encoded dot segments (%2e%2e)", async () => {
+      const res = await rawRequest("/%2e%2e/%2e%2e/etc/passwd");
+      expect(res.statusCode).toEqual(404);
       expect(serveStaticOptions.getMeta).not.toHaveBeenCalledWith(
         expect.stringContaining(".."),
       );
+    });
+
+    it("blocks mixed-case percent-encoded dots (%2E%2E)", async () => {
+      const res = await rawRequest("/%2E%2E/%2E%2E/etc/passwd");
       expect(res.statusCode).toEqual(404);
-    } finally {
-      server.close();
-    }
+    });
+
+    it("blocks mid-path traversal", async () => {
+      const res = await rawRequest("/assets/../../etc/passwd");
+      expect(res.statusCode).toEqual(404);
+    });
+
+    it("blocks trailing /.. segment", async () => {
+      const res = await rawRequest("/assets/..");
+      expect(res.statusCode).toEqual(404);
+    });
+
+    it("blocks backslash traversal (..\\)", async () => {
+      const res = await rawRequest("/..\\etc\\passwd");
+      expect(res.statusCode).toEqual(404);
+    });
+
+    it("blocks encoded backslash traversal (..%5c)", async () => {
+      const res = await rawRequest("/..%5c..%5cetc%5cpasswd");
+      expect(res.statusCode).toEqual(404);
+    });
+
+    it("blocks double-dot only segment", async () => {
+      const res = await rawRequest("/..");
+      expect(res.statusCode).toEqual(404);
+    });
+
+    // --- Allowed paths (must NOT be blocked) ---
+
+    it("allows filenames with consecutive dots (e.g. _...grid)", async () => {
+      const res = await request.get("/_...grid_123.js");
+      expect(res.status).toEqual(200);
+      expect(res.text).toContain("asset:/_...grid_123.js");
+    });
+
+    it("allows filenames with double dots (e.g. file..name.js)", async () => {
+      const res = await request.get("/file..name.js");
+      expect(res.status).toEqual(200);
+      expect(res.text).toContain("asset:/file..name.js");
+    });
+
+    it("allows dotfiles (e.g. .hidden)", async () => {
+      const res = await request.get("/.hidden");
+      expect(res.status).toEqual(200);
+      expect(res.text).toContain("asset:/.hidden");
+    });
+
+    it("allows single dot in path", async () => {
+      const res = await request.get("/assets/file.txt");
+      expect(res.status).toEqual(200);
+    });
+
+    it("allows ... directory name", async () => {
+      const res = await request.get("/...test/file.js");
+      expect(res.status).toEqual(200);
+      expect(res.text).toContain("asset:/...test/file.js");
+    });
   });
 });
