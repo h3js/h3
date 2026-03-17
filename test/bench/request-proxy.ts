@@ -45,9 +45,7 @@ compact(() => {
       const p = requestWithURL(req, "http://localhost:3000/path?q=1");
       return p.headers.get("content-type");
     });
-    bench("proxied.headers.get() (cached)", () =>
-      warmed.headers.get("content-type"),
-    );
+    bench("proxied.headers.get() (cached)", () => warmed.headers.get("content-type"));
   });
 });
 
