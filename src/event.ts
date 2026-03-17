@@ -61,8 +61,13 @@ export class H3Event<
     const _url = (req as { _url?: URL })._url;
     const url = _url && _url instanceof URL ? _url : new FastURL(req.url);
     // Normalize percent-encoded pathname to prevent middleware bypass
+    // Preserve %25 (encoded %) to avoid unintended double-decoding
     if (url.pathname.includes("%")) {
-      url.pathname = decodeURI(url.pathname);
+      url.pathname = decodeURI(
+        url.pathname.includes("%25")
+          ? url.pathname.replace(/%25/g, "%2525")
+          : url.pathname,
+      );
     }
     this.url = url;
   }
