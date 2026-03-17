@@ -69,6 +69,15 @@ function prepareResponse(
     });
   }
 
+  // Extract prepared headers early so they're available for error responses too
+  // (e.g. CORS headers set via handleCors should persist on error responses)
+  const preparedRes:
+    | undefined
+    | { status?: number; statusText?: string; [kEventResHeaders]?: Headers } = (event as any)[
+    kEventRes
+  ];
+  const preparedHeaders = preparedRes?.[kEventResHeaders];
+
   if (val && val instanceof Error) {
     const isHTTPError = HTTPError.isError(val);
     const error = isHTTPError ? (val as HTTPError) : new HTTPError(val);
@@ -87,16 +96,9 @@ function prepareResponse(
       ? Promise.resolve(onError(error, event))
           .catch((error) => error)
           .then((newVal) => prepareResponse(newVal ?? val, event, config, true))
-      : errorResponse(error, config.debug);
+      : errorResponse(error, config.debug, preparedHeaders);
   }
 
-  // Only set if event.res.headers is accessed
-  const preparedRes:
-    | undefined
-    | { status?: number; statusText?: string; [kEventResHeaders]?: Headers } = (event as any)[
-    kEventRes
-  ];
-  const preparedHeaders = preparedRes?.[kEventResHeaders];
   (event as any)[kEventRes] = undefined; // Clear prepared response to avoid duplication
 
   if (!(val instanceof Response)) {
@@ -240,7 +242,21 @@ function nullBody(method: string, status: number | undefined): boolean | 0 | und
   )
 }
 
-function errorResponse(error: HTTPError, debug?: boolean): Response {
+function errorResponse(
+  error: HTTPError,
+  debug?: boolean,
+  preparedHeaders?: Headers,
+): Response {
+  let headers: Headers;
+  if (error.headers) {
+    headers = mergeHeaders(jsonHeaders, error.headers);
+  } else {
+    headers = new Headers(jsonHeaders);
+  }
+  // Merge prepared headers (e.g. CORS headers from handleCors) into error response
+  if (preparedHeaders) {
+    headers = mergeHeaders(headers, preparedHeaders);
+  }
   return new FastResponse(
     JSON.stringify(
       {
@@ -253,7 +269,7 @@ function errorResponse(error: HTTPError, debug?: boolean): Response {
     {
       status: error.status,
       statusText: error.statusText,
-      headers: error.headers ? mergeHeaders(jsonHeaders, error.headers) : new Headers(jsonHeaders),
+      headers,
     },
   );
 }

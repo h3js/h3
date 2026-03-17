@@ -1,5 +1,5 @@
 import { vi } from "vitest";
-import { HTTPError } from "../src/index.ts";
+import { HTTPError, handleCors } from "../src/index.ts";
 import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("errors", (t, { it, expect }) => {
@@ -157,6 +157,34 @@ describeMatrix("errors", (t, { it, expect }) => {
     expect(res.status).toBe(501);
     expect(res.headers.get("x-test")).toBe("1");
     expect(res.headers.getSetCookie()).toEqual(["error=1"]);
+
+    t.errors = [];
+  });
+
+  it("preserves CORS headers on HTTPError response", async () => {
+    t.app.post("/session", async (event) => {
+      const corsRes = handleCors(event, {
+        origin: ["http://localhost:5173"],
+      });
+      if (corsRes !== false) {
+        return corsRes;
+      }
+      throw new HTTPError("Invalid Password!");
+    });
+
+    const res = await t.fetch("/session", {
+      method: "POST",
+      headers: {
+        origin: "http://localhost:5173",
+        "content-type": "application/json",
+      },
+    });
+
+    expect(res.status).toBe(500);
+    expect(res.headers.get("access-control-allow-origin")).toEqual(
+      "http://localhost:5173",
+    );
+    expect(res.headers.get("access-control-expose-headers")).toBeTruthy();
 
     t.errors = [];
   });
