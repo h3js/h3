@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## v1.15.8
+
+[compare changes](https://github.com/h3js/h3/compare/v1.15.7...v1.15.8)
+
+### 🩹 Fixes
+
+- Preserve `%25` in pathname ([1103df6](https://github.com/h3js/h3/commit/1103df6))
+
+### ❤️ Contributors
+
+- Pooya Parsa ([@pi0](https://github.com/pi0))
+
 ## v1.15.7
 
 [compare changes](https://github.com/h3js/h3/compare/v1.15.6...v1.15.7)
