@@ -344,10 +344,13 @@ function cachedFn<T>(fn: () => T): () => T {
 
 function _decodePath(url: string): string {
   const qIndex = url.indexOf("?");
-  if (qIndex === -1) {
-    return decodePath(url);
-  }
-  return decodePath(url.slice(0, qIndex)) + url.slice(qIndex);
+  const path = qIndex === -1 ? url : url.slice(0, qIndex);
+  const query = qIndex === -1 ? "" : url.slice(qIndex);
+  // Preserve %25 (encoded %) to avoid unintended double-decoding
+  const decodedPath = path.includes("%25")
+    ? decodePath(path.replace(/%25/g, "%2525"))
+    : decodePath(path);
+  return decodedPath + query;
 }
 
 function websocketOptions(
