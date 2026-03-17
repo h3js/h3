@@ -1,4 +1,4 @@
-import { joinURL, parseURL, withoutTrailingSlash } from "ufo";
+import { joinURL, parseURL, withoutTrailingSlash, decodePath } from "ufo";
 import type { AdapterOptions as WSOptions, Peer } from "crossws";
 import {
   lazyEventHandler,
@@ -140,8 +140,10 @@ export function createAppEventHandler(stack: Stack, options: AppOptions) {
     event.node.req.originalUrl =
       event.node.req.originalUrl || event.node.req.url || "/";
 
-    // Keep a copy of incoming url
-    const _reqPath = event._path || event.node.req.url || "/";
+    // Decode percent-encoded path segments to prevent auth bypass via encoding tricks.
+    // Only decode the path portion, not the query string, to avoid double-decoding.
+    const _reqPath = _decodePath(event._path || event.node.req.url || "/");
+    event._path = _reqPath;
 
     // Layer path is the path without the prefix
     let _layerPath: string;
@@ -338,6 +340,14 @@ function cachedFn<T>(fn: () => T): () => T {
     }
     return cache;
   };
+}
+
+function _decodePath(url: string): string {
+  const qIndex = url.indexOf("?");
+  if (qIndex === -1) {
+    return decodePath(url);
+  }
+  return decodePath(url.slice(0, qIndex)) + url.slice(qIndex);
 }
 
 function websocketOptions(
