@@ -11,25 +11,21 @@ import type { HTTPMethod } from "../types/h3.ts";
 import type { H3EventContext } from "../types/context.ts";
 import type { ServerRequest } from "srvx";
 
-const _urlOverrides = new WeakMap<Request, string>();
-
-const _proxyHandler: ProxyHandler<Request> = {
-  get(target, prop, receiver) {
-    if (prop === "url") return _urlOverrides.get(receiver);
-    const value = Reflect.get(target, prop);
-    return typeof value === "function" ? value.bind(target) : value;
-  },
-};
-
 /**
  * Create a lightweight request proxy that overrides only the URL.
  *
  * Avoids cloning the original request (no `new Request()` allocation).
  */
 export function requestWithURL(req: ServerRequest, url: string): ServerRequest {
-  const proxy = new Proxy(req, _proxyHandler);
-  _urlOverrides.set(proxy, url);
-  return proxy;
+  const cache: Record<string | symbol, unknown> = { url };
+  return new Proxy(req, {
+    get(target, prop) {
+      if (prop in cache) return cache[prop];
+      const value = Reflect.get(target, prop);
+      cache[prop] = typeof value === "function" ? value.bind(target) : value;
+      return cache[prop];
+    },
+  });
 }
 
 /**
