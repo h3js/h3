@@ -83,11 +83,16 @@ function prepareResponse(
       console.error(error);
     }
     const { onError } = config;
+    // Extract event response headers (e.g., CORS headers set by handleCors)
+    const eventRes:
+      | undefined
+      | { [kEventResHeaders]?: Headers } = (event as any)[kEventRes];
+    const errPreparedHeaders = eventRes?.[kEventResHeaders];
     return onError && !nested
       ? Promise.resolve(onError(error, event))
           .catch((error) => error)
           .then((newVal) => prepareResponse(newVal ?? val, event, config, true))
-      : errorResponse(error, config.debug);
+      : errorResponse(error, config.debug, errPreparedHeaders);
   }
 
   // Only set if event.res.headers is accessed
@@ -240,7 +245,15 @@ function nullBody(method: string, status: number | undefined): boolean | 0 | und
   )
 }
 
-function errorResponse(error: HTTPError, debug?: boolean): Response {
+function errorResponse(error: HTTPError, debug?: boolean, eventHeaders?: Headers): Response {
+  let headers = error.headers
+    ? mergeHeaders(jsonHeaders, error.headers)
+    : new Headers(jsonHeaders);
+  // Merge event response headers (e.g., CORS headers set by handleCors)
+  // so they are preserved on error responses. See: https://github.com/h3js/h3/issues/1301
+  if (eventHeaders) {
+    headers = mergeHeaders(headers, eventHeaders);
+  }
   return new FastResponse(
     JSON.stringify(
       {
@@ -253,7 +266,7 @@ function errorResponse(error: HTTPError, debug?: boolean): Response {
     {
       status: error.status,
       statusText: error.statusText,
-      headers: error.headers ? mergeHeaders(jsonHeaders, error.headers) : new Headers(jsonHeaders),
+      headers,
     },
   );
 }
