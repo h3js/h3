@@ -47,8 +47,7 @@
     "play:plain": "pnpm test/fixture/plain.ts",
     "play:web": "pnpm test/fixture/web.ts",
     "release": "pnpm test && pnpm build && changelogen --release --prerelease --publish && git push --follow-tags",
-    "test": "pnpm lint && pnpm typecheck && vitest --run --coverage",
-    "typecheck": "tsgo --noEmit --skipLibCheck"
+    "test": "pnpm lint && vitest --run --coverage"
   },
   "dependencies": {
     "rou3": "^0.8.1",
@@ -86,6 +85,7 @@
     "oxc-parser": "^0.119.0",
     "oxfmt": "^0.40.0",
     "oxlint": "^1.55.0",
+    "oxlint-tsgolint": "^0.17.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "typescript": "^5.9.3",
