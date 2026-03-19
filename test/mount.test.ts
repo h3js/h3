@@ -197,5 +197,29 @@ describeMatrix("mount", (t, { it, expect, describe }) => {
 
       expect(logs).toHaveLength(0); // Middleware should not execute
     });
+
+    it("mounted middleware should not execute for prefix-matching paths without segment boundary", async () => {
+      const adminApp = new H3();
+      adminApp.use((event, next) => {
+        event.context.isAdmin = true;
+        return next();
+      });
+      adminApp.get("/dashboard", () => ({ admin: true }));
+
+      t.app.mount("/admin", adminApp);
+      t.app.get("/admin-public/info", (event) => ({
+        path: event.url.pathname,
+        isAdmin: event.context.isAdmin ?? false,
+      }));
+
+      // /admin/dashboard should trigger admin middleware
+      const adminRes = await t.fetch("/admin/dashboard");
+      expect(adminRes.status).toBe(200);
+
+      // /admin-public/info should NOT trigger admin middleware
+      const publicRes = await t.fetch("/admin-public/info");
+      const body = await publicRes.json();
+      expect(body.isAdmin).toBe(false);
+    });
   });
 });

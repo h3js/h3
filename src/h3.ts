@@ -124,7 +124,10 @@ export const H3 = /* @__PURE__ */ (() => {
         if (input["~middleware"].length > 0) {
           this["~middleware"].push((event, next) => {
             const originalPathname = event.url.pathname;
-            if (!originalPathname.startsWith(base)) {
+            if (
+              !originalPathname.startsWith(base) ||
+              (originalPathname.length > base.length && originalPathname[base.length] !== "/")
+            ) {
               return next();
             }
             event.url.pathname = event.url.pathname.slice(base.length) || "/";

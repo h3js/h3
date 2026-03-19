@@ -37,7 +37,7 @@ export function withoutBase(input: string = "", base: string = ""): string {
     return input;
   }
   const _base = withoutTrailingSlash(base);
-  if (!input.startsWith(_base)) {
+  if (!input.startsWith(_base) || (input.length > _base.length && input[_base.length] !== "/")) {
     return input;
   }
   const trimmed = input.slice(_base.length);
