@@ -13,10 +13,15 @@ import type {
   FetchableObject,
   HTTPHandler,
 } from "./types/handler.ts";
-import type { StandardSchemaV1, InferOutput } from "./utils/internal/standard-schema.ts";
-import type { TypedRequest } from "fetchdts";
+import type { InferOutput, StandardSchemaV1 } from "./utils/internal/standard-schema.ts";
 import { NoHandler, type H3Core } from "./h3.ts";
-import { validatedRequest, validatedURL, type OnValidateError } from "./utils/internal/validate.ts";
+import {
+  validatedRequest,
+  validatedURL,
+  syncValidate,
+  validateResponse,
+  type OnValidateError,
+} from "./utils/internal/validate.ts";
 
 // --- event handler ---
 
@@ -61,39 +66,94 @@ type StringHeaders<T> = {
 /**
  * @experimental defineValidatedHandler is an experimental feature and API may change.
  */
+// Helper type to create a validated H3Event with typed context.params
+// After validation, params will have the inferred type from the schema
+// Note: params remains optional for TypeScript compatibility, but is guaranteed at runtime
+type ValidatedH3Event<RequestT extends EventHandlerRequest, Params> = Omit<
+  H3Event<RequestT>,
+  "context"
+> & {
+  context: Omit<H3Event["context"], "params"> & {
+    params?: Params; // Typed from schema (optional for TS, guaranteed after validation)
+  };
+};
+
 export function defineValidatedHandler<
   RequestBody extends StandardSchemaV1,
   RequestHeaders extends StandardSchemaV1,
   RequestQuery extends StandardSchemaV1,
-  Res extends EventHandlerResponse = EventHandlerResponse,
+  RouteParams extends StandardSchemaV1 = StandardSchemaV1<Record<string, string>>,
+  ResponseBody extends StandardSchemaV1 = StandardSchemaV1<any>,
 >(
   def: Omit<EventHandlerObject, "handler"> & {
     validate?: {
       body?: RequestBody;
       headers?: RequestHeaders;
       query?: RequestQuery;
+      params?: RouteParams;
+      response?: ResponseBody;
       onError?: OnValidateError;
     };
-    handler: EventHandler<
-      {
-        body: InferOutput<RequestBody>;
-        query: StringHeaders<InferOutput<RequestQuery>>;
-      },
-      Res
-    >;
+    handler: (
+      event: ValidatedH3Event<
+        EventHandlerRequest & {
+          body: InferOutput<RequestBody>;
+          query: StringHeaders<InferOutput<RequestQuery>>;
+          routerParams: InferOutput<RouteParams>;
+        },
+        InferOutput<RouteParams>
+      >,
+    ) => InferOutput<ResponseBody> | Promise<InferOutput<ResponseBody>>;
   },
-): EventHandlerWithFetch<TypedRequest<InferOutput<RequestBody>, InferOutput<RequestHeaders>>, Res> {
+): EventHandlerWithFetch<EventHandlerRequest, InferOutput<ResponseBody>> {
   if (!def.validate) {
-    return defineHandler(def) as any;
+    return defineHandler(def) as EventHandlerWithFetch<
+      EventHandlerRequest,
+      InferOutput<ResponseBody>
+    >;
   }
   return defineHandler({
     ...def,
-    handler: function _validatedHandler(event) {
+    handler: async function _validatedHandler(event) {
+      // Validate route params
+      if (def.validate!.params) {
+        const params = event.context.params || {};
+        event.context.params = syncValidate(
+          "params",
+          params,
+          def.validate!.params,
+          def.validate!.onError,
+        ) as Record<string, string>;
+      }
+
+      // Validate request and URL
       (event as any) /* readonly */.req = validatedRequest(event.req, def.validate!);
       (event as any) /* readonly */.url = validatedURL(event.url, def.validate!);
-      return def.handler(event as any);
+
+      // Execute handler - context.params is validated at this point
+      const result = await def.handler(
+        event as ValidatedH3Event<
+          EventHandlerRequest & {
+            body: InferOutput<RequestBody>;
+            query: StringHeaders<InferOutput<RequestQuery>>;
+            routerParams: InferOutput<RouteParams>;
+          },
+          InferOutput<RouteParams>
+        >,
+      );
+
+      // Validate response
+      if (def.validate!.response) {
+        return await validateResponse(
+          result,
+          def.validate!.response,
+          def.validate!.onError as OnValidateError<"response"> | undefined,
+        );
+      }
+
+      return result;
     },
-  }) as any;
+  }) as EventHandlerWithFetch<EventHandlerRequest, InferOutput<ResponseBody>>;
 }
 
 // --- handler .fetch ---

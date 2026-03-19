@@ -9,6 +9,7 @@ import {
 import type { ValidateIssues } from "../src/utils/internal/validate.ts";
 
 import type { H3Event } from "../src/event.ts";
+import { H3 } from "../src/h3.ts";
 import { z } from "zod/v4";
 
 describe("handler.ts", () => {
@@ -238,6 +239,91 @@ describe("handler.ts", () => {
       expect(res.status).toBe(400);
     });
 
+    it("with params validation", async () => {
+      // Create a mini app to test params validation
+      const app = new H3();
+      const paramsHandler = defineValidatedHandler({
+        validate: {
+          params: z.object({
+            id: z.string().uuid(),
+          }),
+        },
+        handler: (event) => {
+          return { params: event.context.params };
+        },
+      });
+      app.get("/user/:id", paramsHandler);
+
+      const res = await app.request("/user/123e4567-e89b-12d3-a456-426614174000");
+      expect(await res.json()).toMatchObject({
+        params: { id: "123e4567-e89b-12d3-a456-426614174000" },
+      });
+    });
+
+    it("invalid params", async () => {
+      const app = new H3();
+      const paramsHandler = defineValidatedHandler({
+        validate: {
+          params: z.object({
+            id: z.string().uuid(),
+          }),
+        },
+        handler: (event) => {
+          return { params: event.context.params };
+        },
+      });
+      app.get("/user/:id", paramsHandler);
+
+      const res = await app.request("/user/invalid-uuid");
+      const json = await res.json();
+      expect(json.status).toBe(400);
+      expect(json.statusText).toBe("Validation failed");
+    });
+
+    it("with response validation", async () => {
+      const app = new H3();
+      const responseHandler = defineValidatedHandler({
+        validate: {
+          response: z.object({
+            id: z.string(),
+            name: z.string(),
+          }),
+        },
+        handler: () => {
+          return { id: "123", name: "test" };
+        },
+      });
+      app.get("/test", responseHandler);
+
+      const res = await app.request("/test");
+      expect(await res.json()).toMatchObject({
+        id: "123",
+        name: "test",
+      });
+    });
+
+    it("invalid response", async () => {
+      const app = new H3();
+      const responseHandler = defineValidatedHandler({
+        validate: {
+          response: z.object({
+            id: z.string(),
+            name: z.string(),
+          }),
+        },
+        // @ts-expect-error - Testing: intentionally returning wrong type to verify validation catches it
+        handler: () => {
+          return { id: 123, invalid: "field" };
+        },
+      });
+      app.get("/test", responseHandler);
+
+      const res = await app.request("/test");
+      const json = await res.json();
+      expect(json.status).toBe(500);
+      expect(json.statusText).toBe("Response validation failed");
+    });
+
     describe("custom error messages", () => {
       it("invalid body", async () => {
         const res = await handlerCustomError.fetch(
@@ -282,6 +368,62 @@ describe("handler.ts", () => {
           status: 500,
           statusText: "Custom Zod query validation error",
           message: "- Too small: expected string to have >=3 characters",
+        });
+        expect(res.status).toBe(500);
+      });
+
+      it("invalid params", async () => {
+        const app = new H3();
+        const paramsHandler = defineValidatedHandler({
+          validate: {
+            params: z.object({
+              id: z.string().uuid(),
+            }),
+            onError: ({ _source, issues }) => ({
+              status: 500,
+              statusText: `Custom Zod ${_source} validation error`,
+              message: summarize(issues),
+            }),
+          },
+          handler: (event) => {
+            return { params: event.context.params };
+          },
+        });
+        app.get("/user/:id", paramsHandler);
+
+        const res = await app.request("/user/invalid-uuid");
+        expect(await res.json()).toMatchObject({
+          status: 500,
+          statusText: "Custom Zod params validation error",
+        });
+        expect(res.status).toBe(500);
+      });
+
+      it("invalid response", async () => {
+        const app = new H3();
+        const responseHandler = defineValidatedHandler({
+          validate: {
+            response: z.object({
+              id: z.string(),
+              name: z.string(),
+            }),
+            onError: ({ _source, issues }) => ({
+              status: 418,
+              statusText: `Custom Zod ${_source} validation error`,
+              message: summarize(issues),
+            }),
+          },
+          // @ts-expect-error - Testing: intentionally returning wrong type to verify validation catches it
+          handler: () => {
+            return { id: 123, invalid: "field" };
+          },
+        });
+        app.get("/test", responseHandler);
+
+        const res = await app.request("/test");
+        expect(await res.json()).toMatchObject({
+          status: 500,
+          statusText: "Custom Zod response validation error",
         });
         expect(res.status).toBe(500);
       });
