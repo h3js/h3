@@ -57,16 +57,35 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
   });
 
   describe("redirectBack", () => {
-    it("redirects to referer when same origin", async () => {
+    it("redirects to referer pathname when same origin", async () => {
       t.app.post("/submit", (event) => redirectBack(event));
-      // Build referer from the test server's actual URL
       const baseUrl = t.url || "http://localhost";
       const res = await t.fetch("/submit", {
         method: "POST",
         headers: { referer: `${baseUrl}/form` },
       });
       expect(res.status).toBe(302);
-      expect(res.headers.get("location")).toBe(`${baseUrl}/form`);
+      expect(res.headers.get("location")).toBe("/form");
+    });
+
+    it("strips query string from referer by default", async () => {
+      t.app.post("/submit", (event) => redirectBack(event));
+      const baseUrl = t.url || "http://localhost";
+      const res = await t.fetch("/submit", {
+        method: "POST",
+        headers: { referer: `${baseUrl}/page?token=secret&action=delete` },
+      });
+      expect(res.headers.get("location")).toBe("/page");
+    });
+
+    it("preserves query string with allowQuery", async () => {
+      t.app.post("/submit", (event) => redirectBack(event, { allowQuery: true }));
+      const baseUrl = t.url || "http://localhost";
+      const res = await t.fetch("/submit", {
+        method: "POST",
+        headers: { referer: `${baseUrl}/page?tab=settings` },
+      });
+      expect(res.headers.get("location")).toBe("/page?tab=settings");
     });
 
     it("uses fallback when referer is cross-origin", async () => {
