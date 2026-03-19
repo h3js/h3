@@ -180,7 +180,7 @@ export function isEventStream(input: unknown): input is EventStream {
 export function formatEventStreamComment(comment: string): string {
   return (
     comment
-      .split("\n")
+      .split(/\r\n|\r|\n/)
       .map((l) => `: ${l}\n`)
       .join("") + "\n"
   );
@@ -198,7 +198,7 @@ export function formatEventStreamMessage(message: EventStreamMessage): string {
     result += `retry: ${message.retry}\n`;
   }
   const data = typeof message.data === "string" ? message.data : "";
-  for (const line of data.split("\n")) {
+  for (const line of data.split(/\r\n|\r|\n/)) {
     result += `data: ${line}\n`;
   }
   result += "\n";

@@ -74,6 +74,34 @@ describe("sse (unit)", () => {
     expect(result).toEqual(`: hello\n: data: INJECTED\n\n`);
   });
 
+  it("sanitizes carriage returns in data to prevent SSE injection", () => {
+    const result = formatEventStreamMessage({
+      data: "legit\revent: evil",
+    });
+    // \r must be treated as a line break, so "event: evil" becomes a data: line
+    expect(result).toBe(`data: legit\ndata: event: evil\n\n`);
+  });
+
+  it("sanitizes \\r\\n in data field", () => {
+    const result = formatEventStreamMessage({
+      data: "line1\r\nline2\rline3\nline4",
+    });
+    expect(result).toBe(`data: line1\ndata: line2\ndata: line3\ndata: line4\n\n`);
+  });
+
+  it("prevents event splitting via \\r\\r in data", () => {
+    const result = formatEventStreamMessage({
+      data: "first\r\rdata: injected",
+    });
+    // \r\r should produce an empty line between, not a message boundary
+    expect(result).toBe(`data: first\ndata: \ndata: data: injected\n\n`);
+  });
+
+  it("sanitizes carriage returns in comments to prevent injection", () => {
+    const result = formatEventStreamComment("x\rdata: injected");
+    expect(result).toBe(`: x\n: data: injected\n\n`);
+  });
+
   describe("EventStream", () => {
     it("onClosed does not cause unhandled rejection when callback throws", async () => {
       const event = mockEvent("/");
