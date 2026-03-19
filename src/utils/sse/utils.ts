@@ -16,7 +16,7 @@ export function formatEventStreamMessage(message: EventStreamMessage): string {
     result += `retry: ${message.retry}\n`;
   }
   const data = typeof message.data === "string" ? message.data : "";
-  for (const line of data.split("\n")) {
+  for (const line of data.split(/\r\n|\r|\n/)) {
     result += `data: ${line}\n`;
   }
   result += "\n";

@@ -159,3 +159,26 @@ it("prevents data field injection of new events", () => {
     `data: hi\ndata: \ndata: event: system\ndata: data: INJECTED\n\n`,
   );
 });
+
+it("sanitizes carriage returns in data to prevent SSE injection", () => {
+  const result = formatEventStreamMessage({
+    data: "legit\revent: evil",
+  });
+  // \r should be treated as a line break, not passed through
+  expect(result).toBe(`data: legit\ndata: event: evil\n\n`);
+});
+
+it("sanitizes \\r\\n in data field", () => {
+  const result = formatEventStreamMessage({
+    data: "line1\r\nline2\rline3\nline4",
+  });
+  expect(result).toBe(`data: line1\ndata: line2\ndata: line3\ndata: line4\n\n`);
+});
+
+it("prevents event splitting via \\r\\r in data", () => {
+  const result = formatEventStreamMessage({
+    data: "first\r\rdata: injected",
+  });
+  // Double \r should produce an empty line, not a message boundary
+  expect(result).toBe(`data: first\ndata: \ndata: data: injected\n\n`);
+});
