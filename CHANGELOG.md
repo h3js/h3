@@ -2,6 +2,47 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## v2.0.1-rc.17
+
+[compare changes](https://github.com/h3js/h3/compare/v1.15.8...v2.0.1-rc.17)
+
+### 🚀 Enhancements
+
+- Add redirectBack utility ([#1329](https://github.com/h3js/h3/pull/1329))
+- Add `removeRoute` ([#1331](https://github.com/h3js/h3/pull/1331))
+
+### 🩹 Fixes
+
+- **cors:** Preserve CORS headers on error responses ([#1352](https://github.com/h3js/h3/pull/1352))
+- **sse:** Mark writer as closed on write failure ([#1322](https://github.com/h3js/h3/pull/1322))
+- **request:** Include `Allow` header in 405 response ([#1314](https://github.com/h3js/h3/pull/1314))
+- **sse:** Sanitize carriage returns in event stream data and comments ([79cabe3](https://github.com/h3js/h3/commit/79cabe3))
+- **mount:** Normalize percent-encoded pathname in `requestWithBaseURL` ([0295f90](https://github.com/h3js/h3/commit/0295f90))
+- **static:** Prevent path traversal via double-encoded dot segments ([8e9993f](https://github.com/h3js/h3/commit/8e9993f))
+- **mount:** Enforce path segment boundary in `startsWith` check ([7ccc9e2](https://github.com/h3js/h3/commit/7ccc9e2))
+
+### 📖 Documentation
+
+- Fix typo ([#1351](https://github.com/h3js/h3/pull/1351))
+- Improve security notes about proxy utils ([448e7eb](https://github.com/h3js/h3/commit/448e7eb))
+
+### 🏡 Chore
+
+- Enable type-aware linting with oxclint ([#1349](https://github.com/h3js/h3/pull/1349))
+- Update deps ([28a3863](https://github.com/h3js/h3/commit/28a3863))
+
+### ✅ Tests
+
+- Update bundle tests ([44f295d](https://github.com/h3js/h3/commit/44f295d))
+
+### ❤️ Contributors
+
+- Pooya Parsa ([@pi0](https://github.com/pi0))
+- Wind ([@productdevbook](https://github.com/productdevbook))
+- Terminal Chai ([@terminalchai](https://github.com/terminalchai))
+- Nick Spaargaren ([@nickspaargaren](https://github.com/nickspaargaren))
+- Gabriel Trzimajewski ([@Sn0wye](https://github.com/Sn0wye))
+
 ## v2.0.1-rc.16
 
 [compare changes](https://github.com/h3js/h3/compare/v2.0.1-rc.15...v2.0.1-rc.16)
