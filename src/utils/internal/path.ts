@@ -56,25 +56,25 @@ export function getPathname(path: string = "/"): string {
  * Decode percent-encoded pathname, preserving %25 (literal `%`).
  */
 export function decodePathname(pathname: string): string {
-  return decodeURI(
-    pathname.includes("%25") ? pathname.replace(/%25/g, "%2525") : pathname,
-  );
+  return decodeURI(pathname.includes("%25") ? pathname.replace(/%25/g, "%2525") : pathname);
 }
 
 export function resolveDotSegments(path: string): string {
-  if (!path.includes(".")) {
+  if (!path.includes(".") && !path.includes("%2")) {
     return path;
   }
   // Normalize backslashes to forward slashes to prevent traversal via `\`
   const segments = path.replaceAll("\\", "/").split("/");
   const resolved: string[] = [];
   for (const segment of segments) {
-    if (segment === "..") {
+    // Decode percent-encoded dots (%2e/%2E) to catch double-encoded traversal
+    const normalized = segment.replace(/%2e/gi, ".");
+    if (normalized === "..") {
       // Never pop past the root (first empty segment from leading slash)
       if (resolved.length > 1) {
         resolved.pop();
       }
-    } else if (segment !== ".") {
+    } else if (normalized !== ".") {
       resolved.push(segment);
     }
   }
