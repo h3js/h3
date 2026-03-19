@@ -88,7 +88,7 @@ export function redirectBack(
   } = {},
 ): HTTPResponse {
   const referer = event.req.headers.get("referer");
-  let location = opts.fallback || "/";
+  let location = opts.fallback ?? "/";
   if (referer && URL.canParse(referer)) {
     const refererURL = new URL(referer);
     if (refererURL.origin === event.url.origin) {
