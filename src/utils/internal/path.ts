@@ -52,6 +52,15 @@ export function getPathname(path: string = "/"): string {
  * Resolve dot segments (`.` and `..`) in a path to prevent path traversal.
  * Ensures the resulting path never escapes above the root `/`.
  */
+/**
+ * Decode percent-encoded pathname, preserving %25 (literal `%`).
+ */
+export function decodePathname(pathname: string): string {
+  return decodeURI(
+    pathname.includes("%25") ? pathname.replace(/%25/g, "%2525") : pathname,
+  );
+}
+
 export function resolveDotSegments(path: string): string {
   if (!path.includes(".")) {
     return path;

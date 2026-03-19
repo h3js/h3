@@ -2,6 +2,7 @@ import type { ServerRequest, ServerRuntimeContext } from "srvx";
 import type { H3EventContext } from "./types/context.ts";
 
 import { EmptyObject } from "./utils/internal/obj.ts";
+import { decodePathname } from "./utils/internal/path.ts";
 import { FastURL } from "srvx";
 import type { EventHandlerRequest, TypedServerRequest } from "./types/handler.ts";
 import type { H3Core } from "./h3.ts";
@@ -64,11 +65,8 @@ export class H3Event<
     const _url = (req as { _url?: URL })._url;
     const url = _url && _url instanceof URL ? _url : new FastURL(req.url);
     // Normalize percent-encoded pathname to prevent middleware bypass
-    // Preserve %25 (encoded %) to avoid unintended double-decoding
     if (url.pathname.includes("%")) {
-      url.pathname = decodeURI(
-        url.pathname.includes("%25") ? url.pathname.replace(/%25/g, "%2525") : url.pathname,
-      );
+      url.pathname = decodePathname(url.pathname);
     }
     this.url = url;
   }

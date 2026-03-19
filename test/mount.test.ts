@@ -10,6 +10,24 @@ describeMatrix("mount", (t, { it, expect, describe }) => {
       expect(await t.fetch("/test/123").then((r) => r.text())).toBe("/123");
     });
 
+    it("normalizes percent-encoded base path", async () => {
+      t.app.mount("/api", async (req) => {
+        const url = new URL(req.url);
+        if (url.pathname.startsWith("/admin")) {
+          return new Response("Forbidden", { status: 403 });
+        }
+        return new Response(`OK: ${url.pathname}`);
+      });
+
+      // Normal request should be blocked
+      const res1 = await t.fetch("/api/admin");
+      expect(res1.status).toBe(403);
+
+      // Percent-encoded base path should still be blocked
+      const res2 = await t.fetch("/%61pi/admin");
+      expect(res2.status).toBe(403);
+    });
+
     it("works with compat object", async () => {
       t.app.mount("/test", {
         fetch: (req: Request) => new Response(new URL(req.url).pathname),

@@ -1,4 +1,5 @@
 import { type ErrorDetails, HTTPError } from "../error.ts";
+import { decodePathname } from "./internal/path.ts";
 import { parseQuery } from "./internal/query.ts";
 import { validateData } from "./internal/validate.ts";
 import { getEventContext } from "./event.ts";
@@ -33,7 +34,7 @@ export function requestWithURL(req: ServerRequest, url: string): ServerRequest {
  */
 export function requestWithBaseURL(req: ServerRequest, base: string): ServerRequest {
   const url = new URL(req.url);
-  url.pathname = url.pathname.slice(base.length) || "/";
+  url.pathname = decodePathname(url.pathname).slice(base.length) || "/";
   return requestWithURL(req, url.href);
 }
 
