@@ -5,6 +5,7 @@ import type { MaybePromise } from "./_utils.ts";
 import type { FetchHandler, ServerRequest } from "srvx";
 // import type { MatchedRoute, RouterContext } from "rou3";
 import type { H3Event } from "../event.ts";
+import type { Hooks as WebSocketHooks } from "crossws";
 
 // Inlined from rou3 for type portability
 export interface RouterContext {
@@ -21,7 +22,7 @@ export type MatchedRoute<T = any> = {
 
 // https://www.rfc-editor.org/rfc/rfc7231#section-4.1
 // prettier-ignore
-export type HTTPMethod =  "GET" | "HEAD" | "PATCH" | "POST" | "PUT" | "DELETE" | "CONNECT" | "OPTIONS" | "TRACE";
+export type HTTPMethod = "GET" | "HEAD" | "PATCH" | "POST" | "PUT" | "DELETE" | "CONNECT" | "OPTIONS" | "TRACE";
 
 export interface H3Config {
   /**
@@ -42,6 +43,16 @@ export interface H3Config {
 }
 
 export type H3CoreConfig = Omit<H3Config, "plugins">;
+
+/**
+ * Response type returned by H3 fetch methods.
+ *
+ * Extends standard Response with an optional `.crossws` property that is present
+ * when the response originates from a WebSocket handler defined via `defineWebSocketHandler`.
+ */
+export type H3Response = Response & {
+  crossws?: Partial<WebSocketHooks> | Promise<Partial<WebSocketHooks>>;
+};
 
 export type PreparedResponse = ResponseInit & { body?: BodyInit | null };
 
@@ -103,7 +114,7 @@ export declare class H3Core {
    *
    * Returned value is a [Response](https://developer.mozilla.org/en-US/docs/Web/API/Response) Promise.
    */
-  fetch(_request: ServerRequest): Response | Promise<Response>;
+  fetch(_request: ServerRequest): H3Response | Promise<H3Response>;
 
   /**
    * An h3 compatible event handler useful to compose multiple h3 app instances.
@@ -111,7 +122,7 @@ export declare class H3Core {
   handler(event: H3Event): unknown | Promise<unknown>;
 
   /** @internal */
-  "~request"(request: ServerRequest, context?: H3EventContext): Response | Promise<Response>;
+  "~request"(request: ServerRequest, context?: H3EventContext): H3Response | Promise<H3Response>;
 
   /** @internal */
   "~findRoute"(_event: H3Event): MatchedRoute<H3Route> | void;
@@ -138,7 +149,7 @@ export declare class H3 extends H3Core {
     request: ServerRequest | URL | string,
     options?: RequestInit,
     context?: H3EventContext,
-  ): Response | Promise<Response>;
+  ): H3Response | Promise<H3Response>;
 
   /**
    * Register a global middleware.
