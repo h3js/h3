@@ -2,6 +2,7 @@ import type { H3RouteMeta, HTTPMethod } from "../types/h3.ts";
 import type { EventHandler, Middleware } from "../types/handler.ts";
 import type { H3Plugin, H3 } from "../types/h3.ts";
 import type { StandardSchemaV1 } from "./internal/standard-schema.ts";
+import { removeRoute as _removeRoute } from "rou3";
 import { defineValidatedHandler } from "../handler.ts";
 
 /**
@@ -68,4 +69,33 @@ export function defineRoute(def: RouteDefinition): H3Plugin {
   return (h3: H3) => {
     h3.on(def.method, def.route, handler);
   };
+}
+
+/**
+ * Remove a route handler from the app.
+ *
+ * @example
+ * ```ts
+ * import { H3, removeRoute } from "h3";
+ *
+ * const app = new H3();
+ * app.get("/temp", () => "hello");
+ *
+ * removeRoute(app, "GET", "/temp"); // route removed
+ * ```
+ */
+export function removeRoute(
+  app: H3,
+  method: HTTPMethod | Lowercase<HTTPMethod> | "",
+  route: string,
+): void {
+  const _method = method ? method.toUpperCase() : undefined;
+  route = new URL(route, "http://_").pathname;
+  _removeRoute(app["~rou3"], _method || "", route);
+  const idx = app["~routes"].findIndex(
+    (r) => r.route === route && (_method == null || r.method === _method),
+  );
+  if (idx !== -1) {
+    app["~routes"].splice(idx, 1);
+  }
 }

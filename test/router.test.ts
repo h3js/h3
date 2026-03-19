@@ -249,5 +249,20 @@ describeMatrix("router", (t, { it, expect, describe }) => {
       expect(postRes.status).toBe(200);
       expect(await postRes.text()).toBe("post");
     });
+
+    it("empty method removes only methodless route, not all methods", async () => {
+      t.app.get("/path", () => "get");
+      t.app.post("/path", () => "post");
+
+      removeRoute(t.app, "", "/path");
+
+      const getRes = await t.fetch("/path");
+      expect(getRes.status).toBe(200);
+      expect(await getRes.text()).toBe("get");
+
+      const postRes = await t.fetch("/path", { method: "POST" });
+      expect(postRes.status).toBe(200);
+      expect(await postRes.text()).toBe("post");
+    });
   });
 });
