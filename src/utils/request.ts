@@ -337,13 +337,12 @@ export function assertMethod(
   allowHead?: boolean,
 ): void {
   if (!isMethod(event, expected, allowHead)) {
-    const allowedMethods = new Set(Array.isArray(expected) ? expected : [expected]);
-    if (allowHead) {
-      allowedMethods.add("HEAD" as HTTPMethod);
-    }
+    const allowed = Array.isArray(expected) ? expected : [expected];
     throw new HTTPError({
       status: 405,
-      headers: { Allow: [...allowedMethods].join(", ") },
+      headers: {
+        Allow: allowHead ? [...allowed, "HEAD"].join(", ") : allowed.join(", "),
+      },
     });
   }
 }
