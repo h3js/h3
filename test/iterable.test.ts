@@ -19,77 +19,77 @@ describeMatrix("iterable", (t, { it, expect, describe }) => {
     });
 
     describe("iterable support", () => {
-      it.each([
-        { type: "Array", iterable: ["the-value"] },
-        { type: "Set", iterable: new Set(["the-value"]) },
-        {
-          type: "Map.keys()",
-          iterable: new Map([["the-value", "unused"]]).keys(),
-        },
-        {
-          type: "Map.values()",
-          iterable: new Map([["unused", "the-value"]]).values(),
-        },
-        {
-          type: "Iterator object",
-          iterable: { next: () => ({ value: "the-value", done: true }) },
-        },
-        {
-          type: "AsyncIterator object",
-          iterable: {
+      const cases: [string, () => unknown][] = [
+        ["Array", () => ["the-value"]],
+        ["Set", () => new Set(["the-value"])],
+        ["Map.keys()", () => new Map([["the-value", "unused"]]).keys()],
+        ["Map.values()", () => new Map([["unused", "the-value"]]).values()],
+        ["Iterator object", () => ({ next: () => ({ value: "the-value", done: true }) })],
+        [
+          "AsyncIterator object",
+          () => ({
             next: () => Promise.resolve({ value: "the-value", done: true }),
-          },
-        },
-        {
-          type: "Generator (yield)",
-          iterable: (function* () {
-            yield "the-value";
-          })(),
-        },
-        {
-          type: "Generator (return)",
-          // eslint-disable-next-line require-yield
-          iterable: (function* () {
-            return "the-value";
-          })(),
-        },
-        {
-          type: "Generator (yield*)",
-          iterable: (function* () {
-            // prettier-ignore
-            yield * ["the-value"];
-          })(),
-        },
-        {
-          type: "AsyncGenerator",
-          iterable: (async function* () {
-            await Promise.resolve();
-            yield "the-value";
-          })(),
-        },
-        {
-          type: "ReadableStream (push-mode)",
-          iterable: new ReadableStream({
-            start(controller) {
-              controller.enqueue("the-value");
-              controller.close();
-            },
           }),
-        },
-        {
-          type: "ReadableStream (pull-mode)",
-          iterable: new ReadableStream({
-            pull(controller) {
-              controller.enqueue("the-value");
-              controller.close();
-            },
-          }),
-        },
-      ])("$type", async (c) => {
-        t.app.use(() => iterable(c.iterable as any));
-        const response = await t.fetch("/");
-        expect(await response.text()).toBe("the-value");
-      });
+        ],
+        [
+          "Generator (yield)",
+          () =>
+            (function* () {
+              yield "the-value";
+            })(),
+        ],
+        [
+          "Generator (return)",
+          () =>
+            // eslint-disable-next-line require-yield
+            (function* () {
+              return "the-value" as unknown;
+            })(),
+        ],
+        [
+          "Generator (yield*)",
+          () =>
+            (function* () {
+              yield* ["the-value"];
+            })(),
+        ],
+        [
+          "AsyncGenerator",
+          () =>
+            (async function* () {
+              await Promise.resolve();
+              yield "the-value";
+            })(),
+        ],
+        [
+          "ReadableStream (push-mode)",
+          () =>
+            new ReadableStream({
+              start(controller) {
+                controller.enqueue("the-value");
+                controller.close();
+              },
+            }),
+        ],
+        [
+          "ReadableStream (pull-mode)",
+          () =>
+            new ReadableStream({
+              pull(controller) {
+                controller.enqueue("the-value");
+                controller.close();
+              },
+            }),
+        ],
+      ];
+
+      for (const [type, makeIterable] of cases) {
+        it(type, async () => {
+          t.app.use(() => iterable(makeIterable() as any));
+          const response = await t.fetch("/");
+          expect(await response.text()).toBe("the-value");
+        });
+      }
     });
 
     describe("serializer argument", () => {

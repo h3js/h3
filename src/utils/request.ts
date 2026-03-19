@@ -12,6 +12,32 @@ import type { H3EventContext } from "../types/context.ts";
 import type { ServerRequest } from "srvx";
 
 /**
+ * Create a lightweight request proxy that overrides only the URL.
+ *
+ * Avoids cloning the original request (no `new Request()` allocation).
+ */
+export function requestWithURL(req: ServerRequest, url: string): ServerRequest {
+  const cache: Record<string | symbol, unknown> = { url };
+  return new Proxy(req, {
+    get(target, prop) {
+      if (prop in cache) return cache[prop];
+      const value = Reflect.get(target, prop);
+      cache[prop] = typeof value === "function" ? value.bind(target) : value;
+      return cache[prop];
+    },
+  });
+}
+
+/**
+ * Create a lightweight request proxy with the base path stripped from the URL pathname.
+ */
+export function requestWithBaseURL(req: ServerRequest, base: string): ServerRequest {
+  const url = new URL(req.url);
+  url.pathname = url.pathname.slice(base.length) || "/";
+  return requestWithURL(req, url.href);
+}
+
+/**
  * Convert input into a web [Request](https://developer.mozilla.org/en-US/docs/Web/API/Request).
  *
  * If input is a relative URL, it will be normalized into a full path based on headers.
@@ -294,7 +320,8 @@ export function isMethod(
 /**
  * Asserts that the incoming request method is of the expected type using `isMethod`.
  *
- * If the method is not allowed, it will throw a 405 error with the message "HTTP method is not allowed".
+ * If the method is not allowed, it will throw a 405 error and include an `Allow`
+ * response header listing the permitted methods, as required by RFC 9110.
  *
  * If `allowHead` is `true`, it will allow `HEAD` requests to pass if the expected method is `GET`.
  *
@@ -310,7 +337,13 @@ export function assertMethod(
   allowHead?: boolean,
 ): void {
   if (!isMethod(event, expected, allowHead)) {
-    throw new HTTPError({ status: 405 });
+    const allowed = Array.isArray(expected) ? expected : [expected];
+    throw new HTTPError({
+      status: 405,
+      headers: {
+        Allow: allowHead ? [...allowed, "HEAD"].join(", ") : allowed.join(", "),
+      },
+    });
   }
 }
 
@@ -388,7 +421,7 @@ export function getRequestURL(
     const host = getRequestHost(event, opts);
     if (host) {
       url.host = host;
-      if (!host.includes(":")) {
+      if (!/:\d+$/.test(host)) {
         url.port = "";
       }
     }

@@ -107,6 +107,8 @@ describe("h3 package", () => {
         "redirect",
         "redirectBack",
         "removeResponseHeader",
+        "requestWithBaseURL",
+        "requestWithURL",
         "requireBasicAuth",
         "sanitizeStatusCode",
         "sanitizeStatusMessage",
@@ -126,6 +128,7 @@ describe("h3 package", () => {
         "setResponseHeader",
         "setResponseHeaders",
         "setResponseStatus",
+        "setServerTiming",
         "toEventHandler",
         "toMiddleware",
         "toNodeHandler",
@@ -138,6 +141,7 @@ describe("h3 package", () => {
         "useBase",
         "useSession",
         "withBase",
+        "withServerTiming",
         "writeEarlyHints",
       ]
     `);

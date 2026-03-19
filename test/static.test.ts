@@ -111,6 +111,40 @@ describeMatrix("serve static", (t, { it, expect }) => {
     expect(text).not.toContain("..");
     expect(text).toMatch(/^asset:\/etc\/passwd/);
   });
+
+  it("blocks path traversal attempts", async () => {
+    const blocked = [
+      "/../etc/passwd",
+      "/%2e%2e/",
+      "/%2E%2E/",
+      "/assets/../../etc/passwd",
+      "/assets/..",
+      "/..\\etc\\passwd",
+      "/..%5c..%5cetc%5cpasswd",
+      "/..",
+    ];
+    for (const path of blocked) {
+      const res = await t.fetch(path);
+      const text = await res.text();
+      expect(text).not.toContain("..");
+    }
+  });
+
+  it("allows legitimate paths with dots", async () => {
+    const allowed = [
+      "/_...grid_123.js",
+      "/file..name.js",
+      "/.hidden",
+      "/assets/file.txt",
+      "/...test/file.js",
+    ];
+    for (const path of allowed) {
+      const res = await t.fetch(path);
+      expect(res.status).toEqual(200);
+      const text = await res.text();
+      expect(text).toContain("asset:");
+    }
+  });
 });
 
 describeMatrix("serve static with fallthrough", (t, { it, expect }) => {

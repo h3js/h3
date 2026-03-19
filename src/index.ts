@@ -82,6 +82,8 @@ export { type RouteDefinition, defineRoute } from "./utils/route.ts";
 // Request
 
 export {
+  requestWithURL,
+  requestWithBaseURL,
   toRequest,
   getRequestHost,
   getRequestIP,
@@ -145,6 +147,10 @@ export {
   type EventStreamOptions,
   createEventStream,
 } from "./utils/event-stream.ts";
+
+// Timing
+
+export { setServerTiming, withServerTiming } from "./utils/timing.ts";
 
 // Sanitize
 
