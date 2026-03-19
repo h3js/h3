@@ -56,7 +56,8 @@ export function resolveDotSegments(path: string): string {
   if (!path.includes(".")) {
     return path;
   }
-  const segments = path.split("/");
+  // Normalize backslashes to forward slashes to prevent traversal via `\`
+  const segments = path.replaceAll("\\", "/").split("/");
   const resolved: string[] = [];
   for (const segment of segments) {
     if (segment === "..") {

@@ -1,6 +1,10 @@
 import type { CookieSerializeOptions, SetCookie } from "cookie-es";
 import type { H3Event, HTTPEvent } from "../event.ts";
 import { parse as parseCookie, serialize as serializeCookie, parseSetCookie } from "cookie-es";
+import { validateData } from "./internal/validate.ts";
+import type { StandardSchemaV1, FailureResult, InferOutput } from "./internal/standard-schema.ts";
+import type { ValidateResult, OnValidateError } from "./internal/validate.ts";
+import type { ErrorDetails } from "../error.ts";
 
 const CHUNKED_COOKIE = "__chunked__";
 
@@ -17,6 +21,38 @@ const CHUNKS_MAX_LENGTH = 4000;
  */
 export function parseCookies(event: HTTPEvent): Record<string, string> {
   return parseCookie(event.req.headers.get("cookie") || "");
+}
+
+/**
+ * Get and validate all cookies using a Standard Schema or custom validator.
+ *
+ * @example
+ * app.get("/", async (event) => {
+ *   const cookies = await getValidatedCookies(event, z.object({
+ *     session: z.string(),
+ *     theme: z.enum(["light", "dark"]).optional(),
+ *   }));
+ * });
+ */
+export function getValidatedCookies<Event extends HTTPEvent, S extends StandardSchemaV1<any, any>>(
+  event: Event,
+  validate: S,
+  options?: { onError?: (result: FailureResult) => ErrorDetails },
+): Promise<InferOutput<S>>;
+export function getValidatedCookies<Event extends HTTPEvent, OutputT>(
+  event: Event,
+  validate: (
+    data: Record<string, string>,
+  ) => ValidateResult<OutputT> | Promise<ValidateResult<OutputT>>,
+  options?: { onError?: () => ErrorDetails },
+): Promise<OutputT>;
+export function getValidatedCookies(
+  event: HTTPEvent,
+  validate: any,
+  options?: { onError?: OnValidateError },
+): Promise<any> {
+  const cookies = parseCookies(event);
+  return validateData(cookies, validate, options);
 }
 
 /**
@@ -97,7 +133,7 @@ export function deleteCookie(
  * @param name Name of the cookie to get
  * @returns {*} Value of the cookie (String or undefined)
  * ```ts
- * const authorization = getCookie(request, 'Session')
+ * const session = getChunkedCookie(event, 'Session')
  * ```
  */
 export function getChunkedCookie(event: HTTPEvent, name: string): string | undefined {

@@ -11,6 +11,9 @@ const kEventNS = "h3.internal.event.";
 export const kEventRes: unique symbol = /* @__PURE__ */ Symbol.for(`${kEventNS}res`);
 
 export const kEventResHeaders: unique symbol = /* @__PURE__ */ Symbol.for(`${kEventNS}res.headers`);
+export const kEventResErrHeaders: unique symbol = /* @__PURE__ */ Symbol.for(
+  `${kEventNS}res.err.headers`,
+);
 
 export interface HTTPEvent<_RequestT extends EventHandlerRequest = EventHandlerRequest> {
   /**
@@ -59,7 +62,15 @@ export class H3Event<
     this.app = app;
     // Parsed URL can be provided by srvx (node) and other runtimes
     const _url = (req as { _url?: URL })._url;
-    this.url = _url && _url instanceof URL ? _url : new FastURL(req.url);
+    const url = _url && _url instanceof URL ? _url : new FastURL(req.url);
+    // Normalize percent-encoded pathname to prevent middleware bypass
+    // Preserve %25 (encoded %) to avoid unintended double-decoding
+    if (url.pathname.includes("%")) {
+      url.pathname = decodeURI(
+        url.pathname.includes("%25") ? url.pathname.replace(/%25/g, "%2525") : url.pathname,
+      );
+    }
+    this.url = url;
   }
 
   /**
@@ -140,5 +151,9 @@ class H3EventResponse {
 
   get headers(): Headers {
     return ((this as any)[kEventResHeaders] ||= new Headers());
+  }
+
+  get errHeaders(): Headers {
+    return ((this as any)[kEventResErrHeaders] ||= new Headers());
   }
 }

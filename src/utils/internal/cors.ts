@@ -29,7 +29,7 @@ export function resolveCorsOptions(options: CorsOptions = {}): ResolvedCorsOptio
     },
   };
 
-  return {
+  const resolved = {
     ...defaultOptions,
     ...options,
     preflight: {
@@ -37,6 +37,14 @@ export function resolveCorsOptions(options: CorsOptions = {}): ResolvedCorsOptio
       ...options.preflight,
     },
   };
+
+  if (resolved.credentials && (!options.origin || options.origin === "*")) {
+    console.warn(
+      "[h3] CORS: `credentials: true` with wildcard origin is not allowed. Browsers will reject the response.",
+    );
+  }
+
+  return resolved;
 }
 
 /**

@@ -76,6 +76,7 @@ describe("h3 package", () => {
         "getRouterParam",
         "getRouterParams",
         "getSession",
+        "getValidatedCookies",
         "getValidatedQuery",
         "getValidatedRouterParams",
         "handleCacheHeaders",
@@ -105,6 +106,8 @@ describe("h3 package", () => {
         "readValidatedBody",
         "redirect",
         "removeResponseHeader",
+        "requestWithBaseURL",
+        "requestWithURL",
         "requireBasicAuth",
         "sanitizeStatusCode",
         "sanitizeStatusMessage",
@@ -124,6 +127,7 @@ describe("h3 package", () => {
         "setResponseHeader",
         "setResponseHeaders",
         "setResponseStatus",
+        "setServerTiming",
         "toEventHandler",
         "toMiddleware",
         "toNodeHandler",
@@ -136,6 +140,7 @@ describe("h3 package", () => {
         "useBase",
         "useSession",
         "withBase",
+        "withServerTiming",
         "writeEarlyHints",
       ]
     `);

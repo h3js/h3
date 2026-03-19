@@ -12,6 +12,32 @@ import type { H3EventContext } from "../types/context.ts";
 import type { ServerRequest } from "srvx";
 
 /**
+ * Create a lightweight request proxy that overrides only the URL.
+ *
+ * Avoids cloning the original request (no `new Request()` allocation).
+ */
+export function requestWithURL(req: ServerRequest, url: string): ServerRequest {
+  const cache: Record<string | symbol, unknown> = { url };
+  return new Proxy(req, {
+    get(target, prop) {
+      if (prop in cache) return cache[prop];
+      const value = Reflect.get(target, prop);
+      cache[prop] = typeof value === "function" ? value.bind(target) : value;
+      return cache[prop];
+    },
+  });
+}
+
+/**
+ * Create a lightweight request proxy with the base path stripped from the URL pathname.
+ */
+export function requestWithBaseURL(req: ServerRequest, base: string): ServerRequest {
+  const url = new URL(req.url);
+  url.pathname = url.pathname.slice(base.length) || "/";
+  return requestWithURL(req, url.href);
+}
+
+/**
  * Convert input into a web [Request](https://developer.mozilla.org/en-US/docs/Web/API/Request).
  *
  * If input is a relative URL, it will be normalized into a full path based on headers.
@@ -319,7 +345,7 @@ export function assertMethod(
  *
  * If `xForwardedHost` is `true`, it will use the `x-forwarded-host` header if it exists.
  *
- * If no host header is found, it will default to "localhost".
+ * If no host header is found, it will return an empty string.
  *
  * @example
  * app.get("/", (event) => {
@@ -388,7 +414,7 @@ export function getRequestURL(
     const host = getRequestHost(event, opts);
     if (host) {
       url.host = host;
-      if (!host.includes(":")) {
+      if (!/:\d+$/.test(host)) {
         url.port = "";
       }
     }
