@@ -60,6 +60,45 @@ export function redirect(
 }
 
 /**
+ * Redirect the client back to the previous page using the `referer` header.
+ *
+ * If the `referer` header is missing or is a different origin, it falls back to the provided URL (default `"/"`).
+ *
+ * By default, only the **pathname** of the referer is used (query string and hash are stripped)
+ * to prevent spoofed referers from carrying unintended parameters. Set `allowQuery: true` to preserve the query string.
+ *
+ * **Security:** The `fallback` value MUST be a trusted, hardcoded path — never use user input.
+ * Passing user-controlled values (e.g., query params) as `fallback` creates an open redirect vulnerability.
+ *
+ * @example
+ * app.post("/submit", (event) => {
+ *   // process form...
+ *   return redirectBack(event, { fallback: "/form" });
+ * });
+ */
+export function redirectBack(
+  event: H3Event,
+  opts: {
+    /** Fallback URL when referer is missing or cross-origin (default: `"/"`). **Must be a trusted, hardcoded path — never user input.** */
+    fallback?: string;
+    /** HTTP status code for the redirect (default: `302`). */
+    status?: number;
+    /** Preserve the query string from the referer URL (default: `false`). */
+    allowQuery?: boolean;
+  } = {},
+): HTTPResponse {
+  const referer = event.req.headers.get("referer");
+  let location = opts.fallback ?? "/";
+  if (referer && URL.canParse(referer)) {
+    const refererURL = new URL(referer);
+    if (refererURL.origin === event.url.origin) {
+      location = refererURL.pathname + (opts.allowQuery ? refererURL.search : "");
+    }
+  }
+  return redirect(location, opts.status);
+}
+
+/**
  * Write `HTTP/1.1 103 Early Hints` to the client.
  *
  * In runtimes that don't support early hints natively, this function

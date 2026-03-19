@@ -100,7 +100,14 @@ export {
 
 // Response
 
-export { writeEarlyHints, redirect, iterable, noContent, html } from "./utils/response.ts";
+export {
+  writeEarlyHints,
+  redirect,
+  redirectBack,
+  iterable,
+  noContent,
+  html,
+} from "./utils/response.ts";
 
 // Middleware
 
