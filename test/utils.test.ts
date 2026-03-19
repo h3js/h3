@@ -372,9 +372,25 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
         assertMethod(event, "POST", true);
         return "ok";
       });
-      expect((await t.fetch("/post")).status).toBe(405);
+      const res405 = await t.fetch("/post");
+      expect(res405.status).toBe(405);
+      expect(new Set(res405.headers.get("Allow")?.split(/\s*,\s*/))).toEqual(
+        new Set(["POST", "HEAD"]),
+      );
       expect((await t.fetch("/post", { method: "POST" })).status).toBe(200);
       expect((await t.fetch("/post", { method: "HEAD" })).status).toBe(200);
+    });
+
+    it("sets Allow header with multiple expected methods", async () => {
+      t.app.all("/multi", (event) => {
+        assertMethod(event, ["GET", "POST"]);
+        return "ok";
+      });
+      const res405 = await t.fetch("/multi", { method: "DELETE" });
+      expect(res405.status).toBe(405);
+      expect(new Set(res405.headers.get("Allow")?.split(/\s*,\s*/))).toEqual(
+        new Set(["GET", "POST"]),
+      );
     });
   });
 
