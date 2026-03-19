@@ -130,7 +130,9 @@ export class EventStream {
       return;
     }
     if (this._unsentData?.length) {
-      await this._writer.write(this._encoder.encode(this._unsentData));
+      await this._writer.write(this._encoder.encode(this._unsentData)).catch(() => {
+        this._writerIsClosed = true;
+      });
       this._unsentData = undefined;
     }
   }

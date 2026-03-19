@@ -117,7 +117,7 @@ describe("sse (unit)", () => {
       await stream.pushComment("comment2");
     });
 
-    it("marks writer as closed on push write failure (L89 _sendEvent)", async () => {
+    it("marks writer as closed on push write failure", async () => {
       const event = mockEvent("/");
       const stream = new EventStream(event);
 
@@ -133,7 +133,7 @@ describe("sse (unit)", () => {
       expect(writeSpy).not.toHaveBeenCalled();
     });
 
-    it("marks writer as closed on pushComment write failure (L74)", async () => {
+    it("marks writer as closed on pushComment write failure", async () => {
       const event = mockEvent("/");
       const stream = new EventStream(event);
 
@@ -149,7 +149,7 @@ describe("sse (unit)", () => {
       expect(writeSpy).not.toHaveBeenCalled();
     });
 
-    it("marks writer as closed on batch push write failure (L110 _sendEvents)", async () => {
+    it("marks writer as closed on batch push write failure", async () => {
       const event = mockEvent("/");
       const stream = new EventStream(event);
 
@@ -162,6 +162,27 @@ describe("sse (unit)", () => {
 
       writeSpy.mockClear();
       await stream.push([{ data: "msg3" }]);
+      expect(writeSpy).not.toHaveBeenCalled();
+    });
+
+    it("marks writer as closed on flush write failure", async () => {
+      const event = mockEvent("/");
+      const stream = new EventStream(event);
+
+      // Pause and buffer data so flush has something to write
+      stream.pause();
+      await stream.push("buffered");
+
+      const writeSpy = vi.fn().mockRejectedValue(new Error("write failed"));
+      (stream as any)._writer.write = writeSpy;
+      (stream as any)._writerIsClosed = false;
+
+      await stream.flush();
+      expect((stream as any)._writerIsClosed).toBe(true);
+
+      // Subsequent writes should be skipped
+      writeSpy.mockClear();
+      await stream.push("after-flush");
       expect(writeSpy).not.toHaveBeenCalled();
     });
   });
