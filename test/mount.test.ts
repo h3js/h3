@@ -155,6 +155,14 @@ describeMatrix("mount", (t, { it, expect, describe }) => {
       expect(logs).toContain("admin: /admin/users"); // Adjusted path
     });
 
+    it("v1 compat: app.use(router) with H3 instance (#1341)", async () => {
+      const router = new H3();
+      router.get("/", () => "Hello world!");
+      t.app.use(router);
+      const res = await t.fetch("/");
+      expect(await res.text()).toBe("Hello world!");
+    });
+
     it("middleware should not execute for non-matching paths", async () => {
       const logs: string[] = [];
 

@@ -44,8 +44,11 @@ export function redirect(
   status: number = 302,
   statusText?: string,
 ): HTTPResponse {
-  const encodedLoc = location.replace(/"/g, "%22");
-  const body = /* html */ `<html><head><meta http-equiv="refresh" content="0; url=${encodedLoc}" /></head></html>`;
+  const htmlLoc = location.replace(
+    /[&"<>]/g,
+    (c) => ({ "&": "&amp;", '"': "&quot;", "<": "&lt;", ">": "&gt;" })[c]!,
+  );
+  const body = /* html */ `<html><head><meta http-equiv="refresh" content="0; url=${htmlLoc}" /></head></html>`;
   return new HTTPResponse(body, {
     status,
     statusText: statusText || (status === 301 ? "Moved Permanently" : "Found"),
@@ -54,6 +57,45 @@ export function redirect(
       location,
     },
   });
+}
+
+/**
+ * Redirect the client back to the previous page using the `referer` header.
+ *
+ * If the `referer` header is missing or is a different origin, it falls back to the provided URL (default `"/"`).
+ *
+ * By default, only the **pathname** of the referer is used (query string and hash are stripped)
+ * to prevent spoofed referers from carrying unintended parameters. Set `allowQuery: true` to preserve the query string.
+ *
+ * **Security:** The `fallback` value MUST be a trusted, hardcoded path — never use user input.
+ * Passing user-controlled values (e.g., query params) as `fallback` creates an open redirect vulnerability.
+ *
+ * @example
+ * app.post("/submit", (event) => {
+ *   // process form...
+ *   return redirectBack(event, { fallback: "/form" });
+ * });
+ */
+export function redirectBack(
+  event: H3Event,
+  opts: {
+    /** Fallback URL when referer is missing or cross-origin (default: `"/"`). **Must be a trusted, hardcoded path — never user input.** */
+    fallback?: string;
+    /** HTTP status code for the redirect (default: `302`). */
+    status?: number;
+    /** Preserve the query string from the referer URL (default: `false`). */
+    allowQuery?: boolean;
+  } = {},
+): HTTPResponse {
+  const referer = event.req.headers.get("referer");
+  let location = opts.fallback ?? "/";
+  if (referer && URL.canParse(referer)) {
+    const refererURL = new URL(referer);
+    if (refererURL.origin === event.url.origin) {
+      location = refererURL.pathname + (opts.allowQuery ? refererURL.search : "");
+    }
+  }
+  return redirect(location, opts.status);
 }
 
 /**
@@ -105,7 +147,7 @@ export function writeEarlyHints(
  *   // Open document body
  *   yield "<!DOCTYPE html>\n<html><body><h1>Executing...</h1><ol>\n";
  *   // Do work ...
- *   for (let i = 0; i < 1000) {
+ *   for (let i = 0; i < 1000; i++) {
  *     await delay(1000);
  *     // Report progress
  *     yield `<li>Completed job #`;
@@ -114,9 +156,9 @@ export function writeEarlyHints(
  *   }
  *   // Close out the report
  *   return `</ol></body></html>`;
- * })
+ * });
  * async function delay(ms) {
- *   return new Promise(resolve => setTimeout(resolve, ms));
+ *   return new Promise((resolve) => setTimeout(resolve, ms));
  * }
  */
 export function iterable<Value = unknown, Return = unknown>(

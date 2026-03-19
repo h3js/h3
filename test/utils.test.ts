@@ -1,10 +1,12 @@
 import { beforeEach } from "vitest";
 import {
   redirect,
+  redirectBack,
   withBase,
   assertMethod,
   getQuery,
   getRequestURL,
+  getRequestHost,
   getRequestIP,
   getRequestFingerprint,
   handleCacheHeaders,
@@ -40,6 +42,80 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
       const result = await t.fetch("/");
       expect(result.headers.get("location")).toBe("https://google.com");
       expect(result.headers.get("content-type")).toBe("text/html; charset=utf-8");
+    });
+
+    it("escapes special characters in HTML body", async () => {
+      const malicious = 'https://example.com/"><script>alert(1)</script>&foo=bar';
+      t.app.use(() => redirect(malicious));
+      const result = await t.fetch("/");
+      expect(result.headers.get("location")).toBe(malicious);
+      const body = await result.text();
+      expect(body).toBe(
+        `<html><head><meta http-equiv="refresh" content="0; url=https://example.com/&quot;&gt;&lt;script&gt;alert(1)&lt;/script&gt;&amp;foo=bar" /></head></html>`,
+      );
+    });
+  });
+
+  describe("redirectBack", () => {
+    it("redirects to referer pathname when same origin", async () => {
+      t.app.post("/submit", (event) => redirectBack(event));
+      const baseUrl = t.url || "http://localhost";
+      const res = await t.fetch("/submit", {
+        method: "POST",
+        headers: { referer: `${baseUrl}/form` },
+      });
+      expect(res.status).toBe(302);
+      expect(res.headers.get("location")).toBe("/form");
+    });
+
+    it("strips query string from referer by default", async () => {
+      t.app.post("/submit", (event) => redirectBack(event));
+      const baseUrl = t.url || "http://localhost";
+      const res = await t.fetch("/submit", {
+        method: "POST",
+        headers: { referer: `${baseUrl}/page?token=secret&action=delete` },
+      });
+      expect(res.headers.get("location")).toBe("/page");
+    });
+
+    it("preserves query string with allowQuery", async () => {
+      t.app.post("/submit", (event) => redirectBack(event, { allowQuery: true }));
+      const baseUrl = t.url || "http://localhost";
+      const res = await t.fetch("/submit", {
+        method: "POST",
+        headers: { referer: `${baseUrl}/page?tab=settings` },
+      });
+      expect(res.headers.get("location")).toBe("/page?tab=settings");
+    });
+
+    it("uses fallback when referer is cross-origin", async () => {
+      t.app.post("/submit", (event) => redirectBack(event, { fallback: "/home" }));
+      const res = await t.fetch("/submit", {
+        method: "POST",
+        headers: { referer: "https://evil.com/steal" },
+      });
+      expect(res.headers.get("location")).toBe("/home");
+    });
+
+    it("uses fallback when no referer", async () => {
+      t.app.post("/submit", (event) => redirectBack(event, { fallback: "/dashboard" }));
+      const res = await t.fetch("/submit", { method: "POST" });
+      expect(res.headers.get("location")).toBe("/dashboard");
+    });
+
+    it("defaults fallback to /", async () => {
+      t.app.post("/submit", (event) => redirectBack(event));
+      const res = await t.fetch("/submit", { method: "POST" });
+      expect(res.headers.get("location")).toBe("/");
+    });
+
+    it("uses fallback when referer is invalid URL", async () => {
+      t.app.post("/submit", (event) => redirectBack(event, { fallback: "/safe" }));
+      const res = await t.fetch("/submit", {
+        method: "POST",
+        headers: { referer: "not-a-valid-url" },
+      });
+      expect(res.headers.get("location")).toBe("/safe");
     });
   });
 
@@ -83,6 +159,31 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
     });
   });
 
+  describe("getRequestHost", () => {
+    it("returns host header value", async () => {
+      t.app.get("/", (event) => getRequestHost(event));
+      const res = await t.fetch("/");
+      // In test environments, host header is set by the HTTP client
+      expect(await res.text()).toBeTruthy();
+    });
+
+    it("uses x-forwarded-host when enabled", async () => {
+      t.app.get("/", (event) => getRequestHost(event, { xForwardedHost: true }));
+      const res = await t.fetch("/", {
+        headers: { "x-forwarded-host": "proxy.example.com" },
+      });
+      expect(await res.text()).toBe("proxy.example.com");
+    });
+
+    it("uses first value from x-forwarded-host with multiple entries", async () => {
+      t.app.get("/", (event) => getRequestHost(event, { xForwardedHost: true }));
+      const res = await t.fetch("/", {
+        headers: { "x-forwarded-host": "first.com, second.com" },
+      });
+      expect(await res.text()).toBe("first.com");
+    });
+  });
+
   describe("getRequestURL", () => {
     const tests = [
       "http://localhost/foo?bar=baz",
@@ -113,6 +214,42 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
         expect(await res.text()).toMatch(new URL(c).href);
       });
     }
+
+    it("x-forwarded-host clears port for plain host", async () => {
+      const res = await t
+        .fetch("http://localhost:3000/test", {
+          headers: { "x-forwarded-host": "example.com" },
+        })
+        .then((r) => r.text());
+      expect(res).toBe("http://example.com/test");
+    });
+
+    it("x-forwarded-host preserves explicit port", async () => {
+      const res = await t
+        .fetch("http://localhost/test", {
+          headers: { "x-forwarded-host": "example.com:8080" },
+        })
+        .then((r) => r.text());
+      expect(res).toBe("http://example.com:8080/test");
+    });
+
+    it("x-forwarded-host with IPv6 clears port", async () => {
+      const res = await t
+        .fetch("http://localhost:3000/test", {
+          headers: { "x-forwarded-host": "[2001:db8::1]" },
+        })
+        .then((r) => r.text());
+      expect(res).toBe("http://[2001:db8::1]/test");
+    });
+
+    it("x-forwarded-host with IPv6 and port preserves port", async () => {
+      const res = await t
+        .fetch("http://localhost/test", {
+          headers: { "x-forwarded-host": "[2001:db8::1]:8080" },
+        })
+        .then((r) => r.text());
+      expect(res).toBe("http://[2001:db8::1]:8080/test");
+    });
 
     it('x-forwarded-proto: "https"', async () => {
       expect(
@@ -299,9 +436,25 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
         assertMethod(event, "POST", true);
         return "ok";
       });
-      expect((await t.fetch("/post")).status).toBe(405);
+      const res405 = await t.fetch("/post");
+      expect(res405.status).toBe(405);
+      expect(new Set(res405.headers.get("Allow")?.split(/\s*,\s*/))).toEqual(
+        new Set(["POST", "HEAD"]),
+      );
       expect((await t.fetch("/post", { method: "POST" })).status).toBe(200);
       expect((await t.fetch("/post", { method: "HEAD" })).status).toBe(200);
+    });
+
+    it("sets Allow header with multiple expected methods", async () => {
+      t.app.all("/multi", (event) => {
+        assertMethod(event, ["GET", "POST"]);
+        return "ok";
+      });
+      const res405 = await t.fetch("/multi", { method: "DELETE" });
+      expect(res405.status).toBe(405);
+      expect(new Set(res405.headers.get("Allow")?.split(/\s*,\s*/))).toEqual(
+        new Set(["GET", "POST"]),
+      );
     });
   });
 

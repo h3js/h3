@@ -143,8 +143,8 @@ export declare class H3 extends H3Core {
   /**
    * Register a global middleware.
    */
-  use(route: string, handler: Middleware, opts?: MiddlewareOptions): this;
-  use(handler: Middleware, opts?: MiddlewareOptions): this;
+  use(route: string, handler: Middleware | H3, opts?: MiddlewareOptions): this;
+  use(handler: Middleware | H3, opts?: MiddlewareOptions): this;
 
   /**
    * Register a route handler for the specified HTTP method and route.
