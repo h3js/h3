@@ -23,6 +23,15 @@ export interface ProxyOptions {
 
 /**
  * Proxy the incoming request to a target URL.
+ *
+ * If the `target` starts with `/`, the request is handled internally by the app router
+ * via `event.app.fetch()` instead of making an external HTTP request.
+ *
+ * **Security:** Never pass unsanitized user input as the `target`. Callers are
+ * responsible for validating and restricting the target URL (e.g. allowlisting
+ * hosts, blocking internal paths, enforcing protocol). Consider using
+ * `bodyLimit()` middleware to prevent large request bodies from consuming
+ * excessive resources when proxying untrusted input.
  */
 export async function proxyRequest(
   event: H3Event,
@@ -60,6 +69,14 @@ export async function proxyRequest(
 
 /**
  * Make a proxy request to a target URL and send the response back to the client.
+ *
+ * If the `target` starts with `/`, the request is dispatched internally via
+ * `event.app.fetch()` (sub-request) and never leaves the process. This bypasses
+ * any external security layer (reverse proxy auth, IP allowlisting, mTLS).
+ *
+ * **Security:** Never pass unsanitized user input as the `target`. Callers are
+ * responsible for validating and restricting the target URL (e.g. allowlisting
+ * hosts, blocking internal paths, enforcing protocol).
  */
 export async function proxy(
   event: H3Event,
@@ -154,6 +171,12 @@ export function getProxyRequestHeaders(
 
 /**
  * Make a fetch request with the event's context and headers.
+ *
+ * If the `url` starts with `/`, the request is dispatched internally via
+ * `event.app.fetch()` (sub-request) and never leaves the process.
+ *
+ * **Security:** Never pass unsanitized user input as the `url`. Callers are
+ * responsible for validating and restricting the URL.
  */
 export async function fetchWithEvent(
   event: H3Event,
