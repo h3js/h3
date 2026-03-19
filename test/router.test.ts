@@ -1,5 +1,5 @@
 import { beforeEach } from "vitest";
-import { getRouterParams, getRouterParam, H3 } from "../src/index.ts";
+import { getRouterParams, getRouterParam, removeRoute, H3 } from "../src/index.ts";
 import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("router", (t, { it, expect, describe }) => {
@@ -219,6 +219,50 @@ describeMatrix("router", (t, { it, expect, describe }) => {
 
         expect(await result.text()).toBe("200");
       });
+    });
+  });
+
+  describe("removeRoute", () => {
+    it("removes a registered route", async () => {
+      t.app.get("/removable", () => "exists");
+
+      const res1 = await t.fetch("/removable");
+      expect(res1.status).toBe(200);
+      expect(await res1.text()).toBe("exists");
+
+      removeRoute(t.app, "GET", "/removable");
+
+      const res2 = await t.fetch("/removable");
+      expect(res2.status).toBe(404);
+    });
+
+    it("removes only the specified method", async () => {
+      t.app.get("/multi", () => "get");
+      t.app.post("/multi", () => "post");
+
+      removeRoute(t.app, "GET", "/multi");
+
+      const getRes = await t.fetch("/multi");
+      expect(getRes.status).toBe(404);
+
+      const postRes = await t.fetch("/multi", { method: "POST" });
+      expect(postRes.status).toBe(200);
+      expect(await postRes.text()).toBe("post");
+    });
+
+    it("empty method removes only methodless route, not all methods", async () => {
+      t.app.get("/path", () => "get");
+      t.app.post("/path", () => "post");
+
+      removeRoute(t.app, "", "/path");
+
+      const getRes = await t.fetch("/path");
+      expect(getRes.status).toBe(200);
+      expect(await getRes.text()).toBe("get");
+
+      const postRes = await t.fetch("/path", { method: "POST" });
+      expect(postRes.status).toBe(200);
+      expect(await postRes.text()).toBe("post");
     });
   });
 });
