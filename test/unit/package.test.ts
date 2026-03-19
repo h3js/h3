@@ -43,6 +43,7 @@ describe("h3 package", () => {
         "defineValidatedHandler",
         "defineWebSocket",
         "defineWebSocketHandler",
+        "defineWebSocketRoute",
         "deleteChunkedCookie",
         "deleteCookie",
         "dynamicEventHandler",
