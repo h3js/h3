@@ -1,9 +1,4 @@
-import {
-  decodePath,
-  parseURL,
-  withLeadingSlash,
-  withoutTrailingSlash,
-} from "ufo";
+import { parseURL, withLeadingSlash, withoutTrailingSlash } from "ufo";
 import { H3Event } from "../event";
 import { createError } from "../error";
 import { getRequestHeader } from "./request";
@@ -77,11 +72,11 @@ export async function serveStatic(
     return false;
   }
 
-  const originalId = decodePath(
-    withLeadingSlash(withoutTrailingSlash(parseURL(event.path).pathname)),
+  const originalId = withLeadingSlash(
+    withoutTrailingSlash(parseURL(event.path).pathname),
   );
 
-  if (/(^|[\\/])\.\.($|[\\/])/.test(originalId)) {
+  if (/(^|[\\/])(\.\.|%2e%2e|%2e\.|\.%2e)($|[\\/])/i.test(originalId)) {
     if (!options.fallthrough) {
       throw createError({ statusCode: 404 });
     }

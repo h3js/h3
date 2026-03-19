@@ -176,6 +176,14 @@ describe("Serve Static", () => {
       expect(res.statusCode).toEqual(404);
     });
 
+    it("does not pass double-encoded dot segments as traversal to backend", async () => {
+      await rawRequest("/%252e%252e/%252e%252e/etc/passwd");
+      // Should not reach backend with %2e%2e (which URL backends resolve as ..)
+      expect(serveStaticOptions.getMeta).not.toHaveBeenCalledWith(
+        expect.stringContaining("%2e%2e"),
+      );
+    });
+
     // --- Allowed paths (must NOT be blocked) ---
 
     it("allows filenames with consecutive dots (e.g. _...grid)", async () => {
