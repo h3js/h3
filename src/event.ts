@@ -11,6 +11,9 @@ const kEventNS = "h3.internal.event.";
 export const kEventRes: unique symbol = /* @__PURE__ */ Symbol.for(`${kEventNS}res`);
 
 export const kEventResHeaders: unique symbol = /* @__PURE__ */ Symbol.for(`${kEventNS}res.headers`);
+export const kEventResErrHeaders: unique symbol = /* @__PURE__ */ Symbol.for(
+  `${kEventNS}res.err.headers`,
+);
 
 export interface HTTPEvent<_RequestT extends EventHandlerRequest = EventHandlerRequest> {
   /**
@@ -148,5 +151,9 @@ class H3EventResponse {
 
   get headers(): Headers {
     return ((this as any)[kEventResHeaders] ||= new Headers());
+  }
+
+  get errHeaders(): Headers {
+    return ((this as any)[kEventResErrHeaders] ||= new Headers());
   }
 }

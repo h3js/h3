@@ -6,7 +6,9 @@ import {
   appendCorsPreflightHeaders,
   appendCorsHeaders,
   handleCors,
+  HTTPError,
 } from "../../src/index.ts";
+import { toResponse } from "../../src/response.ts";
 import {
   resolveCorsOptions,
   createOriginHeaders,
@@ -693,6 +695,25 @@ describe("cors (unit)", () => {
       expect(eventMock.res.headers.get("access-control-allow-origin")).toEqual("*");
       expect(eventMock.res.headers.has("access-control-allow-methods")).toEqual(false);
       expect(eventMock.res.headers.get("access-control-expose-headers")).toEqual("*");
+    });
+
+    it("preserves CORS headers on HTTPError responses", async () => {
+      const eventMock = mockEvent("/", {
+        method: "POST",
+        headers: {
+          origin: "https://example.com",
+        },
+      });
+
+      handleCors(eventMock, {
+        origin: ["https://example.com"],
+      });
+
+      const error = new HTTPError("Invalid Password!");
+      const response = await toResponse(error, eventMock);
+
+      expect(response.status).toBe(500);
+      expect(response.headers.get("access-control-allow-origin")).toEqual("https://example.com");
     });
   });
 });
