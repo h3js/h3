@@ -1,4 +1,4 @@
-import { expect, it, describe } from "vitest";
+import { expect, it, describe, vi } from "vitest";
 import {
   mockEvent,
   isPreflightRequest,
@@ -6,7 +6,9 @@ import {
   appendCorsPreflightHeaders,
   appendCorsHeaders,
   handleCors,
+  HTTPError,
 } from "../../src/index.ts";
+import { toResponse } from "../../src/response.ts";
 import {
   resolveCorsOptions,
   createOriginHeaders,
@@ -56,6 +58,37 @@ describe("cors (unit)", () => {
           statusCode: 404,
         },
       });
+    });
+
+    it("warns when credentials is used with wildcard origin", () => {
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      resolveCorsOptions({ credentials: true });
+      expect(warnSpy).toHaveBeenCalledOnce();
+      expect(warnSpy.mock.calls[0][0]).toContain("credentials");
+
+      warnSpy.mockRestore();
+    });
+
+    it("does not warn when credentials is used with specific origin", () => {
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      resolveCorsOptions({
+        credentials: true,
+        origin: ["https://example.com"],
+      });
+      expect(warnSpy).not.toHaveBeenCalled();
+
+      warnSpy.mockRestore();
+    });
+
+    it("does not warn when credentials is false", () => {
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      resolveCorsOptions({ credentials: false, origin: "*" });
+      expect(warnSpy).not.toHaveBeenCalled();
+
+      warnSpy.mockRestore();
     });
   });
 
@@ -662,6 +695,25 @@ describe("cors (unit)", () => {
       expect(eventMock.res.headers.get("access-control-allow-origin")).toEqual("*");
       expect(eventMock.res.headers.has("access-control-allow-methods")).toEqual(false);
       expect(eventMock.res.headers.get("access-control-expose-headers")).toEqual("*");
+    });
+
+    it("preserves CORS headers on HTTPError responses", async () => {
+      const eventMock = mockEvent("/", {
+        method: "POST",
+        headers: {
+          origin: "https://example.com",
+        },
+      });
+
+      handleCors(eventMock, {
+        origin: ["https://example.com"],
+      });
+
+      const error = new HTTPError("Invalid Password!");
+      const response = await toResponse(error, eventMock);
+
+      expect(response.status).toBe(500);
+      expect(response.headers.get("access-control-allow-origin")).toEqual("https://example.com");
     });
   });
 });

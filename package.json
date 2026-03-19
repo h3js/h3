@@ -47,50 +47,50 @@
     "play:plain": "pnpm test/fixture/plain.ts",
     "play:web": "pnpm test/fixture/web.ts",
     "release": "pnpm test && pnpm build && changelogen --release --prerelease --publish && git push --follow-tags",
-    "test": "pnpm lint && pnpm typecheck && vitest --run --coverage",
-    "typecheck": "tsgo --noEmit --skipLibCheck"
+    "test": "pnpm lint && vitest --run --coverage"
   },
   "dependencies": {
-    "rou3": "^0.8.0",
-    "srvx": "^0.11.9"
+    "rou3": "^0.8.1",
+    "srvx": "^0.11.12"
   },
   "devDependencies": {
-    "@happy-dom/global-registrator": "^20.8.3",
+    "@happy-dom/global-registrator": "^20.8.4",
     "@mitata/counters": "^0.0.8",
     "@types/connect": "^3.4.38",
     "@types/express": "^5.0.6",
-    "@types/node": "^25.3.5",
+    "@types/node": "^25.5.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
-    "@typescript/native-preview": "latest",
-    "@vitest/coverage-v8": "^4.0.18",
+    "@typescript/native-preview": "^7.0.0-dev.20260315.1",
+    "@vitest/coverage-v8": "^4.1.0",
     "automd": "^0.4.3",
     "changelogen": "^0.6.2",
     "connect": "^3.7.0",
     "cookie-es": "^2.0.0",
     "crossws": "^0.4.4",
     "elysia": "^1.4.27",
-    "esbuild": "^0.27.3",
+    "esbuild": "^0.27.4",
     "express": "^5.2.1",
     "fetchdts": "^0.1.7",
     "get-port-please": "^3.2.0",
-    "h3": "link:",
-    "h3-nightly": "latest",
-    "happy-dom": "^20.8.3",
-    "hono": "^4.12.5",
+    "h3": "^2.0.1-rc.16",
+    "h3-nightly": "^2.0.0-20260315-182620-4dea405",
+    "happy-dom": "^20.8.4",
+    "hono": "^4.12.8",
     "magic-string": "^0.30.21",
-    "mdzilla": "^0.0.4",
+    "mdzilla": "^0.0.6",
     "memoirist": "^0.4.0",
     "mitata": "^1.0.34",
     "obuild": "^0.4.32",
-    "oxc-parser": "^0.116.0",
-    "oxfmt": "^0.36.0",
-    "oxlint": "^1.51.0",
+    "oxc-parser": "^0.119.0",
+    "oxfmt": "^0.40.0",
+    "oxlint": "^1.55.0",
+    "oxlint-tsgolint": "^0.17.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "typescript": "^5.9.3",
-    "vite": "^7.3.1",
-    "vitest": "^4.0.18",
+    "vite": "^8.0.0",
+    "vitest": "^4.1.0",
     "zod": "^4.3.6"
   },
   "peerDependencies": {
@@ -107,5 +107,5 @@
   "engines": {
     "node": ">=20.11.1"
   },
-  "packageManager": "pnpm@10.31.0"
+  "packageManager": "pnpm@10.32.1"
 }

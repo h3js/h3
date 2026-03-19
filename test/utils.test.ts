@@ -5,6 +5,7 @@ import {
   assertMethod,
   getQuery,
   getRequestURL,
+  getRequestHost,
   getRequestIP,
   getRequestFingerprint,
   handleCacheHeaders,
@@ -40,6 +41,17 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
       const result = await t.fetch("/");
       expect(result.headers.get("location")).toBe("https://google.com");
       expect(result.headers.get("content-type")).toBe("text/html; charset=utf-8");
+    });
+
+    it("escapes special characters in HTML body", async () => {
+      const malicious = 'https://example.com/"><script>alert(1)</script>&foo=bar';
+      t.app.use(() => redirect(malicious));
+      const result = await t.fetch("/");
+      expect(result.headers.get("location")).toBe(malicious);
+      const body = await result.text();
+      expect(body).toBe(
+        `<html><head><meta http-equiv="refresh" content="0; url=https://example.com/&quot;&gt;&lt;script&gt;alert(1)&lt;/script&gt;&amp;foo=bar" /></head></html>`,
+      );
     });
   });
 
@@ -83,6 +95,31 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
     });
   });
 
+  describe("getRequestHost", () => {
+    it("returns host header value", async () => {
+      t.app.get("/", (event) => getRequestHost(event));
+      const res = await t.fetch("/");
+      // In test environments, host header is set by the HTTP client
+      expect(await res.text()).toBeTruthy();
+    });
+
+    it("uses x-forwarded-host when enabled", async () => {
+      t.app.get("/", (event) => getRequestHost(event, { xForwardedHost: true }));
+      const res = await t.fetch("/", {
+        headers: { "x-forwarded-host": "proxy.example.com" },
+      });
+      expect(await res.text()).toBe("proxy.example.com");
+    });
+
+    it("uses first value from x-forwarded-host with multiple entries", async () => {
+      t.app.get("/", (event) => getRequestHost(event, { xForwardedHost: true }));
+      const res = await t.fetch("/", {
+        headers: { "x-forwarded-host": "first.com, second.com" },
+      });
+      expect(await res.text()).toBe("first.com");
+    });
+  });
+
   describe("getRequestURL", () => {
     const tests = [
       "http://localhost/foo?bar=baz",
@@ -113,6 +150,42 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
         expect(await res.text()).toMatch(new URL(c).href);
       });
     }
+
+    it("x-forwarded-host clears port for plain host", async () => {
+      const res = await t
+        .fetch("http://localhost:3000/test", {
+          headers: { "x-forwarded-host": "example.com" },
+        })
+        .then((r) => r.text());
+      expect(res).toBe("http://example.com/test");
+    });
+
+    it("x-forwarded-host preserves explicit port", async () => {
+      const res = await t
+        .fetch("http://localhost/test", {
+          headers: { "x-forwarded-host": "example.com:8080" },
+        })
+        .then((r) => r.text());
+      expect(res).toBe("http://example.com:8080/test");
+    });
+
+    it("x-forwarded-host with IPv6 clears port", async () => {
+      const res = await t
+        .fetch("http://localhost:3000/test", {
+          headers: { "x-forwarded-host": "[2001:db8::1]" },
+        })
+        .then((r) => r.text());
+      expect(res).toBe("http://[2001:db8::1]/test");
+    });
+
+    it("x-forwarded-host with IPv6 and port preserves port", async () => {
+      const res = await t
+        .fetch("http://localhost/test", {
+          headers: { "x-forwarded-host": "[2001:db8::1]:8080" },
+        })
+        .then((r) => r.text());
+      expect(res).toBe("http://[2001:db8::1]:8080/test");
+    });
 
     it('x-forwarded-proto: "https"', async () => {
       expect(

@@ -46,7 +46,7 @@ const contentSchema = v.object({
   uuid: v.pipe(v.string(), v.uuid()),
 });
 
-router.use(
+app.all(
   // You must use a router to use params
   "/content/:topic/:uuid",
   async (event) => {
@@ -166,7 +166,7 @@ const contentSchema = z.object({
   uuid: z.string().uuid(),
 });
 
-router.use("/content/:topic/:uuid", async (event) => {
+app.all("/content/:topic/:uuid", async (event) => {
   const params = await getValidatedRouterParams(event, contentSchema.safeParse);
   if (!params.success) {
     // Handle validation errors
@@ -187,7 +187,7 @@ const contentSchema = v.object({
   uuid: v.pipe(v.string(), v.uuid()),
 });
 
-router.use("/content/:topic/:uuid", async (event) => {
+app.all("/content/:topic/:uuid", async (event) => {
   const params = await getValidatedRouterParams(event, v.safeParser(contentSchema));
   if (!params.success) {
     // Handle validation errors

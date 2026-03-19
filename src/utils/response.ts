@@ -44,8 +44,11 @@ export function redirect(
   status: number = 302,
   statusText?: string,
 ): HTTPResponse {
-  const encodedLoc = location.replace(/"/g, "%22");
-  const body = /* html */ `<html><head><meta http-equiv="refresh" content="0; url=${encodedLoc}" /></head></html>`;
+  const htmlLoc = location.replace(
+    /[&"<>]/g,
+    (c) => ({ "&": "&amp;", '"': "&quot;", "<": "&lt;", ">": "&gt;" })[c]!,
+  );
+  const body = /* html */ `<html><head><meta http-equiv="refresh" content="0; url=${htmlLoc}" /></head></html>`;
   return new HTTPResponse(body, {
     status,
     statusText: statusText || (status === 301 ? "Moved Permanently" : "Found"),
@@ -105,7 +108,7 @@ export function writeEarlyHints(
  *   // Open document body
  *   yield "<!DOCTYPE html>\n<html><body><h1>Executing...</h1><ol>\n";
  *   // Do work ...
- *   for (let i = 0; i < 1000) {
+ *   for (let i = 0; i < 1000; i++) {
  *     await delay(1000);
  *     // Report progress
  *     yield `<li>Completed job #`;
@@ -114,9 +117,9 @@ export function writeEarlyHints(
  *   }
  *   // Close out the report
  *   return `</ol></body></html>`;
- * })
+ * });
  * async function delay(ms) {
- *   return new Promise(resolve => setTimeout(resolve, ms));
+ *   return new Promise((resolve) => setTimeout(resolve, ms));
  * }
  */
 export function iterable<Value = unknown, Return = unknown>(

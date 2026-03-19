@@ -1,6 +1,8 @@
 import type { H3Event } from "../../event.ts";
 import type { EventStreamMessage, EventStreamOptions } from "../event-stream.ts";
 
+const _noop = () => {};
+
 /**
  * A helper class for [server sent events](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events#event_stream_format)
  */
@@ -69,7 +71,9 @@ export class EventStream {
       this._unsentData += formatEventStreamComment(comment);
       return;
     }
-    await this._writer.write(this._encoder.encode(formatEventStreamComment(comment))).catch();
+    await this._writer.write(this._encoder.encode(formatEventStreamComment(comment))).catch(() => {
+      this._writerIsClosed = true;
+    });
   }
 
   private async _sendEvent(message: EventStreamMessage) {
@@ -84,7 +88,9 @@ export class EventStream {
       this._unsentData += formatEventStreamMessage(message);
       return;
     }
-    await this._writer.write(this._encoder.encode(formatEventStreamMessage(message))).catch();
+    await this._writer.write(this._encoder.encode(formatEventStreamMessage(message))).catch(() => {
+      this._writerIsClosed = true;
+    });
   }
 
   private async _sendEvents(messages: EventStreamMessage[]) {
@@ -101,7 +107,9 @@ export class EventStream {
       return;
     }
 
-    await this._writer.write(this._encoder.encode(payload)).catch();
+    await this._writer.write(this._encoder.encode(payload)).catch(() => {
+      this._writerIsClosed = true;
+    });
   }
 
   pause(): void {
@@ -122,7 +130,9 @@ export class EventStream {
       return;
     }
     if (this._unsentData?.length) {
-      await this._writer.write(this._encoder.encode(this._unsentData));
+      await this._writer.write(this._encoder.encode(this._unsentData)).catch(() => {
+        this._writerIsClosed = true;
+      });
       this._unsentData = undefined;
     }
   }
@@ -149,7 +159,7 @@ export class EventStream {
    * It is also triggered after calling the `close()` method.
    */
   onClosed(cb: () => any): void {
-    this._writer.closed.then(cb);
+    this._writer.closed.then(cb).catch(_noop);
   }
 
   async send(): Promise<BodyInit> {

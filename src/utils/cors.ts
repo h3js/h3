@@ -100,6 +100,7 @@ export function appendCorsPreflightHeaders(event: H3Event, options: CorsOptions)
   };
   for (const [key, value] of Object.entries(headers)) {
     event.res.headers.append(key, value);
+    event.res.errHeaders.append(key, value);
   }
 }
 
@@ -114,6 +115,7 @@ export function appendCorsHeaders(event: H3Event, options: CorsOptions): void {
   };
   for (const [key, value] of Object.entries(headers)) {
     event.res.headers.append(key, value);
+    event.res.errHeaders.append(key, value);
   }
 }
 
@@ -126,8 +128,7 @@ export function appendCorsHeaders(event: H3Event, options: CorsOptions): void {
  *
  * @example
  * const app = new H3();
- * const router = createRouter();
- * router.use("/", async (event) => {
+ * app.all("/", async (event) => {
  *   const corsRes = handleCors(event, {
  *     origin: "*",
  *     preflight: {
