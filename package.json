@@ -45,10 +45,10 @@
   "devDependencies": {
     "0x": "^6.0.0",
     "@types/express": "^5.0.6",
-    "@types/node": "^25.3.5",
+    "@types/node": "^25.5.0",
     "@types/supertest": "^7.2.0",
     "@typescript/native-preview": "latest",
-    "@vitest/coverage-v8": "^4.0.18",
+    "@vitest/coverage-v8": "^4.1.0",
     "autocannon": "^8.0.0",
     "automd": "^0.4.3",
     "changelogen": "^0.6.2",
@@ -57,7 +57,7 @@
     "eslint-config-unjs": "^0.6.2",
     "express": "^5.2.1",
     "get-port": "^7.1.0",
-    "h3": "^1.15.5",
+    "h3": "^1.15.8",
     "jiti": "^2.6.1",
     "listhen": "^1.9.0",
     "node-fetch-native": "^1.6.7",
@@ -67,8 +67,8 @@
     "supertest": "^7.2.2",
     "typescript": "^5.9.3",
     "unbuild": "^3.6.1",
-    "undici": "^7.22.0",
-    "vitest": "^4.0.18",
+    "undici": "^7.24.4",
+    "vitest": "^4.1.0",
     "zod": "^4.3.6"
   },
   "resolutions": {
