@@ -10,7 +10,6 @@
     "typescript/unbound-method": "off",
     "typescript/no-floating-promises": "off",
     "typescript/no-implied-eval": "off",
-    "typescript/await-thenable": "off",
     "typescript/restrict-template-expressions": "off",
     "typescript/no-base-to-string": "off",
     "typescript/no-redundant-type-constituents": "off",
