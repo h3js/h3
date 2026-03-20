@@ -6,7 +6,7 @@ describe("happydom", () => {
   let h3: typeof import("../src/index.ts");
 
   beforeAll(async () => {
-    await GlobalRegistrator.register({
+    GlobalRegistrator.register({
       url: "http://localhost:3000",
       width: 1920,
       height: 1080,

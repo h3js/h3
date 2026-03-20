@@ -129,7 +129,7 @@ export async function proxy(
   }
 
   if (opts.onResponse) {
-    await opts.onResponse(event, response);
+    opts.onResponse(event, response);
   }
 
   return new HTTPResponse(response.body, {
