@@ -280,6 +280,25 @@ describe("path decoding: no regressions", () => {
     await req2.get("/test/%61bc");
     expect(capturedOriginalUrl).toBe("/test/%61bc");
   });
+
+  it("req.url preserves percent-encoded UTF-8 characters", async () => {
+    const app2 = createApp({ debug: false });
+    let capturedReqUrl: string | undefined;
+    app2.use(
+      eventHandler((event) => {
+        capturedReqUrl = event.node.req.url;
+        return { path: event.path, reqUrl: capturedReqUrl };
+      }),
+    );
+    const req2 = supertest(toNodeListener(app2)) as any;
+    // %C3%A9 is the percent-encoded form of "é" (UTF-8)
+    const res = await req2.get("/test/caf%C3%A9");
+    expect(res.status).toBe(200);
+    // event.path should be decoded (for h3 internal routing)
+    expect(res.body.path).toBe("/test/café");
+    // req.url must stay percent-encoded (for HTTP proxies and middleware)
+    expect(res.body.reqUrl).toBe("/test/caf%C3%A9");
+  });
 });
 
 describe("path decoding with useBase", () => {

@@ -140,13 +140,18 @@ export function createAppEventHandler(stack: Stack, options: AppOptions) {
     event.node.req.originalUrl =
       event.node.req.originalUrl || event.node.req.url || "/";
 
+    // Preserve the raw (percent-encoded) URL for proxies and Node.js middleware
+    // that expect req.url in its original encoded form (RFC 3986).
+    const _rawReqUrl = event.node.req.url || "/";
+
     // Decode percent-encoded path segments to prevent auth bypass via encoding tricks.
     // Only decode the path portion, not the query string, to avoid double-decoding.
-    const _reqPath = _decodePath(event._path || event.node.req.url || "/");
+    const _reqPath = _decodePath(event._path || _rawReqUrl);
     event._path = _reqPath;
 
     // Layer path is the path without the prefix
     let _layerPath: string;
+    let _rawLayerPath: string;
 
     // Call onRequest hook
     if (options.onRequest) {
@@ -160,8 +165,10 @@ export function createAppEventHandler(stack: Stack, options: AppOptions) {
           continue;
         }
         _layerPath = _reqPath.slice(layer.route.length) || "/";
+        _rawLayerPath = _rawReqUrl.slice(layer.route.length) || "/";
       } else {
         _layerPath = _reqPath;
+        _rawLayerPath = _rawReqUrl;
       }
 
       // 2. Custom matcher
@@ -169,9 +176,10 @@ export function createAppEventHandler(stack: Stack, options: AppOptions) {
         continue;
       }
 
-      // 3. Update event path with layer path
+      // 3. Update event path (decoded for h3 internal routing)
+      // and req.url (raw encoded for HTTP proxies and Node.js middleware)
       event._path = _layerPath;
-      event.node.req.url = _layerPath;
+      event.node.req.url = _rawLayerPath;
 
       // 4. Handle request
       const val = await layer.handler(event);
