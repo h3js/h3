@@ -4,6 +4,7 @@ import {
   setCookie,
   getChunkedCookie,
   setChunkedCookie,
+  deleteChunkedCookie,
 } from "../src/utils/cookie.ts";
 import { describeMatrix } from "./_setup.ts";
 
@@ -150,6 +151,42 @@ describeMatrix("cookies", (t, { it, expect, describe }) => {
         });
 
         expect(await result.text()).toBe("200");
+      });
+    });
+
+    describe("chunked cookie DoS protection", () => {
+      it("setChunkedCookie ignores excessively large chunk count from request cookie", async () => {
+        t.app.get("/", (event) => {
+          // This should NOT loop 999999 times
+          setChunkedCookie(event, "session", "newvalue", {
+            chunkMaxLength: 5,
+          });
+          return "200";
+        });
+        const result = await t.fetch("/", {
+          headers: {
+            Cookie: "session=__chunked__999999",
+          },
+        });
+        expect(await result.text()).toBe("200");
+        // Should only have the new cookie set, no massive cleanup
+        expect(result.headers.getSetCookie().length).toBeLessThan(10);
+      });
+
+      it("deleteChunkedCookie ignores excessively large chunk count from request cookie", async () => {
+        t.app.get("/", (event) => {
+          // This should NOT loop 999999 times
+          deleteChunkedCookie(event, "session");
+          return "200";
+        });
+        const result = await t.fetch("/", {
+          headers: {
+            Cookie: "session=__chunked__999999",
+          },
+        });
+        expect(await result.text()).toBe("200");
+        // Should only delete the main cookie, not 999999 chunks
+        expect(result.headers.getSetCookie().length).toBeLessThan(10);
       });
     });
 

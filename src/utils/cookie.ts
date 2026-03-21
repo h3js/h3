@@ -241,11 +241,19 @@ function _getDistinctCookieKey(name: string, options: Partial<SetCookie>) {
   return [name, options.domain || "", options.path || "/"].join(";");
 }
 
+// Maximum number of chunks allowed for chunked cookies.
+// 100 chunks × ~4KB = ~400KB, far beyond any practical cookie size.
+const MAX_CHUNKED_COOKIE_COUNT = 100;
+
 function getChunkedCookieCount(cookie: string | undefined): number {
   if (!cookie?.startsWith(CHUNKED_COOKIE)) {
     return Number.NaN;
   }
-  return Number.parseInt(cookie.slice(CHUNKED_COOKIE.length));
+  const count = Number.parseInt(cookie.slice(CHUNKED_COOKIE.length));
+  if (Number.isNaN(count) || count < 0 || count > MAX_CHUNKED_COOKIE_COUNT) {
+    return Number.NaN;
+  }
+  return count;
 }
 
 function chunkCookieName(name: string, chunkNumber: number): string {
