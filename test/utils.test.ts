@@ -109,6 +109,17 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
       expect(res.headers.get("location")).toBe("/");
     });
 
+    it("prevents open redirect via protocol-relative path in referer", async () => {
+      t.app.post("/submit", (event) => redirectBack(event));
+      const baseUrl = t.url || "http://localhost";
+      const res = await t.fetch("/submit", {
+        method: "POST",
+        headers: { referer: `${baseUrl}//evil.com/steal` },
+      });
+      expect(res.headers.get("location")).not.toBe("//evil.com/steal");
+      expect(res.headers.get("location")).toBe("/evil.com/steal");
+    });
+
     it("uses fallback when referer is invalid URL", async () => {
       t.app.post("/submit", (event) => redirectBack(event, { fallback: "/safe" }));
       const res = await t.fetch("/submit", {

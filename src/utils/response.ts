@@ -92,7 +92,11 @@ export function redirectBack(
   if (referer && URL.canParse(referer)) {
     const refererURL = new URL(referer);
     if (refererURL.origin === event.url.origin) {
-      location = refererURL.pathname + (opts.allowQuery ? refererURL.search : "");
+      let pathname = refererURL.pathname;
+      if (pathname.startsWith("//")) {
+        pathname = "/" + pathname.replace(/^\/+/, "");
+      }
+      location = pathname + (opts.allowQuery ? refererURL.search : "");
     }
   }
   return redirect(location, opts.status);
