@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## v2.0.1-rc.18
+
+[compare changes](https://github.com/h3js/h3/compare/v2.0.1-rc.17...v2.0.1-rc.18)
+
+### 🩹 Fixes
+
+- **utils:** Prevent open redirect via protocol-relative path in `redirectBack()` ([459a1c6](https://github.com/h3js/h3/commit/459a1c6))
+- **cookie:** Prevent unbounded chunked cookie count ([399257c](https://github.com/h3js/h3/commit/399257c))
+
+### ❤️ Contributors
+
+- Pooya Parsa ([@pi0](https://github.com/pi0))
+
 ## v2.0.1-rc.17
 
 [compare changes](https://github.com/h3js/h3/compare/v1.15.8...v2.0.1-rc.17)
