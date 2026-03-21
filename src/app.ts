@@ -149,9 +149,11 @@ export function createAppEventHandler(stack: Stack, options: AppOptions) {
     const _reqPath = _decodePath(event._path || _rawReqUrl);
     event._path = _reqPath;
 
+    // Fast path: skip raw tracking when URL had nothing to decode
+    const _needsRawUrl = _reqPath !== _rawReqUrl;
+
     // Layer path is the path without the prefix
     let _layerPath: string;
-    let _rawLayerPath: string;
 
     // Call onRequest hook
     if (options.onRequest) {
@@ -165,10 +167,8 @@ export function createAppEventHandler(stack: Stack, options: AppOptions) {
           continue;
         }
         _layerPath = _reqPath.slice(layer.route.length) || "/";
-        _rawLayerPath = _rawReqUrl.slice(layer.route.length) || "/";
       } else {
         _layerPath = _reqPath;
-        _rawLayerPath = _rawReqUrl;
       }
 
       // 2. Custom matcher
@@ -179,7 +179,11 @@ export function createAppEventHandler(stack: Stack, options: AppOptions) {
       // 3. Update event path (decoded for h3 internal routing)
       // and req.url (raw encoded for HTTP proxies and Node.js middleware)
       event._path = _layerPath;
-      event.node.req.url = _rawLayerPath;
+      event.node.req.url = _needsRawUrl
+        ? (layer.route.length > 1
+            ? _rawReqUrl.slice(layer.route.length) || "/"
+            : _rawReqUrl)
+        : _layerPath;
 
       // 4. Handle request
       const val = await layer.handler(event);
