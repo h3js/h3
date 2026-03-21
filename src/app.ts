@@ -180,9 +180,9 @@ export function createAppEventHandler(stack: Stack, options: AppOptions) {
       // and req.url (raw encoded for HTTP proxies and Node.js middleware)
       event._path = _layerPath;
       event.node.req.url = _needsRawUrl
-        ? (layer.route.length > 1
-            ? _rawReqUrl.slice(layer.route.length) || "/"
-            : _rawReqUrl)
+        ? layer.route.length > 1
+          ? _rawReqUrl.slice(layer.route.length) || "/"
+          : _rawReqUrl
         : _layerPath;
 
       // 4. Handle request
