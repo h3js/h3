@@ -352,6 +352,8 @@ export function getRequestURL(
  * **NOTE:** This function is not stable and might have edge cases that are not handled properly.
  */
 export function toWebRequest(event: H3Event) {
+  let abortSignal: AbortController | undefined;
+
   return (
     event.web?.request ||
     new Request(getRequestURL(event), {
@@ -360,6 +362,16 @@ export function toWebRequest(event: H3Event) {
       method: event.method,
       headers: event.headers,
       body: getRequestWebStream(event),
+      get signal() {
+        if (!abortSignal) {
+          abortSignal = new AbortController();
+
+          const abort = (err?: any) => abortSignal?.abort(err);
+          event.node.req.once("close", abort);
+          event.node.req.once("end", abort);
+        }
+        return abortSignal.signal;
+      },
     })
   );
 }
