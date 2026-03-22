@@ -140,12 +140,16 @@ export function createAppEventHandler(stack: Stack, options: AppOptions) {
     event.node.req.originalUrl =
       event.node.req.originalUrl || event.node.req.url || "/";
 
+    // Preserve the original encoded URL — do NOT overwrite with decoded path.
+    // Proxies and downstream servers need the percent-encoded form (e.g., %C3%A9 not é).
+    const _originalReqUrl = event.node.req.url || "/";
+
     // Decode percent-encoded path segments to prevent auth bypass via encoding tricks.
     // Only decode the path portion, not the query string, to avoid double-decoding.
-    const _reqPath = _decodePath(event._path || event.node.req.url || "/");
+    const _reqPath = _decodePath(event._path || _originalReqUrl);
     event._path = _reqPath;
 
-    // Layer path is the path without the prefix
+    // Layer path is the path without the prefix (decoded for matching)
     let _layerPath: string;
 
     // Call onRequest hook
@@ -160,6 +164,11 @@ export function createAppEventHandler(stack: Stack, options: AppOptions) {
           continue;
         }
         _layerPath = _reqPath.slice(layer.route.length) || "/";
+        // Strip prefix from encoded req.url too, preserving encoding
+        if (_originalReqUrl.startsWith(layer.route)) {
+          event.node.req.url =
+            _originalReqUrl.slice(layer.route.length) || "/";
+        }
       } else {
         _layerPath = _reqPath;
       }
@@ -169,9 +178,8 @@ export function createAppEventHandler(stack: Stack, options: AppOptions) {
         continue;
       }
 
-      // 3. Update event path with layer path
+      // 3. Update event path with layer path (decoded for internal use)
       event._path = _layerPath;
-      event.node.req.url = _layerPath;
 
       // 4. Handle request
       const val = await layer.handler(event);
