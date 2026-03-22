@@ -21,9 +21,8 @@ export default defineBuildConfig({
       const { DocsManager, DocsSourceFS, exportDocsToFS } = await import("mdzilla");
       const man = new DocsManager(new DocsSourceFS("./docs"));
       await man.load();
-      await rmdir("./skills/h3/docs", { recursive: true }).catch(() => {});
-      await mkdir("./skills/h3/docs", { recursive: true });
-      await exportDocsToFS(man, "./skills/h3/docs", {
+      await mkdir("./dist/docs", { recursive: true });
+      await exportDocsToFS(man, "./dist/docs", {
         title: "H3 Documentation",
         tocFile: "TOC.md",
         filter: (e) => !e.entry.path.startsWith("/blog"),

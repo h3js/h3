@@ -16,7 +16,7 @@ if (process.argv[2] === "docs") {
     } catch {}
   }) || ["npm", "x"];
   const runnerCmd = [runner[0], runner[1]].filter(Boolean).join(" ");
-  const docsDir = new URL("../skills/h3/docs", import.meta.url).pathname;
+  const docsDir = new URL("../dist/docs", import.meta.url).pathname;
   const args = process.argv.slice(3).join(" ");
   execSync(`${runnerCmd} mdzilla ${docsDir}${args ? ` ${args}` : ""}`, { stdio: "inherit" });
   process.exit(0);
