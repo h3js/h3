@@ -82,7 +82,7 @@ importers:
         specifier: ^7.1.0
         version: 7.1.0
       h3:
-        specifier: ^1.14.0
+        specifier: ^1.15.8
         version: 1.15.8
       jiti:
         specifier: ^2.6.1
