@@ -18,7 +18,7 @@ export interface ProxyOptions {
   fetchOptions?: RequestInit & { duplex?: "half" | "full" };
   cookieDomainRewrite?: string | Record<string, string>;
   cookiePathRewrite?: string | Record<string, string>;
-  onResponse?: (event: H3Event, response: Response) => void;
+  onResponse?: (event: H3Event, response: Response) => void | Promise<void>;
 }
 
 /**
