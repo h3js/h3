@@ -71,8 +71,5 @@
     "vitest": "^4.1.0",
     "zod": "^4.3.6"
   },
-  "resolutions": {
-    "h3": "^1.14.0"
-  },
   "packageManager": "pnpm@10.28.0"
 }
