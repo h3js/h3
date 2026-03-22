@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## v1.15.10
+
+[compare changes](https://github.com/h3js/h3/compare/v1.15.9...v1.15.10)
+
+### 🩹 Fixes
+
+- Preserve percent-encoded req.url in app event handler ([#1355](https://github.com/h3js/h3/pull/1355))
+
+### 🏡 Chore
+
+- Update deps ([26fec6f](https://github.com/h3js/h3/commit/26fec6f))
+
+### ❤️ Contributors
+
+- Pooya Parsa ([@pi0](https://github.com/pi0))
+- Sergio Azócar ([@sergioazoc](https://github.com/sergioazoc))
+
 ## v1.15.9
 
 [compare changes](https://github.com/h3js/h3/compare/v1.15.7...v1.15.9)
