@@ -49,6 +49,17 @@ describe("body limit (unit)", () => {
       await expect(assertBodySize(eventMock, 10)).rejects.toThrow(HTTPError);
     });
 
+    it("spoofed content-length smaller than actual body", async () => {
+      const LARGE_BODY = "A".repeat(1024); // 1KB actual body
+      const eventMock = mockEvent("/", {
+        method: "POST",
+        body: LARGE_BODY,
+        headers: { "content-length": "10" }, // lie: claim 10 bytes
+      });
+      // Should reject based on actual body size, not Content-Length header
+      await expect(assertBodySize(eventMock, 100)).rejects.toThrow(HTTPError);
+    });
+
     it("both content length and transfer encoding", async () => {
       const eventMock = mockEvent("/", {
         method: "POST",
