@@ -2,9 +2,11 @@ import {
   getCookie,
   parseCookies,
   setCookie,
+  deleteCookie,
   getChunkedCookie,
   setChunkedCookie,
   deleteChunkedCookie,
+  getValidatedCookies,
 } from "../src/utils/cookie.ts";
 import { describeMatrix } from "./_setup.ts";
 
@@ -37,6 +39,26 @@ describeMatrix("cookies", (t, { it, expect, describe }) => {
 
       expect(await result.text()).toBe("200");
     });
+
+    it("can parse multiple cookies", async () => {
+      t.app.get("/", (event) => {
+        const cookies = parseCookies(event);
+        expect(cookies).toEqual({
+          session: "abc",
+          theme: "dark",
+          lang: "en",
+        });
+        return "200";
+      });
+
+      const result = await t.fetch("/", {
+        headers: {
+          Cookie: "session=abc; theme=dark; lang=en",
+        },
+      });
+
+      expect(await result.text()).toBe("200");
+    });
   });
 
   describe("getCookie", () => {
@@ -53,6 +75,17 @@ describeMatrix("cookies", (t, { it, expect, describe }) => {
         },
       });
 
+      expect(await result.text()).toBe("200");
+    });
+
+    it("returns undefined for missing cookie", async () => {
+      t.app.get("/", (event) => {
+        const value = getCookie(event, "missing");
+        expect(value).toBeUndefined();
+        return "200";
+      });
+
+      const result = await t.fetch("/");
       expect(await result.text()).toBe("200");
     });
   });
@@ -84,6 +117,110 @@ describeMatrix("cookies", (t, { it, expect, describe }) => {
         "Authorization=7654321; Domain=example2.test; Path=/",
       ]);
       expect(await result.text()).toBe("200");
+    });
+
+    it("deduplicates cookies with same name, domain, and path", async () => {
+      t.app.get("/", (event) => {
+        setCookie(event, "token", "old", { domain: "example.test", path: "/app" });
+        setCookie(event, "token", "new", { domain: "example.test", path: "/app" });
+        return "200";
+      });
+      const result = await t.fetch("/");
+      expect(result.headers.getSetCookie()).toEqual(["token=new; Domain=example.test; Path=/app"]);
+      expect(await result.text()).toBe("200");
+    });
+
+    it("can set multiple different cookies", async () => {
+      t.app.get("/", (event) => {
+        setCookie(event, "a", "1");
+        setCookie(event, "b", "2");
+        setCookie(event, "c", "3");
+        return "200";
+      });
+      const result = await t.fetch("/");
+      expect(result.headers.getSetCookie()).toEqual(["a=1; Path=/", "b=2; Path=/", "c=3; Path=/"]);
+      expect(await result.text()).toBe("200");
+    });
+
+    it("can set cookie with all options", async () => {
+      t.app.get("/", (event) => {
+        setCookie(event, "session", "xyz", {
+          httpOnly: true,
+          secure: true,
+          sameSite: "strict",
+          maxAge: 3600,
+          domain: "example.test",
+          path: "/secure",
+        });
+        return "200";
+      });
+      const result = await t.fetch("/");
+      const cookie = result.headers.getSetCookie()[0];
+      expect(cookie).toContain("session=xyz");
+      expect(cookie).toContain("HttpOnly");
+      expect(cookie).toContain("Secure");
+      expect(cookie).toContain("SameSite=Strict");
+      expect(cookie).toContain("Max-Age=3600");
+      expect(cookie).toContain("Domain=example.test");
+      expect(cookie).toContain("Path=/secure");
+    });
+  });
+
+  describe("deleteCookie", () => {
+    it("sets cookie with maxAge=0", async () => {
+      t.app.get("/", (event) => {
+        deleteCookie(event, "session");
+        return "200";
+      });
+      const result = await t.fetch("/");
+      expect(result.headers.getSetCookie()).toEqual(["session=; Max-Age=0; Path=/"]);
+      expect(await result.text()).toBe("200");
+    });
+
+    it("preserves options when deleting", async () => {
+      t.app.get("/", (event) => {
+        deleteCookie(event, "session", {
+          domain: "example.test",
+          path: "/app",
+        });
+        return "200";
+      });
+      const result = await t.fetch("/");
+      const cookie = result.headers.getSetCookie()[0];
+      expect(cookie).toContain("Max-Age=0");
+      expect(cookie).toContain("Domain=example.test");
+      expect(cookie).toContain("Path=/app");
+    });
+  });
+
+  describe("getValidatedCookies", () => {
+    it("validates cookies with custom validator", async () => {
+      t.app.get("/", async (event) => {
+        const cookies = await getValidatedCookies(event, (data) => {
+          return { theme: data.theme, lang: data.lang };
+        });
+        expect(cookies).toEqual({ theme: "dark", lang: "en" });
+        return "200";
+      });
+
+      const result = await t.fetch("/", {
+        headers: { Cookie: "theme=dark; lang=en" },
+      });
+      expect(await result.text()).toBe("200");
+    });
+
+    it("throws on validation failure", async () => {
+      t.app.get("/", async (event) => {
+        const cookies = await getValidatedCookies(event, () => {
+          throw new Error("invalid");
+        });
+        return cookies;
+      });
+
+      const result = await t.fetch("/", {
+        headers: { Cookie: "bad=value" },
+      });
+      expect(result.status).toBe(400);
     });
   });
 
@@ -152,6 +289,67 @@ describeMatrix("cookies", (t, { it, expect, describe }) => {
 
         expect(await result.text()).toBe("200");
       });
+
+      it("returns undefined when cookie does not exist", async () => {
+        t.app.get("/", (event) => {
+          expect(getChunkedCookie(event, "missing")).toBeUndefined();
+          return "200";
+        });
+
+        const result = await t.fetch("/");
+        expect(await result.text()).toBe("200");
+      });
+
+      it("returns undefined when a chunk is missing", async () => {
+        t.app.get("/", (event) => {
+          expect(getChunkedCookie(event, "data")).toBeUndefined();
+          return "200";
+        });
+
+        const result = await t.fetch("/", {
+          headers: {
+            Cookie: [
+              `data=${CHUNKED_COOKIE}3`,
+              "data.1=aaa",
+              // data.2 missing
+              "data.3=ccc",
+            ].join("; "),
+          },
+        });
+
+        expect(await result.text()).toBe("200");
+      });
+
+      it("returns empty string for invalid chunk count", async () => {
+        t.app.get("/", (event) => {
+          // NaN chunk count means the loop runs 0 times, joining empty array
+          expect(getChunkedCookie(event, "data")).toBe("");
+          return "200";
+        });
+
+        const result = await t.fetch("/", {
+          headers: {
+            Cookie: `data=${CHUNKED_COOKIE}abc`,
+          },
+        });
+
+        expect(await result.text()).toBe("200");
+      });
+
+      it("returns empty string for negative chunk count", async () => {
+        t.app.get("/", (event) => {
+          expect(getChunkedCookie(event, "data")).toBe("");
+          return "200";
+        });
+
+        const result = await t.fetch("/", {
+          headers: {
+            Cookie: `data=${CHUNKED_COOKIE}-5`,
+          },
+        });
+
+        expect(await result.text()).toBe("200");
+      });
     });
 
     describe("chunked cookie DoS protection", () => {
@@ -210,6 +408,16 @@ describeMatrix("cookies", (t, { it, expect, describe }) => {
         expect(await result.text()).toBe("200");
       });
 
+      it("sets as normal cookie when value fits in one chunk", async () => {
+        t.app.get("/", (event) => {
+          setChunkedCookie(event, "small", "tiny", { chunkMaxLength: 10 });
+          return "200";
+        });
+        const result = await t.fetch("/");
+        expect(result.headers.getSetCookie()).toEqual(["small=tiny; Path=/"]);
+        expect(await result.text()).toBe("200");
+      });
+
       it("smaller set-cookie removes superfluous chunks", async () => {
         // set smaller cookie with fewer chunks, should have deleted superfluous chunks
         t.app.get("/", (event) => {
@@ -239,6 +447,94 @@ describeMatrix("cookies", (t, { it, expect, describe }) => {
           ]
         `);
         expect(await result.text()).toBe("200");
+      });
+
+      it("does not clean up when previous cookie is not chunked", async () => {
+        t.app.get("/", (event) => {
+          setChunkedCookie(event, "session", "AABBCCDD", { chunkMaxLength: 4 });
+          return "200";
+        });
+        const result = await t.fetch("/", {
+          headers: {
+            Cookie: "session=plain-value",
+          },
+        });
+        expect(result.headers.getSetCookie()).toEqual([
+          "session=__chunked__2; Path=/",
+          "session.1=AABB; Path=/",
+          "session.2=CCDD; Path=/",
+        ]);
+        expect(await result.text()).toBe("200");
+      });
+    });
+
+    describe("deleteChunkedCookie", () => {
+      it("deletes all chunks of a chunked cookie", async () => {
+        t.app.get("/", (event) => {
+          deleteChunkedCookie(event, "session");
+          return "200";
+        });
+        const result = await t.fetch("/", {
+          headers: {
+            Cookie: [
+              `session=${CHUNKED_COOKIE}3`,
+              "session.1=aaa",
+              "session.2=bbb",
+              "session.3=ccc",
+            ].join("; "),
+          },
+        });
+        const cookies = result.headers.getSetCookie();
+        // Main cookie + 3 chunks should all be deleted
+        expect(cookies).toEqual([
+          "session=; Max-Age=0; Path=/",
+          "session.1=; Max-Age=0; Path=/",
+          "session.2=; Max-Age=0; Path=/",
+          "session.3=; Max-Age=0; Path=/",
+        ]);
+      });
+
+      it("deletes only main cookie when not chunked", async () => {
+        t.app.get("/", (event) => {
+          deleteChunkedCookie(event, "session");
+          return "200";
+        });
+        const result = await t.fetch("/", {
+          headers: {
+            Cookie: "session=plain-value",
+          },
+        });
+        expect(result.headers.getSetCookie()).toEqual(["session=; Max-Age=0; Path=/"]);
+      });
+
+      it("deletes only main cookie when cookie does not exist", async () => {
+        t.app.get("/", (event) => {
+          deleteChunkedCookie(event, "session");
+          return "200";
+        });
+        const result = await t.fetch("/");
+        expect(result.headers.getSetCookie()).toEqual(["session=; Max-Age=0; Path=/"]);
+      });
+
+      it("preserves options when deleting chunks", async () => {
+        t.app.get("/", (event) => {
+          deleteChunkedCookie(event, "session", {
+            domain: "example.test",
+            path: "/app",
+          });
+          return "200";
+        });
+        const result = await t.fetch("/", {
+          headers: {
+            Cookie: [`session=${CHUNKED_COOKIE}1`, "session.1=aaa"].join("; "),
+          },
+        });
+        const cookies = result.headers.getSetCookie();
+        for (const cookie of cookies) {
+          expect(cookie).toContain("Max-Age=0");
+          expect(cookie).toContain("Domain=example.test");
+          expect(cookie).toContain("Path=/app");
+        }
       });
     });
   });

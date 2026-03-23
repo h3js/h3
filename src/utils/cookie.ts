@@ -1,4 +1,4 @@
-import type { CookieSerializeOptions, SetCookie } from "cookie-es";
+import type { CookieSerializeOptions } from "cookie-es";
 import type { H3Event, HTTPEvent } from "../event.ts";
 import { parse as parseCookie, serialize as serializeCookie, parseSetCookie } from "cookie-es";
 import { validateData } from "./internal/validate.ts";
@@ -19,7 +19,7 @@ const CHUNKS_MAX_LENGTH = 4000;
  * const cookies = parseCookies(event)
  * ```
  */
-export function parseCookies(event: HTTPEvent): Record<string, string> {
+export function parseCookies(event: HTTPEvent): Record<string, string | undefined> {
   return parseCookie(event.req.headers.get("cookie") || "");
 }
 
@@ -42,7 +42,7 @@ export function getValidatedCookies<Event extends HTTPEvent, S extends StandardS
 export function getValidatedCookies<Event extends HTTPEvent, OutputT>(
   event: Event,
   validate: (
-    data: Record<string, string>,
+    data: Record<string, string | undefined>,
   ) => ValidateResult<OutputT> | Promise<ValidateResult<OutputT>>,
   options?: { onError?: () => ErrorDetails },
 ): Promise<OutputT>;
@@ -95,10 +95,14 @@ export function setCookie(
   }
 
   // Merge and deduplicate unique set-cookie headers
-  const newCookieKey = _getDistinctCookieKey(name, (options || {}) as SetCookie);
+  const newCookieKey = _getDistinctCookieKey(name, options || {});
   event.res.headers.delete("set-cookie");
   for (const cookie of currentCookies) {
-    const _key = _getDistinctCookieKey(cookie.split("=")?.[0], parseSetCookie(cookie));
+    const parsed = parseSetCookie(cookie);
+    if (!parsed) {
+      continue;
+    }
+    const _key = _getDistinctCookieKey(cookie.split("=")?.[0], parsed);
     if (_key === newCookieKey) {
       continue;
     }
@@ -237,7 +241,7 @@ export function deleteChunkedCookie(
  *
  * @see https://httpwg.org/specs/rfc6265.html#rfc.section.4.1.2
  */
-function _getDistinctCookieKey(name: string, options: Partial<SetCookie>) {
+function _getDistinctCookieKey(name: string, options: { domain?: string; path?: string }) {
   return [name, options.domain || "", options.path || "/"].join(";");
 }
 
