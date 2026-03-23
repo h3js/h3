@@ -2,6 +2,36 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## v2.0.1-rc.19
+
+[compare changes](https://github.com/h3js/h3/compare/v2.0.1-rc.18...v2.0.1-rc.19)
+
+### 🩹 Fixes
+
+- **body:** Enforce stream-based body size check regardless of content-length header ([708a3aa](https://github.com/h3js/h3/commit/708a3aa))
+
+### 💅 Refactors
+
+- Upgrade cookie-es to v3 ([9d244a7](https://github.com/h3js/h3/commit/9d244a7))
+
+### 📖 Documentation
+
+- Remove `await-thenable` lint rule and fix invalid `await` usage ([#1353](https://github.com/h3js/h3/pull/1353))
+
+### 📦 Build
+
+- Move docs to dist ([e87ceca](https://github.com/h3js/h3/commit/e87ceca))
+
+### 🏡 Chore
+
+- Update deps ([88ce5cd](https://github.com/h3js/h3/commit/88ce5cd))
+- Remove unused import ([766cd39](https://github.com/h3js/h3/commit/766cd39))
+
+### ❤️ Contributors
+
+- Pooya Parsa ([@pi0](https://github.com/pi0))
+- Nick Spaargaren ([@nickspaargaren](https://github.com/nickspaargaren))
+
 ## v2.0.1-rc.18
 
 [compare changes](https://github.com/h3js/h3/compare/v2.0.1-rc.17...v2.0.1-rc.18)
