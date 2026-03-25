@@ -41,15 +41,12 @@ export type {
   FetchableObject,
   HTTPHandler,
   TypedServerRequest,
-} from "./types/handler.ts";
-
-export type {
   TypedHeaders,
   RequestHeaders,
   ResponseHeaders,
   RequestHeaderMap,
   ResponseHeaderMap,
-} from "fetchdts";
+} from "./types/handler.ts";
 
 export {
   defineHandler,
