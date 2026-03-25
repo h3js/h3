@@ -18,13 +18,9 @@ export default defineBuildConfig({
       config.chunkFileNames = "h3-[hash].mjs";
     },
     async end() {
-      const { DocsManager, DocsSourceFS, exportDocsToFS } = await import("mdzilla");
-      const man = new DocsManager(new DocsSourceFS("./docs"));
-      await man.load();
-      await mkdir("./dist/docs", { recursive: true });
-      await exportDocsToFS(man, "./dist/docs", {
+      const { exportSource } = await import("mdzilla");
+      await exportSource("./docs", "./dist/docs", {
         title: "H3 Documentation",
-        tocFile: "TOC.md",
         filter: (e) => !e.entry.path.startsWith("/blog"),
       });
     },
