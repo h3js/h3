@@ -43,6 +43,14 @@ export type {
   TypedServerRequest,
 } from "./types/handler.ts";
 
+export type {
+  TypedHeaders,
+  RequestHeaders,
+  ResponseHeaders,
+  RequestHeaderMap,
+  ResponseHeaderMap,
+} from "fetchdts";
+
 export {
   defineHandler,
   defineLazyEventHandler,
