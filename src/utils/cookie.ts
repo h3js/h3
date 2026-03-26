@@ -1,6 +1,6 @@
 import type { CookieSerializeOptions } from "cookie-es";
 import type { H3Event, HTTPEvent } from "../event.ts";
-import { parse as parseCookie, serialize as serializeCookie, parseSetCookie } from "cookie-es";
+import { parseCookie, serializeCookie, parseSetCookie } from "cookie-es";
 import { validateData } from "./internal/validate.ts";
 import type { StandardSchemaV1, FailureResult, InferOutput } from "./internal/standard-schema.ts";
 import type { ValidateResult, OnValidateError } from "./internal/validate.ts";
@@ -85,7 +85,7 @@ export function setCookie(
   options?: CookieSerializeOptions,
 ): void {
   // Serialize cookie
-  const newCookie = serializeCookie(name, value, { path: "/", ...options });
+  const newCookie = serializeCookie({ name, value, path: "/", ...options });
 
   // Check and add only not any other set-cookie headers already set
   const currentCookies = event.res.headers.getSetCookie();
