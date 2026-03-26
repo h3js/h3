@@ -29,8 +29,13 @@ export interface SessionManager<T extends SessionDataT = SessionDataT> {
 }
 
 export interface SessionConfig {
-  /** Private key used to encrypt session tokens */
-  password: string;
+  /**
+   * Private key used to encrypt session tokens.
+   *
+   * For password rotation, pass a record of `{ id: password }` pairs.
+   * The first key is used for sealing new sessions, all keys are tried for unsealing.
+   */
+  password: string | Record<string, string>;
   /** Session expiration time in seconds */
   maxAge?: number;
   /** default is h3 */
@@ -200,7 +205,12 @@ export async function sealSession<T extends SessionData = SessionData>(
   const session: Session<T> =
     (context.sessions?.[sessionName] as Session<T>) || (await getSession<T>(event, config));
 
-  const sealed = await seal(session, config.password, {
+  const sealPassword =
+    typeof config.password === "string"
+      ? config.password
+      : { id: Object.keys(config.password)[0], secret: Object.values(config.password)[0] };
+
+  const sealed = await seal(session, sealPassword, {
     ...sealDefaults,
     ttl: config.maxAge ? config.maxAge * 1000 : 0,
     ...config.seal,
