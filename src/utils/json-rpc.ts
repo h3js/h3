@@ -184,7 +184,7 @@ export function defineJsonRpcWebSocketHandler(opts: {
  * This ensures that method names like "__proto__", "constructor", "toString",
  * "hasOwnProperty", etc. cannot resolve to inherited Object.prototype properties.
  */
-function createMethodMap<T extends JsonRpcMethod | JsonRpcWebSocketMethod>(
+export function createMethodMap<T extends JsonRpcMethod | JsonRpcWebSocketMethod>(
   methods: Record<string, T>,
 ): Record<string, T> {
   const methodMap: Record<string, T> = Object.create(null);
@@ -199,7 +199,7 @@ function createMethodMap<T extends JsonRpcMethod | JsonRpcWebSocketMethod>(
  *
  * @returns The JSON-RPC response(s) to send, or `undefined` if all requests were notifications.
  */
-async function processJsonRpcBody<C extends H3Event | WebSocketPeer>(
+export async function processJsonRpcBody<C extends H3Event | WebSocketPeer>(
   body: unknown,
   methodMap: Record<string, (data: JsonRpcRequest, context: C) => unknown | Promise<unknown>>,
   context: C,
@@ -396,7 +396,7 @@ function isValidId(id: unknown): id is string | number | null {
 /**
  * Creates a JSON-RPC error response object.
  */
-const createJsonRpcError = (
+export const createJsonRpcError = (
   id: string | number | null,
   code: number,
   message: string,
