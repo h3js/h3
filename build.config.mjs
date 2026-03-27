@@ -1,7 +1,6 @@
 import { defineBuildConfig } from "obuild/config";
 import { parseSync } from "oxc-parser";
 import MagicString from "magic-string";
-import { mkdir } from "node:fs/promises";
 
 const entries = ["deno", "bun", "cloudflare", "service-worker", "node", "generic"];
 
