@@ -65,7 +65,7 @@
     "automd": "^0.4.3",
     "changelogen": "^0.6.2",
     "connect": "^3.7.0",
-    "cookie-es": "^3.0.0",
+    "cookie-es": "^3.1.0",
     "crossws": "^0.4.4",
     "elysia": "^1.4.28",
     "esbuild": "^0.27.4",
