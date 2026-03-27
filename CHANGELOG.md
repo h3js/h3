@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## v2.0.1-rc.20
+
+[compare changes](https://github.com/h3js/h3/compare/v2.0.1-rc.19...v2.0.1-rc.20)
+
+### 💅 Refactors
+
+- Pass single obj to `serializeCookie` ([a0761e9](https://github.com/h3js/h3/commit/a0761e9))
+- Mark `new TextEncoder` as pure ([9e4e64e](https://github.com/h3js/h3/commit/9e4e64e))
+
+### 📦 Build
+
+- Upgrade mdzilla to 0.2 ([2907555](https://github.com/h3js/h3/commit/2907555))
+
+### 🏡 Chore
+
+- Update cookie-es ([84bc9bc](https://github.com/h3js/h3/commit/84bc9bc))
+- Update deps ([0a60714](https://github.com/h3js/h3/commit/0a60714))
+
+### ❤️ Contributors
+
+- Pooya Parsa ([@pi0](https://github.com/pi0))
+
 ## v2.0.1-rc.19
 
 [compare changes](https://github.com/h3js/h3/compare/v2.0.1-rc.18...v2.0.1-rc.19)
