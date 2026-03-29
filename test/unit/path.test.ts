@@ -1,7 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describeMatrix } from "../_setup.ts";
 import { decodePathname } from "../../src/utils/internal/path.ts";
 
-describe("path utilities", () => {
+describeMatrix("path utilities", (_ctx, { describe, expect, it }) => {
   describe("decodePathname", () => {
     it("returns malformed percent-encoded pathnames unchanged", () => {
       const malformed = ["/%E0%A4", "/%80", "/%FF"];
