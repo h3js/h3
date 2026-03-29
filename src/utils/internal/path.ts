@@ -56,7 +56,11 @@ export function getPathname(path: string = "/"): string {
  * Decode percent-encoded pathname, preserving %25 (literal `%`).
  */
 export function decodePathname(pathname: string): string {
-  return decodeURI(pathname.includes("%25") ? pathname.replace(/%25/g, "%2525") : pathname);
+  try {
+    return decodeURI(pathname.includes("%25") ? pathname.replace(/%25/g, "%2525") : pathname);
+  } catch {
+    return pathname;
+  }
 }
 
 export function resolveDotSegments(path: string): string {
