@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## v1.15.11
+
+[compare changes](https://github.com/h3js/h3/compare/v1.15.10...v1.15.11)
+
+### 🏡 Chore
+
+- Update defu to 6.1.6 ([6125485](https://github.com/h3js/h3/commit/6125485))
+- Update deps ([4998dd8](https://github.com/h3js/h3/commit/4998dd8))
+- Update cookie-es ([d166186](https://github.com/h3js/h3/commit/d166186))
+
+### ❤️ Contributors
+
+- Pooya Parsa ([@pi0](https://github.com/pi0))
+
 ## v1.15.10
 
 [compare changes](https://github.com/h3js/h3/compare/v1.15.9...v1.15.10)
