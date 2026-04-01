@@ -4,7 +4,6 @@
     "module": "ESNext",
     "skipLibCheck": true,
     "allowSyntheticDefaultImports": true,
-    "moduleResolution": "Node",
     "lib": ["WebWorker", "DOM", "DOM.Iterable"],
     "strict": true,
     "declaration": true,
