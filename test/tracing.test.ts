@@ -1340,6 +1340,53 @@ describe("tracing channels for H3Core instances", () => {
       await run();
 
       expect(cachedRoute.data.handler).toBe(wrappedHandler);
+    } finally {
+      listener.cleanup();
+    }
+  });
+
+  it("mutates cached route.data.middleware in place without reallocating the array", async () => {
+    const listener = createTracingListener();
+    const { H3Core } = await import("../src/h3.ts");
+    const { tracingPlugin } = await import("../src/tracing.ts");
+    const { H3Event } = await import("../src/event.ts");
+
+    try {
+      const app = new H3Core();
+      const mw = (event: any) => {
+        event.context.mw = true;
+      };
+      const cachedRoute = {
+        data: {
+          method: "GET" as const,
+          route: "/cached",
+          handler: () => "ok",
+          middleware: [mw],
+        },
+        params: {},
+      };
+      app["~findRoute"] = () => cachedRoute;
+
+      tracingPlugin()(app as any);
+
+      const run = async () => {
+        const request = new Request("http://localhost/cached", { method: "GET" });
+        const event = new H3Event(request, undefined, app as any);
+        await app.handler(event);
+      };
+
+      await run();
+      const middlewareArray = cachedRoute.data.middleware;
+      const wrappedMw = middlewareArray[0];
+      expect((wrappedMw as any).__traced__).toBe(true);
+
+      await run();
+      await run();
+
+      // Array identity and entry identity must remain stable — no per-request
+      // allocations once the middleware is already traced.
+      expect(cachedRoute.data.middleware).toBe(middlewareArray);
+      expect(cachedRoute.data.middleware[0]).toBe(wrappedMw);
 
       await new Promise((resolve) => setTimeout(resolve, 10));
 

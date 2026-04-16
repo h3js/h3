@@ -100,7 +100,9 @@ export function tracingPlugin(traceOpts?: TracingPluginOptions): H3Plugin {
           route.data.handler = wrapEventHandler(route.data.handler);
         }
         if (route?.data.middleware) {
-          route.data.middleware = route.data.middleware.map((m) => wrapMiddleware(m));
+          for (let i = 0; i < route.data.middleware.length; i++) {
+            route.data.middleware[i] = wrapMiddleware(route.data.middleware[i]);
+          }
         }
         return route;
       };
