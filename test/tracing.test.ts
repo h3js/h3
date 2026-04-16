@@ -1202,4 +1202,50 @@ describe("tracing channels for H3Core instances", () => {
       listener.cleanup();
     }
   });
+
+  it("does not double-wrap handlers across repeated ~findRoute calls", async () => {
+    const listener = createTracingListener();
+    const { H3Core } = await import("../src/h3.ts");
+    const { tracingPlugin } = await import("../src/tracing.ts");
+    const { H3Event } = await import("../src/event.ts");
+
+    try {
+      const app = new H3Core();
+      const routeHandler = () => "ok";
+
+      // Cached route object returned from every ~findRoute call — mirrors a
+      // framework that memoizes resolved routes.
+      const cachedRoute = {
+        data: {
+          method: "GET" as const,
+          route: "/cached",
+          handler: routeHandler,
+        },
+        params: {},
+      };
+      app["~findRoute"] = () => cachedRoute;
+
+      tracingPlugin()(app as any);
+
+      const run = async () => {
+        const request = new Request("http://localhost/cached", { method: "GET" });
+        const event = new H3Event(request, undefined, app as any);
+        await app.handler(event);
+      };
+
+      await run();
+      await run();
+      await run();
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      const routeAsyncStarts = listener.events.filter(
+        (e) => e.asyncStart?.data.type === "route",
+      );
+      // Exactly one route trace per request — no double-wrapping.
+      expect(routeAsyncStarts.length).toBe(3);
+    } finally {
+      listener.cleanup();
+    }
+  });
 });
