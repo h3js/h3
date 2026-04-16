@@ -1203,6 +1203,46 @@ describe("tracing channels for H3Core instances", () => {
     }
   });
 
+  it("does not recurse when a framework wraps ~findRoute via captured reference", async () => {
+    const listener = createTracingListener();
+    const { H3Core } = await import("../src/h3.ts");
+    const { tracingPlugin } = await import("../src/tracing.ts");
+    const { H3Event } = await import("../src/event.ts");
+
+    try {
+      const app = new H3Core();
+      const routeHandler = () => "ok";
+
+      tracingPlugin()(app as any);
+
+      // Common framework pattern: capture current ~findRoute then replace with
+      // a wrapper that delegates to the captured reference. Must not recurse.
+      const prev = app["~findRoute"];
+      app["~findRoute"] = (event: any) => {
+        const matched = prev.call(app, event);
+        if (matched) return matched;
+        if (event.url.pathname === "/wrapped" && event.req.method === "GET") {
+          return {
+            data: { method: "GET", route: "/wrapped", handler: routeHandler },
+            params: {},
+          };
+        }
+        return undefined;
+      };
+
+      const request = new Request("http://localhost/wrapped", { method: "GET" });
+      const event = new H3Event(request, undefined, app as any);
+
+      await app.handler(event);
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      const routeEvents = listener.events.filter((e) => e.asyncStart?.data.type === "route");
+      expect(routeEvents.length).toBe(1);
+    } finally {
+      listener.cleanup();
+    }
+  });
+
   it("does not double-wrap handlers across repeated ~findRoute calls", async () => {
     const listener = createTracingListener();
     const { H3Core } = await import("../src/h3.ts");

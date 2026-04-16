@@ -85,25 +85,29 @@ export function tracingPlugin(traceOpts?: TracingPluginOptions): H3Plugin {
 
     // Wrap route handlers returned by ~findRoute so frameworks that resolve
     // routes at request time (e.g. nitro file-based routes) without pushing
-    // into ~routes still emit route traces. Use a getter/setter so later
-    // reassignment of ~findRoute remains wrapped.
-    let originalFindRoute = h3["~findRoute"];
-    const wrappedFindRoute = (event: H3Event) => {
-      const route = originalFindRoute.call(h3, event);
-      if (route?.data.handler) {
-        route.data.handler = wrapEventHandler(route.data.handler);
-      }
-      if (route?.data.middleware) {
-        route.data.middleware = route.data.middleware.map((m) => wrapMiddleware(m));
-      }
-      return route;
+    // into ~routes still emit route traces. A fresh wrapper is rebuilt on
+    // every assignment so previously-captured references stay stable — a
+    // framework pattern like `const prev = app["~findRoute"]; app["~findRoute"]
+    // = (e) => prev(e)` must not recurse into itself.
+    const wrapFindRoute = (fn: H3Core["~findRoute"]): H3Core["~findRoute"] => {
+      return (event: H3Event) => {
+        const route = fn.call(h3, event);
+        if (route?.data.handler) {
+          route.data.handler = wrapEventHandler(route.data.handler);
+        }
+        if (route?.data.middleware) {
+          route.data.middleware = route.data.middleware.map((m) => wrapMiddleware(m));
+        }
+        return route;
+      };
     };
+    let wrappedFindRoute = wrapFindRoute(h3["~findRoute"]);
     Object.defineProperty(h3, "~findRoute", {
       configurable: true,
       enumerable: true,
       get: () => wrappedFindRoute,
-      set: (fn: typeof originalFindRoute) => {
-        originalFindRoute = fn;
+      set: (fn: H3Core["~findRoute"]) => {
+        wrappedFindRoute = wrapFindRoute(fn);
       },
     });
 
