@@ -104,7 +104,7 @@ export function tracingPlugin(traceOpts?: TracingPluginOptions): H3Plugin {
     let wrappedFindRoute = wrapFindRoute(h3["~findRoute"]);
     Object.defineProperty(h3, "~findRoute", {
       configurable: true,
-      enumerable: true,
+      enumerable: false,
       get: () => wrappedFindRoute,
       set: (fn: H3Core["~findRoute"]) => {
         wrappedFindRoute = wrapFindRoute(fn);

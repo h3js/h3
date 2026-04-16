@@ -1197,10 +1197,67 @@ describe("tracing channels for H3Core instances", () => {
 
       const routeEvents = listener.events.filter((e) => e.asyncStart?.data.type === "route");
 
-      expect(routeEvents.length).toBeGreaterThan(0);
+      expect(
+        routeEvents.some((e) => e.asyncStart?.data.event.url.pathname === "/file-route"),
+      ).toBe(true);
     } finally {
       listener.cleanup();
     }
+  });
+
+  it("traces handlers when ~findRoute is reassigned after tracingPlugin is applied", async () => {
+    const listener = createTracingListener();
+    const { H3Core } = await import("../src/h3.ts");
+    const { tracingPlugin } = await import("../src/tracing.ts");
+    const { H3Event } = await import("../src/event.ts");
+
+    try {
+      const app = new H3Core();
+      const routeHandler = () => "late-bound response";
+
+      // Apply plugin BEFORE the framework wires up routing (typical nitro
+      // order: plugins register, then file-based routing installs ~findRoute).
+      tracingPlugin()(app as any);
+
+      app["~findRoute"] = (event: any) => {
+        if (event.url.pathname === "/late-route" && event.req.method === "GET") {
+          return {
+            data: {
+              method: "GET",
+              route: "/late-route",
+              handler: routeHandler,
+            },
+            params: {},
+          };
+        }
+        return undefined;
+      };
+
+      const request = new Request("http://localhost/late-route", { method: "GET" });
+      const event = new H3Event(request, undefined, app as any);
+
+      await app.handler(event);
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      const routeEvents = listener.events.filter((e) => e.asyncStart?.data.type === "route");
+      expect(
+        routeEvents.some((e) => e.asyncStart?.data.event.url.pathname === "/late-route"),
+      ).toBe(true);
+    } finally {
+      listener.cleanup();
+    }
+  });
+
+  it("keeps ~findRoute non-enumerable after tracingPlugin is applied", async () => {
+    const { H3Core } = await import("../src/h3.ts");
+    const { tracingPlugin } = await import("../src/tracing.ts");
+
+    const app = new H3Core();
+    tracingPlugin()(app as any);
+
+    expect(Object.keys(app)).not.toContain("~findRoute");
+    const descriptor = Object.getOwnPropertyDescriptor(app, "~findRoute");
+    expect(descriptor?.enumerable).toBe(false);
   });
 
   it("does not recurse when a framework wraps ~findRoute via captured reference", async () => {
