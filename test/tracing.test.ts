@@ -1197,9 +1197,9 @@ describe("tracing channels for H3Core instances", () => {
 
       const routeEvents = listener.events.filter((e) => e.asyncStart?.data.type === "route");
 
-      expect(
-        routeEvents.some((e) => e.asyncStart?.data.event.url.pathname === "/file-route"),
-      ).toBe(true);
+      expect(routeEvents.some((e) => e.asyncStart?.data.event.url.pathname === "/file-route")).toBe(
+        true,
+      );
     } finally {
       listener.cleanup();
     }
@@ -1240,9 +1240,9 @@ describe("tracing channels for H3Core instances", () => {
       await new Promise((resolve) => setTimeout(resolve, 10));
 
       const routeEvents = listener.events.filter((e) => e.asyncStart?.data.type === "route");
-      expect(
-        routeEvents.some((e) => e.asyncStart?.data.event.url.pathname === "/late-route"),
-      ).toBe(true);
+      expect(routeEvents.some((e) => e.asyncStart?.data.event.url.pathname === "/late-route")).toBe(
+        true,
+      );
     } finally {
       listener.cleanup();
     }
