@@ -1239,9 +1239,7 @@ describe("tracing channels for H3Core instances", () => {
 
       await new Promise((resolve) => setTimeout(resolve, 10));
 
-      const routeAsyncStarts = listener.events.filter(
-        (e) => e.asyncStart?.data.type === "route",
-      );
+      const routeAsyncStarts = listener.events.filter((e) => e.asyncStart?.data.type === "route");
       // Exactly one route trace per request — no double-wrapping.
       expect(routeAsyncStarts.length).toBe(3);
     } finally {
