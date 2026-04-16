@@ -1156,4 +1156,50 @@ describe("tracing channels for H3Core instances", () => {
       listener.cleanup();
     }
   });
+
+  it("traces handlers returned from a custom ~findRoute (nitro-style file routes)", async () => {
+    const listener = createTracingListener();
+    const { H3Core } = await import("../src/h3.ts");
+    const { tracingPlugin } = await import("../src/tracing.ts");
+    const { H3Event } = await import("../src/event.ts");
+
+    try {
+      const app = new H3Core();
+      const routeHandler = () => "file-based response";
+
+      // Simulate a framework that resolves routes at request time and never
+      // pushes them into app["~routes"]. The handler only exists inside the
+      // custom ~findRoute implementation.
+      app["~findRoute"] = (event: any) => {
+        if (event.url.pathname === "/file-route" && event.req.method === "GET") {
+          return {
+            data: {
+              method: "GET",
+              route: "/file-route",
+              handler: routeHandler,
+            },
+            params: {},
+          };
+        }
+        return undefined;
+      };
+
+      // Apply tracing plugin after ~findRoute is set (mirrors the order
+      // documented in the suggested fix).
+      tracingPlugin()(app as any);
+
+      const request = new Request("http://localhost/file-route", { method: "GET" });
+      const event = new H3Event(request, undefined, app as any);
+
+      await app.handler(event);
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      const routeEvents = listener.events.filter((e) => e.asyncStart?.data.type === "route");
+
+      expect(routeEvents.length).toBeGreaterThan(0);
+    } finally {
+      listener.cleanup();
+    }
+  });
 });

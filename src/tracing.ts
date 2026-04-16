@@ -83,6 +83,30 @@ export function tracingPlugin(traceOpts?: TracingPluginOptions): H3Plugin {
       } satisfies H3Route;
     });
 
+    // Wrap route handlers returned by ~findRoute so frameworks that resolve
+    // routes at request time (e.g. nitro file-based routes) without pushing
+    // into ~routes still emit route traces. Use a getter/setter so later
+    // reassignment of ~findRoute remains wrapped.
+    let originalFindRoute = h3["~findRoute"];
+    const wrappedFindRoute = (event: H3Event) => {
+      const route = originalFindRoute.call(h3, event);
+      if (route?.data.handler) {
+        route.data.handler = wrapEventHandler(route.data.handler);
+      }
+      if (route?.data.middleware) {
+        route.data.middleware = route.data.middleware.map((m) => wrapMiddleware(m));
+      }
+      return route;
+    };
+    Object.defineProperty(h3, "~findRoute", {
+      configurable: true,
+      enumerable: true,
+      get: () => wrappedFindRoute,
+      set: (fn: typeof originalFindRoute) => {
+        originalFindRoute = fn;
+      },
+    });
+
     if ("on" in h3 && typeof h3.on === "function") {
       const originalOn = h3.on;
 
