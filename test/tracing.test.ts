@@ -1184,8 +1184,8 @@ describe("tracing channels for H3Core instances", () => {
         return undefined;
       };
 
-      // Apply tracing plugin after ~findRoute is set (mirrors the order
-      // documented in the suggested fix).
+      // Apply tracing plugin after ~findRoute is set to verify the wrapper
+      // picks up the already-installed resolver.
       tracingPlugin()(app as any);
 
       const request = new Request("http://localhost/file-route", { method: "GET" });
@@ -1331,8 +1331,15 @@ describe("tracing channels for H3Core instances", () => {
       };
 
       await run();
+      // Handler wrapped in place on first call; reference should stay stable
+      // across subsequent calls (wrapEventHandler short-circuits on __traced__).
+      const wrappedHandler = cachedRoute.data.handler;
+      expect((wrappedHandler as any).__traced__).toBe(true);
+
       await run();
       await run();
+
+      expect(cachedRoute.data.handler).toBe(wrappedHandler);
 
       await new Promise((resolve) => setTimeout(resolve, 10));
 

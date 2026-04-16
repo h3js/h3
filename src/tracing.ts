@@ -92,6 +92,10 @@ export function tracingPlugin(traceOpts?: TracingPluginOptions): H3Plugin {
     const wrapFindRoute = (fn: H3Core["~findRoute"]): H3Core["~findRoute"] => {
       return (event: H3Event) => {
         const route = fn.call(h3, event);
+        // Mutate route.data in place: findRoute often returns shared references
+        // (e.g. entries from ~routes), and the wrappers are idempotent via
+        // __traced__, so repeated calls on the same object are cheap. Do not
+        // clone — a cloned route would re-wrap on every request.
         if (route?.data.handler) {
           route.data.handler = wrapEventHandler(route.data.handler);
         }
