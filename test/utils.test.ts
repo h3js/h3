@@ -267,6 +267,16 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
           .then((r) => r.text()),
       ).toMatch("https://localhost");
 
+      expect(
+        await t
+          .fetch("/", {
+            headers: {
+              "x-forwarded-proto": "https, http",
+            },
+          })
+          .then((r) => r.text()),
+      ).toMatch("https://localhost");
+
       // TODO
       // expect(
       //   await t

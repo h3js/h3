@@ -388,7 +388,11 @@ export function getRequestProtocol(
   opts: { xForwardedProto?: boolean } = {},
 ): "http" | "https" | (string & {}) {
   if (opts.xForwardedProto !== false) {
-    const forwardedProto = event.req.headers.get("x-forwarded-proto");
+    const forwardedProto = event.req.headers
+      .get("x-forwarded-proto")
+      ?.split(",")
+      .shift()
+      ?.trim();
     if (forwardedProto === "https") {
       return "https";
     }
