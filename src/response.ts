@@ -16,7 +16,7 @@ export function toResponse(
   if (typeof (val as PromiseLike<unknown>)?.then === "function") {
     return (val as Promise<unknown>).then(
       (resolvedVal) => toResponse(resolvedVal, event, config),
-      (rejection) => toResponse(coerceThrown(rejection), event, config),
+      (r) => toResponse(typeof r === "number" ? new HTTPError({ status: r }) : r, event, config),
     ) as Promise<Response>;
   }
 
@@ -240,14 +240,6 @@ function nullBody(method: string, status: number | undefined): boolean | 0 | und
     status === 100 || status === 101 || status === 102 ||
     status === 204 || status === 205 || status === 304
   )
-}
-
-function coerceThrown(val: unknown): unknown {
-  if (typeof val === "number") return new HTTPError({ status: val });
-  if (typeof val === "string" && /^\d{3}(\s|$)/.test(val)) {
-    return new HTTPError({ status: +val.slice(0, 3), message: val.slice(3).trim() || undefined });
-  }
-  return val;
 }
 
 function errorResponse(error: HTTPError, debug?: boolean, errHeaders?: Headers): Response {

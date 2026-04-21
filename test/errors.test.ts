@@ -169,23 +169,6 @@ describeMatrix("errors", (t, { it, expect }) => {
     expect(res.status).toBe(404);
   });
 
-  it("throw string status code", async () => {
-    t.app.use(() => {
-      throw "404";
-    });
-    const res = await t.fetch("/");
-    expect(res.status).toBe(404);
-  });
-
-  it("throw string status + message", async () => {
-    t.app.use(() => {
-      throw "404 Lesson not found";
-    });
-    const res = await t.fetch("/");
-    expect(res.status).toBe(404);
-    expect(await res.json()).toMatchObject({ status: 404, message: "Lesson not found" });
-  });
-
   it("throw async number coerces to status", async () => {
     t.app.use(async () => {
       throw 500;
