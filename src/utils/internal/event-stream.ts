@@ -22,10 +22,10 @@ export class EventStream {
     this._event = event;
     this._writer = this._transformStream.writable.getWriter();
     this._writer.closed
-      .then(() => {
+      .catch(_noop)
+      .finally(() => {
         this._writerIsClosed = true;
-      })
-      .catch(_noop);
+      });
     if (opts.autoclose !== false) {
       this._event.runtime?.node?.res?.once("close", () => this.close());
     }
