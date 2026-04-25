@@ -21,9 +21,11 @@ export class EventStream {
   constructor(event: H3Event, opts: EventStreamOptions = {}) {
     this._event = event;
     this._writer = this._transformStream.writable.getWriter();
-    this._writer.closed.then(() => {
-      this._writerIsClosed = true;
-    });
+    this._writer.closed
+      .then(() => {
+        this._writerIsClosed = true;
+      })
+      .catch(_noop);
     if (opts.autoclose !== false) {
       this._event.runtime?.node?.res?.once("close", () => this.close());
     }
