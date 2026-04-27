@@ -85,7 +85,8 @@ export function setCookie(
   options?: CookieSerializeOptions,
 ): void {
   // Serialize cookie
-  const newCookie = serializeCookie({ name, value, path: "/", ...options });
+  const { encode, stringify, ...attrs } = options ?? {};
+  const newCookie = serializeCookie({ name, value, path: "/", ...attrs }, { encode, stringify });
 
   // Check and add only not any other set-cookie headers already set
   const currentCookies = event.res.headers.getSetCookie();
