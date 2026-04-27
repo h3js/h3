@@ -142,6 +142,15 @@ describeMatrix("cookies", (t, { it, expect, describe }) => {
       expect(await result.text()).toBe("200");
     });
 
+    it("respects custom encode option", async () => {
+      t.app.get("/", (event) => {
+        setCookie(event, "x", "%22true%22", { encode: (v) => v });
+        return "200";
+      });
+      const result = await t.fetch("/");
+      expect(result.headers.getSetCookie()).toEqual(["x=%22true%22; Path=/"]);
+    });
+
     it("can set cookie with all options", async () => {
       t.app.get("/", (event) => {
         setCookie(event, "session", "xyz", {
