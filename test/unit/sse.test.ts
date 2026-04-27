@@ -122,6 +122,24 @@ describe("sse (unit)", () => {
       expect(unhandled).not.toHaveBeenCalled();
     });
 
+    it("does not emit unhandled rejection when readable side is canceled", async () => {
+      const event = mockEvent("/");
+      const stream = new EventStream(event);
+
+      const unhandled = vi.fn();
+      process.on("unhandledRejection", unhandled);
+
+      const readable = (await stream.send()) as ReadableStream<Uint8Array>;
+      const reader = readable.getReader();
+      await reader.cancel(new Error("resource closed"));
+
+      // Give microtasks time to settle
+      await new Promise((r) => setTimeout(r, 10));
+
+      process.off("unhandledRejection", unhandled);
+      expect(unhandled).not.toHaveBeenCalled();
+    });
+
     it("push stops retrying after write failure", async () => {
       const event = mockEvent("/");
       const stream = new EventStream(event);
