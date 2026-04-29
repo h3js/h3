@@ -1,6 +1,11 @@
 import type { H3Event } from "./event.ts";
 import type { H3, H3Core } from "./h3.ts";
-import { type H3Plugin, type H3Route, type MiddlewareOptions } from "./types/h3.ts";
+import {
+  type H3Plugin,
+  type H3Route,
+  type MatchedRoute,
+  type MiddlewareOptions,
+} from "./types/h3.ts";
 import type { EventHandler, Middleware } from "./types/handler.ts";
 
 /**
@@ -83,40 +88,6 @@ export function tracingPlugin(traceOpts?: TracingPluginOptions): H3Plugin {
       } satisfies H3Route;
     });
 
-    // Wrap route handlers returned by ~findRoute so frameworks that resolve
-    // routes at request time (e.g. nitro file-based routes) without pushing
-    // into ~routes still emit route traces. A fresh wrapper is rebuilt on
-    // every assignment so previously-captured references stay stable — a
-    // framework pattern like `const prev = app["~findRoute"]; app["~findRoute"]
-    // = (e) => prev(e)` must not recurse into itself.
-    const wrapFindRoute = (fn: H3Core["~findRoute"]): H3Core["~findRoute"] => {
-      return (event: H3Event) => {
-        const route = fn.call(h3, event);
-        // Mutate route.data in place: findRoute often returns shared references
-        // (e.g. entries from ~routes), and the wrappers are idempotent via
-        // __traced__, so repeated calls on the same object are cheap. Do not
-        // clone — a cloned route would re-wrap on every request.
-        if (route?.data.handler) {
-          route.data.handler = wrapEventHandler(route.data.handler);
-        }
-        if (route?.data.middleware) {
-          for (let i = 0; i < route.data.middleware.length; i++) {
-            route.data.middleware[i] = wrapMiddleware(route.data.middleware[i]);
-          }
-        }
-        return route;
-      };
-    };
-    let wrappedFindRoute = wrapFindRoute(h3["~findRoute"]);
-    Object.defineProperty(h3, "~findRoute", {
-      configurable: true,
-      enumerable: false,
-      get: () => wrappedFindRoute,
-      set: (fn: H3Core["~findRoute"]) => {
-        wrappedFindRoute = wrapFindRoute(fn);
-      },
-    });
-
     if ("on" in h3 && typeof h3.on === "function") {
       const originalOn = h3.on;
 
@@ -174,5 +145,70 @@ export function tracingPlugin(traceOpts?: TracingPluginOptions): H3Plugin {
     }
 
     return h3;
+  };
+}
+
+type FindRouteFunction = (event: H3Event) => MatchedRoute<H3Route> | void;
+
+/**
+ * Wraps a `~findRoute` function so that returned route handlers and middleware
+ * are traced via the `h3.request` diagnostics channel. Intended for frameworks
+ * (e.g. nitro) that resolve routes at request time without pushing them into
+ * `h3["~routes"]`.
+ *
+ * Returns the original function unchanged when `diagnostics_channel` is not
+ * available.
+ */
+export function wrapFindRouteWithTracing(
+  findRoute: FindRouteFunction,
+  traceOpts?: TracingPluginOptions,
+): FindRouteFunction {
+  const { tracingChannel } = globalThis.process?.getBuiltinModule?.("diagnostics_channel") ?? {};
+
+  if (!tracingChannel) {
+    return findRoute;
+  }
+
+  const channel = tracingChannel("h3.request");
+
+  function wrapHandler(handler: MaybeTracedEventHandler): EventHandler {
+    if (handler.__traced__ || traceOpts?.traceRoutes === false) {
+      return handler;
+    }
+    const wrapped: MaybeTracedEventHandler = (...args) => {
+      return channel.tracePromise(async () => handler(...args), {
+        event: args[0],
+        type: "route",
+      } satisfies TracingRequestEvent);
+    };
+    wrapped.__traced__ = true;
+    return wrapped;
+  }
+
+  function wrapMiddleware(middleware: MaybeTracedMiddleware): Middleware {
+    if (middleware.__traced__ || traceOpts?.traceMiddleware === false) {
+      return middleware;
+    }
+    const wrapped: MaybeTracedMiddleware = (...args) => {
+      return channel.tracePromise(async () => middleware(...args), {
+        event: args[0],
+        type: "middleware",
+      } satisfies TracingRequestEvent);
+    };
+    wrapped.__traced__ = true;
+    return wrapped;
+  }
+
+  return (event: H3Event) => {
+    const route = findRoute(event);
+    if (route?.data.handler) {
+      route.data.handler = wrapHandler(route.data.handler);
+    }
+    if (route?.data.middleware) {
+      for (let i = 0; i < route.data.middleware.length; i++) {
+        route.data.middleware[i] = wrapMiddleware(route.data.middleware[i]);
+      }
+    }
+    return route;
   };
 }
