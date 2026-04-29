@@ -2,6 +2,37 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## v2.0.1-rc.21
+
+[compare changes](https://github.com/h3js/h3/compare/v2.0.1-rc.20...v2.0.1-rc.21)
+
+### 🚀 Enhancements
+
+- Coerce thrown number/string to HTTPError ([#1372](https://github.com/h3js/h3/pull/1372))
+
+### 🩹 Fixes
+
+- **setCookie:** Handle `encode` and `stringify` serialize options ([#1377](https://github.com/h3js/h3/pull/1377))
+- **event-stream:** Do not emit unhandled rejection when readable side is canceled ([#1376](https://github.com/h3js/h3/pull/1376))
+- **withoutBase:** Collapse leading slashes ([64acfe6](https://github.com/h3js/h3/commit/64acfe6))
+
+### 📖 Documentation
+
+- Fix typo in error handling ([#1364](https://github.com/h3js/h3/pull/1364))
+
+### 🏡 Chore
+
+- Update deps ([e2f8cbd](https://github.com/h3js/h3/commit/e2f8cbd))
+- Update deps ([4e38f49](https://github.com/h3js/h3/commit/4e38f49))
+
+### ❤️ Contributors
+
+- Pooya Parsa ([@pi0](https://github.com/pi0))
+- Max <maximogarciamtnez@gmail.com>
+- Drackin Best ([@Drackin](https://github.com/Drackin))
+- Kevin Dyes <kevin.dyes@icloud.com>
+- Daniel Roe ([@danielroe](https://github.com/danielroe))
+
 ## v2.0.1-rc.20
 
 [compare changes](https://github.com/h3js/h3/compare/v2.0.1-rc.19...v2.0.1-rc.20)
