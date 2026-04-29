@@ -142,3 +142,31 @@ export function tracingPlugin(traceOpts?: TracingPluginOptions): H3Plugin {
     return h3;
   };
 }
+
+/**
+ * Wraps an event handler so its execution is traced via the `h3.request`
+ * diagnostics channel with `type: "route"`. Intended to be called once per
+ * handler at initialization time (e.g. during codegen or module load), not
+ * per request.
+ *
+ * Returns the handler unchanged when `diagnostics_channel` is unavailable
+ * or the handler is already traced.
+ */
+export function wrapHandlerWithTracing(handler: EventHandler): EventHandler {
+  const { tracingChannel } = globalThis.process?.getBuiltinModule?.("diagnostics_channel") ?? {};
+  if (!tracingChannel) {
+    return handler;
+  }
+  if ((handler as MaybeTracedEventHandler).__traced__) {
+    return handler;
+  }
+  const channel = tracingChannel("h3.request");
+  const wrapped: MaybeTracedEventHandler = (...args) => {
+    return channel.tracePromise(async () => handler(...args), {
+      event: args[0],
+      type: "route",
+    } satisfies TracingRequestEvent);
+  };
+  wrapped.__traced__ = true;
+  return wrapped;
+}
