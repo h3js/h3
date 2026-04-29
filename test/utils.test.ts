@@ -137,6 +137,12 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
 
       expect(await result.text()).toBe("/api/test");
     });
+    it("collapses leading slashes after stripping base", async () => {
+      t.app.use(withBase("/api", (event) => Promise.resolve(event.path)));
+      const result = await t.fetch("/api//evil.com");
+
+      expect(await result.text()).toBe("/evil.com");
+    });
   });
 
   describe("getQuery", () => {
