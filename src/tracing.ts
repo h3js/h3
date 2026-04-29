@@ -1,11 +1,6 @@
 import type { H3Event } from "./event.ts";
 import type { H3, H3Core } from "./h3.ts";
-import {
-  type H3Plugin,
-  type H3Route,
-  type MatchedRoute,
-  type MiddlewareOptions,
-} from "./types/h3.ts";
+import { type H3Plugin, type H3Route, type MiddlewareOptions } from "./types/h3.ts";
 import type { EventHandler, Middleware } from "./types/handler.ts";
 
 /**
@@ -148,67 +143,30 @@ export function tracingPlugin(traceOpts?: TracingPluginOptions): H3Plugin {
   };
 }
 
-type FindRouteFunction = (event: H3Event) => MatchedRoute<H3Route> | void;
-
 /**
- * Wraps a `~findRoute` function so that returned route handlers and middleware
- * are traced via the `h3.request` diagnostics channel. Intended for frameworks
- * (e.g. nitro) that resolve routes at request time without pushing them into
- * `h3["~routes"]`.
+ * Wraps an event handler so its execution is traced via the `h3.request`
+ * diagnostics channel with `type: "route"`. Intended to be called once per
+ * handler at initialization time (e.g. during codegen or module load), not
+ * per request.
  *
- * Returns the original function unchanged when `diagnostics_channel` is not
- * available.
+ * Returns the handler unchanged when `diagnostics_channel` is unavailable
+ * or the handler is already traced.
  */
-export function wrapFindRouteWithTracing(
-  findRoute: FindRouteFunction,
-  traceOpts?: TracingPluginOptions,
-): FindRouteFunction {
+export function wrapHandlerWithTracing(handler: EventHandler): EventHandler {
   const { tracingChannel } = globalThis.process?.getBuiltinModule?.("diagnostics_channel") ?? {};
-
   if (!tracingChannel) {
-    return findRoute;
+    return handler;
   }
-
+  if ((handler as MaybeTracedEventHandler).__traced__) {
+    return handler;
+  }
   const channel = tracingChannel("h3.request");
-
-  function wrapHandler(handler: MaybeTracedEventHandler): EventHandler {
-    if (handler.__traced__ || traceOpts?.traceRoutes === false) {
-      return handler;
-    }
-    const wrapped: MaybeTracedEventHandler = (...args) => {
-      return channel.tracePromise(async () => handler(...args), {
-        event: args[0],
-        type: "route",
-      } satisfies TracingRequestEvent);
-    };
-    wrapped.__traced__ = true;
-    return wrapped;
-  }
-
-  function wrapMiddleware(middleware: MaybeTracedMiddleware): Middleware {
-    if (middleware.__traced__ || traceOpts?.traceMiddleware === false) {
-      return middleware;
-    }
-    const wrapped: MaybeTracedMiddleware = (...args) => {
-      return channel.tracePromise(async () => middleware(...args), {
-        event: args[0],
-        type: "middleware",
-      } satisfies TracingRequestEvent);
-    };
-    wrapped.__traced__ = true;
-    return wrapped;
-  }
-
-  return (event: H3Event) => {
-    const route = findRoute(event);
-    if (route?.data.handler) {
-      route.data.handler = wrapHandler(route.data.handler);
-    }
-    if (route?.data.middleware) {
-      for (let i = 0; i < route.data.middleware.length; i++) {
-        route.data.middleware[i] = wrapMiddleware(route.data.middleware[i]);
-      }
-    }
-    return route;
+  const wrapped: MaybeTracedEventHandler = (...args) => {
+    return channel.tracePromise(async () => handler(...args), {
+      event: args[0],
+      type: "route",
+    } satisfies TracingRequestEvent);
   };
+  wrapped.__traced__ = true;
+  return wrapped;
 }

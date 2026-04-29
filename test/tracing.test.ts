@@ -1158,124 +1158,72 @@ describe("tracing channels for H3Core instances", () => {
   });
 });
 
-describe("wrapFindRouteWithTracing", () => {
-  it("wraps route handlers returned by findRoute", async () => {
+describe("wrapHandlerWithTracing", () => {
+  it("wraps a handler so route traces are emitted", async () => {
     const listener = createTracingListener();
     const { H3Core } = await import("../src/h3.ts");
-    const { wrapFindRouteWithTracing } = await import("../src/tracing.ts");
+    const { wrapHandlerWithTracing } = await import("../src/tracing.ts");
     const { H3Event } = await import("../src/event.ts");
 
     try {
       const app = new H3Core();
-      const routeHandler = () => "file-based response";
+      const routeHandler = wrapHandlerWithTracing(() => "traced response");
 
-      const baseFindRoute = (event: any) => {
-        if (event.url.pathname === "/file-route" && event.req.method === "GET") {
-          return {
-            data: { method: "GET", route: "/file-route", handler: routeHandler },
-            params: {},
-          };
+      app["~findRoute"] = (event: any) => {
+        if (event.url.pathname === "/test" && event.req.method === "GET") {
+          return { data: { method: "GET", route: "/test", handler: routeHandler }, params: {} };
         }
         return undefined;
       };
 
-      app["~findRoute"] = wrapFindRouteWithTracing(baseFindRoute as any);
-
-      const request = new Request("http://localhost/file-route", { method: "GET" });
+      const request = new Request("http://localhost/test", { method: "GET" });
       const event = new H3Event(request, undefined, app as any);
 
       await app.handler(event);
       await new Promise((resolve) => setTimeout(resolve, 10));
 
       const routeEvents = listener.events.filter((e) => e.asyncStart?.data.type === "route");
-      expect(routeEvents.some((e) => e.asyncStart?.data.event.url.pathname === "/file-route")).toBe(
-        true,
-      );
+      expect(routeEvents.some((e) => e.asyncStart?.data.event.url.pathname === "/test")).toBe(true);
     } finally {
       listener.cleanup();
     }
   });
 
-  it("does not double-wrap handlers across repeated calls", async () => {
-    const listener = createTracingListener();
-    const { H3Core } = await import("../src/h3.ts");
-    const { wrapFindRouteWithTracing } = await import("../src/tracing.ts");
-    const { H3Event } = await import("../src/event.ts");
+  it("is idempotent — wrapping twice returns the same wrapper", async () => {
+    const { wrapHandlerWithTracing } = await import("../src/tracing.ts");
 
-    try {
-      const app = new H3Core();
-      const routeHandler = () => "ok";
+    const handler = () => "ok";
+    const wrapped = wrapHandlerWithTracing(handler);
+    const doubleWrapped = wrapHandlerWithTracing(wrapped);
 
-      const cachedRoute = {
-        data: { method: "GET" as const, route: "/cached", handler: routeHandler },
-        params: {},
-      };
-
-      app["~findRoute"] = wrapFindRouteWithTracing((() => cachedRoute) as any);
-
-      const run = async () => {
-        const request = new Request("http://localhost/cached", { method: "GET" });
-        const event = new H3Event(request, undefined, app as any);
-        await app.handler(event);
-      };
-
-      await run();
-      const wrappedHandler = cachedRoute.data.handler;
-      expect((wrappedHandler as any).__traced__).toBe(true);
-
-      await run();
-      await run();
-
-      expect(cachedRoute.data.handler).toBe(wrappedHandler);
-
-      await new Promise((resolve) => setTimeout(resolve, 10));
-
-      const routeAsyncStarts = listener.events.filter((e) => e.asyncStart?.data.type === "route");
-      expect(routeAsyncStarts.length).toBe(3);
-    } finally {
-      listener.cleanup();
-    }
+    expect(doubleWrapped).toBe(wrapped);
+    expect((wrapped as any).__traced__).toBe(true);
   });
 
-  it("mutates cached route.data.middleware in place without reallocating", async () => {
+  it("emits exactly one trace per request on a pre-wrapped handler", async () => {
     const listener = createTracingListener();
     const { H3Core } = await import("../src/h3.ts");
-    const { wrapFindRouteWithTracing } = await import("../src/tracing.ts");
+    const { wrapHandlerWithTracing } = await import("../src/tracing.ts");
     const { H3Event } = await import("../src/event.ts");
 
     try {
       const app = new H3Core();
-      const mw = (event: any) => {
-        event.context.mw = true;
-      };
-      const cachedRoute = {
-        data: {
-          method: "GET" as const,
-          route: "/cached",
-          handler: () => "ok",
-          middleware: [mw],
-        },
-        params: {},
-      };
+      const routeHandler = wrapHandlerWithTracing(() => "ok");
 
-      app["~findRoute"] = wrapFindRouteWithTracing((() => cachedRoute) as any);
+      app["~findRoute"] = () => ({
+        data: { method: "GET" as const, route: "/test", handler: routeHandler },
+        params: {},
+      });
 
       const run = async () => {
-        const request = new Request("http://localhost/cached", { method: "GET" });
+        const request = new Request("http://localhost/test", { method: "GET" });
         const event = new H3Event(request, undefined, app as any);
         await app.handler(event);
       };
 
       await run();
-      const middlewareArray = cachedRoute.data.middleware;
-      const wrappedMw = middlewareArray[0];
-      expect((wrappedMw as any).__traced__).toBe(true);
-
       await run();
       await run();
-
-      expect(cachedRoute.data.middleware).toBe(middlewareArray);
-      expect(cachedRoute.data.middleware[0]).toBe(wrappedMw);
 
       await new Promise((resolve) => setTimeout(resolve, 10));
 
