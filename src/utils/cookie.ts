@@ -106,7 +106,8 @@ export function setCookie(
   options?: CookieSerializeOptions,
 ): void {
   // Serialize cookie
-  const newCookie = serializeCookie({ name, value, path: "/", ...options });
+  const { encode, stringify, ...attrs } = options ?? {};
+  const newCookie = serializeCookie({ name, value, path: "/", ...attrs }, { encode, stringify });
 
   // Merge and deduplicate unique set-cookie headers
   const headers = event.res.headers;

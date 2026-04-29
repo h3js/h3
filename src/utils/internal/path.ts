@@ -40,8 +40,10 @@ export function withoutBase(input: string = "", base: string = ""): string {
   if (!input.startsWith(_base) || (input.length > _base.length && input[_base.length] !== "/")) {
     return input;
   }
-  const trimmed = input.slice(_base.length);
-  return trimmed[0] === "/" ? trimmed : "/" + trimmed;
+  // Collapse leading slashes to prevent protocol-relative URL injection
+  // e.g. withoutBase("/legacy//evil.com", "/legacy") must not return "//evil.com"
+  const trimmed = input.slice(_base.length).replace(/^\/+/, "");
+  return "/" + trimmed;
 }
 
 export function getPathname(path: string = "/"): string {
