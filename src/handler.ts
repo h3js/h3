@@ -167,7 +167,7 @@ export function toEventHandler(handler: HTTPHandler | undefined): EventHandler |
   if (typeof handler === "function") {
     return handler;
   }
-  if (typeof (handler as H3Core)?.handler === "function") {
+  if (typeof (handler as H3Core)?.handler === "function" && (handler as any).constructor?.["~h3"]) {
     return (handler as H3Core).handler;
   }
   if (typeof (handler as FetchableObject)?.fetch === "function") {

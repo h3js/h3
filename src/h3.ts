@@ -29,6 +29,8 @@ import { toEventHandler } from "./handler.ts";
 export const NoHandler: EventHandler = () => kNotFound;
 
 export class H3Core implements H3CoreType {
+  static "~h3" = true;
+
   readonly config: H3CoreConfig;
 
   "~middleware": Middleware[];
