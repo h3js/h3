@@ -5,6 +5,7 @@ import type { MaybePromise } from "./_utils.ts";
 import type { FetchHandler, ServerRequest } from "srvx";
 // import type { MatchedRoute, RouterContext } from "rou3";
 import type { H3Event } from "../event.ts";
+import type { H3Plugin } from "../plugin.ts";
 
 // Inlined from rou3 for type portability
 export interface RouterContext {
@@ -55,16 +56,6 @@ export interface H3Route {
   middleware?: Middleware[];
   meta?: H3RouteMeta;
   handler: EventHandler;
-}
-
-// --- H3 Plugins ---
-
-export type H3Plugin = (h3: H3) => void;
-
-export function definePlugin<T = unknown>(
-  def: (h3: H3, options: T) => void,
-): undefined extends T ? (options?: T) => H3Plugin : (options: T) => H3Plugin {
-  return ((opts?: any) => (h3: H3) => def(h3, opts)) as any;
 }
 
 // --- H3 App ---
