@@ -2,6 +2,35 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## v2.0.1-rc.22
+
+[compare changes](https://github.com/h3js/h3/compare/v2.0.1-rc.21...v2.0.1-rc.22)
+
+### 🚀 Enhancements
+
+- **tracing:** Export `wrapHandlerWithTracing` for manual handler wrapping ([#1369](https://github.com/h3js/h3/pull/1369))
+
+### 🩹 Fixes
+
+- **toEventHandler:** Validate h3 subapp instance to pick `.handler` ([a94b7fb](https://github.com/h3js/h3/commit/a94b7fb))
+
+### 💅 Refactors
+
+- Split plugin definition ([40bddff](https://github.com/h3js/h3/commit/40bddff))
+
+### 📦 Build
+
+- Simplify chunk names ([07c118d](https://github.com/h3js/h3/commit/07c118d))
+
+### 🏡 Chore
+
+- Update deps ([a7a0460](https://github.com/h3js/h3/commit/a7a0460))
+
+### ❤️ Contributors
+
+- Pooya Parsa ([@pi0](https://github.com/pi0))
+- Abdelrahman Awad <abdelrahman.awad@sentry.io>
+
 ## v2.0.1-rc.21
 
 [compare changes](https://github.com/h3js/h3/compare/v2.0.1-rc.20...v2.0.1-rc.21)
