@@ -60,7 +60,7 @@
     "@types/node": "^25.6.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
-    "@typescript/native-preview": "^7.0.0-dev.20260429.1",
+    "@typescript/native-preview": "^7.0.0-dev.20260505.1",
     "@vitest/coverage-v8": "^4.1.5",
     "automd": "^0.4.3",
     "changelogen": "^0.6.2",
@@ -72,25 +72,25 @@
     "express": "^5.2.1",
     "fetchdts": "^0.1.7",
     "get-port-please": "^3.2.0",
-    "h3": "^2.0.1-rc.20",
-    "h3-nightly": "^2.0.0-20260429-110804-351b2aa",
+    "h3": "workspace:*",
+    "h3-nightly": "^2.0.0-20260501-191626-07c118d",
     "happy-dom": "^20.9.0",
-    "hono": "^4.12.15",
+    "hono": "^4.12.17",
     "magic-string": "^0.30.21",
     "mdzilla": "^0.2.1",
-    "memoirist": "^0.4.0",
+    "memoirist": "^1.0.1",
     "mitata": "^1.0.34",
-    "obuild": "^0.4.33",
-    "oxc-parser": "^0.128.0",
-    "oxfmt": "^0.47.0",
-    "oxlint": "^1.62.0",
+    "obuild": "^0.4.34",
+    "oxc-parser": "^0.129.0",
+    "oxfmt": "^0.48.0",
+    "oxlint": "^1.63.0",
     "oxlint-tsgolint": "^0.22.1",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "typescript": "^6.0.3",
     "vite": "^8.0.10",
     "vitest": "^4.1.5",
-    "zod": "^4.3.6"
+    "zod": "^4.4.3"
   },
   "peerDependencies": {
     "crossws": "^0.4.1"
@@ -107,5 +107,5 @@
   "engines": {
     "node": ">=20.11.1"
   },
-  "packageManager": "pnpm@10.33.2"
+  "packageManager": "pnpm@10.33.3"
 }
