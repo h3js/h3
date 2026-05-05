@@ -1,7 +1,6 @@
 import { defineBuildConfig } from "obuild/config";
 import { parseSync } from "oxc-parser";
 import MagicString from "magic-string";
-import { mkdir, rmdir } from "node:fs/promises";
 
 const entries = ["deno", "bun", "cloudflare", "service-worker", "node", "generic"];
 
@@ -15,25 +14,26 @@ export default defineBuildConfig({
   hooks: {
     rolldownOutput(config) {
       config.codeSplitting = {};
-      config.chunkFileNames = "h3-[hash].mjs";
+      config.chunkFileNames = (chunkInfo) => {
+        if (chunkInfo.name === "src") {
+          return "h3.mjs";
+        }
+        return "[name].mjs";
+      };
     },
     async end() {
-      const { DocsManager, DocsSourceFS, exportDocsToFS } = await import("mdzilla");
-      const man = new DocsManager(new DocsSourceFS("./docs"));
-      await man.load();
-      await rmdir("./skills/h3/docs", { recursive: true }).catch(() => {});
-      await mkdir("./skills/h3/docs", { recursive: true });
-      await exportDocsToFS(man, "./skills/h3/docs", {
+      const { exportSource } = await import("mdzilla");
+      await exportSource("./docs", "./dist/docs", {
         title: "H3 Documentation",
-        tocFile: "TOC.md",
         filter: (e) => !e.entry.path.startsWith("/blog"),
       });
     },
     rolldownConfig(config) {
       config.experimental ??= {};
       config.experimental.attachDebugInfo = "none";
-
-      config.plugins ??= [];
+      if (!Array.isArray(config.plugins)) {
+        config.plugins = [];
+      }
       config.plugins.push({
         name: "remove-comments",
         renderChunk(code) {

@@ -10,6 +10,24 @@ describeMatrix("mount", (t, { it, expect, describe }) => {
       expect(await t.fetch("/test/123").then((r) => r.text())).toBe("/123");
     });
 
+    it("normalizes percent-encoded base path", async () => {
+      t.app.mount("/api", async (req) => {
+        const url = new URL(req.url);
+        if (url.pathname.startsWith("/admin")) {
+          return new Response("Forbidden", { status: 403 });
+        }
+        return new Response(`OK: ${url.pathname}`);
+      });
+
+      // Normal request should be blocked
+      const res1 = await t.fetch("/api/admin");
+      expect(res1.status).toBe(403);
+
+      // Percent-encoded base path should still be blocked
+      const res2 = await t.fetch("/%61pi/admin");
+      expect(res2.status).toBe(403);
+    });
+
     it("works with compat object", async () => {
       t.app.mount("/test", {
         fetch: (req: Request) => new Response(new URL(req.url).pathname),
@@ -178,6 +196,30 @@ describeMatrix("mount", (t, { it, expect, describe }) => {
       await t.fetch("/api/other");
 
       expect(logs).toHaveLength(0); // Middleware should not execute
+    });
+
+    it("mounted middleware should not execute for prefix-matching paths without segment boundary", async () => {
+      const adminApp = new H3();
+      adminApp.use((event, next) => {
+        event.context.isAdmin = true;
+        return next();
+      });
+      adminApp.get("/dashboard", () => ({ admin: true }));
+
+      t.app.mount("/admin", adminApp);
+      t.app.get("/admin-public/info", (event) => ({
+        path: event.url.pathname,
+        isAdmin: event.context.isAdmin ?? false,
+      }));
+
+      // /admin/dashboard should trigger admin middleware
+      const adminRes = await t.fetch("/admin/dashboard");
+      expect(adminRes.status).toBe(200);
+
+      // /admin-public/info should NOT trigger admin middleware
+      const publicRes = await t.fetch("/admin-public/info");
+      const body = await publicRes.json();
+      expect(body.isAdmin).toBe(false);
     });
   });
 });

@@ -1,6 +1,6 @@
 {
   "name": "h3",
-  "version": "2.0.1-rc.16",
+  "version": "2.0.1-rc.22",
   "description": "Minimal H(TTP) framework built for high performance and portability.",
   "homepage": "https://h3.dev",
   "license": "MIT",
@@ -10,8 +10,7 @@
   },
   "files": [
     "bin",
-    "dist",
-    "skills"
+    "dist"
   ],
   "type": "module",
   "sideEffects": false,
@@ -51,47 +50,47 @@
   },
   "dependencies": {
     "rou3": "^0.8.1",
-    "srvx": "^0.11.12"
+    "srvx": "^0.11.15"
   },
   "devDependencies": {
-    "@happy-dom/global-registrator": "^20.8.4",
+    "@happy-dom/global-registrator": "^20.9.0",
     "@mitata/counters": "^0.0.8",
     "@types/connect": "^3.4.38",
     "@types/express": "^5.0.6",
-    "@types/node": "^25.5.0",
+    "@types/node": "^25.6.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
-    "@typescript/native-preview": "^7.0.0-dev.20260315.1",
-    "@vitest/coverage-v8": "^4.1.0",
+    "@typescript/native-preview": "^7.0.0-dev.20260505.1",
+    "@vitest/coverage-v8": "^4.1.5",
     "automd": "^0.4.3",
     "changelogen": "^0.6.2",
     "connect": "^3.7.0",
-    "cookie-es": "^2.0.0",
-    "crossws": "^0.4.4",
-    "elysia": "^1.4.27",
-    "esbuild": "^0.27.4",
+    "cookie-es": "^3.1.1",
+    "crossws": "^0.4.5",
+    "elysia": "^1.4.28",
+    "esbuild": "^0.28.0",
     "express": "^5.2.1",
     "fetchdts": "^0.1.7",
     "get-port-please": "^3.2.0",
-    "h3": "^2.0.1-rc.16",
-    "h3-nightly": "^2.0.0-20260315-182620-4dea405",
-    "happy-dom": "^20.8.4",
-    "hono": "^4.12.8",
+    "h3": "workspace:*",
+    "h3-nightly": "^2.0.0-20260501-191626-07c118d",
+    "happy-dom": "^20.9.0",
+    "hono": "^4.12.17",
     "magic-string": "^0.30.21",
-    "mdzilla": "^0.0.6",
-    "memoirist": "^0.4.0",
+    "mdzilla": "^0.2.1",
+    "memoirist": "^1.0.1",
     "mitata": "^1.0.34",
-    "obuild": "^0.4.32",
-    "oxc-parser": "^0.119.0",
-    "oxfmt": "^0.40.0",
-    "oxlint": "^1.55.0",
-    "oxlint-tsgolint": "^0.17.0",
-    "react": "^19.2.4",
-    "react-dom": "^19.2.4",
-    "typescript": "^5.9.3",
-    "vite": "^8.0.0",
-    "vitest": "^4.1.0",
-    "zod": "^4.3.6"
+    "obuild": "^0.4.34",
+    "oxc-parser": "^0.129.0",
+    "oxfmt": "^0.48.0",
+    "oxlint": "^1.63.0",
+    "oxlint-tsgolint": "^0.22.1",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.10",
+    "vitest": "^4.1.5",
+    "zod": "^4.4.3"
   },
   "peerDependencies": {
     "crossws": "^0.4.1"
@@ -102,10 +101,11 @@
     }
   },
   "resolutions": {
-    "h3": "link:."
+    "h3": "link:.",
+    "h3-nightly": "latest"
   },
   "engines": {
     "node": ">=20.11.1"
   },
-  "packageManager": "pnpm@10.32.1"
+  "packageManager": "pnpm@10.33.3"
 }

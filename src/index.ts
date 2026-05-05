@@ -3,7 +3,6 @@
 export type {
   H3Config,
   H3CoreConfig,
-  H3Plugin,
   H3Route,
   H3RouteMeta,
   HTTPMethod,
@@ -14,9 +13,12 @@ export type {
   MatchedRoute,
 } from "./types/h3.ts";
 
-export { definePlugin } from "./types/h3.ts";
-
 export { H3Core, H3 } from "./h3.ts";
+
+// Plugins
+
+export type { H3Plugin } from "./plugin.ts";
+export { definePlugin } from "./plugin.ts";
 
 // Event
 
@@ -75,9 +77,9 @@ export {
 
 // ------ Utils ------
 
-// Route
+// Routing
 
-export { type RouteDefinition, defineRoute } from "./utils/route.ts";
+export { type RouteDefinition, defineRoute, removeRoute } from "./utils/route.ts";
 
 // Request
 
@@ -100,7 +102,14 @@ export {
 
 // Response
 
-export { writeEarlyHints, redirect, iterable, noContent, html } from "./utils/response.ts";
+export {
+  writeEarlyHints,
+  redirect,
+  redirectBack,
+  iterable,
+  noContent,
+  html,
+} from "./utils/response.ts";
 
 // Middleware
 

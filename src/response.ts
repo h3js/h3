@@ -14,8 +14,9 @@ export function toResponse(
   config: H3Config = {},
 ): Response | Promise<Response> {
   if (typeof (val as PromiseLike<unknown>)?.then === "function") {
-    return ((val as Promise<unknown>).catch?.((error) => error) || Promise.resolve(val)).then(
+    return (val as Promise<unknown>).then(
       (resolvedVal) => toResponse(resolvedVal, event, config),
+      (r) => toResponse(typeof r === "number" ? new HTTPError({ status: r }) : r, event, config),
     ) as Promise<Response>;
   }
 

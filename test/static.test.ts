@@ -130,6 +130,15 @@ describeMatrix("serve static", (t, { it, expect }) => {
     }
   });
 
+  it("does not pass double-encoded dot segments as traversal to backend", async () => {
+    const res = await t.fetch("/%252e%252e/%252e%252e/etc/passwd");
+    const text = await res.text();
+    // After first decode: %2e%2e/%2e%2e/etc/passwd
+    // Backend must NOT see %2e%2e which could be resolved as .. by downstream
+    expect(text).not.toContain("%2e%2e");
+    expect(text).not.toContain("%2E%2E");
+  });
+
   it("allows legitimate paths with dots", async () => {
     const allowed = [
       "/_...grid_123.js",

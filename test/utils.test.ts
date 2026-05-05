@@ -1,6 +1,7 @@
 import { beforeEach } from "vitest";
 import {
   redirect,
+  redirectBack,
   withBase,
   assertMethod,
   getQuery,
@@ -22,13 +23,7 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
       expect(res1.headers.get("content-type")).toBe("text/html; charset=utf-8");
       expect(await res1.text()).toBe("<h1>Hello</h1>");
 
-      t.app.get(
-        "/test2",
-        () =>
-          html`
-            <h1>Hello</h1>
-          `,
-      );
+      t.app.get("/test2", () => html` <h1>Hello</h1> `);
       const res2 = await t.fetch("/test2");
       expect(res2.headers.get("content-type")).toBe("text/html; charset=utf-8");
       expect((await res2.text()).trim()).toBe("<h1>Hello</h1>");
@@ -55,6 +50,80 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
     });
   });
 
+  describe("redirectBack", () => {
+    it("redirects to referer pathname when same origin", async () => {
+      t.app.post("/submit", (event) => redirectBack(event));
+      const baseUrl = t.url || "http://localhost";
+      const res = await t.fetch("/submit", {
+        method: "POST",
+        headers: { referer: `${baseUrl}/form` },
+      });
+      expect(res.status).toBe(302);
+      expect(res.headers.get("location")).toBe("/form");
+    });
+
+    it("strips query string from referer by default", async () => {
+      t.app.post("/submit", (event) => redirectBack(event));
+      const baseUrl = t.url || "http://localhost";
+      const res = await t.fetch("/submit", {
+        method: "POST",
+        headers: { referer: `${baseUrl}/page?token=secret&action=delete` },
+      });
+      expect(res.headers.get("location")).toBe("/page");
+    });
+
+    it("preserves query string with allowQuery", async () => {
+      t.app.post("/submit", (event) => redirectBack(event, { allowQuery: true }));
+      const baseUrl = t.url || "http://localhost";
+      const res = await t.fetch("/submit", {
+        method: "POST",
+        headers: { referer: `${baseUrl}/page?tab=settings` },
+      });
+      expect(res.headers.get("location")).toBe("/page?tab=settings");
+    });
+
+    it("uses fallback when referer is cross-origin", async () => {
+      t.app.post("/submit", (event) => redirectBack(event, { fallback: "/home" }));
+      const res = await t.fetch("/submit", {
+        method: "POST",
+        headers: { referer: "https://evil.com/steal" },
+      });
+      expect(res.headers.get("location")).toBe("/home");
+    });
+
+    it("uses fallback when no referer", async () => {
+      t.app.post("/submit", (event) => redirectBack(event, { fallback: "/dashboard" }));
+      const res = await t.fetch("/submit", { method: "POST" });
+      expect(res.headers.get("location")).toBe("/dashboard");
+    });
+
+    it("defaults fallback to /", async () => {
+      t.app.post("/submit", (event) => redirectBack(event));
+      const res = await t.fetch("/submit", { method: "POST" });
+      expect(res.headers.get("location")).toBe("/");
+    });
+
+    it("prevents open redirect via protocol-relative path in referer", async () => {
+      t.app.post("/submit", (event) => redirectBack(event));
+      const baseUrl = t.url || "http://localhost";
+      const res = await t.fetch("/submit", {
+        method: "POST",
+        headers: { referer: `${baseUrl}//evil.com/steal` },
+      });
+      expect(res.headers.get("location")).not.toBe("//evil.com/steal");
+      expect(res.headers.get("location")).toBe("/evil.com/steal");
+    });
+
+    it("uses fallback when referer is invalid URL", async () => {
+      t.app.post("/submit", (event) => redirectBack(event, { fallback: "/safe" }));
+      const res = await t.fetch("/submit", {
+        method: "POST",
+        headers: { referer: "not-a-valid-url" },
+      });
+      expect(res.headers.get("location")).toBe("/safe");
+    });
+  });
+
   describe("withBase", () => {
     it("can prefix routes", async () => {
       t.app.use(withBase("/api", (event) => Promise.resolve(event.path)));
@@ -67,6 +136,12 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
       const result = await t.fetch("/api/test");
 
       expect(await result.text()).toBe("/api/test");
+    });
+    it("collapses leading slashes after stripping base", async () => {
+      t.app.use(withBase("/api", (event) => Promise.resolve(event.path)));
+      const result = await t.fetch("/api//evil.com");
+
+      expect(await result.text()).toBe("/evil.com");
     });
   });
 

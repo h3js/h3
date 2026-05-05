@@ -5,7 +5,8 @@ import { callMiddleware, normalizeMiddleware } from "./middleware.ts";
 import { requestWithBaseURL } from "./utils/request.ts";
 
 import type { ServerRequest } from "srvx";
-import type { H3Config, H3CoreConfig, H3Plugin, MatchedRoute, RouterContext } from "./types/h3.ts";
+import type { H3Config, H3CoreConfig, MatchedRoute, RouterContext } from "./types/h3.ts";
+import type { H3Plugin } from "./plugin.ts";
 import type { H3EventContext } from "./types/context.ts";
 import type {
   EventHandler,
@@ -29,6 +30,8 @@ import { toEventHandler } from "./handler.ts";
 export const NoHandler: EventHandler = () => kNotFound;
 
 export class H3Core implements H3CoreType {
+  static "~h3" = true;
+
   readonly config: H3CoreConfig;
 
   "~middleware": Middleware[];
@@ -124,7 +127,10 @@ export const H3 = /* @__PURE__ */ (() => {
         if (input["~middleware"].length > 0) {
           this["~middleware"].push((event, next) => {
             const originalPathname = event.url.pathname;
-            if (!originalPathname.startsWith(base)) {
+            if (
+              !originalPathname.startsWith(base) ||
+              (originalPathname.length > base.length && originalPathname[base.length] !== "/")
+            ) {
               return next();
             }
             event.url.pathname = event.url.pathname.slice(base.length) || "/";

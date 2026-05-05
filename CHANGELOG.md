@@ -2,6 +2,172 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## v2.0.1-rc.22
+
+[compare changes](https://github.com/h3js/h3/compare/v2.0.1-rc.21...v2.0.1-rc.22)
+
+### 🚀 Enhancements
+
+- **tracing:** Export `wrapHandlerWithTracing` for manual handler wrapping ([#1369](https://github.com/h3js/h3/pull/1369))
+
+### 🩹 Fixes
+
+- **toEventHandler:** Validate h3 subapp instance to pick `.handler` ([a94b7fb](https://github.com/h3js/h3/commit/a94b7fb))
+
+### 💅 Refactors
+
+- Split plugin definition ([40bddff](https://github.com/h3js/h3/commit/40bddff))
+
+### 📦 Build
+
+- Simplify chunk names ([07c118d](https://github.com/h3js/h3/commit/07c118d))
+
+### 🏡 Chore
+
+- Update deps ([a7a0460](https://github.com/h3js/h3/commit/a7a0460))
+
+### ❤️ Contributors
+
+- Pooya Parsa ([@pi0](https://github.com/pi0))
+- Abdelrahman Awad <abdelrahman.awad@sentry.io>
+
+## v2.0.1-rc.21
+
+[compare changes](https://github.com/h3js/h3/compare/v2.0.1-rc.20...v2.0.1-rc.21)
+
+### 🚀 Enhancements
+
+- Coerce thrown number/string to HTTPError ([#1372](https://github.com/h3js/h3/pull/1372))
+
+### 🩹 Fixes
+
+- **setCookie:** Handle `encode` and `stringify` serialize options ([#1377](https://github.com/h3js/h3/pull/1377))
+- **event-stream:** Do not emit unhandled rejection when readable side is canceled ([#1376](https://github.com/h3js/h3/pull/1376))
+- **withoutBase:** Collapse leading slashes ([64acfe6](https://github.com/h3js/h3/commit/64acfe6))
+
+### 📖 Documentation
+
+- Fix typo in error handling ([#1364](https://github.com/h3js/h3/pull/1364))
+
+### 🏡 Chore
+
+- Update deps ([e2f8cbd](https://github.com/h3js/h3/commit/e2f8cbd))
+- Update deps ([4e38f49](https://github.com/h3js/h3/commit/4e38f49))
+
+### ❤️ Contributors
+
+- Pooya Parsa ([@pi0](https://github.com/pi0))
+- Max <maximogarciamtnez@gmail.com>
+- Drackin Best ([@Drackin](https://github.com/Drackin))
+- Kevin Dyes <kevin.dyes@icloud.com>
+- Daniel Roe ([@danielroe](https://github.com/danielroe))
+
+## v2.0.1-rc.20
+
+[compare changes](https://github.com/h3js/h3/compare/v2.0.1-rc.19...v2.0.1-rc.20)
+
+### 💅 Refactors
+
+- Pass single obj to `serializeCookie` ([a0761e9](https://github.com/h3js/h3/commit/a0761e9))
+- Mark `new TextEncoder` as pure ([9e4e64e](https://github.com/h3js/h3/commit/9e4e64e))
+
+### 📦 Build
+
+- Upgrade mdzilla to 0.2 ([2907555](https://github.com/h3js/h3/commit/2907555))
+
+### 🏡 Chore
+
+- Update cookie-es ([84bc9bc](https://github.com/h3js/h3/commit/84bc9bc))
+- Update deps ([0a60714](https://github.com/h3js/h3/commit/0a60714))
+
+### ❤️ Contributors
+
+- Pooya Parsa ([@pi0](https://github.com/pi0))
+
+## v2.0.1-rc.19
+
+[compare changes](https://github.com/h3js/h3/compare/v2.0.1-rc.18...v2.0.1-rc.19)
+
+### 🩹 Fixes
+
+- **body:** Enforce stream-based body size check regardless of content-length header ([708a3aa](https://github.com/h3js/h3/commit/708a3aa))
+
+### 💅 Refactors
+
+- Upgrade cookie-es to v3 ([9d244a7](https://github.com/h3js/h3/commit/9d244a7))
+
+### 📖 Documentation
+
+- Remove `await-thenable` lint rule and fix invalid `await` usage ([#1353](https://github.com/h3js/h3/pull/1353))
+
+### 📦 Build
+
+- Move docs to dist ([e87ceca](https://github.com/h3js/h3/commit/e87ceca))
+
+### 🏡 Chore
+
+- Update deps ([88ce5cd](https://github.com/h3js/h3/commit/88ce5cd))
+- Remove unused import ([766cd39](https://github.com/h3js/h3/commit/766cd39))
+
+### ❤️ Contributors
+
+- Pooya Parsa ([@pi0](https://github.com/pi0))
+- Nick Spaargaren ([@nickspaargaren](https://github.com/nickspaargaren))
+
+## v2.0.1-rc.18
+
+[compare changes](https://github.com/h3js/h3/compare/v2.0.1-rc.17...v2.0.1-rc.18)
+
+### 🩹 Fixes
+
+- **utils:** Prevent open redirect via protocol-relative path in `redirectBack()` ([459a1c6](https://github.com/h3js/h3/commit/459a1c6))
+- **cookie:** Prevent unbounded chunked cookie count ([399257c](https://github.com/h3js/h3/commit/399257c))
+
+### ❤️ Contributors
+
+- Pooya Parsa ([@pi0](https://github.com/pi0))
+
+## v2.0.1-rc.17
+
+[compare changes](https://github.com/h3js/h3/compare/v1.15.8...v2.0.1-rc.17)
+
+### 🚀 Enhancements
+
+- Add redirectBack utility ([#1329](https://github.com/h3js/h3/pull/1329))
+- Add `removeRoute` ([#1331](https://github.com/h3js/h3/pull/1331))
+
+### 🩹 Fixes
+
+- **cors:** Preserve CORS headers on error responses ([#1352](https://github.com/h3js/h3/pull/1352))
+- **sse:** Mark writer as closed on write failure ([#1322](https://github.com/h3js/h3/pull/1322))
+- **request:** Include `Allow` header in 405 response ([#1314](https://github.com/h3js/h3/pull/1314))
+- **sse:** Sanitize carriage returns in event stream data and comments ([79cabe3](https://github.com/h3js/h3/commit/79cabe3))
+- **mount:** Normalize percent-encoded pathname in `requestWithBaseURL` ([0295f90](https://github.com/h3js/h3/commit/0295f90))
+- **static:** Prevent path traversal via double-encoded dot segments ([8e9993f](https://github.com/h3js/h3/commit/8e9993f))
+- **mount:** Enforce path segment boundary in `startsWith` check ([7ccc9e2](https://github.com/h3js/h3/commit/7ccc9e2))
+
+### 📖 Documentation
+
+- Fix typo ([#1351](https://github.com/h3js/h3/pull/1351))
+- Improve security notes about proxy utils ([448e7eb](https://github.com/h3js/h3/commit/448e7eb))
+
+### 🏡 Chore
+
+- Enable type-aware linting with oxclint ([#1349](https://github.com/h3js/h3/pull/1349))
+- Update deps ([28a3863](https://github.com/h3js/h3/commit/28a3863))
+
+### ✅ Tests
+
+- Update bundle tests ([44f295d](https://github.com/h3js/h3/commit/44f295d))
+
+### ❤️ Contributors
+
+- Pooya Parsa ([@pi0](https://github.com/pi0))
+- Wind ([@productdevbook](https://github.com/productdevbook))
+- Terminal Chai ([@terminalchai](https://github.com/terminalchai))
+- Nick Spaargaren ([@nickspaargaren](https://github.com/nickspaargaren))
+- Gabriel Trzimajewski ([@Sn0wye](https://github.com/Sn0wye))
+
 ## v2.0.1-rc.16
 
 [compare changes](https://github.com/h3js/h3/compare/v2.0.1-rc.15...v2.0.1-rc.16)

@@ -162,9 +162,13 @@ async function isBodySizeWithin(event: HTTPEvent, limit: number): Promise<boolea
       // https://datatracker.ietf.org/doc/html/rfc7230#section-3.3.2
       throw new HTTPError({ status: 400 });
     }
-    return +contentLength <= limit;
+    // Fail-fast: reject if declared size exceeds limit
+    if (+contentLength > limit) {
+      return false;
+    }
   }
 
+  // Always verify actual body size via stream
   const reader = req.clone().body!.getReader();
   let chunk = await reader.read();
   let size = 0;
