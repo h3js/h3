@@ -1,5 +1,5 @@
 import type { H3EventContext } from "./context.ts";
-import type { HTTPHandler, EventHandler, Middleware } from "./handler.ts";
+import type { HTTPHandler, EventHandler, Middleware, EventHandlerRequest } from "./handler.ts";
 import type { HTTPError } from "../error.ts";
 import type { MaybePromise } from "./_utils.ts";
 import type { FetchHandler, ServerRequest } from "srvx";
@@ -114,7 +114,7 @@ export declare class H3Core {
   "~addRoute"(_route: H3Route): void;
 }
 
-export declare class H3 extends H3Core {
+export declare class H3<_ContextT extends H3EventContext = H3EventContext> extends H3Core {
   /** @internal */
   "~rou3": RouterContext;
 
@@ -128,14 +128,27 @@ export declare class H3 extends H3Core {
   request(
     request: ServerRequest | URL | string,
     options?: RequestInit,
-    context?: H3EventContext,
+    context?: _ContextT,
   ): Response | Promise<Response>;
 
   /**
    * Register a global middleware.
    */
-  use(route: string, handler: Middleware | H3, opts?: MiddlewareOptions): this;
-  use(handler: Middleware | H3, opts?: MiddlewareOptions): this;
+  use(
+    route: string,
+    handler: Middleware<_ContextT> | H3<_ContextT>,
+    opts?: MiddlewareOptions,
+  ): this;
+  use(handler: Middleware<_ContextT> | H3<_ContextT>, opts?: MiddlewareOptions): this;
+
+  /**
+   * Register a key in the event context
+   */
+  addEventContext<K extends string, V>(
+    key: K,
+    valFn: (event: H3Event<EventHandlerRequest, _ContextT>) => V,
+  ): H3<_ContextT & Record<K, V>>;
+  addEventContext<K extends string, V>(key: K, val: V): H3<_ContextT & Record<K, V>>;
 
   /**
    * Register a route handler for the specified HTTP method and route.
@@ -143,7 +156,7 @@ export declare class H3 extends H3Core {
   on(
     method: HTTPMethod | Lowercase<HTTPMethod> | "",
     route: string,
-    handler: HTTPHandler,
+    handler: HTTPHandler<_ContextT>,
     opts?: RouteOptions,
   ): this;
 
@@ -164,15 +177,15 @@ export declare class H3 extends H3Core {
   /**
    * Register a route handler for all HTTP methods.
    */
-  all(route: string, handler: HTTPHandler, opts?: RouteOptions): this;
+  all(route: string, handler: HTTPHandler<_ContextT>, opts?: RouteOptions): this;
 
-  get(route: string, handler: HTTPHandler, opts?: RouteOptions): this;
-  post(route: string, handler: HTTPHandler, opts?: RouteOptions): this;
-  put(route: string, handler: HTTPHandler, opts?: RouteOptions): this;
-  delete(route: string, handler: HTTPHandler, opts?: RouteOptions): this;
-  patch(route: string, handler: HTTPHandler, opts?: RouteOptions): this;
-  head(route: string, handler: HTTPHandler, opts?: RouteOptions): this;
-  options(route: string, handler: HTTPHandler, opts?: RouteOptions): this;
-  connect(route: string, handler: HTTPHandler, opts?: RouteOptions): this;
-  trace(route: string, handler: HTTPHandler, opts?: RouteOptions): this;
+  get(route: string, handler: HTTPHandler<_ContextT>, opts?: RouteOptions): this;
+  post(route: string, handler: HTTPHandler<_ContextT>, opts?: RouteOptions): this;
+  put(route: string, handler: HTTPHandler<_ContextT>, opts?: RouteOptions): this;
+  delete(route: string, handler: HTTPHandler<_ContextT>, opts?: RouteOptions): this;
+  patch(route: string, handler: HTTPHandler<_ContextT>, opts?: RouteOptions): this;
+  head(route: string, handler: HTTPHandler<_ContextT>, opts?: RouteOptions): this;
+  options(route: string, handler: HTTPHandler<_ContextT>, opts?: RouteOptions): this;
+  connect(route: string, handler: HTTPHandler<_ContextT>, opts?: RouteOptions): this;
+  trace(route: string, handler: HTTPHandler<_ContextT>, opts?: RouteOptions): this;
 }

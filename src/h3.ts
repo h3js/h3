@@ -99,7 +99,7 @@ export class H3Core implements H3CoreType {
 }
 
 export const H3 = /* @__PURE__ */ (() => {
-  class H3 extends H3Core {
+  class H3<_ContextT extends H3EventContext = H3EventContext> extends H3Core {
     "~rou3": RouterContext;
 
     constructor(config: H3Config = {}) {
@@ -117,7 +117,7 @@ export const H3 = /* @__PURE__ */ (() => {
     request(
       _req: ServerRequest | URL | string,
       _init?: RequestInit,
-      context?: H3EventContext,
+      context?: _ContextT,
     ): Response | Promise<Response> {
       return this["~request"](toRequest(_req, _init), context);
     }
@@ -203,6 +203,16 @@ export const H3 = /* @__PURE__ */ (() => {
       }
       this["~middleware"].push(normalizeMiddleware(fn as Middleware, { ...opts, route }));
       return this;
+    }
+
+    addEventContext<K extends string, V>(
+      key: K,
+      valOrFn: unknown,
+    ): H3Type<_ContextT & Record<K, V>> {
+      this.use(((event) => {
+        event.context[key] = typeof valOrFn === "function" ? valOrFn(event) : valOrFn;
+      }) as Middleware);
+      return this as unknown as H3Type<_ContextT & Record<K, V>>;
     }
   }
 
