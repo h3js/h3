@@ -205,14 +205,10 @@ export const H3 = /* @__PURE__ */ (() => {
       return this;
     }
 
-    addEventContext<K extends string, V>(
-      key: K,
-      valOrFn: unknown,
-    ): H3Type<_ContextT & Record<K, V>> {
-      this.use(((event) => {
+    extendContext(key: string, valOrFn: unknown): this {
+      return this.use(((event) => {
         event.context[key] = typeof valOrFn === "function" ? valOrFn(event) : valOrFn;
       }) as Middleware);
-      return this as unknown as H3Type<_ContextT & Record<K, V>>;
     }
   }
 

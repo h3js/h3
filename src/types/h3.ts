@@ -142,13 +142,14 @@ export declare class H3<_ContextT extends H3EventContext = H3EventContext> exten
   use(handler: Middleware<_ContextT> | H3<_ContextT>, opts?: MiddlewareOptions): this;
 
   /**
-   * Register a key in the event context
+   * Extend the event context with a key and a typed value
+   * @returns a new H3 instance with the extended context type
    */
-  addEventContext<K extends string, V>(
+  extendContext<K extends string, V>(
     key: K,
     valFn: (event: H3Event<EventHandlerRequest, _ContextT>) => V,
   ): H3<_ContextT & Record<K, V>>;
-  addEventContext<K extends string, V>(key: K, val: V): H3<_ContextT & Record<K, V>>;
+  extendContext<K extends string, V>(key: K, val: V): H3<_ContextT & Record<K, V>>;
 
   /**
    * Register a route handler for the specified HTTP method and route.
