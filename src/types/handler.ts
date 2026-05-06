@@ -4,7 +4,7 @@ import type { H3Event, HTTPEvent } from "../event.ts";
 import type { MaybePromise } from "./_utils.ts";
 import type { H3RouteMeta } from "./h3.ts";
 import type { H3Core } from "../h3.ts";
-import type { H3EventContext } from "../index.ts";
+import type { H3EventContext } from "./context.ts";
 
 export type HTTPHandler<_ContextT extends H3EventContext = H3EventContext> =
   | EventHandler<EventHandlerRequest, EventHandlerResponse, _ContextT>
@@ -29,7 +29,7 @@ export interface EventHandlerObject<
 > {
   handler?: EventHandler<_RequestT, _ResponseT, _ContextT>;
   fetch?: FetchHandler;
-  middleware?: Middleware[];
+  middleware?: Middleware<_ContextT>[];
   meta?: H3RouteMeta;
 }
 

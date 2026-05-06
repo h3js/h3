@@ -60,8 +60,8 @@ export interface H3Route {
 
 // --- H3 App ---
 
-export type RouteOptions = {
-  middleware?: Middleware[];
+export type RouteOptions<_ContextT extends H3EventContext = H3EventContext> = {
+  middleware?: Middleware<_ContextT>[];
   meta?: H3RouteMeta;
 };
 
