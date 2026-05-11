@@ -114,8 +114,21 @@ export function writeEarlyHints(
 ): void | Promise<void> {
   // Use native early hints if available (Node.js)
   if (event.runtime?.node?.res?.writeEarlyHints) {
+    // Node.js writeEarlyHints only reads hints.link (lowercase) and returns
+    // early without calling the callback if it is missing. Normalize the key
+    // to prevent the promise from never resolving.
+    const normalizedHints: Record<string, string | string[]> = { ...hints };
+    for (const [name, value] of Object.entries(hints)) {
+      if (name.toLowerCase() === "link" && name !== "link") {
+        delete normalizedHints[name];
+        normalizedHints.link = value;
+      }
+    }
+    if (!normalizedHints.link) {
+      return;
+    }
     return new Promise((resolve) => {
-      event.runtime?.node?.res?.writeEarlyHints(hints, () => resolve());
+      event.runtime?.node?.res?.writeEarlyHints(normalizedHints, () => resolve());
     });
   }
 
