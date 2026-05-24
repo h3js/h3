@@ -106,30 +106,31 @@ export function validatedRequest<
   // Create proxy for lazy body validation
   return new Proxy(req, {
     get(_target, prop: keyof ServerRequest) {
-      if (validate.body) {
-        if (prop === "json") {
-          return function _validatedJson() {
-            return req
-              .json()
-              .then((data) => validate.body!["~standard"].validate(data))
-              .then((result) => {
-                if (result.issues) {
-                  throw createValidationError(
-                    validate.onError?.({ _source: "body", ...result }) || {
-                      message: VALIDATION_FAILED,
-                      issues: result.issues,
-                    },
-                  );
-                }
+      // This proxy is only created when `validate.body` is set (the function
+      // returns the unwrapped request above otherwise), so the body checks
+      // always apply here — no inner `if (validate.body)` guard is needed.
+      if (prop === "json") {
+        return function _validatedJson() {
+          return req
+            .json()
+            .then((data) => validate.body!["~standard"].validate(data))
+            .then((result) => {
+              if (result.issues) {
+                throw createValidationError(
+                  validate.onError?.({ _source: "body", ...result }) || {
+                    message: VALIDATION_FAILED,
+                    issues: result.issues,
+                  },
+                );
+              }
 
-                return result.value;
-              });
-          };
-        } else if (reqBodyKeys.has(prop)) {
-          throw new TypeError(
-            `Cannot access .${prop} on request with JSON validation enabled. Use .json() instead.`,
-          );
-        }
+              return result.value;
+            });
+        };
+      } else if (reqBodyKeys.has(prop)) {
+        throw new TypeError(
+          `Cannot access .${prop} on request with JSON validation enabled. Use .json() instead.`,
+        );
       }
       return Reflect.get(req, prop);
     },
