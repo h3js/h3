@@ -470,6 +470,28 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
   });
 
   describe("writeEarlyHints", () => {
+    it.runIf(t.target === "node")(
+      "resolves when native writeEarlyHints callback is not invoked",
+      async () => {
+        t.app.get("/", async (event) => {
+          await writeEarlyHints(event, {});
+          return "ok";
+        });
+        t.app.get("/with-hints", async (event) => {
+          await writeEarlyHints(event, {
+            Link: "</style.css>; rel=preload; as=style",
+          });
+          return "ok";
+        });
+
+        const res = await t.fetch("/");
+        expect(await res.text()).toBe("ok");
+
+        const res2 = await t.fetch("/with-hints");
+        expect(await res2.text()).toBe("ok");
+      },
+    );
+
     // In Node.js, native writeEarlyHints sends 103 Early Hints status,
     // so the Link header fallback is not used. Test fallback in web target only.
     it.skipIf(t.target === "node")(

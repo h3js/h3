@@ -114,8 +114,28 @@ export function writeEarlyHints(
 ): void | Promise<void> {
   // Use native early hints if available (Node.js)
   if (event.runtime?.node?.res?.writeEarlyHints) {
+    if (Object.keys(hints).length === 0) {
+      return;
+    }
     return new Promise((resolve) => {
-      event.runtime?.node?.res?.writeEarlyHints(hints, () => resolve());
+      let settled = false;
+      const done = () => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        resolve();
+      };
+
+      try {
+        event.runtime?.node?.res?.writeEarlyHints(hints, done);
+      } catch {
+        done();
+        return;
+      }
+
+      // Node.js does not reliably invoke the writeEarlyHints callback (h3js/h3#1383).
+      queueMicrotask(done);
     });
   }
 
