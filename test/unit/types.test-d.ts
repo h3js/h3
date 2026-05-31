@@ -7,6 +7,7 @@ import {
   readValidatedBody,
   getValidatedQuery,
   defineValidatedHandler,
+  defineEventHandler,
 } from "../../src/index.ts";
 import { z } from "zod";
 
@@ -112,6 +113,34 @@ describe("types", () => {
         const body = await getValidatedQuery(event, validator);
         expectTypeOf(body).not.toBeAny();
         expectTypeOf(body).toEqualTypeOf<{ id: string }>();
+      });
+    });
+
+    it("typed via zod schema", () => {
+      defineHandler(async (event) => {
+        const query = await getValidatedQuery(
+          event,
+          z.object({
+            search: z.string().optional(),
+          }),
+        );
+        expectTypeOf(query).not.toBeAny();
+        expectTypeOf(query).toEqualTypeOf<{ search?: string | undefined }>();
+      });
+    });
+
+    it("typed via zod schema in defineEventHandler object", () => {
+      defineEventHandler({
+        async handler(event) {
+          const query = await getValidatedQuery(
+            event,
+            z.object({
+              search: z.string().optional(),
+            }),
+          );
+          expectTypeOf(query).not.toBeAny();
+          expectTypeOf(query).toEqualTypeOf<{ search?: string | undefined }>();
+        },
       });
     });
 
