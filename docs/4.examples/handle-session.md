@@ -133,3 +133,33 @@ app.use(async (event) => {
   return session.data;
 });
 ```
+
+Every option is optional except `password`. The `name` option is worth calling out: it sets the cookie (and the `x-{name}-session` header) used to store the session, and defaults to `h3`. That default is why the earlier examples set a cookie named `h3`.
+
+## Use Multiple Sessions
+
+Because each session is stored under its own `name`, you can run several independent sessions on the same request. They live in separate cookies and never overwrite each other, which is useful for keeping unrelated concerns apart, such as a long-lived auth session and a short-lived flash message:
+
+```js
+import { useSession } from "h3";
+
+app.use(async (event) => {
+  const auth = await useSession(event, {
+    name: "auth",
+    password: "80d42cfb-1cd2-462c-8f17-e3237d9027e9",
+  });
+
+  const flash = await useSession(event, {
+    name: "flash",
+    password: "80d42cfb-1cd2-462c-8f17-e3237d9027e9",
+  });
+
+  await flash.update({ message: "Saved!" });
+
+  // `auth` and `flash` are backed by different cookies, so they stay separate
+  return { user: auth.data.user, flash: flash.data.message };
+});
+```
+
+> [!NOTE]
+> Give each session a distinct `name`. Two sessions that share a name share the same cookie, so the last write wins.
