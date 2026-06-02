@@ -7,8 +7,8 @@ import {
   readValidatedBody,
   getValidatedQuery,
   defineValidatedHandler,
-  defineEventHandler,
 } from "../../src/index.ts";
+import { defineEventHandler } from "../../src/_deprecated.ts";
 import { z } from "zod";
 
 describe("types", () => {
