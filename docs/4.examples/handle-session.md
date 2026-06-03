@@ -34,7 +34,7 @@ app.use(async (event) => {
 ```
 
 > [!WARNING]
-> You must provide a password to encrypt the session.
+> You must provide a password to encrypt the session. The examples below use a hardcoded value so they stay readable, but in a real app load it from an environment variable such as `process.env.SESSION_PASSWORD`, keep it a strong secret of at least 32 characters, and never commit it to source control.
 
 This will initialize a session and return an header `Set-Cookie` with a cookie named `h3` and an encrypted content.
 
