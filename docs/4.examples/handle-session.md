@@ -134,7 +134,7 @@ app.use(async (event) => {
 });
 ```
 
-Every option is optional except `password`. The `name` option is worth calling out: it sets the cookie (and the matching `x-<name>-session` header, so the default name `h3` produces the `x-h3-session` header seen earlier) used to store the session, and defaults to `h3`. That default is why the earlier examples set a cookie named `h3`.
+Every option is optional except `password`. The `name` option is worth calling out: it sets the cookie used to store the session and defaults to `h3`. H3 also reads the session from a request header derived from `name`, which it normalizes to lowercase as `x-${name.toLowerCase()}-session`, so the default name `h3` produces the `x-h3-session` header seen earlier. A mixed-case `name` like `MyApp` still resolves to a lowercase `x-myapp-session` header, while the cookie keeps the original casing. That default is why the earlier examples set a cookie named `h3`.
 
 ## Use Multiple Sessions
 
