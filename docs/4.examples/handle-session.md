@@ -134,7 +134,7 @@ app.use(async (event) => {
 });
 ```
 
-Every option is optional except `password`. The `name` option is worth calling out: it sets the cookie (and the `x-{name}-session` header) used to store the session, and defaults to `h3`. That default is why the earlier examples set a cookie named `h3`.
+Every option is optional except `password`. The `name` option is worth calling out: it sets the cookie (and the matching `x-<name>-session` header, so the default name `h3` produces the `x-h3-session` header seen earlier) used to store the session, and defaults to `h3`. That default is why the earlier examples set a cookie named `h3`.
 
 ## Use Multiple Sessions
 
