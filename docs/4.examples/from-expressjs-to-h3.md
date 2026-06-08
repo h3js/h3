@@ -245,7 +245,7 @@ app
     console.log(`[${event.req.method}] ${event.url.pathname}`);
   }))
   .use(onResponse((response, event) => {
-    console.log(`[${event.req.method}] ${event.url.pathname} -> ${response.statusCode}`);
+    console.log(`[${event.req.method}] ${event.url.pathname} -> ${response.status}`);
   }));
 
 app.get("/", () => "Hello World!");
