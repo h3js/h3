@@ -377,7 +377,7 @@ export function getRequestHost(event: HTTPEvent, opts: { xForwardedHost?: boolea
 /**
  * Get the request protocol.
  *
- * If `x-forwarded-proto` header is set to "https", it will return "https". You can disable this behavior by setting `xForwardedProto` to `false`.
+ * If `x-forwarded-proto` header is set to "https", it will return "https". If the header contains a comma-separated list of protocols, the first entry is used. You can disable this behavior by setting `xForwardedProto` to `false`.
  *
  * If protocol cannot be determined, it will default to "http".
  *
