@@ -54,7 +54,10 @@ export function toRequest(
     if (url[0] === "/") {
       const headers = options?.headers ? new Headers(options.headers) : undefined;
       const host = headers?.get("host") || "localhost";
-      const proto = headers?.get("x-forwarded-proto") === "https" ? "https" : "http";
+      const proto =
+        (headers?.get("x-forwarded-proto") || "").split(",")[0].trim() === "https"
+          ? "https"
+          : "http";
       url = `${proto}://${host}${url}`;
     }
     return new Request(url, options);
@@ -388,7 +391,8 @@ export function getRequestProtocol(
   opts: { xForwardedProto?: boolean } = {},
 ): "http" | "https" | (string & {}) {
   if (opts.xForwardedProto !== false) {
-    const forwardedProto = event.req.headers.get("x-forwarded-proto");
+    const _header = event.req.headers.get("x-forwarded-proto");
+    const forwardedProto = (_header || "").split(",")[0].trim();
     if (forwardedProto === "https") {
       return "https";
     }
