@@ -1,6 +1,8 @@
 import { vi } from "vitest";
 import { Readable as NodeStreamReadable, Transform as NodeStreamTransoform } from "node:stream";
-import { HTTPError, fromNodeHandler, onResponse } from "../src/index.ts";
+import { fromNodeHandler } from "../src/adapters.ts";
+import { HTTPError } from "../src/error.ts";
+import { onResponse } from "../src/utils/middleware.ts";
 import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("app", (t, { it, expect }) => {
