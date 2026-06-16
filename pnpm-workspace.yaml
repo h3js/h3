@@ -3,7 +3,7 @@ packages:
   - examples
 
 allowBuilds:
-  '@parcel/watcher': false
+  "@parcel/watcher": false
   esbuild: false
 
 ignoredBuiltDependencies:
