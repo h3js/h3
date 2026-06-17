@@ -21,8 +21,7 @@ export function sanitizeStatusCode(statusCode?: string | number, defaultStatusCo
   if (typeof statusCode === "string") {
     statusCode = +statusCode;
   }
-  if (statusCode < 100 || statusCode > 599) {
-    return defaultStatusCode;
-  }
-  return statusCode;
+  // A positive range check also rejects NaN (`NaN >= 100` is false); the previous
+  // `< 100 || > 599` form let NaN through for non-numeric strings like "abc".
+  return statusCode >= 100 && statusCode <= 599 ? statusCode : defaultStatusCode;
 }
