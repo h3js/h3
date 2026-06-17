@@ -200,6 +200,8 @@ export {
 
 export { type BasicAuthOptions, requireBasicAuth, basicAuth } from "./utils/auth.ts";
 
+export { type RequestIdOptions, getRequestId, requestId } from "./utils/request-id.ts";
+
 // Fingerprint
 
 export { type RequestFingerprintOptions, getRequestFingerprint } from "./utils/fingerprint.ts";
