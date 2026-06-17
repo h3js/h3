@@ -470,6 +470,19 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
   });
 
   describe("writeEarlyHints", () => {
+    it.skipIf(t.target !== "node")(
+      "resolves immediately when hints are empty on Node.js",
+      async () => {
+        t.app.get("/", async (event) => {
+          await writeEarlyHints(event, {});
+          return "ok";
+        });
+
+        const res = await t.fetch("/");
+        expect(await res.text()).toBe("ok");
+      },
+    );
+
     // In Node.js, native writeEarlyHints sends 103 Early Hints status,
     // so the Link header fallback is not used. Test fallback in web target only.
     it.skipIf(t.target === "node")(

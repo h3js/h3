@@ -112,26 +112,40 @@ export function writeEarlyHints(
   event: H3Event,
   hints: Record<string, string | string[]>,
 ): void | Promise<void> {
+  const links = getEarlyHintLinks(hints);
+  if (links.length === 0) {
+    return;
+  }
+
   // Use native early hints if available (Node.js)
   if (event.runtime?.node?.res?.writeEarlyHints) {
     return new Promise((resolve) => {
-      event.runtime?.node?.res?.writeEarlyHints(hints, () => resolve());
+      event.runtime?.node?.res?.writeEarlyHints(
+        { link: links.length === 1 ? links[0]! : links },
+        () => resolve(),
+      );
     });
   }
 
   // Fallback: Set Link headers for CDN support (only Link headers to avoid leaking sensitive headers)
+  for (const link of links) {
+    event.res.headers.append("link", link);
+  }
+}
+
+function getEarlyHintLinks(hints: Record<string, string | string[]>): string[] {
+  const links: string[] = [];
   for (const [name, value] of Object.entries(hints)) {
     if (name.toLowerCase() !== "link") {
       continue;
     }
     if (Array.isArray(value)) {
-      for (const v of value) {
-        event.res.headers.append("link", v);
-      }
+      links.push(...value);
     } else {
-      event.res.headers.append("link", value);
+      links.push(value);
     }
   }
+  return links;
 }
 
 /**
