@@ -1,6 +1,6 @@
 import { vi } from "vitest";
 import { Readable as NodeStreamReadable, Transform as NodeStreamTransoform } from "node:stream";
-import { HTTPError, fromNodeHandler } from "../src/index.ts";
+import { HTTPError, fromNodeHandler, onResponse } from "../src/index.ts";
 import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("app", (t, { it, expect }) => {
@@ -124,6 +124,27 @@ describeMatrix("app", (t, { it, expect }) => {
     expect(await res.text()).toBe("<h1>Hello world!</h1>");
     expect(res.headers.get("transfer-encoding")).toBe("chunked");
   });
+
+  it.runIf(t.target === "node")(
+    "onResponse clone does not prevent pipe body from being sent",
+    async () => {
+      t.app.use(
+        onResponse((response) => {
+          response.clone();
+        }),
+      );
+      t.app.use(() => ({
+        pipe(writable: { write: (value: string) => void; end: () => void }) {
+          writable.write("test");
+          writable.end();
+        },
+      }));
+
+      const res = await t.fetch("/");
+      expect(res.status).toBe(200);
+      expect(await res.text()).toBe("test");
+    },
+  );
 
   it.runIf(t.target === "node")("Node.js Readable Stream with Error", async () => {
     t.app.use(() => {
