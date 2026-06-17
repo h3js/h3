@@ -114,9 +114,11 @@ export function writeEarlyHints(
 ): void | Promise<void> {
   // Use native early hints if available (Node.js)
   if (event.runtime?.node?.res?.writeEarlyHints) {
-    return new Promise((resolve) => {
-      event.runtime?.node?.res?.writeEarlyHints(hints, () => resolve());
-    });
+    // Note: Node.js writeEarlyHints callback is optional and may not be invoked
+    // in all cases. We wrap in a promise but resolve immediately after the call
+    // to avoid hanging when the callback isn't invoked.
+    event.runtime?.node?.res?.writeEarlyHints(hints);
+    return Promise.resolve();
   }
 
   // Fallback: Set Link headers for CDN support (only Link headers to avoid leaking sensitive headers)
