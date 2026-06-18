@@ -19,6 +19,15 @@ export interface ProxyOptions {
   cookieDomainRewrite?: string | Record<string, string>;
   cookiePathRewrite?: string | Record<string, string>;
   onResponse?: (event: H3Event, response: Response) => void | Promise<void>;
+  /**
+   * Control how a client disconnect is reported.
+   *
+   * The incoming request's abort signal (`event.req.signal`) is always forwarded
+   * to the proxied request, so a client disconnect aborts the upstream request
+   * and releases its connection. By default the resulting abort is reported as a
+   * `502`. Set this to `true` to instead let the `AbortError` propagate.
+   */
+  propagateAbortError?: boolean;
 }
 
 /**
@@ -97,6 +106,7 @@ export async function proxy(
   opts: ProxyOptions = {},
 ): Promise<HTTPResponse> {
   const fetchOptions: RequestInit = {
+    signal: event.req.signal,
     headers: opts.headers as HeadersInit,
     ...opts.fetchOptions,
   };
@@ -108,6 +118,10 @@ export async function proxy(
         ? await event.app!.fetch(createSubRequest(event, target, fetchOptions))
         : await fetch(target, fetchOptions);
   } catch (error) {
+    // A client disconnect aborts the proxied request; surface it as-is when opted in, else as a gateway error.
+    if (opts.propagateAbortError && event.req.signal.aborted) {
+      throw error;
+    }
     throw new HTTPError({ status: 502, cause: error });
   }
 
