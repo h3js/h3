@@ -352,16 +352,19 @@ export function getRequestURL(
  * **NOTE:** This function is not stable and might have edge cases that are not handled properly.
  */
 export function toWebRequest(event: H3Event) {
-  return (
-    event.web?.request ||
-    new Request(getRequestURL(event), {
-      // @ts-ignore Undici option
-      duplex: "half",
-      method: event.method,
-      headers: event.headers,
-      body: getRequestWebStream(event),
-    })
-  );
+  if (event.web?.request) {
+    return event.web.request;
+  }
+  const controller = new AbortController();
+  event.node.req.on("close", () => controller.abort());
+  return new Request(getRequestURL(event), {
+    // @ts-ignore Undici option
+    duplex: "half",
+    method: event.method,
+    headers: event.headers,
+    body: getRequestWebStream(event),
+    signal: controller.signal,
+  });
 }
 
 /**
