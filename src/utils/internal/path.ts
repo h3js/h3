@@ -58,7 +58,16 @@ export function getPathname(path: string = "/"): string {
  * Decode percent-encoded pathname, preserving %25 (literal `%`).
  */
 export function decodePathname(pathname: string): string {
-  return decodeURI(pathname.includes("%25") ? pathname.replace(/%25/g, "%2525") : pathname);
+  try {
+    return decodeURI(pathname.includes("%25") ? pathname.replace(/%25/g, "%2525") : pathname);
+  } catch {
+    // A malformed percent-encoding (a bare "%", or an invalid UTF-8 byte
+    // sequence such as "%C0") makes decodeURI throw a URIError. This runs in
+    // the H3Event constructor, before the per-request try/catch, so an
+    // unguarded throw escapes as an uncaughtException and crashes the process.
+    // Fall back to the raw, undecoded pathname; routing then won't match it.
+    return pathname;
+  }
 }
 
 export function resolveDotSegments(path: string): string {

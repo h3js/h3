@@ -90,3 +90,20 @@ describeMatrix("security: path encoding bypass with wildcard routes", (ctx, { it
     expect(await res.json()).toEqual({ path: "/api/%2561dmin/users" });
   });
 });
+
+describeMatrix("security: malformed request URI does not crash", (ctx, { it, expect }) => {
+  beforeEach(() => {
+    ctx.app.all("/**", (event) => ({ path: event.url.pathname }));
+  });
+
+  // A malformed percent-encoding makes decodeURI throw inside the H3Event
+  // constructor, before the per-request try/catch. Unguarded, that escapes as
+  // an uncaughtException and crashes the process. It must instead route
+  // normally against the raw, undecoded pathname.
+  for (const path of ["/%", "/%C0%AF", "/foo%", "/%E0%A4%A"]) {
+    it(`handles ${path} without throwing`, async () => {
+      const res = await ctx.fetch(path);
+      expect(res.status).toBe(200);
+    });
+  }
+});
