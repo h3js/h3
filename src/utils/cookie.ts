@@ -11,6 +11,18 @@ const CHUNKED_COOKIE = "__chunked__";
 // The limit is approximately 4KB, but may vary by browser and server. We leave some room to be safe.
 const CHUNKS_MAX_LENGTH = 4000;
 
+interface SetCookieState {
+  cookies: string[];
+  keys: Array<string | undefined>;
+  distinctKeys: Set<string>;
+}
+
+const requestCookiesCache = new WeakMap<
+  Headers,
+  { source: string; cookies: Record<string, string | undefined> }
+>();
+const responseCookiesCache = new WeakMap<Headers, SetCookieState>();
+
 /**
  * Parse the request to get HTTP Cookie header string and returning an object of all cookie name-value pairs.
  * @param event {HTTPEvent} H3 event or req passed by h3 handler
@@ -20,7 +32,16 @@ const CHUNKS_MAX_LENGTH = 4000;
  * ```
  */
 export function parseCookies(event: HTTPEvent): Record<string, string | undefined> {
-  return parseCookie(event.req.headers.get("cookie") || "");
+  const headers = event.req.headers;
+  const source = headers.get("cookie") || "";
+  const cached = requestCookiesCache.get(headers);
+  if (cached && cached.source === source) {
+    return cached.cookies;
+  }
+
+  const cookies = parseCookie(source);
+  requestCookiesCache.set(headers, { source, cookies });
+  return cookies;
 }
 
 /**
@@ -88,28 +109,35 @@ export function setCookie(
   const { encode, stringify, ...attrs } = options ?? {};
   const newCookie = serializeCookie({ name, value, path: "/", ...attrs }, { encode, stringify });
 
-  // Check and add only not any other set-cookie headers already set
-  const currentCookies = event.res.headers.getSetCookie();
-  if (currentCookies.length === 0) {
-    event.res.headers.set("set-cookie", newCookie);
+  // Merge and deduplicate unique set-cookie headers
+  const headers = event.res.headers;
+  const state = _getSetCookieState(headers);
+  const newCookieKey = _getDistinctCookieKey(name, options || {});
+  if (!state.distinctKeys.has(newCookieKey)) {
+    state.cookies.push(newCookie);
+    state.keys.push(newCookieKey);
+    state.distinctKeys.add(newCookieKey);
+    if (state.cookies.length === 1) {
+      headers.set("set-cookie", newCookie);
+    } else {
+      headers.append("set-cookie", newCookie);
+    }
     return;
   }
 
-  // Merge and deduplicate unique set-cookie headers
-  const newCookieKey = _getDistinctCookieKey(name, options || {});
-  event.res.headers.delete("set-cookie");
-  for (const cookie of currentCookies) {
-    const parsed = parseSetCookie(cookie);
-    if (!parsed) {
+  const dedupedCookies = [];
+  const dedupedKeys = [];
+  for (const [index, cookie] of state.cookies.entries()) {
+    if (state.keys[index] === newCookieKey) {
       continue;
     }
-    const _key = _getDistinctCookieKey(cookie.split("=")?.[0], parsed);
-    if (_key === newCookieKey) {
-      continue;
-    }
-    event.res.headers.append("set-cookie", cookie);
+    dedupedCookies.push(cookie);
+    dedupedKeys.push(state.keys[index]);
   }
-  event.res.headers.append("set-cookie", newCookie);
+  dedupedCookies.push(newCookie);
+  dedupedKeys.push(newCookieKey);
+
+  _writeSetCookieState(headers, state, dedupedCookies, dedupedKeys);
 }
 
 /**
@@ -142,7 +170,8 @@ export function deleteCookie(
  * ```
  */
 export function getChunkedCookie(event: HTTPEvent, name: string): string | undefined {
-  const mainCookie = getCookie(event, name);
+  const cookies = parseCookies(event);
+  const mainCookie = cookies[name];
   if (!mainCookie || !mainCookie.startsWith(CHUNKED_COOKIE)) {
     return mainCookie;
   }
@@ -154,7 +183,7 @@ export function getChunkedCookie(event: HTTPEvent, name: string): string | undef
 
   const chunks = [];
   for (let i = 1; i <= chunksCount; i++) {
-    const chunk = getCookie(event, chunkCookieName(name, i));
+    const chunk = cookies[chunkCookieName(name, i)];
     if (!chunk) {
       return undefined;
     }
@@ -263,4 +292,54 @@ function getChunkedCookieCount(cookie: string | undefined): number {
 
 function chunkCookieName(name: string, chunkNumber: number): string {
   return `${name}.${chunkNumber}`;
+}
+
+function _getSetCookieState(headers: Headers): SetCookieState {
+  let state = responseCookiesCache.get(headers);
+  if (state) {
+    return state;
+  }
+
+  state = {
+    cookies: [],
+    keys: [],
+    distinctKeys: new Set(),
+  };
+  responseCookiesCache.set(headers, state);
+
+  if (!headers.has("set-cookie")) {
+    return state;
+  }
+
+  for (const cookie of headers.getSetCookie()) {
+    state.cookies.push(cookie);
+    const parsed = parseSetCookie(cookie);
+    const key = parsed ? _getDistinctCookieKey(parsed.name, parsed) : undefined;
+    state.keys.push(key);
+    if (key) {
+      state.distinctKeys.add(key);
+    }
+  }
+
+  return state;
+}
+
+function _writeSetCookieState(
+  headers: Headers,
+  state: SetCookieState,
+  cookies: string[],
+  keys: Array<string | undefined>,
+): void {
+  headers.delete("set-cookie");
+  const distinctKeys = new Set<string>();
+  for (const [index, cookie] of cookies.entries()) {
+    headers.append("set-cookie", cookie);
+    const key = keys[index];
+    if (key) {
+      distinctKeys.add(key);
+    }
+  }
+  state.cookies = cookies;
+  state.keys = keys;
+  state.distinctKeys = distinctKeys;
 }
