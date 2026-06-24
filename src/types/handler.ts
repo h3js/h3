@@ -1,5 +1,5 @@
 import type { ServerRequest } from "srvx";
-import type { TypedRequest, TypedResponse, ResponseHeaderMap } from "fetchdts";
+import type { TypedRequest, TypedResponse, TypedHeaders, RequestHeaders, ResponseHeaders, RequestHeaderMap, ResponseHeaderMap } from "fetchdts";
 import type { H3Event, HTTPEvent } from "../event.ts";
 import type { MaybePromise } from "./_utils.ts";
 import type { H3RouteMeta } from "./h3.ts";
@@ -85,3 +85,5 @@ export type InferEventInput<
   Event extends HTTPEvent,
   T,
 > = void extends T ? (Event extends HTTPEvent<infer E> ? E[Key] : never) : T;
+
+export type { TypedHeaders, RequestHeaders, ResponseHeaders, RequestHeaderMap, ResponseHeaderMap };
