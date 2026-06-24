@@ -214,6 +214,54 @@ describeMatrix("proxy", (t, { it, expect, describe }) => {
         },
       );
 
+      it.runIf(t.target === "web")(
+        "forwards the client abort signal to the proxied request",
+        async () => {
+          t.app.all("/debug", (event) => ({ aborted: event.req.signal.aborted }));
+          t.app.all("/", (event) => proxyRequest(event, "/debug"));
+
+          const controller = new AbortController();
+          controller.abort();
+
+          const res = await t.fetch("/", { signal: controller.signal });
+          expect(await res.json()).toMatchObject({ aborted: true });
+        },
+      );
+
+      it.runIf(t.target === "web")("reports a client abort as 502 by default", async () => {
+        t.app.all("/", (event) => proxyRequest(event, "https://example.test/"));
+
+        const controller = new AbortController();
+        controller.abort();
+
+        const res = await t.fetch("/", { signal: controller.signal });
+        expect(res.status).toBe(502);
+      });
+
+      it.runIf(t.target === "web")(
+        "propagates the abort error when `propagateAbortError` is enabled",
+        async () => {
+          let caught: unknown;
+          t.app.all("/", async (event) => {
+            try {
+              return await proxyRequest(event, "https://example.test/", {
+                propagateAbortError: true,
+              });
+            } catch (error) {
+              caught = error;
+              return "caught";
+            }
+          });
+
+          const controller = new AbortController();
+          controller.abort();
+
+          const res = await t.fetch("/", { signal: controller.signal });
+          expect(await res.text()).toBe("caught");
+          expect((caught as Error)?.name).toBe("AbortError");
+        },
+      );
+
       it(
         "can handle failed proxy requests gracefully",
         async () => {
