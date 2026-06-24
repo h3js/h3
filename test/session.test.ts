@@ -111,4 +111,46 @@ describeMatrix("session", (t, { it, expect }) => {
     const body = await res.json();
     expect(body.session.data.token).toBe(token);
   });
+
+  it("supports password rotation", async () => {
+    const oldPassword = "old_password_that_is_at_least_32_characters_long!";
+    const newPassword = "new_password_that_is_at_least_32_characters_long!";
+
+    // Create session with old password
+    const oldConfig: SessionConfig = {
+      name: "h3-rotation",
+      password: oldPassword,
+      generateId: () => "rotation-test",
+    };
+
+    t.app.post("/rotate/create", async (event) => {
+      const session = await useSession(event, oldConfig);
+      await session.update({ secret: "data" });
+      return { id: session.id };
+    });
+
+    // Read session with rotated passwords (new + old)
+    const rotatedConfig: SessionConfig = {
+      name: "h3-rotation",
+      password: { default: oldPassword, new: newPassword },
+      generateId: () => "rotation-test-2",
+    };
+
+    t.app.get("/rotate/read", async (event) => {
+      const session = await useSession(event, rotatedConfig);
+      return { id: session.id, data: session.data };
+    });
+
+    // Step 1: Create with old password
+    const createRes = await t.fetch("/rotate/create", { method: "POST" });
+    const oldCookie = createRes.headers.getSetCookie()[0];
+    expect((await createRes.json()).id).toBe("rotation-test");
+
+    // Step 2: Read with rotated config — old password should still unseal
+    const readRes = await t.fetch("/rotate/read", {
+      headers: { Cookie: oldCookie },
+    });
+    const readBody = await readRes.json();
+    expect(readBody.data.secret).toBe("data");
+  });
 });
