@@ -184,6 +184,9 @@ function prepareResponseBody(
   // Buffer (should be before JSON)
   if (val instanceof Uint8Array) {
     event.res.headers.set("content-length", val.byteLength.toString());
+    if (!event.res.headers.has("content-type")) {
+      event.res.headers.set("content-type", "application/octet-stream");
+    }
     return { body: val as BufferSource };
   }
 
