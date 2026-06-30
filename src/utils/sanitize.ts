@@ -24,7 +24,10 @@ export function sanitizeStatusCode(
   if (typeof statusCode === "string") {
     statusCode = Number.parseInt(statusCode, 10);
   }
-  if (statusCode < 100 || statusCode > 999) {
+  // `Number.parseInt` returns `NaN` for non-numeric strings, and `NaN` passes
+  // the range check below (every comparison with `NaN` is `false`), so an
+  // invalid status code would leak through unchanged. Guard against it.
+  if (Number.isNaN(statusCode) || statusCode < 100 || statusCode > 999) {
     return defaultStatusCode;
   }
   return statusCode;
