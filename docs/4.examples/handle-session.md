@@ -34,7 +34,7 @@ app.use(async (event) => {
 ```
 
 > [!WARNING]
-> You must provide a password to encrypt the session.
+> You must provide a password to encrypt the session. The examples below use a hardcoded value so they stay readable, but in a real app load it from an environment variable such as `process.env.SESSION_PASSWORD`, keep it a strong secret of at least 32 characters, and never commit it to source control.
 
 This will initialize a session and return an header `Set-Cookie` with a cookie named `h3` and an encrypted content.
 
@@ -134,5 +134,35 @@ app.use(async (event) => {
 });
 ```
 
+Every option is optional except `password`. The `name` option is worth calling out: it sets the cookie used to store the session and defaults to `h3`. H3 also reads the session from a request header derived from `name`, which it normalizes to lowercase as `x-${name.toLowerCase()}-session`, so the default name `h3` produces the `x-h3-session` header seen earlier. A mixed-case `name` like `MyApp` still resolves to a lowercase `x-myapp-session` header, while the cookie keeps the original casing. That default is why the earlier examples set a cookie named `h3`.
+
 > [!NOTE]
 > The `secure: true` option tells the browser to only store and send the cookie over HTTPS. When developing locally over plain HTTP, compliant browsers (notably Safari and iOS, and Chrome on some local domains) silently drop the cookie, so the session will not persist. Set `cookie: { secure: false }` during local development to work around this.
+
+## Use Multiple Sessions
+
+Because each session is stored under its own `name`, you can run several independent sessions on the same request. They live in separate cookies and never overwrite each other, which is useful for keeping unrelated concerns apart, such as a long-lived auth session and a short-lived flash message:
+
+```js
+import { useSession } from "h3";
+
+app.use(async (event) => {
+  const auth = await useSession(event, {
+    name: "auth",
+    password: "80d42cfb-1cd2-462c-8f17-e3237d9027e9",
+  });
+
+  const flash = await useSession(event, {
+    name: "flash",
+    password: "80d42cfb-1cd2-462c-8f17-e3237d9027e9",
+  });
+
+  await flash.update({ message: "Saved!" });
+
+  // `auth` and `flash` are backed by different cookies, so they stay separate
+  return { user: auth.data.user, flash: flash.data.message };
+});
+```
+
+> [!NOTE]
+> Give each session a distinct `name`. Two sessions that share a name share the same cookie, so the last write wins.
