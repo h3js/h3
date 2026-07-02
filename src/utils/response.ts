@@ -114,19 +114,30 @@ export function writeEarlyHints(
 ): void | Promise<void> {
   // Use native early hints if available (Node.js)
   if (event.runtime?.node?.res?.writeEarlyHints) {
-    // Node.js writeEarlyHints only reads hints.link (lowercase) and returns
-    // early without calling the callback if it is missing. Normalize the key
-    // to prevent the promise from never resolving.
-    const normalizedHints: Record<string, string | string[]> = { ...hints };
+    // Node.js writeEarlyHints only reads `hints.link` (exact lowercase key) and
+    // returns *without* calling the callback when the resolved link value is
+    // missing or empty. Since HTTP headers are case-insensitive, callers may
+    // pass `Link` (or both `link` and `Link`). Normalize every case-variant of
+    // `link` into a single lowercase `link` value so the callback always fires.
+    const normalizedHints: Record<string, string | string[]> = {};
+    const linkValues: string[] = [];
     for (const [name, value] of Object.entries(hints)) {
-      if (name.toLowerCase() === "link" && name !== "link") {
-        delete normalizedHints[name];
-        normalizedHints.link = value;
+      if (name.toLowerCase() === "link") {
+        for (const v of Array.isArray(value) ? value : [value]) {
+          if (v) {
+            linkValues.push(v);
+          }
+        }
+      } else {
+        normalizedHints[name] = value;
       }
     }
-    if (!normalizedHints.link) {
+    if (linkValues.length === 0) {
+      // Node would return without invoking the callback, leaving the promise
+      // pending forever. Return early instead of creating a hanging promise.
       return;
     }
+    normalizedHints.link = linkValues;
     return new Promise((resolve) => {
       event.runtime?.node?.res?.writeEarlyHints(normalizedHints, () => resolve());
     });
