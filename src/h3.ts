@@ -140,10 +140,24 @@ export const H3 = /* @__PURE__ */ (() => {
               return next();
             }
             event.url.pathname = event.url.pathname.slice(base.length) || "/";
-            return callMiddleware(event, input["~middleware"], () => {
+            const restore = () => {
               event.url.pathname = originalPathname;
-              return next();
-            });
+            };
+            try {
+              const result = callMiddleware(event, input["~middleware"], () => {
+                restore();
+                return next();
+              });
+              if (typeof (result as PromiseLike<unknown>)?.then === "function") {
+                // Promise.resolve normalizes bare thenables that lack .finally
+                return Promise.resolve(result).finally(restore);
+              }
+              restore();
+              return result;
+            } catch (err) {
+              restore();
+              throw err;
+            }
           });
         }
         for (const r of input["~routes"]) {
