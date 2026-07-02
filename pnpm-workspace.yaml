@@ -8,3 +8,11 @@ allowBuilds:
 
 ignoredBuiltDependencies:
   - esbuild
+
+minimumReleaseAgeExclude:
+  - obuild*
+  - srvx*
+  - rou3*
+  - crossws*
+  - cookie-es*
+  - h3*

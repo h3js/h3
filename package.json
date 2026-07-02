@@ -49,8 +49,8 @@
     "test": "pnpm lint && vitest --run --coverage"
   },
   "dependencies": {
-    "rou3": "^0.8.1",
-    "srvx": "^0.11.18"
+    "rou3": "^0.9.0",
+    "srvx": "^0.11.20"
   },
   "devDependencies": {
     "@happy-dom/global-registrator": "^20.10.6",
@@ -60,13 +60,13 @@
     "@types/node": "^26.1.0",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
-    "@typescript/native-preview": "7.0.0-dev.20260701.1",
+    "@typescript/native-preview": "latest",
     "@vitest/coverage-v8": "^4.1.9",
     "automd": "^0.4.3",
     "changelogen": "^0.6.2",
     "connect": "^3.7.0",
     "cookie-es": "^3.1.1",
-    "crossws": "^0.4.7",
+    "crossws": "^0.4.8",
     "elysia": "^1.4.29",
     "esbuild": "^0.28.1",
     "express": "^5.2.1",
@@ -93,7 +93,7 @@
     "zod": "^4.4.3"
   },
   "peerDependencies": {
-    "crossws": "^0.4.1"
+    "crossws": "^0.4.8"
   },
   "peerDependenciesMeta": {
     "crossws": {
