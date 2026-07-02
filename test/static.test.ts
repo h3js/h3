@@ -326,4 +326,23 @@ describeMatrix("serve static MIME types", (t, { it, expect }) => {
       t.target === "web" ? null : "text/plain; charset=UTF-8",
     );
   });
+
+  it("does not overwrite a content-length already set on the response", async () => {
+    // An explicit response content-length must win over the size derived from
+    // meta — consistent with content-type / content-encoding / last-modified,
+    // which are only set when not already present on the response.
+    const options: ServeStaticOptions = {
+      getContents: vi.fn(() => "content"),
+      getMeta: vi.fn(() => ({ size: 18 })),
+      headers: { "content-length": "999" },
+    };
+
+    t.app.all("/clen/**", (event) => {
+      return serveStatic(event, options);
+    });
+
+    const res = await t.fetch("/clen/file.txt", { method: "HEAD" });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-length")).toBe("999");
+  });
 });

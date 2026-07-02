@@ -166,7 +166,7 @@ export async function serveStatic(
     event.res.headers.set("content-encoding", meta.encoding);
   }
 
-  if (meta.size !== undefined && meta.size > 0 && !event.req.headers.get("content-length")) {
+  if (meta.size !== undefined && meta.size > 0 && !event.res.headers.get("content-length")) {
     event.res.headers.set("content-length", meta.size + "");
   }
 
