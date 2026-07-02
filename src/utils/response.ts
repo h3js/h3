@@ -112,25 +112,44 @@ export function writeEarlyHints(
   event: H3Event,
   hints: Record<string, string | string[]>,
 ): void | Promise<void> {
+  // HTTP headers are case-insensitive, so callers may pass `Link` (or both
+  // `link` and `Link`). Collect every case-variant of `link` into a single
+  // lowercase `link` value and drop empty/falsy entries, so both code paths
+  // below agree on what to emit.
+  const linkValues: string[] = [];
+  for (const [name, value] of Object.entries(hints)) {
+    if (name.toLowerCase() === "link") {
+      for (const v of Array.isArray(value) ? value : [value]) {
+        if (v) {
+          linkValues.push(v);
+        }
+      }
+    }
+  }
+
   // Use native early hints if available (Node.js)
   if (event.runtime?.node?.res?.writeEarlyHints) {
+    if (linkValues.length === 0) {
+      // Node.js writeEarlyHints only reads `hints.link` and returns *without*
+      // calling the callback when the resolved link value is missing or empty,
+      // leaving the promise pending forever. Resolve immediately instead.
+      return Promise.resolve();
+    }
+    // Pass through non-link hints alongside the normalized `link` value.
+    const normalizedHints: Record<string, string | string[]> = { link: linkValues };
+    for (const [name, value] of Object.entries(hints)) {
+      if (name.toLowerCase() !== "link") {
+        normalizedHints[name] = value;
+      }
+    }
     return new Promise((resolve) => {
-      event.runtime?.node?.res?.writeEarlyHints(hints, () => resolve());
+      event.runtime?.node?.res?.writeEarlyHints(normalizedHints, () => resolve());
     });
   }
 
   // Fallback: Set Link headers for CDN support (only Link headers to avoid leaking sensitive headers)
-  for (const [name, value] of Object.entries(hints)) {
-    if (name.toLowerCase() !== "link") {
-      continue;
-    }
-    if (Array.isArray(value)) {
-      for (const v of value) {
-        event.res.headers.append("link", v);
-      }
-    } else {
-      event.res.headers.append("link", value);
-    }
+  for (const v of linkValues) {
+    event.res.headers.append("link", v);
   }
 }
 
