@@ -140,23 +140,24 @@ export const H3 = /* @__PURE__ */ (() => {
               return next();
             }
             event.url.pathname = event.url.pathname.slice(base.length) || "/";
-            let result: unknown;
+            const restore = () => {
+              event.url.pathname = originalPathname;
+            };
             try {
-              result = callMiddleware(event, input["~middleware"], () => {
-                event.url.pathname = originalPathname;
+              const result = callMiddleware(event, input["~middleware"], () => {
+                restore();
                 return next();
               });
+              if (typeof (result as PromiseLike<unknown>)?.then === "function") {
+                // Promise.resolve normalizes bare thenables that lack .finally
+                return Promise.resolve(result).finally(restore);
+              }
+              restore();
+              return result;
             } catch (err) {
-              event.url.pathname = originalPathname;
+              restore();
               throw err;
             }
-            if (typeof (result as PromiseLike<unknown>)?.then === "function") {
-              return (result as Promise<unknown>).finally(() => {
-                event.url.pathname = originalPathname;
-              });
-            }
-            event.url.pathname = originalPathname;
-            return result;
           });
         }
         for (const r of input["~routes"]) {

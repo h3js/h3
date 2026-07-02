@@ -233,6 +233,24 @@ describeMatrix("mount", (t, { it, expect, describe }) => {
       t.errors = [];
     });
 
+    it("supports mounted handler returning a bare thenable (no .finally)", async () => {
+      const subApp = new H3();
+      subApp.use((_event, next) => {
+        next(); // returns undefined, so the raw handler result propagates
+      });
+      subApp.get("/test", () => ({
+        // eslint-disable-next-line unicorn/no-thenable
+        then(resolve: (value: string) => void) {
+          resolve("thenable");
+        },
+      }));
+
+      t.app.mount("/api", subApp);
+
+      const res = await t.fetch("/api/test");
+      expect(await res.text()).toBe("thenable");
+    });
+
     it("v1 compat: app.use(router) with H3 instance (#1341)", async () => {
       const router = new H3();
       router.get("/", () => "Hello world!");
