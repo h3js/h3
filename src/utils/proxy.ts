@@ -179,54 +179,16 @@ export async function proxy(
     await opts.onResponse(event, response);
   }
 
-  // A client disconnect during response streaming aborts the forwarded
-  // `event.req.signal` and errors the upstream body stream *after* the
-  // try/catch above has returned. By default, swallow that abort quietly (the
-  // bytes are never delivered — the client is already gone) instead of letting
-  // it surface as an unhandled streaming error. When opted in via
-  // `propagateAbortError`, leave the stream untouched so the error propagates.
-  const body =
-    response.body && !opts.propagateAbortError
-      ? quietlyAbortableStream(response.body, event.req.signal)
-      : response.body;
-
-  return new HTTPResponse(body, {
+  // Stream the upstream body through natively so the common case has zero
+  // overhead. A client disconnect during streaming aborts the forwarded
+  // `event.req.signal`, which errors the upstream body; that error is delivered
+  // to whoever consumes the stream — the server runtime, which is already
+  // tearing down the now-closed connection — so it needs no special handling
+  // here and never becomes a gateway (502) error.
+  return new HTTPResponse(response.body, {
     status: response.status,
     statusText: response.statusText,
     headers,
-  });
-}
-
-/**
- * Wrap an upstream body stream so an abort caused by the client disconnecting
- * (the forwarded `signal`) ends the stream quietly instead of surfacing as an
- * unhandled streaming error. Any other stream error is passed through unchanged.
- */
-function quietlyAbortableStream(
-  body: ReadableStream<Uint8Array>,
-  signal: AbortSignal,
-): ReadableStream<Uint8Array> {
-  const reader = body.getReader();
-  return new ReadableStream<Uint8Array>({
-    async pull(controller) {
-      try {
-        const { done, value } = await reader.read();
-        if (done) {
-          controller.close();
-        } else {
-          controller.enqueue(value);
-        }
-      } catch (error) {
-        if (signal.aborted && (error as Error)?.name === "AbortError") {
-          controller.close();
-        } else {
-          controller.error(error);
-        }
-      }
-    },
-    cancel(reason) {
-      return reader.cancel(reason);
-    },
   });
 }
 

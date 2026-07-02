@@ -314,11 +314,13 @@ describeMatrix("proxy", (t, { it, expect, describe }) => {
       );
 
       it.runIf(t.target === "web")(
-        "swallows a client abort during response streaming",
+        "does not turn a mid-stream client abort into a gateway error",
         async () => {
           // Upstream returns a body stream that errors with an AbortError once
-          // the client is gone (simulating a mid-stream disconnect). The default
-          // must drain quietly instead of surfacing the abort as a stream error.
+          // the client is gone (simulating a mid-stream disconnect). The body is
+          // streamed through natively: the handler must still return the upstream
+          // response (not a 502), and the abort is left to the stream consumer
+          // rather than being turned into a gateway error.
           const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(() => {
             const body = new ReadableStream<Uint8Array>({
               pull(controller) {
@@ -337,7 +339,10 @@ describeMatrix("proxy", (t, { it, expect, describe }) => {
             controller.abort();
 
             const res = await t.fetch("/", { signal: controller.signal });
-            await expect(res.text()).resolves.toBe("");
+            // Not a 502: the handler returned the upstream response normally.
+            expect(res.status).toBe(200);
+            // The abort surfaces to the body consumer, not swallowed silently.
+            await expect(res.text()).rejects.toThrow();
           } finally {
             fetchMock.mockRestore();
           }
