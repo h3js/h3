@@ -583,6 +583,29 @@ describe("cors (unit)", () => {
         expect(eventMock.res.headers.has("access-control-allow-headers")).toEqual(false);
         expect(eventMock.res.headers.has("access-control-max-age")).toEqual(false);
       }
+
+      {
+        // Both createOriginHeaders (origin allowlist) and createAllowHeaderHeaders (wildcard)
+        // independently emit a `vary` key. The spread must merge them, not overwrite.
+        const eventMock = mockEvent("/", {
+          method: "OPTIONS",
+          headers: {
+            origin: "https://example.com",
+            "access-control-request-method": "GET",
+            "access-control-request-headers": "CUSTOM-HEADER",
+          },
+        });
+        const options: CorsOptions = {
+          origin: ["https://example.com"],
+          allowHeaders: "*",
+        };
+
+        appendCorsPreflightHeaders(eventMock, options);
+
+        const vary = eventMock.res.headers.get("vary") ?? "";
+        expect(vary).toContain("origin");
+        expect(vary).toContain("access-control-request-headers");
+      }
     });
   });
 
