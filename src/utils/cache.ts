@@ -33,7 +33,9 @@ export function handleCacheHeaders(event: H3Event, opts: CacheConditions): boole
   if (opts.etag) {
     event.res.headers.set("etag", opts.etag);
     const ifNonMatch = event.req.headers.get("if-none-match");
-    if (ifNonMatch === opts.etag) {
+    // RFC 7232 §3.2: If-None-Match is a comma-separated list of entity-tags.
+    // A match occurs when any token in the list equals the ETag.
+    if (ifNonMatch && ifNonMatch.split(",").some((token) => token.trim() === opts.etag)) {
       cacheMatched = true;
     }
   }
