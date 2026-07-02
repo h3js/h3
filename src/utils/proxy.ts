@@ -118,8 +118,11 @@ export async function proxy(
         ? await event.app!.fetch(createSubRequest(event, target, fetchOptions))
         : await fetch(target, fetchOptions);
   } catch (error) {
-    // A client disconnect aborts the proxied request; surface it as-is when opted in, else as a gateway error.
-    if (opts.propagateAbortError && event.req.signal.aborted) {
+    // A client disconnect (or any caller-supplied signal) aborts the proxied
+    // request; surface the abort as-is when opted in, else as a gateway error.
+    // Key off the error itself so it works with a custom `fetchOptions.signal`
+    // and so a real upstream failure is never mistaken for an abort.
+    if (opts.propagateAbortError && (error as Error)?.name === "AbortError") {
       throw error;
     }
     throw new HTTPError({ status: 502, cause: error });

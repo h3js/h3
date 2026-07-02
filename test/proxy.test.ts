@@ -262,6 +262,33 @@ describeMatrix("proxy", (t, { it, expect, describe }) => {
         },
       );
 
+      it.runIf(t.target === "web")(
+        "propagates the abort error from a caller-supplied `fetchOptions.signal`",
+        async () => {
+          // The client signal is never aborted here; only the caller's own
+          // signal is. The abort must still propagate when opted in.
+          let caught: unknown;
+          t.app.all("/", async (event) => {
+            const controller = new AbortController();
+            controller.abort();
+            try {
+              return await proxyRequest(event, "https://example.test/", {
+                propagateAbortError: true,
+                fetchOptions: { signal: controller.signal },
+              });
+            } catch (error) {
+              caught = error;
+              return "caught";
+            }
+          });
+
+          const res = await t.fetch("/");
+          expect(await res.text()).toBe("caught");
+          expect((caught as Error)?.name).toBe("AbortError");
+          expect(res.status).toBe(200);
+        },
+      );
+
       it(
         "can handle failed proxy requests gracefully",
         async () => {
