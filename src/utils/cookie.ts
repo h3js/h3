@@ -1,6 +1,10 @@
-import type { CookieSerializeOptions, SetCookie } from "cookie-es";
+import type { CookieSerializeOptions } from "cookie-es";
 import type { H3Event, HTTPEvent } from "../event.ts";
-import { parse as parseCookie, serialize as serializeCookie, parseSetCookie } from "cookie-es";
+import { parseCookie, serializeCookie, parseSetCookie } from "cookie-es";
+import { validateData } from "./internal/validate.ts";
+import type { StandardSchemaV1, FailureResult, InferOutput } from "./internal/standard-schema.ts";
+import type { ValidateResult, OnValidateError } from "./internal/validate.ts";
+import type { ErrorDetails } from "../error.ts";
 
 const CHUNKED_COOKIE = "__chunked__";
 
@@ -15,8 +19,40 @@ const CHUNKS_MAX_LENGTH = 4000;
  * const cookies = parseCookies(event)
  * ```
  */
-export function parseCookies(event: HTTPEvent): Record<string, string> {
+export function parseCookies(event: HTTPEvent): Record<string, string | undefined> {
   return parseCookie(event.req.headers.get("cookie") || "");
+}
+
+/**
+ * Get and validate all cookies using a Standard Schema or custom validator.
+ *
+ * @example
+ * app.get("/", async (event) => {
+ *   const cookies = await getValidatedCookies(event, z.object({
+ *     session: z.string(),
+ *     theme: z.enum(["light", "dark"]).optional(),
+ *   }));
+ * });
+ */
+export function getValidatedCookies<Event extends HTTPEvent, S extends StandardSchemaV1<any, any>>(
+  event: Event,
+  validate: S,
+  options?: { onError?: (result: FailureResult) => ErrorDetails },
+): Promise<InferOutput<S>>;
+export function getValidatedCookies<Event extends HTTPEvent, OutputT>(
+  event: Event,
+  validate: (
+    data: Record<string, string | undefined>,
+  ) => ValidateResult<OutputT> | Promise<ValidateResult<OutputT>>,
+  options?: { onError?: () => ErrorDetails },
+): Promise<OutputT>;
+export function getValidatedCookies(
+  event: HTTPEvent,
+  validate: any,
+  options?: { onError?: OnValidateError },
+): Promise<any> {
+  const cookies = parseCookies(event);
+  return validateData(cookies, validate, options);
 }
 
 /**
@@ -49,7 +85,8 @@ export function setCookie(
   options?: CookieSerializeOptions,
 ): void {
   // Serialize cookie
-  const newCookie = serializeCookie(name, value, { path: "/", ...options });
+  const { encode, stringify, ...attrs } = options ?? {};
+  const newCookie = serializeCookie({ name, value, path: "/", ...attrs }, { encode, stringify });
 
   // Check and add only not any other set-cookie headers already set
   const currentCookies = event.res.headers.getSetCookie();
@@ -59,10 +96,14 @@ export function setCookie(
   }
 
   // Merge and deduplicate unique set-cookie headers
-  const newCookieKey = _getDistinctCookieKey(name, (options || {}) as SetCookie);
+  const newCookieKey = _getDistinctCookieKey(name, options || {});
   event.res.headers.delete("set-cookie");
   for (const cookie of currentCookies) {
-    const _key = _getDistinctCookieKey(cookie.split("=")?.[0], parseSetCookie(cookie));
+    const parsed = parseSetCookie(cookie);
+    if (!parsed) {
+      continue;
+    }
+    const _key = _getDistinctCookieKey(cookie.split("=")?.[0], parsed);
     if (_key === newCookieKey) {
       continue;
     }
@@ -97,7 +138,7 @@ export function deleteCookie(
  * @param name Name of the cookie to get
  * @returns {*} Value of the cookie (String or undefined)
  * ```ts
- * const authorization = getCookie(request, 'Session')
+ * const session = getChunkedCookie(event, 'Session')
  * ```
  */
 export function getChunkedCookie(event: HTTPEvent, name: string): string | undefined {
@@ -201,15 +242,23 @@ export function deleteChunkedCookie(
  *
  * @see https://httpwg.org/specs/rfc6265.html#rfc.section.4.1.2
  */
-function _getDistinctCookieKey(name: string, options: Partial<SetCookie>) {
+function _getDistinctCookieKey(name: string, options: { domain?: string; path?: string }) {
   return [name, options.domain || "", options.path || "/"].join(";");
 }
+
+// Maximum number of chunks allowed for chunked cookies.
+// 100 chunks × ~4KB = ~400KB, far beyond any practical cookie size.
+const MAX_CHUNKED_COOKIE_COUNT = 100;
 
 function getChunkedCookieCount(cookie: string | undefined): number {
   if (!cookie?.startsWith(CHUNKED_COOKIE)) {
     return Number.NaN;
   }
-  return Number.parseInt(cookie.slice(CHUNKED_COOKIE.length));
+  const count = Number.parseInt(cookie.slice(CHUNKED_COOKIE.length));
+  if (Number.isNaN(count) || count < 0 || count > MAX_CHUNKED_COOKIE_COUNT) {
+    return Number.NaN;
+  }
+  return count;
 }
 
 function chunkCookieName(name: string, chunkNumber: number): string {

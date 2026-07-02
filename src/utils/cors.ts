@@ -91,15 +91,24 @@ export function isPreflightRequest(event: HTTPEvent): boolean {
  * Append CORS preflight headers to the response.
  */
 export function appendCorsPreflightHeaders(event: H3Event, options: CorsOptions): void {
+  const originHeaders = createOriginHeaders(event, options);
+  const allowHeaderHeaders = createAllowHeaderHeaders(event, options);
   const headers = {
-    ...createOriginHeaders(event, options),
+    ...originHeaders,
     ...createCredentialsHeaders(options),
     ...createMethodsHeaders(options),
-    ...createAllowHeaderHeaders(event, options),
+    ...allowHeaderHeaders,
     ...createMaxAgeHeader(options),
   };
+  // Both createOriginHeaders and createAllowHeaderHeaders can independently emit a `vary`
+  // key. Plain spread overwrites the first — merge them so neither is lost.
+  const varyValues = [originHeaders.vary, allowHeaderHeaders.vary].filter(Boolean);
+  if (varyValues.length > 0) {
+    headers.vary = varyValues.join(", ");
+  }
   for (const [key, value] of Object.entries(headers)) {
     event.res.headers.append(key, value);
+    event.res.errHeaders.append(key, value);
   }
 }
 
@@ -114,6 +123,7 @@ export function appendCorsHeaders(event: H3Event, options: CorsOptions): void {
   };
   for (const [key, value] of Object.entries(headers)) {
     event.res.headers.append(key, value);
+    event.res.errHeaders.append(key, value);
   }
 }
 
@@ -126,8 +136,7 @@ export function appendCorsHeaders(event: H3Event, options: CorsOptions): void {
  *
  * @example
  * const app = new H3();
- * const router = createRouter();
- * router.use("/", async (event) => {
+ * app.all("/", async (event) => {
  *   const corsRes = handleCors(event, {
  *     origin: "*",
  *     preflight: {

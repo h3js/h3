@@ -1,6 +1,6 @@
 import type { SessionConfig } from "../src/utils/session.ts";
 import { beforeEach } from "vitest";
-import { useSession, readBody, H3 } from "../src/index.ts";
+import { useSession, clearSession, readBody, H3 } from "../src/index.ts";
 import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("session", (t, { it, expect }) => {
@@ -80,6 +80,19 @@ describeMatrix("session", (t, { it, expect }) => {
     expect(await result.json()).toMatchObject({
       sessions: [1, 2, 3].map(() => ({ id: "1", data: { foo: "bar" } })),
     });
+  });
+
+  it("clearSession sets maxAge=0 to delete cookie", async () => {
+    t.app.get("/clear", async (event) => {
+      await clearSession(event, sessionConfig);
+      return { cleared: true };
+    });
+    const res = await t.fetch("/clear", {
+      headers: { Cookie: cookie },
+    });
+    const cookies = res.headers.getSetCookie();
+    expect(cookies.length).toBeGreaterThanOrEqual(1);
+    expect(cookies[0]).toContain("Max-Age=0");
   });
 
   it("stores large data in chunks", async () => {

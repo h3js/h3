@@ -28,4 +28,7 @@ export interface H3EventContext extends ServerRequestContext {
     password?: string;
     realm?: string;
   };
+
+  /* Server-Timing entries collected via setServerTiming / withServerTiming */
+  timing?: Array<{ name: string } & Record<string, unknown>>;
 }

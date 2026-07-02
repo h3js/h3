@@ -9,7 +9,8 @@ export * from "../index.ts";
 /**
  * Serve the H3 app.
  */
-export function serve(app: H3, options?: Omit<ServerOptions, "fetch">): Server {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function serve(app: H3, options?: Omit<ServerOptions, "fetch">): Server<any> {
   freezeApp(app);
   return srvxServe({ fetch: app.fetch, ...options });
 }

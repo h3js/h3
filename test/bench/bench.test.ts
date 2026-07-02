@@ -3,7 +3,7 @@ import { getRequests } from "./input.ts";
 import { createInstances } from "./bench.impl.ts";
 
 describe("benchmark", async () => {
-  const instances = await createInstances();
+  const instances = createInstances();
 
   describe("app works as expected", () => {
     for (const [name, _fetch] of instances) {

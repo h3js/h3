@@ -1,10 +1,12 @@
 import { beforeEach } from "vitest";
 import {
   redirect,
+  redirectBack,
   withBase,
   assertMethod,
   getQuery,
   getRequestURL,
+  getRequestHost,
   getRequestIP,
   getRequestFingerprint,
   handleCacheHeaders,
@@ -21,13 +23,7 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
       expect(res1.headers.get("content-type")).toBe("text/html; charset=utf-8");
       expect(await res1.text()).toBe("<h1>Hello</h1>");
 
-      t.app.get(
-        "/test2",
-        () =>
-          html`
-            <h1>Hello</h1>
-          `,
-      );
+      t.app.get("/test2", () => html` <h1>Hello</h1> `);
       const res2 = await t.fetch("/test2");
       expect(res2.headers.get("content-type")).toBe("text/html; charset=utf-8");
       expect((await res2.text()).trim()).toBe("<h1>Hello</h1>");
@@ -40,6 +36,91 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
       const result = await t.fetch("/");
       expect(result.headers.get("location")).toBe("https://google.com");
       expect(result.headers.get("content-type")).toBe("text/html; charset=utf-8");
+    });
+
+    it("escapes special characters in HTML body", async () => {
+      const malicious = 'https://example.com/"><script>alert(1)</script>&foo=bar';
+      t.app.use(() => redirect(malicious));
+      const result = await t.fetch("/");
+      expect(result.headers.get("location")).toBe(malicious);
+      const body = await result.text();
+      expect(body).toBe(
+        `<html><head><meta http-equiv="refresh" content="0; url=https://example.com/&quot;&gt;&lt;script&gt;alert(1)&lt;/script&gt;&amp;foo=bar" /></head></html>`,
+      );
+    });
+  });
+
+  describe("redirectBack", () => {
+    it("redirects to referer pathname when same origin", async () => {
+      t.app.post("/submit", (event) => redirectBack(event));
+      const baseUrl = t.url || "http://localhost";
+      const res = await t.fetch("/submit", {
+        method: "POST",
+        headers: { referer: `${baseUrl}/form` },
+      });
+      expect(res.status).toBe(302);
+      expect(res.headers.get("location")).toBe("/form");
+    });
+
+    it("strips query string from referer by default", async () => {
+      t.app.post("/submit", (event) => redirectBack(event));
+      const baseUrl = t.url || "http://localhost";
+      const res = await t.fetch("/submit", {
+        method: "POST",
+        headers: { referer: `${baseUrl}/page?token=secret&action=delete` },
+      });
+      expect(res.headers.get("location")).toBe("/page");
+    });
+
+    it("preserves query string with allowQuery", async () => {
+      t.app.post("/submit", (event) => redirectBack(event, { allowQuery: true }));
+      const baseUrl = t.url || "http://localhost";
+      const res = await t.fetch("/submit", {
+        method: "POST",
+        headers: { referer: `${baseUrl}/page?tab=settings` },
+      });
+      expect(res.headers.get("location")).toBe("/page?tab=settings");
+    });
+
+    it("uses fallback when referer is cross-origin", async () => {
+      t.app.post("/submit", (event) => redirectBack(event, { fallback: "/home" }));
+      const res = await t.fetch("/submit", {
+        method: "POST",
+        headers: { referer: "https://evil.com/steal" },
+      });
+      expect(res.headers.get("location")).toBe("/home");
+    });
+
+    it("uses fallback when no referer", async () => {
+      t.app.post("/submit", (event) => redirectBack(event, { fallback: "/dashboard" }));
+      const res = await t.fetch("/submit", { method: "POST" });
+      expect(res.headers.get("location")).toBe("/dashboard");
+    });
+
+    it("defaults fallback to /", async () => {
+      t.app.post("/submit", (event) => redirectBack(event));
+      const res = await t.fetch("/submit", { method: "POST" });
+      expect(res.headers.get("location")).toBe("/");
+    });
+
+    it("prevents open redirect via protocol-relative path in referer", async () => {
+      t.app.post("/submit", (event) => redirectBack(event));
+      const baseUrl = t.url || "http://localhost";
+      const res = await t.fetch("/submit", {
+        method: "POST",
+        headers: { referer: `${baseUrl}//evil.com/steal` },
+      });
+      expect(res.headers.get("location")).not.toBe("//evil.com/steal");
+      expect(res.headers.get("location")).toBe("/evil.com/steal");
+    });
+
+    it("uses fallback when referer is invalid URL", async () => {
+      t.app.post("/submit", (event) => redirectBack(event, { fallback: "/safe" }));
+      const res = await t.fetch("/submit", {
+        method: "POST",
+        headers: { referer: "not-a-valid-url" },
+      });
+      expect(res.headers.get("location")).toBe("/safe");
     });
   });
 
@@ -55,6 +136,12 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
       const result = await t.fetch("/api/test");
 
       expect(await result.text()).toBe("/api/test");
+    });
+    it("collapses leading slashes after stripping base", async () => {
+      t.app.use(withBase("/api", (event) => Promise.resolve(event.path)));
+      const result = await t.fetch("/api//evil.com");
+
+      expect(await result.text()).toBe("/evil.com");
     });
   });
 
@@ -80,6 +167,31 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
       t.app.all("/*", (event) => event.req.method);
       expect(await (await t.fetch("/api")).text()).toBe("GET");
       expect(await (await t.fetch("/api", { method: "POST" })).text()).toBe("POST");
+    });
+  });
+
+  describe("getRequestHost", () => {
+    it("returns host header value", async () => {
+      t.app.get("/", (event) => getRequestHost(event));
+      const res = await t.fetch("/");
+      // In test environments, host header is set by the HTTP client
+      expect(await res.text()).toBeTruthy();
+    });
+
+    it("uses x-forwarded-host when enabled", async () => {
+      t.app.get("/", (event) => getRequestHost(event, { xForwardedHost: true }));
+      const res = await t.fetch("/", {
+        headers: { "x-forwarded-host": "proxy.example.com" },
+      });
+      expect(await res.text()).toBe("proxy.example.com");
+    });
+
+    it("uses first value from x-forwarded-host with multiple entries", async () => {
+      t.app.get("/", (event) => getRequestHost(event, { xForwardedHost: true }));
+      const res = await t.fetch("/", {
+        headers: { "x-forwarded-host": "first.com, second.com" },
+      });
+      expect(await res.text()).toBe("first.com");
     });
   });
 
@@ -114,6 +226,42 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
       });
     }
 
+    it("x-forwarded-host clears port for plain host", async () => {
+      const res = await t
+        .fetch("http://localhost:3000/test", {
+          headers: { "x-forwarded-host": "example.com" },
+        })
+        .then((r) => r.text());
+      expect(res).toBe("http://example.com/test");
+    });
+
+    it("x-forwarded-host preserves explicit port", async () => {
+      const res = await t
+        .fetch("http://localhost/test", {
+          headers: { "x-forwarded-host": "example.com:8080" },
+        })
+        .then((r) => r.text());
+      expect(res).toBe("http://example.com:8080/test");
+    });
+
+    it("x-forwarded-host with IPv6 clears port", async () => {
+      const res = await t
+        .fetch("http://localhost:3000/test", {
+          headers: { "x-forwarded-host": "[2001:db8::1]" },
+        })
+        .then((r) => r.text());
+      expect(res).toBe("http://[2001:db8::1]/test");
+    });
+
+    it("x-forwarded-host with IPv6 and port preserves port", async () => {
+      const res = await t
+        .fetch("http://localhost/test", {
+          headers: { "x-forwarded-host": "[2001:db8::1]:8080" },
+        })
+        .then((r) => r.text());
+      expect(res).toBe("http://[2001:db8::1]:8080/test");
+    });
+
     it('x-forwarded-proto: "https"', async () => {
       expect(
         await t
@@ -135,6 +283,24 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
       //     })
       //     .then((r) => r.text()),
       // ).toMatch("http://localhost/");
+    });
+
+    it("x-forwarded-proto comma list uses first entry", async () => {
+      const res = await t
+        .fetch("http://localhost/test", {
+          headers: { "x-forwarded-proto": "https,http" },
+        })
+        .then((r) => r.text());
+      expect(res).toMatch(/^https:\/\//);
+    });
+
+    it("x-forwarded-proto comma list with spaces uses first entry trimmed", async () => {
+      const res = await t
+        .fetch("http://localhost/test", {
+          headers: { "x-forwarded-proto": "https, http" },
+        })
+        .then((r) => r.text());
+      expect(res).toMatch(/^https:\/\//);
     });
   });
 
@@ -299,9 +465,25 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
         assertMethod(event, "POST", true);
         return "ok";
       });
-      expect((await t.fetch("/post")).status).toBe(405);
+      const res405 = await t.fetch("/post");
+      expect(res405.status).toBe(405);
+      expect(new Set(res405.headers.get("Allow")?.split(/\s*,\s*/))).toEqual(
+        new Set(["POST", "HEAD"]),
+      );
       expect((await t.fetch("/post", { method: "POST" })).status).toBe(200);
       expect((await t.fetch("/post", { method: "HEAD" })).status).toBe(200);
+    });
+
+    it("sets Allow header with multiple expected methods", async () => {
+      t.app.all("/multi", (event) => {
+        assertMethod(event, ["GET", "POST"]);
+        return "ok";
+      });
+      const res405 = await t.fetch("/multi", { method: "DELETE" });
+      expect(res405.status).toBe(405);
+      expect(new Set(res405.headers.get("Allow")?.split(/\s*,\s*/))).toEqual(
+        new Set(["GET", "POST"]),
+      );
     });
   });
 
@@ -333,6 +515,89 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
         );
       },
     );
+
+    // Empty/falsy link values must be dropped on the fallback path too, so no
+    // malformed empty `Link:` header is emitted (matches the Node path filter).
+    it.skipIf(t.target === "node")(
+      "does not set an empty Link header for falsy link values (fallback)",
+      async () => {
+        t.app.get("/empty-string", async (event) => {
+          await writeEarlyHints(event, { link: "" });
+          return "ok";
+        });
+        t.app.get("/mixed", async (event) => {
+          await writeEarlyHints(event, { link: ["", "</a.css>; rel=preload; as=style"] });
+          return "ok";
+        });
+
+        const res = await t.fetch("/empty-string");
+        expect(res.headers.get("Link")).toBe(null);
+
+        const res2 = await t.fetch("/mixed");
+        expect(res2.headers.get("Link")).toBe("</a.css>; rel=preload; as=style");
+      },
+    );
+
+    // Regression tests for #1383: on the Node.js native path, writeEarlyHints
+    // returns without invoking its callback when the resolved `link` value is
+    // missing/empty. h3 wraps that callback in a promise, so a missing callback
+    // left the promise (and the request) hanging forever. These run in both web
+    // and node targets; the node target is what actually exercises the fix.
+    // Each handler races writeEarlyHints against a short timer and reports the
+    // winner, so a hang surfaces as "timeout" instead of an assertion pass.
+    const raceEarlyHints = async (
+      event: Parameters<typeof writeEarlyHints>[0],
+      hints: Parameters<typeof writeEarlyHints>[1],
+    ) => {
+      let timer: ReturnType<typeof setTimeout>;
+      const result = await Promise.race([
+        Promise.resolve(writeEarlyHints(event, hints)).then(() => "resolved" as const),
+        new Promise<"timeout">((resolve) => {
+          timer = setTimeout(() => resolve("timeout"), 500);
+        }),
+      ]);
+      clearTimeout(timer!);
+      return result;
+    };
+
+    it("resolves promptly instead of hanging with empty hints (#1383)", async () => {
+      t.app.get("/", (event) => raceEarlyHints(event, {}));
+      const res = await t.fetch("/");
+      expect(await res.text()).toBe("resolved");
+    });
+
+    it("resolves promptly when the link hint value is empty", async () => {
+      t.app.get("/empty-string", (event) => raceEarlyHints(event, { link: "" }));
+      t.app.get("/empty-array", (event) => raceEarlyHints(event, { Link: [] }));
+
+      expect(await (await t.fetch("/empty-string")).text()).toBe("resolved");
+      expect(await (await t.fetch("/empty-array")).text()).toBe("resolved");
+    });
+
+    it("resolves when only a capital-cased Link key is provided", async () => {
+      t.app.get("/", (event) =>
+        raceEarlyHints(event, { Link: "</style.css>; rel=preload; as=style" }),
+      );
+      const res = await t.fetch("/");
+      expect(await res.text()).toBe("resolved");
+    });
+
+    it("merges both link and Link keys without dropping values", async () => {
+      t.app.get("/", (event) =>
+        raceEarlyHints(event, {
+          link: "</a.css>; rel=preload; as=style",
+          Link: "</b.js>; rel=preload; as=script",
+        }),
+      );
+      const res = await t.fetch("/");
+      expect(await res.text()).toBe("resolved");
+      // On the web fallback path both values are merged onto the `link` header.
+      if (t.target === "web") {
+        expect(res.headers.get("Link")).toBe(
+          "</a.css>; rel=preload; as=style, </b.js>; rel=preload; as=script",
+        );
+      }
+    });
   });
 
   describe("handleCacheHeaders", () => {
@@ -391,6 +656,23 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
       const res = await t.fetch("/", {
         headers: {
           "if-modified-since": "Fri, 01 Jan 2021 00:00:00 GMT",
+        },
+      });
+      expect(res.status).toBe(304);
+    });
+
+    it("returns 304 when if-none-match is a comma-separated list containing the etag", async () => {
+      t.app.use((event) => {
+        handleCacheHeaders(event, {
+          maxAge: 60,
+          etag: '"v2"',
+        });
+        return "ok";
+      });
+      const res = await t.fetch("/", {
+        headers: {
+          // RFC 7232 §3.2: the field-value is a list of entity-tags
+          "if-none-match": '"v1", "v2"',
         },
       });
       expect(res.status).toBe(304);

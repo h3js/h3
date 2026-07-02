@@ -1,6 +1,8 @@
 import type { H3Event } from "../../event.ts";
 import type { EventStreamMessage, EventStreamOptions } from "../event-stream.ts";
 
+const _noop = () => {};
+
 /**
  * A helper class for [server sent events](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events#event_stream_format)
  */
@@ -16,10 +18,14 @@ export class EventStream {
   private _disposed = false;
   private _handled = false;
 
+  private get _isClosed(): boolean {
+    return this._writerIsClosed || this._disposed;
+  }
+
   constructor(event: H3Event, opts: EventStreamOptions = {}) {
     this._event = event;
     this._writer = this._transformStream.writable.getWriter();
-    this._writer.closed.then(() => {
+    this._writer.closed.catch(_noop).finally(() => {
       this._writerIsClosed = true;
     });
     if (opts.autoclose !== false) {
@@ -58,7 +64,7 @@ export class EventStream {
   }
 
   async pushComment(comment: string): Promise<void> {
-    if (this._writerIsClosed) {
+    if (this._isClosed) {
       return;
     }
     if (this._paused && !this._unsentData) {
@@ -69,11 +75,13 @@ export class EventStream {
       this._unsentData += formatEventStreamComment(comment);
       return;
     }
-    await this._writer.write(this._encoder.encode(formatEventStreamComment(comment))).catch();
+    await this._writer.write(this._encoder.encode(formatEventStreamComment(comment))).catch(() => {
+      this._writerIsClosed = true;
+    });
   }
 
   private async _sendEvent(message: EventStreamMessage) {
-    if (this._writerIsClosed) {
+    if (this._isClosed) {
       return;
     }
     if (this._paused && !this._unsentData) {
@@ -84,11 +92,13 @@ export class EventStream {
       this._unsentData += formatEventStreamMessage(message);
       return;
     }
-    await this._writer.write(this._encoder.encode(formatEventStreamMessage(message))).catch();
+    await this._writer.write(this._encoder.encode(formatEventStreamMessage(message))).catch(() => {
+      this._writerIsClosed = true;
+    });
   }
 
   private async _sendEvents(messages: EventStreamMessage[]) {
-    if (this._writerIsClosed) {
+    if (this._isClosed) {
       return;
     }
     const payload = formatEventStreamMessages(messages);
@@ -101,7 +111,9 @@ export class EventStream {
       return;
     }
 
-    await this._writer.write(this._encoder.encode(payload)).catch();
+    await this._writer.write(this._encoder.encode(payload)).catch(() => {
+      this._writerIsClosed = true;
+    });
   }
 
   pause(): void {
@@ -118,11 +130,13 @@ export class EventStream {
   }
 
   async flush(): Promise<void> {
-    if (this._writerIsClosed) {
+    if (this._isClosed) {
       return;
     }
     if (this._unsentData?.length) {
-      await this._writer.write(this._encoder.encode(this._unsentData));
+      await this._writer.write(this._encoder.encode(this._unsentData)).catch(() => {
+        this._writerIsClosed = true;
+      });
       this._unsentData = undefined;
     }
   }
@@ -134,7 +148,7 @@ export class EventStream {
     if (this._disposed) {
       return;
     }
-    if (!this._writerIsClosed) {
+    if (!this._isClosed) {
       try {
         await this._writer.close();
       } catch {
@@ -149,7 +163,7 @@ export class EventStream {
    * It is also triggered after calling the `close()` method.
    */
   onClosed(cb: () => any): void {
-    this._writer.closed.then(cb);
+    this._writer.closed.then(cb).catch(_noop);
   }
 
   async send(): Promise<BodyInit> {
@@ -170,7 +184,7 @@ export function isEventStream(input: unknown): input is EventStream {
 export function formatEventStreamComment(comment: string): string {
   return (
     comment
-      .split("\n")
+      .split(/\r\n|\r|\n/)
       .map((l) => `: ${l}\n`)
       .join("") + "\n"
   );
@@ -188,7 +202,7 @@ export function formatEventStreamMessage(message: EventStreamMessage): string {
     result += `retry: ${message.retry}\n`;
   }
   const data = typeof message.data === "string" ? message.data : "";
-  for (const line of data.split("\n")) {
+  for (const line of data.split(/\r\n|\r|\n/)) {
     result += `data: ${line}\n`;
   }
   result += "\n";

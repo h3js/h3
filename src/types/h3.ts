@@ -5,6 +5,7 @@ import type { MaybePromise } from "./_utils.ts";
 import type { FetchHandler, ServerRequest } from "srvx";
 // import type { MatchedRoute, RouterContext } from "rou3";
 import type { H3Event } from "../event.ts";
+import type { H3Plugin } from "../plugin.ts";
 
 // Inlined from rou3 for type portability
 export interface RouterContext {
@@ -34,6 +35,15 @@ export interface H3Config {
    */
   silent?: boolean;
 
+  /**
+   * By default H3 rejects requests with a malformed percent-encoded URL path
+   * (e.g. `/foo%`, `/%ZZ`) with a `400 Bad Request` before routing.
+   *
+   * When enabled, such requests are allowed through with the raw, undecoded
+   * pathname instead. Your handlers are then responsible for handling it safely.
+   */
+  allowMalformedURL?: boolean;
+
   plugins?: H3Plugin[];
 
   onRequest?: (event: H3Event) => MaybePromise<void>;
@@ -55,16 +65,6 @@ export interface H3Route {
   middleware?: Middleware[];
   meta?: H3RouteMeta;
   handler: EventHandler;
-}
-
-// --- H3 Plugins ---
-
-export type H3Plugin = (h3: H3) => void;
-
-export function definePlugin<T = unknown>(
-  def: (h3: H3, options: T) => void,
-): undefined extends T ? (options?: T) => H3Plugin : (options: T) => H3Plugin {
-  return ((opts?: any) => (h3: H3) => def(h3, opts)) as any;
 }
 
 // --- H3 App ---
@@ -143,8 +143,8 @@ export declare class H3 extends H3Core {
   /**
    * Register a global middleware.
    */
-  use(route: string, handler: Middleware, opts?: MiddlewareOptions): this;
-  use(handler: Middleware, opts?: MiddlewareOptions): this;
+  use(route: string, handler: Middleware | H3, opts?: MiddlewareOptions): this;
+  use(handler: Middleware | H3, opts?: MiddlewareOptions): this;
 
   /**
    * Register a route handler for the specified HTTP method and route.

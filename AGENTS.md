@@ -15,9 +15,8 @@ pnpm dev                    # vitest watch mode
 pnpm vitest run <path>      # run specific test
 pnpm test                   # full suite (lint + typecheck + coverage)
 pnpm build                  # build with obuild
-pnpm lint                   # oxlint + oxfmt --check
+pnpm lint                   # oxlint + oxfmt --check (lint + typecheck)
 pnpm fmt                    # automd + oxlint --fix + oxfmt
-pnpm typecheck              # tsgo --noEmit --skipLibCheck
 pnpm bench:node             # node benchmarks
 pnpm bench:bun              # bun benchmarks
 ```

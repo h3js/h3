@@ -10,4 +10,3 @@ tsconfig.vitest-temp.json
 .DS_Store
 tsconfig.tsbuildinfo
 *.tmp*
-skills/h3/docs

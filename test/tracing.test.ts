@@ -1157,3 +1157,80 @@ describe("tracing channels for H3Core instances", () => {
     }
   });
 });
+
+describe("wrapHandlerWithTracing", () => {
+  it("wraps a handler so route traces are emitted", async () => {
+    const listener = createTracingListener();
+    const { H3Core } = await import("../src/h3.ts");
+    const { wrapHandlerWithTracing } = await import("../src/tracing.ts");
+    const { H3Event } = await import("../src/event.ts");
+
+    try {
+      const app = new H3Core();
+      const routeHandler = wrapHandlerWithTracing(() => "traced response");
+
+      app["~findRoute"] = (event: any) => {
+        if (event.url.pathname === "/test" && event.req.method === "GET") {
+          return { data: { method: "GET", route: "/test", handler: routeHandler }, params: {} };
+        }
+        return undefined;
+      };
+
+      const request = new Request("http://localhost/test", { method: "GET" });
+      const event = new H3Event(request, undefined, app as any);
+
+      await app.handler(event);
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      const routeEvents = listener.events.filter((e) => e.asyncStart?.data.type === "route");
+      expect(routeEvents.some((e) => e.asyncStart?.data.event.url.pathname === "/test")).toBe(true);
+    } finally {
+      listener.cleanup();
+    }
+  });
+
+  it("is idempotent — wrapping twice returns the same wrapper", async () => {
+    const { wrapHandlerWithTracing } = await import("../src/tracing.ts");
+
+    const handler = () => "ok";
+    const wrapped = wrapHandlerWithTracing(handler);
+    const doubleWrapped = wrapHandlerWithTracing(wrapped);
+
+    expect(doubleWrapped).toBe(wrapped);
+    expect((wrapped as any).__traced__).toBe(true);
+  });
+
+  it("emits exactly one trace per request on a pre-wrapped handler", async () => {
+    const listener = createTracingListener();
+    const { H3Core } = await import("../src/h3.ts");
+    const { wrapHandlerWithTracing } = await import("../src/tracing.ts");
+    const { H3Event } = await import("../src/event.ts");
+
+    try {
+      const app = new H3Core();
+      const routeHandler = wrapHandlerWithTracing(() => "ok");
+
+      app["~findRoute"] = () => ({
+        data: { method: "GET" as const, route: "/test", handler: routeHandler },
+        params: {},
+      });
+
+      const run = async () => {
+        const request = new Request("http://localhost/test", { method: "GET" });
+        const event = new H3Event(request, undefined, app as any);
+        await app.handler(event);
+      };
+
+      await run();
+      await run();
+      await run();
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      const routeAsyncStarts = listener.events.filter((e) => e.asyncStart?.data.type === "route");
+      expect(routeAsyncStarts.length).toBe(3);
+    } finally {
+      listener.cleanup();
+    }
+  });
+});

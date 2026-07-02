@@ -1,4 +1,4 @@
-const _textEncoder = new TextEncoder();
+const _textEncoder = /* @__PURE__ */ new TextEncoder();
 
 /**
  * Constant-time string comparison to prevent timing attacks.

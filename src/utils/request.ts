@@ -1,4 +1,5 @@
 import { type ErrorDetails, HTTPError } from "../error.ts";
+import { decodePathname } from "./internal/path.ts";
 import { parseQuery } from "./internal/query.ts";
 import { validateData } from "./internal/validate.ts";
 import { getEventContext } from "./event.ts";
@@ -10,6 +11,39 @@ import type { InferEventInput } from "../types/handler.ts";
 import type { HTTPMethod } from "../types/h3.ts";
 import type { H3EventContext } from "../types/context.ts";
 import type { ServerRequest } from "srvx";
+
+/**
+ * Create a lightweight request proxy that overrides only the URL.
+ *
+ * Avoids cloning the original request (no `new Request()` allocation).
+ */
+export function requestWithURL(req: ServerRequest, url: string): ServerRequest {
+  const cache: Record<string | symbol, unknown> = { url };
+  return new Proxy(req, {
+    get(target, prop) {
+      if (prop in cache) return cache[prop];
+      const value = Reflect.get(target, prop);
+      cache[prop] = typeof value === "function" ? value.bind(target) : value;
+      return cache[prop];
+    },
+  });
+}
+
+/**
+ * Create a lightweight request proxy with the base path stripped from the URL pathname.
+ */
+export function requestWithBaseURL(req: ServerRequest, base: string): ServerRequest {
+  const url = new URL(req.url);
+  let pathname: string;
+  try {
+    pathname = decodePathname(url.pathname);
+  } catch {
+    // Malformed percent-encoding: fall back to the raw pathname instead of throwing.
+    pathname = url.pathname;
+  }
+  url.pathname = pathname.slice(base.length) || "/";
+  return requestWithURL(req, url.href);
+}
 
 /**
  * Convert input into a web [Request](https://developer.mozilla.org/en-US/docs/Web/API/Request).
@@ -27,7 +61,10 @@ export function toRequest(
     if (url[0] === "/") {
       const headers = options?.headers ? new Headers(options.headers) : undefined;
       const host = headers?.get("host") || "localhost";
-      const proto = headers?.get("x-forwarded-proto") === "https" ? "https" : "http";
+      const proto =
+        (headers?.get("x-forwarded-proto") || "").split(",")[0].trim() === "https"
+          ? "https"
+          : "http";
       url = `${proto}://${host}${url}`;
     }
     return new Request(url, options);
@@ -177,7 +214,7 @@ export function getValidatedRouterParams<
 /**
  * Get matched route params and validate with validate function.
  *
- * If `decode` option is `true`, it will decode the matched route params using `decodeURI`.
+ * If `decode` option is `true`, it will decode the matched route params using `decodeURIComponent`.
  *
  * You can use a simple function to validate the params object or use a Standard-Schema compatible library like `zod` to define a schema.
  *
@@ -240,7 +277,7 @@ export function getValidatedRouterParams(
 /**
  * Get a matched route param by name.
  *
- * If `decode` option is `true`, it will decode the matched route param using `decodeURI`.
+ * If `decode` option is `true`, it will decode the matched route param using `decodeURIComponent`.
  *
  * @example
  * app.get("/", (event) => {
@@ -294,7 +331,8 @@ export function isMethod(
 /**
  * Asserts that the incoming request method is of the expected type using `isMethod`.
  *
- * If the method is not allowed, it will throw a 405 error with the message "HTTP method is not allowed".
+ * If the method is not allowed, it will throw a 405 error and include an `Allow`
+ * response header listing the permitted methods, as required by RFC 9110.
  *
  * If `allowHead` is `true`, it will allow `HEAD` requests to pass if the expected method is `GET`.
  *
@@ -310,7 +348,13 @@ export function assertMethod(
   allowHead?: boolean,
 ): void {
   if (!isMethod(event, expected, allowHead)) {
-    throw new HTTPError({ status: 405 });
+    const allowed = Array.isArray(expected) ? expected : [expected];
+    throw new HTTPError({
+      status: 405,
+      headers: {
+        Allow: allowHead ? [...allowed, "HEAD"].join(", ") : allowed.join(", "),
+      },
+    });
   }
 }
 
@@ -319,7 +363,7 @@ export function assertMethod(
  *
  * If `xForwardedHost` is `true`, it will use the `x-forwarded-host` header if it exists.
  *
- * If no host header is found, it will default to "localhost".
+ * If no host header is found, it will return an empty string.
  *
  * @example
  * app.get("/", (event) => {
@@ -340,7 +384,7 @@ export function getRequestHost(event: HTTPEvent, opts: { xForwardedHost?: boolea
 /**
  * Get the request protocol.
  *
- * If `x-forwarded-proto` header is set to "https", it will return "https". You can disable this behavior by setting `xForwardedProto` to `false`.
+ * If `x-forwarded-proto` header is set to "https", it will return "https". If the header contains a comma-separated list of protocols, the first entry is used. You can disable this behavior by setting `xForwardedProto` to `false`.
  *
  * If protocol cannot be determined, it will default to "http".
  *
@@ -354,7 +398,8 @@ export function getRequestProtocol(
   opts: { xForwardedProto?: boolean } = {},
 ): "http" | "https" | (string & {}) {
   if (opts.xForwardedProto !== false) {
-    const forwardedProto = event.req.headers.get("x-forwarded-proto");
+    const _header = event.req.headers.get("x-forwarded-proto");
+    const forwardedProto = (_header || "").split(",")[0].trim();
     if (forwardedProto === "https") {
       return "https";
     }
@@ -388,7 +433,7 @@ export function getRequestURL(
     const host = getRequestHost(event, opts);
     if (host) {
       url.host = host;
-      if (!host.includes(":")) {
+      if (!/:\d+$/.test(host)) {
         url.port = "";
       }
     }

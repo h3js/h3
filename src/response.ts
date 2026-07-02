@@ -3,7 +3,7 @@ import { HTTPError } from "./error.ts";
 import { isJSONSerializable } from "./utils/internal/object.ts";
 
 import type { H3Config } from "./types/h3.ts";
-import { kEventRes, kEventResHeaders, type H3Event } from "./event.ts";
+import { kEventRes, kEventResHeaders, kEventResErrHeaders, type H3Event } from "./event.ts";
 
 export const kNotFound: symbol = /* @__PURE__ */ Symbol.for("h3.notFound");
 export const kHandled: symbol = /* @__PURE__ */ Symbol.for("h3.handled");
@@ -14,8 +14,9 @@ export function toResponse(
   config: H3Config = {},
 ): Response | Promise<Response> {
   if (typeof (val as PromiseLike<unknown>)?.then === "function") {
-    return ((val as Promise<unknown>).catch?.((error) => error) || Promise.resolve(val)).then(
+    return (val as Promise<unknown>).then(
       (resolvedVal) => toResponse(resolvedVal, event, config),
+      (r) => toResponse(typeof r === "number" ? new HTTPError({ status: r }) : r, event, config),
     ) as Promise<Response>;
   }
 
@@ -83,11 +84,12 @@ function prepareResponse(
       console.error(error);
     }
     const { onError } = config;
+    const errHeaders: Headers | undefined = (event as any)[kEventRes]?.[kEventResErrHeaders];
     return onError && !nested
       ? Promise.resolve(onError(error, event))
           .catch((error) => error)
           .then((newVal) => prepareResponse(newVal ?? val, event, config, true))
-      : errorResponse(error, config.debug);
+      : errorResponse(error, config.debug, errHeaders);
   }
 
   // Only set if event.res.headers is accessed
@@ -240,7 +242,13 @@ function nullBody(method: string, status: number | undefined): boolean | 0 | und
   )
 }
 
-function errorResponse(error: HTTPError, debug?: boolean): Response {
+function errorResponse(error: HTTPError, debug?: boolean, errHeaders?: Headers): Response {
+  let headers: Headers = error.headers
+    ? mergeHeaders(jsonHeaders, error.headers)
+    : new Headers(jsonHeaders);
+  if (errHeaders) {
+    headers = mergeHeaders(headers, errHeaders);
+  }
   return new FastResponse(
     JSON.stringify(
       {
@@ -253,7 +261,7 @@ function errorResponse(error: HTTPError, debug?: boolean): Response {
     {
       status: error.status,
       statusText: error.statusText,
-      headers: error.headers ? mergeHeaders(jsonHeaders, error.headers) : new Headers(jsonHeaders),
+      headers,
     },
   );
 }

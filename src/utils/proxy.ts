@@ -18,11 +18,33 @@ export interface ProxyOptions {
   fetchOptions?: RequestInit & { duplex?: "half" | "full" };
   cookieDomainRewrite?: string | Record<string, string>;
   cookiePathRewrite?: string | Record<string, string>;
-  onResponse?: (event: H3Event, response: Response) => void;
+  onResponse?: (event: H3Event, response: Response) => void | Promise<void>;
 }
 
 /**
  * Proxy the incoming request to a target URL.
+ *
+ * If the `target` starts with `/`, the request is handled internally by the app router
+ * via `event.app.fetch()` instead of making an external HTTP request.
+ *
+ * The request body is streamed to the target without buffering. Per the Fetch
+ * standard, a request body can only be consumed once, so reading it beforehand
+ * (e.g. via `readBody()`, `readFormData()`, or body-reading middleware) locks
+ * the stream and proxying fails. If you need to inspect the body and still
+ * proxy it, read from a clone and leave the original event untouched.
+ *
+ * **Security:** Never pass unsanitized user input as the `target`. Callers are
+ * responsible for validating and restricting the target URL (e.g. allowlisting
+ * hosts, blocking internal paths, enforcing protocol). Consider using
+ * `bodyLimit()` middleware to prevent large request bodies from consuming
+ * excessive resources when proxying untrusted input.
+ *
+ * @example
+ * app.all("/proxy", async (event) => {
+ *   const body = await event.req.clone().json(); // read from the clone
+ *   // ...inspect body...
+ *   return proxyRequest(event, "/target"); // original stream still intact
+ * });
  */
 export async function proxyRequest(
   event: H3Event,
@@ -60,6 +82,14 @@ export async function proxyRequest(
 
 /**
  * Make a proxy request to a target URL and send the response back to the client.
+ *
+ * If the `target` starts with `/`, the request is dispatched internally via
+ * `event.app.fetch()` (sub-request) and never leaves the process. This bypasses
+ * any external security layer (reverse proxy auth, IP allowlisting, mTLS).
+ *
+ * **Security:** Never pass unsanitized user input as the `target`. Callers are
+ * responsible for validating and restricting the target URL (e.g. allowlisting
+ * hosts, blocking internal paths, enforcing protocol).
  */
 export async function proxy(
   event: H3Event,
@@ -154,6 +184,12 @@ export function getProxyRequestHeaders(
 
 /**
  * Make a fetch request with the event's context and headers.
+ *
+ * If the `url` starts with `/`, the request is dispatched internally via
+ * `event.app.fetch()` (sub-request) and never leaves the process.
+ *
+ * **Security:** Never pass unsanitized user input as the `url`. Callers are
+ * responsible for validating and restricting the URL.
  */
 export async function fetchWithEvent(
   event: H3Event,

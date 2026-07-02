@@ -126,6 +126,20 @@ describeMatrix("errors", (t, { it, expect }) => {
     t.errors = [];
   });
 
+  it("can inherit deprecated statusCode/statusMessage from cause", async () => {
+    const cause = { statusCode: 404, statusMessage: "Not Found" };
+
+    t.app.get("/", () => {
+      throw new HTTPError({ cause });
+    });
+
+    const res = await t.fetch("/");
+    expect(res.status).toBe(404);
+    expect(res.statusText).toBe("Not Found");
+
+    t.errors = [];
+  });
+
   it("error headers", async () => {
     t.app.config.onError = async (error, event) => {
       const headers = new Headers(event.res.headers);
@@ -145,5 +159,28 @@ describeMatrix("errors", (t, { it, expect }) => {
     expect(res.headers.getSetCookie()).toEqual(["error=1"]);
 
     t.errors = [];
+  });
+
+  it("throw number coerces to status", async () => {
+    t.app.use(() => {
+      throw 404;
+    });
+    const res = await t.fetch("/");
+    expect(res.status).toBe(404);
+  });
+
+  it("throw async number coerces to status", async () => {
+    t.app.use(async () => {
+      throw 500;
+    });
+    const res = await t.fetch("/");
+    expect(res.status).toBe(500);
+  });
+
+  it("return number is unchanged", async () => {
+    t.app.use(() => 404);
+    const res = await t.fetch("/");
+    expect(res.status).toBe(200);
+    expect(await res.json()).toBe(404);
   });
 });

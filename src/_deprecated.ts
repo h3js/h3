@@ -25,7 +25,9 @@ export const H3Error: typeof HTTPError = HTTPError;
 
 /** @deprecated Use new HTTPError() */
 export function createError(message: number, details?: ErrorDetails): HTTPError;
+/** @deprecated Use new HTTPError() */
 export function createError(details: ErrorDetails): HTTPError;
+/** @deprecated Use new HTTPError() */
 export function createError(arg1: any, arg2?: any): HTTPError {
   return new HTTPError(arg1, arg2);
 }
@@ -96,12 +98,12 @@ export async function readMultipartFormData(event: H3Event): Promise<
 
   return Promise.all(
     [...formData.entries()].map(async ([key, value]) => {
-      return value instanceof Blob
+      return typeof value === "object"
         ? {
             name: key,
-            type: value.type,
-            filename: value.name,
-            data: await value.bytes(),
+            type: (value as Blob).type,
+            filename: (value as File).name,
+            data: await (value as Blob).bytes(),
           }
         : { name: key, data: new TextEncoder().encode(value) };
     }),

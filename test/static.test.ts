@@ -97,6 +97,30 @@ describeMatrix("serve static", (t, { it, expect }) => {
     expect(headRes.status).toEqual(404);
   });
 
+  it("Handles cache (if-modified-since) for sub-second mtime", async () => {
+    // mtime with millisecond precision. The `last-modified` header the server
+    // emits is truncated to whole seconds (HTTP-date granularity), so a client
+    // echoing that exact value in `if-modified-since` must still get a 304.
+    const subSecondOptions: ServeStaticOptions = {
+      getContents: vi.fn((id) => `asset:${id}`),
+      getMeta: vi.fn((id) => ({
+        type: "text/plain",
+        mtime: 1_700_000_000_500, // 500ms past the whole second
+        path: id,
+        size: `asset:${id}`.length,
+      })),
+    };
+    t.app.all("/subsec/**", (event) => serveStatic(event, subSecondOptions));
+
+    // The exact value the server reports in `last-modified`.
+    const lastModified = new Date(1_700_000_000_500).toUTCString();
+    const res = await t.fetch("/subsec/test.png", {
+      headers: { "if-modified-since": lastModified },
+    });
+    expect(res.status).toEqual(304);
+    expect(await res.text()).toBe("");
+  });
+
   it("Returns 405 if other methods used", async () => {
     const res = await t.fetch("/test.png", { method: "POST" });
     expect(res.status).toEqual(405);
@@ -110,6 +134,49 @@ describeMatrix("serve static", (t, { it, expect }) => {
     // The id must NOT contain `..` traversal sequences
     expect(text).not.toContain("..");
     expect(text).toMatch(/^asset:\/etc\/passwd/);
+  });
+
+  it("blocks path traversal attempts", async () => {
+    const blocked = [
+      "/../etc/passwd",
+      "/%2e%2e/",
+      "/%2E%2E/",
+      "/assets/../../etc/passwd",
+      "/assets/..",
+      "/..\\etc\\passwd",
+      "/..%5c..%5cetc%5cpasswd",
+      "/..",
+    ];
+    for (const path of blocked) {
+      const res = await t.fetch(path);
+      const text = await res.text();
+      expect(text).not.toContain("..");
+    }
+  });
+
+  it("does not pass double-encoded dot segments as traversal to backend", async () => {
+    const res = await t.fetch("/%252e%252e/%252e%252e/etc/passwd");
+    const text = await res.text();
+    // After first decode: %2e%2e/%2e%2e/etc/passwd
+    // Backend must NOT see %2e%2e which could be resolved as .. by downstream
+    expect(text).not.toContain("%2e%2e");
+    expect(text).not.toContain("%2E%2E");
+  });
+
+  it("allows legitimate paths with dots", async () => {
+    const allowed = [
+      "/_...grid_123.js",
+      "/file..name.js",
+      "/.hidden",
+      "/assets/file.txt",
+      "/...test/file.js",
+    ];
+    for (const path of allowed) {
+      const res = await t.fetch(path);
+      expect(res.status).toEqual(200);
+      const text = await res.text();
+      expect(text).toContain("asset:");
+    }
   });
 });
 
@@ -258,5 +325,24 @@ describeMatrix("serve static MIME types", (t, { it, expect }) => {
     expect(res3.headers.get("content-type")).toBe(
       t.target === "web" ? null : "text/plain; charset=UTF-8",
     );
+  });
+
+  it("does not overwrite a content-length already set on the response", async () => {
+    // An explicit response content-length must win over the size derived from
+    // meta — consistent with content-type / content-encoding / last-modified,
+    // which are only set when not already present on the response.
+    const options: ServeStaticOptions = {
+      getContents: vi.fn(() => "content"),
+      getMeta: vi.fn(() => ({ size: 18 })),
+      headers: { "content-length": "999" },
+    };
+
+    t.app.all("/clen/**", (event) => {
+      return serveStatic(event, options);
+    });
+
+    const res = await t.fetch("/clen/file.txt", { method: "HEAD" });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-length")).toBe("999");
   });
 });

@@ -2,6 +2,7 @@ import type { ServerRequest, ServerRuntimeContext } from "srvx";
 import type { H3EventContext } from "./types/context.ts";
 
 import { EmptyObject } from "./utils/internal/obj.ts";
+import { decodePathname } from "./utils/internal/path.ts";
 import { FastURL } from "srvx";
 import type { EventHandlerRequest, TypedServerRequest } from "./types/handler.ts";
 import type { H3Core } from "./h3.ts";
@@ -11,6 +12,11 @@ const kEventNS = "h3.internal.event.";
 export const kEventRes: unique symbol = /* @__PURE__ */ Symbol.for(`${kEventNS}res`);
 
 export const kEventResHeaders: unique symbol = /* @__PURE__ */ Symbol.for(`${kEventNS}res.headers`);
+export const kEventResErrHeaders: unique symbol = /* @__PURE__ */ Symbol.for(
+  `${kEventNS}res.err.headers`,
+);
+
+export const kMalformedURL: unique symbol = /* @__PURE__ */ Symbol.for(`${kEventNS}malformed`);
 
 export interface HTTPEvent<_RequestT extends EventHandlerRequest = EventHandlerRequest> {
   /**
@@ -59,7 +65,19 @@ export class H3Event<
     this.app = app;
     // Parsed URL can be provided by srvx (node) and other runtimes
     const _url = (req as { _url?: URL })._url;
-    this.url = _url && _url instanceof URL ? _url : new FastURL(req.url);
+    const url = _url && _url instanceof URL ? _url : new FastURL(req.url);
+    // Normalize percent-encoded pathname to prevent middleware bypass
+    if (url.pathname.includes("%")) {
+      try {
+        url.pathname = decodePathname(url.pathname);
+      } catch {
+        // Malformed percent-encoding (e.g. `/foo%`, `/%ZZ`): flag for a 400
+        // response and keep the raw pathname so route matching and middleware
+        // guards still see one consistent value.
+        (this as any)[kMalformedURL] = true;
+      }
+    }
+    this.url = url;
   }
 
   /**
@@ -140,5 +158,9 @@ class H3EventResponse {
 
   get headers(): Headers {
     return ((this as any)[kEventResHeaders] ||= new Headers());
+  }
+
+  get errHeaders(): Headers {
+    return ((this as any)[kEventResErrHeaders] ||= new Headers());
   }
 }

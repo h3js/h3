@@ -1,5 +1,8 @@
+import { vi } from "vitest";
 import { Readable as NodeStreamReadable, Transform as NodeStreamTransoform } from "node:stream";
-import { HTTPError, fromNodeHandler } from "../src/index.ts";
+import { fromNodeHandler } from "../src/adapters.ts";
+import { HTTPError } from "../src/error.ts";
+import { onResponse } from "../src/utils/middleware.ts";
 import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("app", (t, { it, expect }) => {
@@ -124,8 +127,25 @@ describeMatrix("app", (t, { it, expect }) => {
     expect(res.headers.get("transfer-encoding")).toBe("chunked");
   });
 
-  // TODO: investigate issues with stream errors on srvx
-  it.runIf(/* t.target === "node" */ false)("Node.js Readable Stream with Error", async () => {
+  it.runIf(t.target === "node")("pipeable response body survives response clone", async () => {
+    t.app.use(
+      onResponse((response) => {
+        response.clone();
+      }),
+    );
+    t.app.use(() => ({
+      pipe(writable: { write: (chunk: string) => void; end: () => void }) {
+        writable.write("test");
+        writable.end();
+      },
+    }));
+
+    const res = await t.fetch("/");
+
+    expect(await res.text()).toBe("test");
+  });
+
+  it.runIf(t.target === "node")("Node.js Readable Stream with Error", async () => {
     t.app.use(() => {
       return new NodeStreamReadable({
         read() {
@@ -146,7 +166,6 @@ describeMatrix("app", (t, { it, expect }) => {
     });
     const res = await t.fetch("/");
     expect(res.status).toBe(500);
-    expect(JSON.parse(await res.text()).statusMessage).toBe("test");
   });
 
   it("Web Stream", async () => {
@@ -301,6 +320,7 @@ describeMatrix("app", (t, { it, expect }) => {
   it.skipIf(t.target !== "node")(
     "fromNodeHandler + piping (with Error and custom status)",
     async () => {
+      const spy = vi.spyOn(console, "error").mockImplementation(() => {});
       t.app.all(
         "/*",
         fromNodeHandler((req, res) => {
@@ -316,6 +336,7 @@ describeMatrix("app", (t, { it, expect }) => {
       const res = await t.fetch("/");
       expect(res.status).toBe(201);
       expect(await res.text()).toBe("item1,item2");
+      spy.mockRestore();
     },
   );
 

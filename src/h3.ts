@@ -1,10 +1,13 @@
 import { createRouter, addRoute, findRoute } from "rou3";
-import { H3Event } from "./event.ts";
+import { H3Event, kMalformedURL } from "./event.ts";
+import { HTTPError } from "./error.ts";
 import { toResponse, kNotFound } from "./response.ts";
 import { callMiddleware, normalizeMiddleware } from "./middleware.ts";
+import { requestWithBaseURL } from "./utils/request.ts";
 
 import type { ServerRequest } from "srvx";
-import type { H3Config, H3CoreConfig, H3Plugin, MatchedRoute, RouterContext } from "./types/h3.ts";
+import type { H3Config, H3CoreConfig, MatchedRoute, RouterContext } from "./types/h3.ts";
+import type { H3Plugin } from "./plugin.ts";
 import type { H3EventContext } from "./types/context.ts";
 import type {
   EventHandler,
@@ -28,6 +31,8 @@ import { toEventHandler } from "./handler.ts";
 export const NoHandler: EventHandler = () => kNotFound;
 
 export class H3Core implements H3CoreType {
+  static "~h3" = true;
+
   readonly config: H3CoreConfig;
 
   "~middleware": Middleware[];
@@ -64,6 +69,11 @@ export class H3Core implements H3CoreType {
     // Execute the handler
     let handlerRes: unknown | Promise<unknown>;
     try {
+      if ((event as any)[kMalformedURL] && !this.config.allowMalformedURL) {
+        // Reject malformed request URLs before any routing or app logic runs.
+        // Opt out with `allowMalformedURL` to receive the raw pathname instead.
+        throw new HTTPError({ status: 400, message: "Bad Request" });
+      }
       if (this.config.onRequest) {
         const hookRes = this.config.onRequest(event);
         handlerRes =
@@ -123,7 +133,10 @@ export const H3 = /* @__PURE__ */ (() => {
         if (input["~middleware"].length > 0) {
           this["~middleware"].push((event, next) => {
             const originalPathname = event.url.pathname;
-            if (!originalPathname.startsWith(base)) {
+            if (
+              !originalPathname.startsWith(base) ||
+              (originalPathname.length > base.length && originalPathname[base.length] !== "/")
+            ) {
               return next();
             }
             event.url.pathname = event.url.pathname.slice(base.length) || "/";
@@ -155,9 +168,7 @@ export const H3 = /* @__PURE__ */ (() => {
       } else {
         const fetchHandler = "fetch" in input ? input.fetch : input;
         this.all(`${base}/**`, function _mountedMiddleware(event) {
-          const url = new URL(event.url);
-          url.pathname = url.pathname.slice(base.length) || "/";
-          return fetchHandler(new Request(url, event.req));
+          return fetchHandler(requestWithBaseURL(event.req, base));
         });
       }
       return this;
@@ -205,6 +216,9 @@ export const H3 = /* @__PURE__ */ (() => {
       } else {
         fn = arg1 as Middleware | H3Type;
         opts = arg2 as MiddlewareOptions;
+      }
+      if (typeof fn !== "function" && "handler" in (fn as object)) {
+        return this.mount(route || "", fn as unknown as H3Type);
       }
       this["~middleware"].push(normalizeMiddleware(fn as Middleware, { ...opts, route }));
       return this;
