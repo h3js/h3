@@ -133,3 +133,6 @@ app.use(async (event) => {
   return session.data;
 });
 ```
+
+> [!NOTE]
+> The `secure: true` option tells the browser to only store and send the cookie over HTTPS. When developing locally over plain HTTP, compliant browsers (notably Safari and iOS, and Chrome on some local domains) silently drop the cookie, so the session will not persist. Set `cookie: { secure: false }` during local development to work around this.
