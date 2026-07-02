@@ -1,5 +1,6 @@
 import { createRouter, addRoute, findRoute } from "rou3";
-import { H3Event } from "./event.ts";
+import { H3Event, kMalformedURL } from "./event.ts";
+import { HTTPError } from "./error.ts";
 import { toResponse, kNotFound } from "./response.ts";
 import { callMiddleware, normalizeMiddleware } from "./middleware.ts";
 import { requestWithBaseURL } from "./utils/request.ts";
@@ -68,6 +69,10 @@ export class H3Core implements H3CoreType {
     // Execute the handler
     let handlerRes: unknown | Promise<unknown>;
     try {
+      if ((event as any)[kMalformedURL]) {
+        // Reject malformed request URLs before any routing or app logic runs.
+        throw new HTTPError({ status: 400, message: "Bad Request" });
+      }
       if (this.config.onRequest) {
         const hookRes = this.config.onRequest(event);
         handlerRes =
