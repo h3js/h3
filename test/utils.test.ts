@@ -560,6 +560,23 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
       expect(res.status).toBe(304);
     });
 
+    it("returns 304 when if-none-match is a comma-separated list containing the etag", async () => {
+      t.app.use((event) => {
+        handleCacheHeaders(event, {
+          maxAge: 60,
+          etag: '"v2"',
+        });
+        return "ok";
+      });
+      const res = await t.fetch("/", {
+        headers: {
+          // RFC 7232 §3.2: the field-value is a list of entity-tags
+          "if-none-match": '"v1", "v2"',
+        },
+      });
+      expect(res.status).toBe(304);
+    });
+
     it("handles modifiedTime with milliseconds correctly", async () => {
       t.app.use((event) => {
         handleCacheHeaders(event, {
