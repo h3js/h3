@@ -35,6 +35,15 @@ export interface H3Config {
    */
   silent?: boolean;
 
+  /**
+   * By default H3 rejects requests with a malformed percent-encoded URL path
+   * (e.g. `/foo%`, `/%ZZ`) with a `400 Bad Request` before routing.
+   *
+   * When enabled, such requests are allowed through with the raw, undecoded
+   * pathname instead. Your handlers are then responsible for handling it safely.
+   */
+  allowMalformedURL?: boolean;
+
   plugins?: H3Plugin[];
 
   onRequest?: (event: H3Event) => MaybePromise<void>;

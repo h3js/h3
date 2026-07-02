@@ -1,5 +1,6 @@
-import { beforeEach } from "vitest";
+import { beforeEach, describe, it, expect } from "vitest";
 import { describeMatrix } from "./_setup.ts";
+import { H3 } from "../src/index.ts";
 
 describeMatrix("security: path encoding bypass", (ctx, { it, expect }) => {
   beforeEach(() => {
@@ -88,5 +89,52 @@ describeMatrix("security: path encoding bypass with wildcard routes", (ctx, { it
     const res = await ctx.fetch("/api/%2561dmin/users");
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ path: "/api/%2561dmin/users" });
+  });
+});
+
+describeMatrix("security: malformed percent-encoded URL", (ctx, { it, expect }) => {
+  beforeEach(() => {
+    ctx.app.use("/api/admin/**", (event, next) => {
+      if (event.req.headers.get("authorization") !== "Bearer admin-secret-token") {
+        event.res.status = 403;
+        return "Forbidden";
+      }
+      return next();
+    });
+    ctx.app.get("/api/admin/:action", () => ({ admin: true }));
+    ctx.app.get("/**", () => "ok");
+  });
+
+  // Malformed percent-encoding must not throw out of the H3Event constructor
+  // (before v2 this leaked a URIError past h3's error handling). It should be a
+  // clean 400 handled response.
+  for (const path of ["/foo%", "/%ZZ", "/bar%2", "/%"]) {
+    it(`returns 400 for ${path} without throwing`, async () => {
+      const res = await ctx.fetch(path);
+      expect(res.status).toBe(400);
+    });
+  }
+
+  // A malformed segment must never reach the guarded admin handler.
+  it("does not bypass the auth guard via a malformed segment", async () => {
+    const res = await ctx.fetch("/api/admin%ZZ/users");
+    expect(res.status).not.toBe(200);
+  });
+});
+
+describe("security: allowMalformedURL opt-in", () => {
+  it("rejects malformed URLs with 400 by default", async () => {
+    const app = new H3();
+    app.get("/**", () => "ok");
+    const res = await app.request("/foo%");
+    expect(res.status).toBe(400);
+  });
+
+  it("passes malformed URLs through with the raw pathname when enabled", async () => {
+    const app = new H3({ allowMalformedURL: true });
+    app.get("/**", (event) => event.url.pathname);
+    const res = await app.request("/foo%");
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe("/foo%");
   });
 });
