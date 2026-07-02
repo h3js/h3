@@ -136,6 +136,9 @@ app.use(async (event) => {
 
 Every option is optional except `password`. The `name` option is worth calling out: it sets the cookie used to store the session and defaults to `h3`. H3 also reads the session from a request header derived from `name`, which it normalizes to lowercase as `x-${name.toLowerCase()}-session`, so the default name `h3` produces the `x-h3-session` header seen earlier. A mixed-case `name` like `MyApp` still resolves to a lowercase `x-myapp-session` header, while the cookie keeps the original casing. That default is why the earlier examples set a cookie named `h3`.
 
+> [!NOTE]
+> The `secure: true` option tells the browser to only store and send the cookie over HTTPS. When developing locally over plain HTTP, compliant browsers (notably Safari and iOS, and Chrome on some local domains) silently drop the cookie, so the session will not persist. Set `cookie: { secure: false }` during local development to work around this.
+
 ## Use Multiple Sessions
 
 Because each session is stored under its own `name`, you can run several independent sessions on the same request. They live in separate cookies and never overwrite each other, which is useful for keeping unrelated concerns apart, such as a long-lived auth session and a short-lived flash message:
