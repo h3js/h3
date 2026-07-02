@@ -2,6 +2,7 @@ export const PayloadMethods: Set<string> = new Set(["PATCH", "POST", "PUT", "DEL
 
 export const ignoredHeaders: Set<string> = new Set([
   "transfer-encoding",
+  "accept-encoding",
   "connection",
   "keep-alive",
   "upgrade",

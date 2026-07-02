@@ -69,6 +69,24 @@ describeMatrix("proxy", (t, { it, expect, describe }) => {
         `);
       });
 
+      it("does not forward incoming accept-encoding header", async () => {
+        t.app.all("/debug", (event) => {
+          return { headers: Object.fromEntries(event.req.headers.entries()) };
+        });
+
+        t.app.all("/", (event) => {
+          return proxyRequest(event, "/debug");
+        });
+
+        const result = await t
+          .fetch("/", {
+            headers: { "accept-encoding": "zstd, br, gzip" },
+          })
+          .then((r) => r.json());
+
+        expect(result.headers["accept-encoding"]).toBeUndefined();
+      });
+
       it("can proxy binary request", async () => {
         t.app.all("/debug", async (event) => {
           const body = await event.req.arrayBuffer();

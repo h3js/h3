@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { requestWithURL, requestWithBaseURL } from "../../src/utils/request.ts";
+import { getRequestProtocol } from "../../src/index.ts";
+
+// Minimal fake HTTPEvent for unit-testing getRequestProtocol without a live server
+function makeEvent(headers: Record<string, string>, url = "http://localhost/test") {
+  const req = new Request(url, { headers });
+  return { req } as any;
+}
 
 describe("requestWithURL", () => {
   const original = new Request("http://example.com/base/path", {
@@ -73,5 +80,32 @@ describe("requestWithBaseURL", () => {
   it("is instanceof Request", () => {
     const proxied = requestWithBaseURL(original, "/base");
     expect(proxied instanceof Request).toBe(true);
+  });
+});
+
+describe("getRequestProtocol", () => {
+  it("returns https for plain x-forwarded-proto: https", () => {
+    const event = makeEvent({ "x-forwarded-proto": "https" });
+    expect(getRequestProtocol(event)).toBe("https");
+  });
+
+  it("returns http for plain x-forwarded-proto: http", () => {
+    const event = makeEvent({ "x-forwarded-proto": "http" });
+    expect(getRequestProtocol(event)).toBe("http");
+  });
+
+  it("returns first entry of comma-list x-forwarded-proto (https,http)", () => {
+    const event = makeEvent({ "x-forwarded-proto": "https,http" });
+    expect(getRequestProtocol(event)).toBe("https");
+  });
+
+  it("returns first entry of comma-list x-forwarded-proto with spaces (https, http)", () => {
+    const event = makeEvent({ "x-forwarded-proto": "https, http" });
+    expect(getRequestProtocol(event)).toBe("https");
+  });
+
+  it("ignores x-forwarded-proto when xForwardedProto is false", () => {
+    const event = makeEvent({ "x-forwarded-proto": "https" }, "http://localhost/test");
+    expect(getRequestProtocol(event, { xForwardedProto: false })).toBe("http");
   });
 });

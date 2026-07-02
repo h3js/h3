@@ -119,6 +119,11 @@ export async function serveStatic(
 
   if (meta.mtime) {
     const mtimeDate = new Date(meta.mtime);
+    // HTTP dates have whole-second precision, but `mtime` may carry sub-second
+    // milliseconds. The `last-modified` header is emitted truncated to seconds,
+    // so the comparison must also ignore milliseconds — otherwise a client that
+    // echoes our own `last-modified` value in `if-modified-since` never matches.
+    mtimeDate.setMilliseconds(0);
 
     const ifModifiedSinceH = event.req.headers.get("if-modified-since");
     if (ifModifiedSinceH && new Date(ifModifiedSinceH) >= mtimeDate) {
