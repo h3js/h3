@@ -34,9 +34,8 @@ export function defineWebSocket(hooks: Partial<WebSocketHooks>): Partial<WebSock
  * same route to handle both WebSocket upgrades and regular HTTP requests.
  * WebSocket upgrade requests always go to `hooks`.
  *
- * > [!NOTE]
- * > The `http` handler only handles non-upgrade requests. To reject or customize
- * > the upgrade handshake itself, use the crossws `upgrade` hook instead.
+ * Note: the `http` handler only handles non-upgrade requests. To reject or
+ * customize the upgrade handshake itself, use the crossws `upgrade` hook instead.
  *
  * @example
  * // WebSocket-only route (non-upgrade requests get `426 Upgrade Required`)
