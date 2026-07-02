@@ -112,30 +112,31 @@ export function writeEarlyHints(
   event: H3Event,
   hints: Record<string, string | string[]>,
 ): void | Promise<void> {
+  // HTTP headers are case-insensitive, so callers may pass `Link` (or both
+  // `link` and `Link`). Normalize every case-variant of `link` into a single
+  // lowercase `link` value and drop empty/falsy entries, so both code paths
+  // below agree on what to emit.
+  const normalizedHints: Record<string, string | string[]> = {};
+  const linkValues: string[] = [];
+  for (const [name, value] of Object.entries(hints)) {
+    if (name.toLowerCase() === "link") {
+      for (const v of Array.isArray(value) ? value : [value]) {
+        if (v) {
+          linkValues.push(v);
+        }
+      }
+    } else {
+      normalizedHints[name] = value;
+    }
+  }
+
   // Use native early hints if available (Node.js)
   if (event.runtime?.node?.res?.writeEarlyHints) {
-    // Node.js writeEarlyHints only reads `hints.link` (exact lowercase key) and
-    // returns *without* calling the callback when the resolved link value is
-    // missing or empty. Since HTTP headers are case-insensitive, callers may
-    // pass `Link` (or both `link` and `Link`). Normalize every case-variant of
-    // `link` into a single lowercase `link` value so the callback always fires.
-    const normalizedHints: Record<string, string | string[]> = {};
-    const linkValues: string[] = [];
-    for (const [name, value] of Object.entries(hints)) {
-      if (name.toLowerCase() === "link") {
-        for (const v of Array.isArray(value) ? value : [value]) {
-          if (v) {
-            linkValues.push(v);
-          }
-        }
-      } else {
-        normalizedHints[name] = value;
-      }
-    }
     if (linkValues.length === 0) {
-      // Node would return without invoking the callback, leaving the promise
-      // pending forever. Return early instead of creating a hanging promise.
-      return;
+      // Node.js writeEarlyHints only reads `hints.link` and returns *without*
+      // calling the callback when the resolved link value is missing or empty,
+      // leaving the promise pending forever. Resolve immediately instead.
+      return Promise.resolve();
     }
     normalizedHints.link = linkValues;
     return new Promise((resolve) => {
@@ -144,17 +145,8 @@ export function writeEarlyHints(
   }
 
   // Fallback: Set Link headers for CDN support (only Link headers to avoid leaking sensitive headers)
-  for (const [name, value] of Object.entries(hints)) {
-    if (name.toLowerCase() !== "link") {
-      continue;
-    }
-    if (Array.isArray(value)) {
-      for (const v of value) {
-        event.res.headers.append("link", v);
-      }
-    } else {
-      event.res.headers.append("link", value);
-    }
+  for (const v of linkValues) {
+    event.res.headers.append("link", v);
   }
 }
 

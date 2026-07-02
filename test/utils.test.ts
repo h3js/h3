@@ -516,6 +516,28 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
       },
     );
 
+    // Empty/falsy link values must be dropped on the fallback path too, so no
+    // malformed empty `Link:` header is emitted (matches the Node path filter).
+    it.skipIf(t.target === "node")(
+      "does not set an empty Link header for falsy link values (fallback)",
+      async () => {
+        t.app.get("/empty-string", async (event) => {
+          await writeEarlyHints(event, { link: "" });
+          return "ok";
+        });
+        t.app.get("/mixed", async (event) => {
+          await writeEarlyHints(event, { link: ["", "</a.css>; rel=preload; as=style"] });
+          return "ok";
+        });
+
+        const res = await t.fetch("/empty-string");
+        expect(res.headers.get("Link")).toBe(null);
+
+        const res2 = await t.fetch("/mixed");
+        expect(res2.headers.get("Link")).toBe("</a.css>; rel=preload; as=style");
+      },
+    );
+
     // Regression tests for #1383: on the Node.js native path, writeEarlyHints
     // returns without invoking its callback when the resolved `link` value is
     // missing/empty. h3 wraps that callback in a promise, so a missing callback
