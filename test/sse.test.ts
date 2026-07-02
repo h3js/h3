@@ -14,7 +14,7 @@ describeMatrix("sse", (t, { it, expect }) => {
         if (counter++ === 3) {
           clearInterval(clear);
           eventStream.close();
-          return; // TODO: eventStream.push should auto disable after close!
+          return;
         }
         if (sendComment) {
           eventStream.pushComment("hello world");
@@ -56,5 +56,22 @@ describeMatrix("sse", (t, { it, expect }) => {
     expect(messages.length).toBe(3);
     const expected = Array.from({ length: 3 }).fill(": hello world");
     expect(messages).toEqual(expected);
+  });
+
+  it("ignores pushes after close", async () => {
+    t.app.get("/sse-after-close", async (event) => {
+      const eventStream = createEventStream(event);
+      setTimeout(async () => {
+        await eventStream.push("before close");
+        await eventStream.close();
+        await eventStream.push("after close");
+        await eventStream.pushComment("after close");
+      });
+      return eventStream.send();
+    });
+
+    const res = await t.fetch("/sse-after-close");
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe("data: before close\n\n");
   });
 });
