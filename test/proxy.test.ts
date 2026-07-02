@@ -232,6 +232,141 @@ describeMatrix("proxy", (t, { it, expect, describe }) => {
         },
       );
 
+      it.runIf(t.target === "web")(
+        "forwards the client abort signal to the proxied request",
+        async () => {
+          t.app.all("/debug", (event) => ({ aborted: event.req.signal.aborted }));
+          t.app.all("/", (event) => proxyRequest(event, "/debug"));
+
+          const controller = new AbortController();
+          controller.abort();
+
+          const res = await t.fetch("/", { signal: controller.signal });
+          expect(await res.json()).toMatchObject({ aborted: true });
+        },
+      );
+
+      it.runIf(t.target === "web")(
+        "handles a client abort quietly (499) by default without throwing",
+        async () => {
+          t.app.all("/", (event) => proxyRequest(event, "https://example.test/"));
+
+          const controller = new AbortController();
+          controller.abort();
+
+          const res = await t.fetch("/", { signal: controller.signal });
+          // Client-caused abort is not a gateway error: no 502, no thrown error.
+          expect(res.status).toBe(499);
+        },
+      );
+
+      it.runIf(t.target === "web")(
+        "propagates the abort error when `propagateAbortError` is enabled",
+        async () => {
+          let caught: unknown;
+          t.app.all("/", async (event) => {
+            try {
+              return await proxyRequest(event, "https://example.test/", {
+                propagateAbortError: true,
+              });
+            } catch (error) {
+              caught = error;
+              return "caught";
+            }
+          });
+
+          const controller = new AbortController();
+          controller.abort();
+
+          const res = await t.fetch("/", { signal: controller.signal });
+          expect(await res.text()).toBe("caught");
+          expect((caught as Error)?.name).toBe("AbortError");
+        },
+      );
+
+      it.runIf(t.target === "web")(
+        "propagates the abort error from a caller-supplied `fetchOptions.signal`",
+        async () => {
+          // The client signal is never aborted here; only the caller's own
+          // signal is. The abort must still propagate when opted in.
+          let caught: unknown;
+          t.app.all("/", async (event) => {
+            const controller = new AbortController();
+            controller.abort();
+            try {
+              return await proxyRequest(event, "https://example.test/", {
+                propagateAbortError: true,
+                fetchOptions: { signal: controller.signal },
+              });
+            } catch (error) {
+              caught = error;
+              return "caught";
+            }
+          });
+
+          const res = await t.fetch("/");
+          expect(await res.text()).toBe("caught");
+          expect((caught as Error)?.name).toBe("AbortError");
+          expect(res.status).toBe(200);
+        },
+      );
+
+      it.runIf(t.target === "web")(
+        "forwards the client abort even when a custom `fetchOptions.signal` is set",
+        async () => {
+          // The caller supplies its own (never-aborted) signal. The client's
+          // abort must still be forwarded and handled quietly (499) rather than
+          // silently dropped by the spread over `fetchOptions`.
+          t.app.all("/", (event) =>
+            proxyRequest(event, "https://example.test/", {
+              fetchOptions: { signal: new AbortController().signal },
+            }),
+          );
+
+          const controller = new AbortController();
+          controller.abort();
+
+          const res = await t.fetch("/", { signal: controller.signal });
+          expect(res.status).toBe(499);
+        },
+      );
+
+      it.runIf(t.target === "web")(
+        "does not turn a mid-stream client abort into a gateway error",
+        async () => {
+          // Upstream returns a body stream that errors with an AbortError once
+          // the client is gone (simulating a mid-stream disconnect). The body is
+          // streamed through natively: the handler must still return the upstream
+          // response (not a 502), and the abort is left to the stream consumer
+          // rather than being turned into a gateway error.
+          const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(() => {
+            const body = new ReadableStream<Uint8Array>({
+              pull(controller) {
+                const error = new Error("The operation was aborted.");
+                error.name = "AbortError";
+                controller.error(error);
+              },
+            });
+            return Promise.resolve(new Response(body, { status: 200 }));
+          });
+
+          try {
+            t.app.all("/", (event) => proxyRequest(event, "https://upstream.test/"));
+
+            const controller = new AbortController();
+            controller.abort();
+
+            const res = await t.fetch("/", { signal: controller.signal });
+            // Not a 502: the handler returned the upstream response normally.
+            expect(res.status).toBe(200);
+            // The abort surfaces to the body consumer, not swallowed silently.
+            await expect(res.text()).rejects.toThrow();
+          } finally {
+            fetchMock.mockRestore();
+          }
+        },
+      );
+
       it(
         "can handle failed proxy requests gracefully",
         async () => {
