@@ -34,7 +34,14 @@ export function requestWithURL(req: ServerRequest, url: string): ServerRequest {
  */
 export function requestWithBaseURL(req: ServerRequest, base: string): ServerRequest {
   const url = new URL(req.url);
-  url.pathname = decodePathname(url.pathname).slice(base.length) || "/";
+  let pathname: string;
+  try {
+    pathname = decodePathname(url.pathname);
+  } catch {
+    // Malformed percent-encoding: fall back to the raw pathname instead of throwing.
+    pathname = url.pathname;
+  }
+  url.pathname = pathname.slice(base.length) || "/";
   return requestWithURL(req, url.href);
 }
 

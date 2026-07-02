@@ -16,6 +16,8 @@ export const kEventResErrHeaders: unique symbol = /* @__PURE__ */ Symbol.for(
   `${kEventNS}res.err.headers`,
 );
 
+export const kMalformedURL: unique symbol = /* @__PURE__ */ Symbol.for(`${kEventNS}malformed`);
+
 export interface HTTPEvent<_RequestT extends EventHandlerRequest = EventHandlerRequest> {
   /**
    * Incoming HTTP request info.
@@ -66,7 +68,14 @@ export class H3Event<
     const url = _url && _url instanceof URL ? _url : new FastURL(req.url);
     // Normalize percent-encoded pathname to prevent middleware bypass
     if (url.pathname.includes("%")) {
-      url.pathname = decodePathname(url.pathname);
+      try {
+        url.pathname = decodePathname(url.pathname);
+      } catch {
+        // Malformed percent-encoding (e.g. `/foo%`, `/%ZZ`): flag for a 400
+        // response and keep the raw pathname so route matching and middleware
+        // guards still see one consistent value.
+        (this as any)[kMalformedURL] = true;
+      }
     }
     this.url = url;
   }
