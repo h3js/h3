@@ -109,10 +109,15 @@ export async function proxy(
   target: string,
   opts: ProxyOptions = {},
 ): Promise<HTTPResponse> {
+  // Always forward the client's abort signal so a disconnect aborts the
+  // upstream request and releases its connection. If the caller also supplied
+  // `fetchOptions.signal`, honor both (either aborting aborts the request)
+  // instead of letting the spread silently drop `event.req.signal`.
+  const callerSignal = opts.fetchOptions?.signal;
   const fetchOptions: RequestInit = {
-    signal: event.req.signal,
     headers: opts.headers as HeadersInit,
     ...opts.fetchOptions,
+    signal: callerSignal ? AbortSignal.any([event.req.signal, callerSignal]) : event.req.signal,
   };
 
   let response: Response | undefined;
@@ -174,10 +179,54 @@ export async function proxy(
     await opts.onResponse(event, response);
   }
 
-  return new HTTPResponse(response.body, {
+  // A client disconnect during response streaming aborts the forwarded
+  // `event.req.signal` and errors the upstream body stream *after* the
+  // try/catch above has returned. By default, swallow that abort quietly (the
+  // bytes are never delivered — the client is already gone) instead of letting
+  // it surface as an unhandled streaming error. When opted in via
+  // `propagateAbortError`, leave the stream untouched so the error propagates.
+  const body =
+    response.body && !opts.propagateAbortError
+      ? quietlyAbortableStream(response.body, event.req.signal)
+      : response.body;
+
+  return new HTTPResponse(body, {
     status: response.status,
     statusText: response.statusText,
     headers,
+  });
+}
+
+/**
+ * Wrap an upstream body stream so an abort caused by the client disconnecting
+ * (the forwarded `signal`) ends the stream quietly instead of surfacing as an
+ * unhandled streaming error. Any other stream error is passed through unchanged.
+ */
+function quietlyAbortableStream(
+  body: ReadableStream<Uint8Array>,
+  signal: AbortSignal,
+): ReadableStream<Uint8Array> {
+  const reader = body.getReader();
+  return new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      try {
+        const { done, value } = await reader.read();
+        if (done) {
+          controller.close();
+        } else {
+          controller.enqueue(value);
+        }
+      } catch (error) {
+        if (signal.aborted && (error as Error)?.name === "AbortError") {
+          controller.close();
+        } else {
+          controller.error(error);
+        }
+      }
+    },
+    cancel(reason) {
+      return reader.cancel(reason);
+    },
   });
 }
 

@@ -293,6 +293,57 @@ describeMatrix("proxy", (t, { it, expect, describe }) => {
         },
       );
 
+      it.runIf(t.target === "web")(
+        "forwards the client abort even when a custom `fetchOptions.signal` is set",
+        async () => {
+          // The caller supplies its own (never-aborted) signal. The client's
+          // abort must still be forwarded and handled quietly (499) rather than
+          // silently dropped by the spread over `fetchOptions`.
+          t.app.all("/", (event) =>
+            proxyRequest(event, "https://example.test/", {
+              fetchOptions: { signal: new AbortController().signal },
+            }),
+          );
+
+          const controller = new AbortController();
+          controller.abort();
+
+          const res = await t.fetch("/", { signal: controller.signal });
+          expect(res.status).toBe(499);
+        },
+      );
+
+      it.runIf(t.target === "web")(
+        "swallows a client abort during response streaming",
+        async () => {
+          // Upstream returns a body stream that errors with an AbortError once
+          // the client is gone (simulating a mid-stream disconnect). The default
+          // must drain quietly instead of surfacing the abort as a stream error.
+          const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(() => {
+            const body = new ReadableStream<Uint8Array>({
+              pull(controller) {
+                const error = new Error("The operation was aborted.");
+                error.name = "AbortError";
+                controller.error(error);
+              },
+            });
+            return Promise.resolve(new Response(body, { status: 200 }));
+          });
+
+          try {
+            t.app.all("/", (event) => proxyRequest(event, "https://upstream.test/"));
+
+            const controller = new AbortController();
+            controller.abort();
+
+            const res = await t.fetch("/", { signal: controller.signal });
+            await expect(res.text()).resolves.toBe("");
+          } finally {
+            fetchMock.mockRestore();
+          }
+        },
+      );
+
       it(
         "can handle failed proxy requests gracefully",
         async () => {
