@@ -207,7 +207,7 @@ export function getValidatedRouterParams<
 /**
  * Get matched route params and validate with validate function.
  *
- * If `decode` option is `true`, it will decode the matched route params using `decodeURI`.
+ * If `decode` option is `true`, it will decode the matched route params using `decodeURIComponent`.
  *
  * You can use a simple function to validate the params object or use a Standard-Schema compatible library like `zod` to define a schema.
  *
@@ -270,7 +270,7 @@ export function getValidatedRouterParams(
 /**
  * Get a matched route param by name.
  *
- * If `decode` option is `true`, it will decode the matched route param using `decodeURI`.
+ * If `decode` option is `true`, it will decode the matched route param using `decodeURIComponent`.
  *
  * @example
  * app.get("/", (event) => {
