@@ -63,6 +63,10 @@ export async function requireBasicAuth(event: HTTPEvent, opts: BasicAuthOptions)
     throw authFailed(event, opts?.realm);
   }
   const colonIndex = authDecoded.indexOf(":");
+  if (colonIndex === -1) {
+    // RFC 7617: credentials must be "user-id ":" password"; reject if missing.
+    throw authFailed(event, opts?.realm);
+  }
   const username = authDecoded.slice(0, colonIndex);
   const password = authDecoded.slice(colonIndex + 1);
   if (!username || !password) {
