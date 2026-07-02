@@ -20,12 +20,16 @@ export interface ProxyOptions {
   cookiePathRewrite?: string | Record<string, string>;
   onResponse?: (event: H3Event, response: Response) => void | Promise<void>;
   /**
-   * Control how a client disconnect is reported.
+   * Control how a client disconnect is handled.
    *
    * The incoming request's abort signal (`event.req.signal`) is always forwarded
    * to the proxied request, so a client disconnect aborts the upstream request
-   * and releases its connection. By default the resulting abort is reported as a
-   * `502`. Set this to `true` to instead let the `AbortError` propagate.
+   * and releases its connection. By default the resulting abort is handled
+   * quietly with a `499 Client Closed Request` response (never delivered, since
+   * the client is already gone) rather than logged as a `502` gateway error.
+   *
+   * Set this to `true` to instead let the `AbortError` propagate to your handler
+   * (e.g. to run cleanup). This also applies to a custom `fetchOptions.signal`.
    */
   propagateAbortError?: boolean;
 }
@@ -118,12 +122,20 @@ export async function proxy(
         ? await event.app!.fetch(createSubRequest(event, target, fetchOptions))
         : await fetch(target, fetchOptions);
   } catch (error) {
-    // A client disconnect (or any caller-supplied signal) aborts the proxied
-    // request; surface the abort as-is when opted in, else as a gateway error.
-    // Key off the error itself so it works with a custom `fetchOptions.signal`
-    // and so a real upstream failure is never mistaken for an abort.
-    if (opts.propagateAbortError && (error as Error)?.name === "AbortError") {
-      throw error;
+    // Key off the error itself (not `event.req.signal.aborted`) so an abort is
+    // detected even with a custom `fetchOptions.signal`, and a real upstream
+    // failure is never mistaken for an abort.
+    if ((error as Error)?.name === "AbortError") {
+      // Opted in: surface the abort as-is so the caller can handle it.
+      if (opts.propagateAbortError) {
+        throw error;
+      }
+      // Default: a client disconnect is not a gateway failure. Respond quietly
+      // instead of throwing a 502 for every dropped connection (the response is
+      // never delivered — the client is already gone).
+      if (event.req.signal.aborted) {
+        return new HTTPResponse(null, { status: 499, statusText: "Client Closed Request" });
+      }
     }
     throw new HTTPError({ status: 502, cause: error });
   }

@@ -228,15 +228,19 @@ describeMatrix("proxy", (t, { it, expect, describe }) => {
         },
       );
 
-      it.runIf(t.target === "web")("reports a client abort as 502 by default", async () => {
-        t.app.all("/", (event) => proxyRequest(event, "https://example.test/"));
+      it.runIf(t.target === "web")(
+        "handles a client abort quietly (499) by default without throwing",
+        async () => {
+          t.app.all("/", (event) => proxyRequest(event, "https://example.test/"));
 
-        const controller = new AbortController();
-        controller.abort();
+          const controller = new AbortController();
+          controller.abort();
 
-        const res = await t.fetch("/", { signal: controller.signal });
-        expect(res.status).toBe(502);
-      });
+          const res = await t.fetch("/", { signal: controller.signal });
+          // Client-caused abort is not a gateway error: no 502, no thrown error.
+          expect(res.status).toBe(499);
+        },
+      );
 
       it.runIf(t.target === "web")(
         "propagates the abort error when `propagateAbortError` is enabled",
