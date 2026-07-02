@@ -1,5 +1,6 @@
-import { beforeEach } from "vitest";
+import { beforeEach, describe, it, expect } from "vitest";
 import { describeMatrix } from "./_setup.ts";
+import { H3 } from "../src/index.ts";
 
 describeMatrix("security: path encoding bypass", (ctx, { it, expect }) => {
   beforeEach(() => {
@@ -118,5 +119,22 @@ describeMatrix("security: malformed percent-encoded URL", (ctx, { it, expect }) 
   it("does not bypass the auth guard via a malformed segment", async () => {
     const res = await ctx.fetch("/api/admin%ZZ/users");
     expect(res.status).not.toBe(200);
+  });
+});
+
+describe("security: allowMalformedURL opt-in", () => {
+  it("rejects malformed URLs with 400 by default", async () => {
+    const app = new H3();
+    app.get("/**", () => "ok");
+    const res = await app.request("/foo%");
+    expect(res.status).toBe(400);
+  });
+
+  it("passes malformed URLs through with the raw pathname when enabled", async () => {
+    const app = new H3({ allowMalformedURL: true });
+    app.get("/**", (event) => event.url.pathname);
+    const res = await app.request("/foo%");
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe("/foo%");
   });
 });
