@@ -113,10 +113,9 @@ export function writeEarlyHints(
   hints: Record<string, string | string[]>,
 ): void | Promise<void> {
   // HTTP headers are case-insensitive, so callers may pass `Link` (or both
-  // `link` and `Link`). Normalize every case-variant of `link` into a single
+  // `link` and `Link`). Collect every case-variant of `link` into a single
   // lowercase `link` value and drop empty/falsy entries, so both code paths
   // below agree on what to emit.
-  const normalizedHints: Record<string, string | string[]> = {};
   const linkValues: string[] = [];
   for (const [name, value] of Object.entries(hints)) {
     if (name.toLowerCase() === "link") {
@@ -125,8 +124,6 @@ export function writeEarlyHints(
           linkValues.push(v);
         }
       }
-    } else {
-      normalizedHints[name] = value;
     }
   }
 
@@ -138,7 +135,13 @@ export function writeEarlyHints(
       // leaving the promise pending forever. Resolve immediately instead.
       return Promise.resolve();
     }
-    normalizedHints.link = linkValues;
+    // Pass through non-link hints alongside the normalized `link` value.
+    const normalizedHints: Record<string, string | string[]> = { link: linkValues };
+    for (const [name, value] of Object.entries(hints)) {
+      if (name.toLowerCase() !== "link") {
+        normalizedHints[name] = value;
+      }
+    }
     return new Promise((resolve) => {
       event.runtime?.node?.res?.writeEarlyHints(normalizedHints, () => resolve());
     });
