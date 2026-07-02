@@ -284,6 +284,24 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
       //     .then((r) => r.text()),
       // ).toMatch("http://localhost/");
     });
+
+    it("x-forwarded-proto comma list uses first entry", async () => {
+      const res = await t
+        .fetch("http://localhost/test", {
+          headers: { "x-forwarded-proto": "https,http" },
+        })
+        .then((r) => r.text());
+      expect(res).toMatch(/^https:\/\//);
+    });
+
+    it("x-forwarded-proto comma list with spaces uses first entry trimmed", async () => {
+      const res = await t
+        .fetch("http://localhost/test", {
+          headers: { "x-forwarded-proto": "https, http" },
+        })
+        .then((r) => r.text());
+      expect(res).toMatch(/^https:\/\//);
+    });
   });
 
   describe("getRequestIP", () => {
@@ -616,6 +634,23 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
       const res = await t.fetch("/", {
         headers: {
           "if-modified-since": "Fri, 01 Jan 2021 00:00:00 GMT",
+        },
+      });
+      expect(res.status).toBe(304);
+    });
+
+    it("returns 304 when if-none-match is a comma-separated list containing the etag", async () => {
+      t.app.use((event) => {
+        handleCacheHeaders(event, {
+          maxAge: 60,
+          etag: '"v2"',
+        });
+        return "ok";
+      });
+      const res = await t.fetch("/", {
+        headers: {
+          // RFC 7232 §3.2: the field-value is a list of entity-tags
+          "if-none-match": '"v1", "v2"',
         },
       });
       expect(res.status).toBe(304);
