@@ -97,6 +97,30 @@ describeMatrix("serve static", (t, { it, expect }) => {
     expect(headRes.status).toEqual(404);
   });
 
+  it("Handles cache (if-modified-since) for sub-second mtime", async () => {
+    // mtime with millisecond precision. The `last-modified` header the server
+    // emits is truncated to whole seconds (HTTP-date granularity), so a client
+    // echoing that exact value in `if-modified-since` must still get a 304.
+    const subSecondOptions: ServeStaticOptions = {
+      getContents: vi.fn((id) => `asset:${id}`),
+      getMeta: vi.fn((id) => ({
+        type: "text/plain",
+        mtime: 1_700_000_000_500, // 500ms past the whole second
+        path: id,
+        size: `asset:${id}`.length,
+      })),
+    };
+    t.app.all("/subsec/**", (event) => serveStatic(event, subSecondOptions));
+
+    // The exact value the server reports in `last-modified`.
+    const lastModified = new Date(1_700_000_000_500).toUTCString();
+    const res = await t.fetch("/subsec/test.png", {
+      headers: { "if-modified-since": lastModified },
+    });
+    expect(res.status).toEqual(304);
+    expect(await res.text()).toBe("");
+  });
+
   it("Returns 405 if other methods used", async () => {
     const res = await t.fetch("/test.png", { method: "POST" });
     expect(res.status).toEqual(405);
@@ -301,5 +325,24 @@ describeMatrix("serve static MIME types", (t, { it, expect }) => {
     expect(res3.headers.get("content-type")).toBe(
       t.target === "web" ? null : "text/plain; charset=UTF-8",
     );
+  });
+
+  it("does not overwrite a content-length already set on the response", async () => {
+    // An explicit response content-length must win over the size derived from
+    // meta — consistent with content-type / content-encoding / last-modified,
+    // which are only set when not already present on the response.
+    const options: ServeStaticOptions = {
+      getContents: vi.fn(() => "content"),
+      getMeta: vi.fn(() => ({ size: 18 })),
+      headers: { "content-length": "999" },
+    };
+
+    t.app.all("/clen/**", (event) => {
+      return serveStatic(event, options);
+    });
+
+    const res = await t.fetch("/clen/file.txt", { method: "HEAD" });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-length")).toBe("999");
   });
 });

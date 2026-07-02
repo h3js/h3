@@ -284,6 +284,24 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
       //     .then((r) => r.text()),
       // ).toMatch("http://localhost/");
     });
+
+    it("x-forwarded-proto comma list uses first entry", async () => {
+      const res = await t
+        .fetch("http://localhost/test", {
+          headers: { "x-forwarded-proto": "https,http" },
+        })
+        .then((r) => r.text());
+      expect(res).toMatch(/^https:\/\//);
+    });
+
+    it("x-forwarded-proto comma list with spaces uses first entry trimmed", async () => {
+      const res = await t
+        .fetch("http://localhost/test", {
+          headers: { "x-forwarded-proto": "https, http" },
+        })
+        .then((r) => r.text());
+      expect(res).toMatch(/^https:\/\//);
+    });
   });
 
   describe("getRequestIP", () => {
