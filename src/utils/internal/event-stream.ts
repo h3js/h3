@@ -18,6 +18,10 @@ export class EventStream {
   private _disposed = false;
   private _handled = false;
 
+  private get _isClosed(): boolean {
+    return this._writerIsClosed || this._disposed;
+  }
+
   constructor(event: H3Event, opts: EventStreamOptions = {}) {
     this._event = event;
     this._writer = this._transformStream.writable.getWriter();
@@ -60,7 +64,7 @@ export class EventStream {
   }
 
   async pushComment(comment: string): Promise<void> {
-    if (this._writerIsClosed) {
+    if (this._isClosed) {
       return;
     }
     if (this._paused && !this._unsentData) {
@@ -77,7 +81,7 @@ export class EventStream {
   }
 
   private async _sendEvent(message: EventStreamMessage) {
-    if (this._writerIsClosed) {
+    if (this._isClosed) {
       return;
     }
     if (this._paused && !this._unsentData) {
@@ -94,7 +98,7 @@ export class EventStream {
   }
 
   private async _sendEvents(messages: EventStreamMessage[]) {
-    if (this._writerIsClosed) {
+    if (this._isClosed) {
       return;
     }
     const payload = formatEventStreamMessages(messages);
@@ -126,7 +130,7 @@ export class EventStream {
   }
 
   async flush(): Promise<void> {
-    if (this._writerIsClosed) {
+    if (this._isClosed) {
       return;
     }
     if (this._unsentData?.length) {
@@ -144,7 +148,7 @@ export class EventStream {
     if (this._disposed) {
       return;
     }
-    if (!this._writerIsClosed) {
+    if (!this._isClosed) {
       try {
         await this._writer.close();
       } catch {
