@@ -27,11 +27,24 @@ export interface ProxyOptions {
  * If the `target` starts with `/`, the request is handled internally by the app router
  * via `event.app.fetch()` instead of making an external HTTP request.
  *
+ * The request body is streamed to the target without buffering. Per the Fetch
+ * standard, a request body can only be consumed once, so reading it beforehand
+ * (e.g. via `readBody()`, `readFormData()`, or body-reading middleware) locks
+ * the stream and proxying fails. If you need to inspect the body and still
+ * proxy it, read from a clone and leave the original event untouched.
+ *
  * **Security:** Never pass unsanitized user input as the `target`. Callers are
  * responsible for validating and restricting the target URL (e.g. allowlisting
  * hosts, blocking internal paths, enforcing protocol). Consider using
  * `bodyLimit()` middleware to prevent large request bodies from consuming
  * excessive resources when proxying untrusted input.
+ *
+ * @example
+ * app.all("/proxy", async (event) => {
+ *   const body = await event.req.clone().json(); // read from the clone
+ *   // ...inspect body...
+ *   return proxyRequest(event, "/target"); // original stream still intact
+ * });
  */
 export async function proxyRequest(
   event: H3Event,
