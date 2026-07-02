@@ -100,6 +100,22 @@ describeMatrix("auth", (t, { it, expect }) => {
     expect(result.status).toBe(401);
   });
 
+  it("rejects a no-colon credential that mis-parses into matching user/pass", async () => {
+    // Regression: indexOf(":") returns -1 for a colonless credential, so
+    // slice(0, -1) / slice(0) split "admins" into user="admin", pass="admins".
+    // With matching config this would authenticate a malformed credential.
+    const bypassAuth = basicAuth({ username: "admin", password: "admins" });
+    t.app.get("/bypass", () => "Secret!", { middleware: [bypassAuth] });
+    const result = await t.fetch("/bypass", {
+      method: "GET",
+      headers: {
+        Authorization: `Basic ${Buffer.from("admins").toString("base64")}`,
+      },
+    });
+
+    expect(result.status).toBe(401);
+  });
+
   it("responds 401 when username is empty", async () => {
     t.app.get("/empty-username", () => "Hello, world!", { middleware: [auth] });
     const result = await t.fetch("/empty-username", {
