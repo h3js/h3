@@ -28,4 +28,23 @@ describe("defineWebSocketHandler", () => {
     // expect((res as Response).statusText).toBe("Upgrade Required");
     expect((res as any).crossws).toEqual(hooks);
   });
+
+  it("should serve the http handler for non-upgrade requests", () => {
+    const wsHandler = defineWebSocketHandler(hooks, () => "hello");
+    const event = { req: new Request("http://localhost/") } as any;
+    expect(wsHandler(event)).toBe("hello");
+  });
+
+  it("should attach hooks for upgrade requests even with an http handler", () => {
+    const wsHandler = defineWebSocketHandler(hooks, () => "hello");
+    const event = {
+      req: new Request("http://localhost/", {
+        headers: { connection: "Upgrade", upgrade: "websocket" },
+      }),
+    } as any;
+    const res = wsHandler(event);
+    expect(res).toBeInstanceOf(Response);
+    expect((res as Response).status).toBe(426);
+    expect((res as any).crossws).toEqual(hooks);
+  });
 });
