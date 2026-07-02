@@ -1,3 +1,5 @@
+import { HTTPError } from "../../error.ts";
+
 export function withLeadingSlash(path: string | undefined): string {
   if (!path || path === "/") {
     return "/";
@@ -56,17 +58,24 @@ export function getPathname(path: string = "/"): string {
  */
 /**
  * Decode percent-encoded pathname, preserving %25 (literal `%`).
+ *
+ * Throws an {@link HTTPError} with status 400 on malformed percent-encoding
+ * (a bare `%`, or an invalid UTF-8 byte sequence such as `%C0`) that makes
+ * `decodeURI` throw a `URIError`. Silently falling back to the raw, undecoded
+ * pathname would be unsafe: routing and middleware (e.g. auth) would then see
+ * a different pathname than the one this decode is meant to normalize, which
+ * can bypass middleware. Rejecting with a 400 is both safe and non-crashing.
  */
 export function decodePathname(pathname: string): string {
   try {
     return decodeURI(pathname.includes("%25") ? pathname.replace(/%25/g, "%2525") : pathname);
-  } catch {
-    // A malformed percent-encoding (a bare "%", or an invalid UTF-8 byte
-    // sequence such as "%C0") makes decodeURI throw a URIError. This runs in
-    // the H3Event constructor, before the per-request try/catch, so an
-    // unguarded throw escapes as an uncaughtException and crashes the process.
-    // Fall back to the raw, undecoded pathname; routing then won't match it.
-    return pathname;
+  } catch (error) {
+    throw new HTTPError({
+      status: 400,
+      statusText: "Bad Request",
+      message: "Malformed URI in request path.",
+      cause: error,
+    });
   }
 }
 

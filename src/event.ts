@@ -16,6 +16,16 @@ export const kEventResErrHeaders: unique symbol = /* @__PURE__ */ Symbol.for(
   `${kEventNS}res.err.headers`,
 );
 
+/**
+ * Error captured while constructing the event (e.g. a malformed request URI).
+ *
+ * The constructor runs before the per-request try/catch in `H3Core["~request"]`,
+ * so it must never throw (that would escape as an uncaughtException and crash
+ * the process). Instead the error is stashed here and re-thrown by `~request`
+ * before any hook/handler/routing runs, so it is surfaced as an HTTP response.
+ */
+export const kEventInitError: unique symbol = /* @__PURE__ */ Symbol.for(`${kEventNS}initError`);
+
 export interface HTTPEvent<_RequestT extends EventHandlerRequest = EventHandlerRequest> {
   /**
    * Incoming HTTP request info.
@@ -64,9 +74,15 @@ export class H3Event<
     // Parsed URL can be provided by srvx (node) and other runtimes
     const _url = (req as { _url?: URL })._url;
     const url = _url && _url instanceof URL ? _url : new FastURL(req.url);
-    // Normalize percent-encoded pathname to prevent middleware bypass
+    // Normalize percent-encoded pathname to prevent middleware bypass.
+    // A malformed URI makes decodePathname throw; capture it instead of letting
+    // it escape the constructor, and let `~request` surface it as a 400.
     if (url.pathname.includes("%")) {
-      url.pathname = decodePathname(url.pathname);
+      try {
+        url.pathname = decodePathname(url.pathname);
+      } catch (error) {
+        (this as any)[kEventInitError] = error;
+      }
     }
     this.url = url;
   }

@@ -1,5 +1,5 @@
 import { createRouter, addRoute, findRoute } from "rou3";
-import { H3Event } from "./event.ts";
+import { H3Event, kEventInitError } from "./event.ts";
 import { toResponse, kNotFound } from "./response.ts";
 import { callMiddleware, normalizeMiddleware } from "./middleware.ts";
 import { requestWithBaseURL } from "./utils/request.ts";
@@ -68,6 +68,13 @@ export class H3Core implements H3CoreType {
     // Execute the handler
     let handlerRes: unknown | Promise<unknown>;
     try {
+      // Surface any error captured while constructing the event (e.g. a
+      // malformed request URI) before running any hook, handler, or routing,
+      // so it becomes a proper HTTP response and never bypasses middleware.
+      const initError = (event as any)[kEventInitError];
+      if (initError) {
+        throw initError;
+      }
       if (this.config.onRequest) {
         const hookRes = this.config.onRequest(event);
         handlerRes =

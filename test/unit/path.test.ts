@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { decodePathname } from "../../src/utils/internal/path.ts";
+import { HTTPError } from "../../src/error.ts";
 
 describe("decodePathname", () => {
   it("decodes valid percent-encoding", () => {
@@ -13,10 +14,18 @@ describe("decodePathname", () => {
     expect(decodePathname("/api/%2561dmin")).toBe("/api/%2561dmin");
   });
 
-  it("does not throw on malformed input, returns it unchanged", () => {
+  it("throws a 400 HTTPError on malformed input (no silent fallback)", () => {
+    // Falling back to the raw, undecoded pathname would let routing/middleware
+    // (e.g. auth) see a different pathname than intended. Reject instead.
     for (const p of ["/%", "/%C0%AF", "/foo%", "/%E0%A4%A"]) {
-      expect(() => decodePathname(p)).not.toThrow();
-      expect(decodePathname(p)).toBe(p);
+      let error: unknown;
+      try {
+        decodePathname(p);
+      } catch (error_) {
+        error = error_;
+      }
+      expect(HTTPError.isError(error), `expected HTTPError for ${p}`).toBe(true);
+      expect((error as HTTPError).status).toBe(400);
     }
   });
 });

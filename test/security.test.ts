@@ -91,19 +91,40 @@ describeMatrix("security: path encoding bypass with wildcard routes", (ctx, { it
   });
 });
 
-describeMatrix("security: malformed request URI does not crash", (ctx, { it, expect }) => {
+describeMatrix("security: malformed request URI", (ctx, { it, expect }) => {
   beforeEach(() => {
-    ctx.app.all("/**", (event) => ({ path: event.url.pathname }));
+    // Middleware that must never be bypassed by a malformed path.
+    let handlerReached = false;
+    ctx.app.use((event, next) => {
+      event.context.middlewareRan = true;
+      return next();
+    });
+    ctx.app.all("/**", (event) => {
+      handlerReached = true;
+      return { path: event.url.pathname, middlewareRan: event.context.middlewareRan };
+    });
+    (ctx as any).wasHandlerReached = () => handlerReached;
   });
 
   // A malformed percent-encoding makes decodeURI throw inside the H3Event
   // constructor, before the per-request try/catch. Unguarded, that escapes as
-  // an uncaughtException and crashes the process. It must instead route
-  // normally against the raw, undecoded pathname.
+  // an uncaughtException and crashes the process. It must instead be rejected
+  // as a 400 -- NOT silently routed against the raw, undecoded pathname, which
+  // could let routing/middleware (e.g. auth) match a different path.
   for (const path of ["/%", "/%C0%AF", "/foo%", "/%E0%A4%A"]) {
-    it(`handles ${path} without throwing`, async () => {
+    it(`rejects ${path} with 400 without crashing`, async () => {
       const res = await ctx.fetch(path);
-      expect(res.status).toBe(200);
+      expect(res.status).toBe(400);
+      // Must not silently fall through to the handler / route matching.
+      expect((ctx as any).wasHandlerReached()).toBe(false);
     });
   }
+
+  it("still routes valid percent-encoded paths normally", async () => {
+    const res = await ctx.fetch("/caf%C3%A9");
+    expect(res.status).toBe(200);
+    // (URL re-encodes non-ASCII pathnames on read, so the observable pathname
+    // stays percent-encoded; the point here is that a valid URI is not rejected.)
+    expect(await res.json()).toMatchObject({ middlewareRan: true });
+  });
 });
