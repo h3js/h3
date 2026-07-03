@@ -1,6 +1,6 @@
 import type { H3Event } from "../event.ts";
 import { HTTPError } from "../error.ts";
-import { withLeadingSlash, withoutTrailingSlash } from "./internal/path.ts";
+import { withoutTrailingSlash } from "./internal/path.ts";
 import { resolveDotSegments } from "./path.ts";
 import { getType, getExtension } from "./internal/mime.ts";
 import { HTTPResponse } from "../response.ts";
@@ -84,9 +84,7 @@ export async function serveStatic(
     throw new HTTPError({ status: 405 });
   }
 
-  const originalId = resolveDotSegments(
-    decodeURI(withLeadingSlash(withoutTrailingSlash(event.url.pathname))),
-  );
+  const originalId = resolveDotSegments(decodeURI(withoutTrailingSlash(event.url.pathname)));
 
   const acceptEncodings = parseAcceptEncoding(
     event.req.headers.get("accept-encoding") || "",
