@@ -59,4 +59,37 @@ describe("resolveDotSegments", () => {
     expect(resolveDotSegments("/caf%C3%A9/x")).toBe("/caf%C3%A9/x");
     expect(resolveDotSegments("/a%3Ab")).toBe("/a%3Ab");
   });
+
+  it("normalizes backslashes even without a dot segment", () => {
+    // The `\`->`/` normalization must not be skipped by the fast path.
+    expect(resolveDotSegments("/admin\\panel")).toBe("/admin/panel");
+    expect(resolveDotSegments("/a\\b")).toBe("/a/b");
+  });
+
+  it("roots relative inputs so `..` can never escape", () => {
+    expect(resolveDotSegments("a/../b")).toBe("/b");
+    expect(resolveDotSegments("a/../../b")).toBe("/b");
+    expect(resolveDotSegments("assets/app.js")).toBe("/assets/app.js");
+  });
+
+  it("returns the root consistently for empty/consumed inputs", () => {
+    expect(resolveDotSegments("")).toBe("/");
+    expect(resolveDotSegments(".")).toBe("/");
+    expect(resolveDotSegments("a/..")).toBe("/");
+  });
+
+  it("never yields a protocol-relative path", () => {
+    // Multiple leading slashes (literal, backslash, or decoded) collapse to one
+    // so the result can't be used as a `//host` open-redirect/SSRF target.
+    expect(resolveDotSegments("//evil.com")).toBe("/evil.com");
+    expect(resolveDotSegments("/\\evil.com")).toBe("/evil.com");
+    expect(resolveDotSegments("/%2fevil.com", { decodeSlashes: true })).toBe("/evil.com");
+    expect(resolveDotSegments("/app/..%2f..%2f%2fevil.com/steal", { decodeSlashes: true })).toBe(
+      "/evil.com/steal",
+    );
+  });
+
+  it("leaves double-encoded separators intact (single decode level)", () => {
+    expect(resolveDotSegments("/a/%252f../b", { decodeSlashes: true })).toBe("/a/%252f../b");
+  });
 });

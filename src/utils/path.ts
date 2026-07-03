@@ -15,6 +15,10 @@ export interface ResolveDotSegmentsOptions {
    * segment dodge a narrower rule at match time and then escape it once
    * decoded downstream. Never use the result for routing/dispatch.
    *
+   * Only a single decode level is applied: a double-encoded separator like
+   * `%252f` is left intact. If a downstream may decode more than once, run
+   * the result through {@link resolveDotSegments} again until it is stable.
+   *
    * @default false
    */
   decodeSlashes?: boolean;
@@ -22,7 +26,8 @@ export interface ResolveDotSegmentsOptions {
 
 /**
  * Resolve `.` and `..` segments in a path, without ever escaping above the
- * root `/`.
+ * root `/`. The result is always an absolute path with a single leading `/`,
+ * so it can never be protocol-relative (`//host`).
  *
  * Also decodes percent-encoded dot segments (`%2e`/`%2E`) and normalizes `\`
  * to `/`, so encoded or backslash-based traversal (e.g. `%2e%2e/`, `..\..\`)
@@ -32,19 +37,28 @@ export interface ResolveDotSegmentsOptions {
  * {@link ResolveDotSegmentsOptions.decodeSlashes}.
  */
 export function resolveDotSegments(path: string, opts?: ResolveDotSegmentsOptions): string {
+  // Normalize to a single leading slash (treating a leading `\` as a
+  // separator). This keeps the `..` root clamp below well-defined for
+  // otherwise-relative inputs and prevents a protocol-relative result.
+  if (path[0] !== "/" || path[1] === "/" || path[1] === "\\") {
+    path = "/" + path.replace(/^[/\\]+/, "");
+  }
   const decodeSlashes = opts?.decodeSlashes;
   const hasDotSegment = path.includes(".") || path.includes("%2");
+  const hasBackslash = path.includes("\\");
   const hasEncodedSlash = decodeSlashes && /%2f|%5c/i.test(path);
-  if (!hasDotSegment && !hasEncodedSlash) {
+  if (!hasDotSegment && !hasBackslash && !hasEncodedSlash) {
     return path;
   }
-  let normalized = path.replaceAll("\\", "/");
-  if (decodeSlashes) {
-    normalized = normalized.replace(/%2f/gi, "/").replace(/%5c/gi, "/");
+  // Normalize backslashes to forward slashes to prevent traversal via `\`
+  let normalized = hasBackslash ? path.replaceAll("\\", "/") : path;
+  if (hasEncodedSlash) {
+    normalized = normalized.replace(/%2f|%5c/gi, "/");
   }
   const segments = normalized.split("/");
   const resolved: string[] = [];
   for (const segment of segments) {
+    // Decode percent-encoded dots (%2e/%2E) to catch double-encoded traversal
     const normalizedSegment = segment.replace(/%2e/gi, ".");
     if (normalizedSegment === "..") {
       // Never pop past the root (first empty segment from leading slash)
@@ -55,5 +69,8 @@ export function resolveDotSegments(path: string, opts?: ResolveDotSegmentsOption
       resolved.push(segment);
     }
   }
-  return resolved.join("/") || "/";
+  const result = resolved.join("/") || "/";
+  // Decoded/normalized separators can prepend extra empty segments; collapse
+  // them so the result stays a single-rooted, non protocol-relative path.
+  return result[1] === "/" ? result.replace(/^\/+/, "/") : result;
 }
