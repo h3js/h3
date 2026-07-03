@@ -37,6 +37,14 @@ export interface ResolveDotSegmentsOptions {
  *
  * `%2f`/`%5c` (encoded path separators) are left untouched by default — see
  * {@link ResolveDotSegmentsOptions.decodeSlashes}.
+ *
+ * Only `.`/`..` resolution and the decodes above alter the string; every other
+ * percent-encoding (`%20`, non-ASCII, `%3A`, and any `%2e` not forming a whole
+ * segment) is left intact, so the result stays in the same representation as an
+ * un-decoded `event.url.pathname` and matches routes/rules consistently.
+ * Interior empty segments are preserved (`/a//b` stays `/a//b`, per WHATWG URL
+ * normalization) — only the leading slash is guaranteed single, so a consumer
+ * doing exact prefix matching should normalize its allowlist the same way.
  */
 export function resolveDotSegments(path: string, opts?: ResolveDotSegmentsOptions): string {
   // Normalize to a single leading slash (treating a leading `\` as a
