@@ -78,5 +78,5 @@ app.get(
 );
 
 serve(app, {
-  plugins: [ws({ resolve: async (req) => (await app.fetch(req)).crossws })],
+  plugins: [ws()],
 });
