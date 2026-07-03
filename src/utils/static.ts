@@ -1,6 +1,7 @@
 import type { H3Event } from "../event.ts";
 import { HTTPError } from "../error.ts";
-import { withLeadingSlash, withoutTrailingSlash, resolveDotSegments } from "./internal/path.ts";
+import { withLeadingSlash, withoutTrailingSlash } from "./internal/path.ts";
+import { resolveDotSegments } from "./path.ts";
 import { getType, getExtension } from "./internal/mime.ts";
 import { HTTPResponse } from "../response.ts";
 

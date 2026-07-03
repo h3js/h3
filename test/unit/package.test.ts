@@ -111,6 +111,7 @@ describe("h3 package", () => {
         "requestWithBaseURL",
         "requestWithURL",
         "requireBasicAuth",
+        "resolveDotSegments",
         "sanitizeStatusCode",
         "sanitizeStatusMessage",
         "sealSession",
