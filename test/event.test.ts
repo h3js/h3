@@ -93,6 +93,23 @@ describeMatrix("event", (t, { it, expect }) => {
     expect(await result.text()).toBe("200");
   });
 
+  it("normalizes percent-encoded pathname and syncs the raw node url", async () => {
+    t.app.all("/*", (event) => ({
+      pathname: event.url.pathname,
+      rawNodeUrl: event.runtime?.node?.req?.url ?? null,
+    }));
+    const res = await t.fetch("/h%65llo?q=%41");
+    const body = await res.json();
+    expect(body.pathname).toBe("/hello");
+    if (t.target === "node") {
+      // srvx NodeRequestURL writes pathname mutations back to the raw
+      // Node request; the search string must stay untouched
+      expect(body.rawNodeUrl).toBe("/hello?q=%41");
+    } else {
+      expect(body.rawNodeUrl).toBe(null);
+    }
+  });
+
   it("event.waitUntil", () => {
     const event = mockEvent("/");
     event.req.waitUntil = vi.fn();

@@ -35,6 +35,13 @@ describe("requestWithURL", () => {
     expect(proxied.headers.get("x-test")).toBe("value");
   });
 
+  it("shadows the runtime-parsed _url of the source request", () => {
+    const target = new Request("http://example.com/base/path");
+    (target as any)._url = new URL("http://example.com/base/path");
+    const proxied = requestWithURL(target, "http://example.com/path");
+    expect((proxied as any)._url).toBeUndefined();
+  });
+
   it("is instanceof Request", () => {
     const proxied = requestWithURL(original, "http://example.com/path");
     expect(proxied instanceof Request).toBe(true);
