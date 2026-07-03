@@ -174,7 +174,9 @@ describeMatrix("serve static", (t, { it, expect }) => {
     const text = await res.text();
     expect(text).not.toContain("\\"); // no raw backslash separator
     expect(text).toContain("%5c"); // stayed literal, not decoded to `\`
-    expect(text).not.toMatch(/(^|\/)\.\.(\/|$)/); // no bare `..` path segment
+    // no bare `..` segment — boundaries include `\` so a decoded backslash
+    // separator would be caught too, not only a `/`.
+    expect(text).not.toMatch(/(^|[\\/])\.\.([\\/]|$)/);
   });
 
   it("decodes an encoded separator for the on-disk lookup", async () => {
@@ -409,5 +411,34 @@ describe("serve static (malformed url)", () => {
     );
     const res404 = await notFoundApp.request("/foo%");
     expect(res404.status).toBe(404);
+  });
+
+  it("never hands a raw backslash or bare `..` to the backend under allowMalformedURL", async () => {
+    // Defense-in-depth guard for the trickiest input we could construct: a
+    // malformed `%` (forcing the raw pathname) whose segment is popped by a
+    // `..`, leaving single-encoded `%5c` separators. If the on-disk decode
+    // (`%5c` → `\`) were not neutralized, the id would become
+    // `/..\..\windows\win.ini` — a traversal above the root on backslash-aware
+    // (e.g. Windows) filesystem backends. It is neutralized because the event
+    // layer's URL normalization collapses `\` → `/` and resolves `..` when the
+    // decoded pathname is assigned back, *before* serveStatic runs. This asserts
+    // that invariant end-to-end so a future event-layer change can't silently
+    // regress it.
+    let servedId: string | undefined;
+    const app = new H3({ allowMalformedURL: true }).all("/**", (event) =>
+      serveStatic(event, {
+        getContents: (id) => {
+          servedId = id;
+          return `asset:${id}`;
+        },
+        getMeta: () => ({ size: 1 }),
+      }),
+    );
+
+    const res = await app.request("/a%ZZ/../..%5c..%5cwindows%5cwin.ini");
+    expect(res.status).toBe(200);
+    expect(servedId).toBeDefined();
+    expect(servedId).not.toContain("\\"); // no raw backslash separator
+    expect(servedId).not.toMatch(/(^|[\\/])\.\.([\\/]|$)/); // no bare `..` segment
   });
 });

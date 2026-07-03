@@ -102,13 +102,17 @@ export async function serveStatic(
   // The final decode is guarded: with `allowMalformedURL`, a raw malformed `%`
   // (e.g. `/foo%`, `/%ZZ`) reaches here and `decodeURI` throws — fall back to
   // the traversal-resolved (still-safe) value so `fallthrough`/404 handling is
-  // reached instead of a 500.
+  // reached instead of a 500. A `%`-free path (the common case) skips the
+  // decode entirely, matching the fast-path guards at the event layer and in
+  // `resolveDotSegments`.
   const resolvedId = resolveDotSegments(withoutTrailingSlash(event.url.pathname));
-  let originalId: string;
-  try {
-    originalId = decodeURI(resolvedId);
-  } catch {
-    originalId = resolvedId;
+  let originalId = resolvedId;
+  if (resolvedId.includes("%")) {
+    try {
+      originalId = decodeURI(resolvedId);
+    } catch {
+      originalId = resolvedId;
+    }
   }
 
   const acceptEncodings = parseAcceptEncoding(
