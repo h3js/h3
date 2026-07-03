@@ -15,9 +15,10 @@ export interface ResolveDotSegmentsOptions {
    * segment dodge a narrower rule at match time and then escape it once
    * decoded downstream. Never use the result for routing/dispatch.
    *
-   * Only a single decode level is applied: a double-encoded separator like
-   * `%252f` is left intact. If a downstream may decode more than once, run
-   * the result through {@link resolveDotSegments} again until it is stable.
+   * Decoding is pessimistic: nested `%25`-encodings of a separator
+   * (`%252f`, `%25252f`, ...) are collapsed too, so a downstream that
+   * decodes any number of times cannot smuggle a separator past the check.
+   * Other escapes (e.g. `%20`) are never decoded.
    *
    * @default false
    */
@@ -29,9 +30,10 @@ export interface ResolveDotSegmentsOptions {
  * root `/`. The result is always an absolute path with a single leading `/`,
  * so it can never be protocol-relative (`//host`).
  *
- * Also decodes percent-encoded dot segments (`%2e`/`%2E`) and normalizes `\`
- * to `/`, so encoded or backslash-based traversal (e.g. `%2e%2e/`, `..\..\`)
- * is caught the same way as a literal `../`.
+ * Also decodes percent-encoded dot segments at any `%25`-nesting depth
+ * (`%2e`, `%252e`, ...) and normalizes `\` to `/`, so encoded or
+ * backslash-based traversal (e.g. `%2e%2e/`, `..\..\`) is caught the same
+ * way as a literal `../`.
  *
  * `%2f`/`%5c` (encoded path separators) are left untouched by default — see
  * {@link ResolveDotSegmentsOptions.decodeSlashes}.
@@ -51,20 +53,21 @@ export function resolveDotSegments(path: string, opts?: ResolveDotSegmentsOption
   // path. Needs its own benchmark, so deferred.
   const hasDotSegment = path.includes(".") || path.includes("%2");
   const hasBackslash = path.includes("\\");
-  const hasEncodedSlash = decodeSlashes && /%2f|%5c/i.test(path);
+  const hasEncodedSlash = decodeSlashes && /%(?:25)*(?:2f|5c)/i.test(path);
   if (!hasDotSegment && !hasBackslash && !hasEncodedSlash) {
     return path;
   }
   // Normalize backslashes to forward slashes to prevent traversal via `\`
   let normalized = hasBackslash ? path.replaceAll("\\", "/") : path;
   if (hasEncodedSlash) {
-    normalized = normalized.replace(/%2f|%5c/gi, "/");
+    normalized = normalized.replace(/%(?:25)*(?:2f|5c)/gi, "/");
   }
   const segments = normalized.split("/");
   const resolved: string[] = [];
   for (const segment of segments) {
-    // Decode percent-encoded dots (%2e/%2E) to catch double-encoded traversal
-    const normalizedSegment = segment.replace(/%2e/gi, ".");
+    // Decode percent-encoded dots at any %25-nesting depth (%2e, %252e, ...)
+    // to catch multi-encoded traversal
+    const normalizedSegment = segment.replace(/%(?:25)*2e/gi, ".");
     if (normalizedSegment === "..") {
       // Never pop past the root (first empty segment from leading slash)
       if (resolved.length > 1) {

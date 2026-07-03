@@ -89,7 +89,19 @@ describe("resolveDotSegments", () => {
     );
   });
 
-  it("leaves double-encoded separators intact (single decode level)", () => {
-    expect(resolveDotSegments("/a/%252f../b", { decodeSlashes: true })).toBe("/a/%252f../b");
+  it("decodes nested %25-encoded separators at any depth", () => {
+    expect(resolveDotSegments("/a/%252f../b", { decodeSlashes: true })).toBe("/a/b");
+    expect(resolveDotSegments("/allowed/..%252f..%252fadmin", { decodeSlashes: true })).toBe(
+      "/admin",
+    );
+    expect(resolveDotSegments("/a%25252fb", { decodeSlashes: true })).toBe("/a/b");
+    expect(resolveDotSegments("/a%255cb", { decodeSlashes: true })).toBe("/a/b");
+    // Still opaque without the opt-in
+    expect(resolveDotSegments("/a/%252fb")).toBe("/a/%252fb");
+  });
+
+  it("catches nested %25-encoded dot segments", () => {
+    expect(resolveDotSegments("/api/orders/%252e%252e/admin")).toBe("/api/admin");
+    expect(resolveDotSegments("/a/%25252e%25252e/b")).toBe("/b");
   });
 });
