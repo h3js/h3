@@ -25,6 +25,21 @@ export interface ResolveDotSegmentsOptions {
   decodeSlashes?: boolean;
 }
 
+// A dot segment — the only `.`-related input that changes the path — is a `.`
+// or `..` occupying a WHOLE segment, where each dot may be a literal `.` or a
+// `%2e` escape at any `%25`-nesting depth. Matching it boundary-aware (bounded
+// by `/` or the string edges) keeps a dotted filename (`app.1a2b.js`) or a
+// non-dot escape (`%20`) on the fast path instead of the split/normalize loop.
+const DOT_SEGMENT_RE = /(?:^|\/)(?:\.|%(?:25)*2e){1,2}(?:\/|$)/i;
+
+// Encoded path separators (`%2f`/`%5c`) at any `%25`-nesting depth. Test form
+// for the fast-path guard; global form to decode every occurrence.
+const ENCODED_SEP_RE = /%(?:25)*(?:2f|5c)/i;
+const ENCODED_SEP_RE_G = /%(?:25)*(?:2f|5c)/gi;
+
+// Percent-encoded dots at any `%25`-nesting depth, for per-segment decoding.
+const ENCODED_DOT_RE_G = /%(?:25)*2e/gi;
+
 /**
  * Resolve `.` and `..` segments in a path, without ever escaping above the
  * root `/`. The result is always an absolute path with a single leading `/`,
@@ -54,28 +69,28 @@ export function resolveDotSegments(path: string, opts?: ResolveDotSegmentsOption
     path = "/" + path.replace(/^[/\\]+/, "");
   }
   const decodeSlashes = opts?.decodeSlashes;
-  // TODO(perf): this guard is coarse — any `.` (every dotted filename) or any
-  // `%2x` escape (e.g. `%20`) takes the slow path even without a real dot
-  // segment. A boundary-aware check (dot adjacent to `/`/edges, and only
-  // `%2e`/`%2f`/`%5c`) would keep the common serveStatic inputs on the fast
-  // path. Needs its own benchmark, so deferred.
-  const hasDotSegment = path.includes(".") || path.includes("%2");
+  // A `\` always needs normalizing, and (with `decodeSlashes`) an encoded
+  // separator always needs decoding — both are cheap `includes`/`test` scans
+  // checked first so a dot-free path skips the dot-segment regex entirely.
   const hasBackslash = path.includes("\\");
-  const hasEncodedSlash = decodeSlashes && /%(?:25)*(?:2f|5c)/i.test(path);
-  if (!hasDotSegment && !hasBackslash && !hasEncodedSlash) {
+  const hasEncodedSep = decodeSlashes && ENCODED_SEP_RE.test(path);
+  if (!hasBackslash && !hasEncodedSep && !DOT_SEGMENT_RE.test(path)) {
     return path;
   }
   // Normalize backslashes to forward slashes to prevent traversal via `\`
   let normalized = hasBackslash ? path.replaceAll("\\", "/") : path;
-  if (hasEncodedSlash) {
-    normalized = normalized.replace(/%(?:25)*(?:2f|5c)/gi, "/");
+  if (hasEncodedSep) {
+    normalized = normalized.replace(ENCODED_SEP_RE_G, "/");
   }
   const segments = normalized.split("/");
   const resolved: string[] = [];
   for (const segment of segments) {
     // Decode percent-encoded dots at any %25-nesting depth (%2e, %252e, ...)
-    // to catch multi-encoded traversal
-    const normalizedSegment = segment.replace(/%(?:25)*2e/gi, ".");
+    // to catch multi-encoded traversal — skipped for the common `%`-free
+    // segment, which cannot contain an encoded dot.
+    const normalizedSegment = segment.includes("%")
+      ? segment.replace(ENCODED_DOT_RE_G, ".")
+      : segment;
     if (normalizedSegment === "..") {
       // Never pop past the root (first empty segment from leading slash)
       if (resolved.length > 1) {

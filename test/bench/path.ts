@@ -4,35 +4,37 @@ import { resolveDotSegments } from "../../src/utils/path.ts";
 // Micro-benchmarks for `resolveDotSegments`, focused on the fast-path vs
 // slow-path overhead.
 //
-// Fairness: every fast/slow pair below is byte-for-byte the SAME length and
-// segment count, and differs only in the character(s) that flip the fast-path
-// guard — a `.`, a `%`, or a `\`. So each summary's relative multiplier is the
-// pure cost of taking the slow path (split → per-segment normalize → join)
-// relative to the early-return fast path, not a string-length or segment-count
-// artifact. The `fast:` case is the floor (guard scans + early return); results
-// are fed to `do_not_optimize` so nothing is eliminated as dead code.
+// The guard is boundary-aware: only a real `.`/`..` segment (literal or
+// `%2e`-encoded), a `\`, or — with `decodeSlashes` — an encoded separator takes
+// the slow path (split → per-segment normalize → join). Inputs that merely
+// contain a `.` (a dotted filename) or a non-dot `%` escape (`%20`) stay on the
+// fast early return. Results are fed to `do_not_optimize` so nothing is
+// eliminated as dead code.
 
+// --- Fast-path inputs: must all hit the early return unchanged ---
+// A dotted filename and `%`-escaped paths are here to prove the boundary-aware
+// guard keeps them cheap; before it, every `.`/`%2` dragged them onto the loop.
+const FAST_PATH = [
+  "/assets/app/f4a2b1c8/main.js", // dotted filename (segment-internal `.`)
+  "/media/photos/albums/tripxxx", // plain path (length-matched to the above)
+  "/search/foo%20bar%20/results1", // `%20` escapes, no dot segment
+  "/files/userx%2fdocs/report12", // opaque `%2f` (no decodeSlashes)
+  "/menu/caf%C3%A9/starters1234", // percent-encoded non-ASCII
+];
+
+// --- Slow-path pairs: genuine resolution work ---
+// Fairness: each `slow` is byte-for-byte the same length and segment count as
+// its `fast` twin, differing only in the char(s) that flip the guard (`.`/`%`/
+// `\`). So each multiplier is the pure slow-path cost, not a length artifact.
 interface Pair {
   label: string;
-  /** Fast-path input: hits the early return. */
   fast: string;
-  /** Slow-path input: same length/shape, one char class flipped. */
   slow: string;
-  /** Expected `resolveDotSegments(slow, opts)` output (correctness guard). */
   slowExpect: string;
   opts?: { decodeSlashes?: boolean };
 }
 
-// Each pair's `fast`/`slow` are equal length; the flipped chars are noted.
 const PAIRS: Pair[] = [
-  {
-    // The TODO(perf) case: a dotted asset filename has a `.` but no real dot
-    // segment, so it is pushed onto the slow path for nothing. `.` <-> `x`.
-    label: "dotted filename (no real segment)",
-    fast: "/assets/app/f4a2b1c8/mainxjs",
-    slow: "/assets/app/f4a2b1c8/main.js",
-    slowExpect: "/assets/app/f4a2b1c8/main.js",
-  },
   {
     // Literal `..` that actually resolves. `bb` <-> `..`.
     label: "literal .. traversal",
@@ -73,7 +75,24 @@ const PAIRS: Pair[] = [
   },
 ];
 
+// Realistic serveStatic-shaped inputs — absolute-cost reference. Most real
+// assets contain a segment-internal `.`, so this shows the boundary-aware guard
+// keeping them on the fast path while genuine traversal still resolves.
+const REALISTIC = [
+  "/index.html",
+  "/assets/app.4f3a2b1c.js",
+  "/assets/chunks/vendor.8e1d.css",
+  "/api/../secret",
+  "/images/logo.svg",
+];
+
 // --- Correctness + fairness guards (fail loud before benching) ---
+for (const p of FAST_PATH) {
+  const out = resolveDotSegments(p);
+  if (out !== p) {
+    throw new Error(`fast-path input took the slow path or changed: ${p} -> ${out}`);
+  }
+}
 for (const p of PAIRS) {
   if (p.fast.length !== p.slow.length) {
     throw new Error(`unfair pair "${p.label}": fast(${p.fast.length}) !== slow(${p.slow.length})`);
@@ -88,18 +107,15 @@ for (const p of PAIRS) {
   }
 }
 
-// Realistic serveStatic-shaped inputs — absolute-cost reference, not matched
-// pairs. Shows the mix a static server actually sees (most real assets contain
-// a `.`, so they currently take the slow path — see the TODO(perf)).
-const REALISTIC = [
-  "/index.html",
-  "/assets/app.4f3a2b1c.js",
-  "/assets/chunks/vendor.8e1d.css",
-  "/api/../secret",
-  "/images/logo.svg",
-];
-
 compact(() => {
+  // All fast-path inputs should land within a hair of each other (any spread is
+  // string length, not path selection) — the boundary-aware guard's payoff.
+  summary(() => {
+    for (const path of FAST_PATH) {
+      bench(`fast: ${path}`, () => do_not_optimize(resolveDotSegments(path))).gc("once");
+    }
+  });
+
   for (const p of PAIRS) {
     summary(() => {
       bench(`fast: ${p.label}`, () => do_not_optimize(resolveDotSegments(p.fast, p.opts))).gc(
