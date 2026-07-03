@@ -65,11 +65,16 @@ export class H3Event<
     this.app = app;
     // Parsed URL can be provided by srvx (node) and other runtimes
     const _url = (req as { _url?: URL })._url;
-    const url = _url && _url instanceof URL ? _url : new FastURL(req.url);
+    let url = _url && _url instanceof URL ? _url : new FastURL(req.url);
     // Normalize percent-encoded pathname to prevent middleware bypass
     if (url.pathname.includes("%")) {
       try {
-        url.pathname = decodePathname(url.pathname);
+        const pathname = decodePathname(url.pathname);
+        if (pathname !== url.pathname) {
+          // Clone instead of mutating: the parsed URL is shared with the
+          // runtime, and req.url must keep the original wire encoding (#1432)
+          url = new FastURL(`${url.protocol}//${url.host}${pathname}${url.search}`);
+        }
       } catch {
         // Malformed percent-encoding (e.g. `/foo%`, `/%ZZ`): flag for a 400
         // response and keep the raw pathname so route matching and middleware

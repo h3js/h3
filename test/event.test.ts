@@ -93,7 +93,7 @@ describeMatrix("event", (t, { it, expect }) => {
     expect(await result.text()).toBe("200");
   });
 
-  it("normalizes percent-encoded pathname and syncs the raw node url", async () => {
+  it("normalizes event.url without touching req.url on any runtime", async () => {
     t.app.all("/*", (event) => ({
       pathname: event.url.pathname,
       reqUrl: event.req.url,
@@ -102,15 +102,11 @@ describeMatrix("event", (t, { it, expect }) => {
     const res = await t.fetch("/h%65llo?q=%41");
     const body = await res.json();
     expect(body.pathname).toBe("/hello");
+    // req.url keeps the original wire encoding on every runtime (#1432)
+    expect(new URL(body.reqUrl).pathname).toBe("/h%65llo");
     if (t.target === "node") {
-      // srvx derives req.url from the shared _url, so the normalization
-      // shows through, and NodeRequestURL writes pathname mutations back
-      // to the raw Node request; the search string must stay untouched
-      expect(new URL(body.reqUrl).pathname).toBe("/hello");
-      expect(body.rawNodeUrl).toBe("/hello?q=%41");
+      expect(body.rawNodeUrl).toBe("/h%65llo?q=%41");
     } else {
-      // web Request.url is an immutable string and keeps the wire encoding
-      expect(new URL(body.reqUrl).pathname).toBe("/h%65llo");
       expect(body.rawNodeUrl).toBe(null);
     }
   });
