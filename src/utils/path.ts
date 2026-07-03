@@ -44,6 +44,11 @@ export function resolveDotSegments(path: string, opts?: ResolveDotSegmentsOption
     path = "/" + path.replace(/^[/\\]+/, "");
   }
   const decodeSlashes = opts?.decodeSlashes;
+  // TODO(perf): this guard is coarse — any `.` (every dotted filename) or any
+  // `%2x` escape (e.g. `%20`) takes the slow path even without a real dot
+  // segment. A boundary-aware check (dot adjacent to `/`/edges, and only
+  // `%2e`/`%2f`/`%5c`) would keep the common serveStatic inputs on the fast
+  // path. Needs its own benchmark, so deferred.
   const hasDotSegment = path.includes(".") || path.includes("%2");
   const hasBackslash = path.includes("\\");
   const hasEncodedSlash = decodeSlashes && /%2f|%5c/i.test(path);
