@@ -29,6 +29,17 @@ describeMatrix("mount", (t, { it, expect, describe }) => {
       expect(res2.status).toBe(403);
     });
 
+    it("strips base for h3-based fetch handlers when runtime provides req._url", async () => {
+      const subApp = new H3();
+      subApp.get("/hello", () => "sub");
+      // Passing the bound fetch function takes the generic fetch-handler path,
+      // so the sub-app re-parses the proxied request instead of sharing routes.
+      t.app.mount("/sub", subApp.fetch);
+      const res = await t.fetch("/sub/hello");
+      expect(res.status).toBe(200);
+      expect(await res.text()).toBe("sub");
+    });
+
     it("works with compat object", async () => {
       t.app.mount("/test", {
         fetch: (req: Request) => new Response(new URL(req.url).pathname),

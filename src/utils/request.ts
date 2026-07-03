@@ -18,7 +18,9 @@ import type { ServerRequest } from "srvx";
  * Avoids cloning the original request (no `new Request()` allocation).
  */
 export function requestWithURL(req: ServerRequest, url: string): ServerRequest {
-  const cache: Record<string | symbol, unknown> = { url };
+  // Shadow `_url` too: the runtime-parsed URL object reflects the original
+  // request URL and consumers must re-parse the overridden `url` instead.
+  const cache: Record<string | symbol, unknown> = { url, _url: undefined };
   return new Proxy(req, {
     get(target, prop) {
       if (prop in cache) return cache[prop];
