@@ -7,18 +7,26 @@ export interface ResolveDotSegmentsOptions {
    * would change how many segments a path has and therefore which route
    * matches — a correctness concern for dispatch, not just a security one
    * (e.g. `/files/:id` may rely on `%2F` to keep an id with a literal slash
-   * as one opaque segment).
+   * as one opaque segment). So never use the result for routing/dispatch.
    *
-   * Enable this only for out-of-band scope/security checks that must
-   * anticipate a downstream decode — e.g. a reverse-proxy target or redirect
-   * that will collapse `%2f` back to `/` on its own, letting an encoded
-   * segment dodge a narrower rule at match time and then escape it once
-   * decoded downstream. Never use the result for routing/dispatch.
+   * Enable this for any out-of-band scope/security check whose result is
+   * later handed to something that collapses `%2f` back to `/` on its own —
+   * which is the common case, not an exotic one: an ordinary reverse proxy
+   * (e.g. nginx with a trailing-slash `proxy_pass`) decodes `%2f`→`/` on every
+   * request, so an encoded separator that dodges a narrower rule at match time
+   * then escapes it downstream. If a scope check feeds a proxy or redirect
+   * target, you almost certainly want this on.
    *
-   * Decoding is pessimistic: nested `%25`-encodings of a separator
-   * (`%252f`, `%25252f`, ...) are collapsed too, so a downstream that
-   * decodes any number of times cannot smuggle a separator past the check.
-   * Other escapes (e.g. `%20`) are never decoded.
+   * Decoding is pessimistic but bounded: it collapses a separator nested as
+   * repeated whole `%25` prefixes (`%252f`, `%25252f`, ...) at any depth, so a
+   * downstream that keeps `%25`-re-encoding and decoding cannot smuggle one
+   * past. It does NOT catch a separator whose own hex digits are themselves
+   * percent-encoded (`%25%32%66` → `%2f` → `/` after two decodes) — and that
+   * form can appear even in an already-once-decoded pathname (from wire
+   * `%2525%2532%2566`), so once-decoded input is not by itself sufficient.
+   * Treat this as covering the common `%25`-nesting case, not as an absolute
+   * guarantee against every multi-decode chain. Other escapes (e.g. `%20`) are
+   * never decoded.
    *
    * @default false
    */
@@ -33,9 +41,10 @@ export interface ResolveDotSegmentsOptions {
 const DOT_SEGMENT_RE = /(?:^|\/)(?:\.|%(?:25)*2e){1,2}(?:\/|$)/i;
 
 // Encoded path separators (`%2f`/`%5c`) at any `%25`-nesting depth. Test form
-// for the fast-path guard; global form to decode every occurrence.
+// for the fast-path guard; global form (derived from the same source, so the
+// pattern lives in one place) to decode every occurrence.
 const ENCODED_SEP_RE = /%(?:25)*(?:2f|5c)/i;
-const ENCODED_SEP_RE_G = /%(?:25)*(?:2f|5c)/gi;
+const ENCODED_SEP_RE_G = new RegExp(ENCODED_SEP_RE.source, "gi");
 
 // Percent-encoded dots at any `%25`-nesting depth, for per-segment decoding.
 const ENCODED_DOT_RE_G = /%(?:25)*2e/gi;
@@ -102,6 +111,7 @@ export function resolveDotSegments(path: string, opts?: ResolveDotSegmentsOption
   }
   const result = resolved.join("/") || "/";
   // Decoded/normalized separators can prepend extra empty segments; collapse
-  // them so the result stays a single-rooted, non protocol-relative path.
-  return result[1] === "/" ? result.replace(/^\/+/, "/") : result;
+  // any leading run to a single slash so the result stays a single-rooted, non
+  // protocol-relative path. (A no-op when there is already one leading slash.)
+  return result.replace(/^\/+/, "/");
 }

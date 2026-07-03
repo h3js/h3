@@ -1,10 +1,3 @@
-export function withLeadingSlash(path: string | undefined): string {
-  if (!path || path === "/") {
-    return "/";
-  }
-  return path[0] === "/" ? path : `/${path}`;
-}
-
 export function withoutTrailingSlash(path: string | undefined): string {
   if (!path || path === "/") {
     return "/";

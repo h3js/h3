@@ -177,6 +177,20 @@ describeMatrix("serve static", (t, { it, expect }) => {
     expect(text).not.toContain("a%2fb");
   });
 
+  it("keeps a literal `%` in a filename encoded in the served id", async () => {
+    // Regression for the dropped second decode: a file whose name contains a
+    // literal `%` arrives as `%25` and the event layer preserves it, so the id
+    // reaches the backend as `/50%25.png` (the same value h3 routes on), not
+    // the old twice-decoded `/50%.png`. A filesystem-backed `getContents` must
+    // therefore decode `%25` itself. (See followup issue on aligning this with
+    // `sirv`/`serve-static`, which decode the id for the on-disk lookup.)
+    const res = await t.fetch("/50%25.png");
+    expect(res.status).toEqual(200);
+    const text = await res.text();
+    expect(text).toContain("/50%25.png");
+    expect(text).not.toContain("/50%.png");
+  });
+
   it("allows legitimate paths with dots", async () => {
     const allowed = [
       "/_...grid_123.js",
