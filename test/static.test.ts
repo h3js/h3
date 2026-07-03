@@ -163,6 +163,20 @@ describeMatrix("serve static", (t, { it, expect }) => {
     expect(text).not.toContain("%2E%2E");
   });
 
+  it("does not decode the pathname a second time", async () => {
+    // The event layer already applied the one canonical decode (preserving
+    // `%25`), so a double-encoded separator stays opaque and must reach the
+    // backend as the same id h3 routes on — not the twice-decoded `%2f`.
+    const res = await t.fetch("/files/a%252fb");
+    expect(res.status).toEqual(200);
+    // A trailing encoding suffix (e.g. `.gz`) may be appended by the
+    // accept-encoding search, so match the distinguishing part loosely:
+    // the id keeps the single-decoded `%252f`, not the twice-decoded `%2f`.
+    const text = await res.text();
+    expect(text).toContain("a%252fb");
+    expect(text).not.toContain("a%2fb");
+  });
+
   it("allows legitimate paths with dots", async () => {
     const allowed = [
       "/_...grid_123.js",

@@ -84,7 +84,14 @@ export async function serveStatic(
     throw new HTTPError({ status: 405 });
   }
 
-  const originalId = resolveDotSegments(decodeURI(withoutTrailingSlash(event.url.pathname)));
+  // `event.url.pathname` is already decoded once by the event layer
+  // (`decodePathname`, a single `decodeURI` that preserves `%25`) — the same
+  // value the rest of h3 routes on. Decoding again here would peel a second
+  // `%25` level, so serveStatic would resolve/serve a different id than was
+  // dispatched (e.g. a double-encoded separator collapsing to `%2f`).
+  // `resolveDotSegments` decodes nested-encoded dot segments itself, so no
+  // extra decode is needed for traversal safety.
+  const originalId = resolveDotSegments(withoutTrailingSlash(event.url.pathname));
 
   const acceptEncodings = parseAcceptEncoding(
     event.req.headers.get("accept-encoding") || "",
