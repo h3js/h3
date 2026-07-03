@@ -214,6 +214,7 @@ export {
   type WebSocketHooks,
   type WebSocketPeer,
   type WebSocketMessage,
+  type WebSocketResponse,
   defineWebSocketHandler,
   defineWebSocket,
 } from "./utils/ws.ts";

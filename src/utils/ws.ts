@@ -2,13 +2,22 @@ import { defineHandler } from "../handler.ts";
 
 import type { Hooks as WebSocketHooks } from "crossws";
 import type { H3Event } from "../event.ts";
-import type { EventHandler } from "../types/handler.ts";
+import type { EventHandler, EventHandlerRequest } from "../types/handler.ts";
 
 export type {
   Hooks as WebSocketHooks,
   Message as WebSocketMessage,
   Peer as WebSocketPeer,
 } from "crossws";
+
+/**
+ * The `426 Upgrade Required` response returned by `defineWebSocketHandler()`
+ * for WebSocket upgrade requests, augmented with the `crossws` hooks that
+ * were attached to it. Adapters (like the crossws `serve()` plugin) read
+ * `crossws` off this response to wire up the platform-specific WebSocket
+ * upgrade.
+ */
+export type WebSocketResponse = Response & { crossws?: Partial<WebSocketHooks> };
 
 /**
  * Define WebSocket hooks.
@@ -52,6 +61,17 @@ export function defineWebSocket(hooks: Partial<WebSocketHooks>): Partial<WebSock
  *
  * @see https://h3.dev/guide/websocket
  */
+export function defineWebSocketHandler(
+  hooks:
+    | Partial<WebSocketHooks>
+    | ((event: H3Event) => Partial<WebSocketHooks> | Promise<Partial<WebSocketHooks>>),
+): EventHandler<EventHandlerRequest, WebSocketResponse>;
+export function defineWebSocketHandler<Http extends EventHandler>(
+  hooks:
+    | Partial<WebSocketHooks>
+    | ((event: H3Event) => Partial<WebSocketHooks> | Promise<Partial<WebSocketHooks>>),
+  http: Http,
+): EventHandler<EventHandlerRequest, WebSocketResponse | ReturnType<Http>>;
 export function defineWebSocketHandler(
   hooks:
     | Partial<WebSocketHooks>

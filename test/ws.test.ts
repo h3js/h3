@@ -47,4 +47,13 @@ describe("defineWebSocketHandler", () => {
     expect((res as Response).status).toBe(426);
     expect((res as any).crossws).toEqual(hooks);
   });
+
+  it("exposes crossws on the returned response without an `as any` cast (#1258)", () => {
+    // Given a WebSocket handler defined via defineWebSocketHandler
+    const wsHandler = defineWebSocketHandler(hooks);
+    // When the handler is invoked in-process (as crossws adapters do internally)
+    const res = wsHandler({} as any);
+    // Then `res.crossws` is readable, typed, and is the exact hooks object
+    expect(res.crossws).toBe(hooks);
+  });
 });

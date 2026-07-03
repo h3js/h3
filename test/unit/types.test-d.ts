@@ -7,6 +7,7 @@ import {
   readValidatedBody,
   getValidatedQuery,
   defineValidatedHandler,
+  defineWebSocketHandler,
 } from "../../src/index.ts";
 import { defineEventHandler } from "../../src/_deprecated.ts";
 import { z } from "zod";
@@ -150,6 +151,29 @@ describe("types", () => {
         expectTypeOf(query).not.toBeAny();
         expectTypeOf(query).toEqualTypeOf<{ id: string }>();
       });
+    });
+  });
+
+  describe("defineWebSocketHandler", () => {
+    it("exposes crossws on the returned response type without a cast", () => {
+      // https://github.com/h3js/h3/issues/1258
+      // Given a WebSocket handler defined via defineWebSocketHandler
+      const wsHandler = defineWebSocketHandler({ message: () => {} });
+      // When the handler is invoked directly (as crossws adapters do)
+      const res = wsHandler({} as H3Event);
+      // Then `crossws` must be visible on the returned type, with no `as any` cast
+      expectTypeOf(res).toHaveProperty("crossws");
+    });
+
+    it("still types the http fallback handler's return value", () => {
+      // Given a WebSocket handler with an http fallback returning a string
+      const wsHandler = defineWebSocketHandler({ message: () => {} }, () => "hello");
+      const res = wsHandler({} as H3Event);
+      // Then the returned type is the union of the WebSocket response
+      // (with `crossws` visible) and the http handler's return type —
+      // neither branch is widened away.
+      expectTypeOf(res).toExtend<string | (Response & { crossws?: unknown })>();
+      expectTypeOf(res).not.toBeUnknown();
     });
   });
 });
