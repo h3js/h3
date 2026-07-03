@@ -1,6 +1,7 @@
 import { vi } from "vitest";
 import { Readable as NodeStreamReadable, Transform as NodeStreamTransoform } from "node:stream";
 import { fromNodeHandler } from "../src/adapters.ts";
+import { withBase } from "../src/utils/base.ts";
 import { HTTPError } from "../src/error.ts";
 import { onResponse } from "../src/utils/middleware.ts";
 import { describeMatrix } from "./_setup.ts";
@@ -298,6 +299,31 @@ describeMatrix("app", (t, { it, expect }) => {
     );
     const res = await t.fetch("/");
     expect(await res.json()).toEqual({ works: 1 });
+  });
+
+  it.skipIf(t.target !== "node")("fromNodeHandler syncs raw req.url with the h3 view", async () => {
+    let rawUrlAfter: string | undefined;
+    t.app.config.onResponse = (_res, event) => {
+      rawUrlAfter = event.runtime?.node?.req?.url;
+    };
+    t.app.use(
+      "/api/**",
+      withBase(
+        "/api",
+        fromNodeHandler((req, res) => {
+          res.end(req.url || "");
+        }),
+      ),
+    );
+
+    // Legacy handler must see the base-stripped path in raw req.url
+    expect(await t.fetch("/api/hello?q=1").then((r) => r.text())).toBe("/hello?q=1");
+
+    // Rewrites must propagate even when the pathname needed percent-decode
+    // normalization (event.url is a clone detached from the shared _url)
+    expect(await t.fetch("/api/h%65llo").then((r) => r.text())).toBe("/hello");
+    // ...and the raw url is restored once the handler settles
+    expect(rawUrlAfter).toBe("/api/h%65llo");
   });
 
   it.skipIf(t.target !== "node")("fromNodeHandler + piping", async () => {
