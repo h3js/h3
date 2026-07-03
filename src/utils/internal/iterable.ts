@@ -4,8 +4,7 @@ export type IterationSource<Val, Ret = Val> =
   | Iterator<Val, Ret | undefined>
   | AsyncIterator<Val, Ret | undefined>
   | (() =>
-      | Iterator<Val, Ret | undefined>
-      | AsyncIterator<Val, Ret | undefined>);
+      Iterator<Val, Ret | undefined> | AsyncIterator<Val, Ret | undefined>);
 
 type SendableValue = string | Buffer | Uint8Array;
 export type IteratorSerializer<Value> = (
