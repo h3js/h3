@@ -1,11 +1,13 @@
 import { createRouter, addRoute, findRoute } from "rou3";
-import { H3Event } from "./event.ts";
+import { H3Event, kMalformedURL } from "./event.ts";
+import { HTTPError } from "./error.ts";
 import { toResponse, kNotFound } from "./response.ts";
 import { callMiddleware, normalizeMiddleware } from "./middleware.ts";
 import { requestWithBaseURL } from "./utils/request.ts";
 
 import type { ServerRequest } from "srvx";
-import type { H3Config, H3CoreConfig, H3Plugin, MatchedRoute, RouterContext } from "./types/h3.ts";
+import type { H3Config, H3CoreConfig, MatchedRoute, RouterContext } from "./types/h3.ts";
+import type { H3Plugin } from "./plugin.ts";
 import type { H3EventContext } from "./types/context.ts";
 import type {
   EventHandler,
@@ -29,6 +31,8 @@ import { toEventHandler } from "./handler.ts";
 export const NoHandler: EventHandler = () => kNotFound;
 
 export class H3Core implements H3CoreType {
+  static "~h3" = true;
+
   readonly config: H3CoreConfig;
 
   "~middleware": Middleware[];
@@ -65,6 +69,11 @@ export class H3Core implements H3CoreType {
     // Execute the handler
     let handlerRes: unknown | Promise<unknown>;
     try {
+      if ((event as any)[kMalformedURL] && !this.config.allowMalformedURL) {
+        // Reject malformed request URLs before any routing or app logic runs.
+        // Opt out with `allowMalformedURL` to receive the raw pathname instead.
+        throw new HTTPError({ status: 400, message: "Bad Request" });
+      }
       if (this.config.onRequest) {
         const hookRes = this.config.onRequest(event);
         handlerRes =
@@ -131,10 +140,24 @@ export const H3 = /* @__PURE__ */ (() => {
               return next();
             }
             event.url.pathname = event.url.pathname.slice(base.length) || "/";
-            return callMiddleware(event, input["~middleware"], () => {
+            const restore = () => {
               event.url.pathname = originalPathname;
-              return next();
-            });
+            };
+            try {
+              const result = callMiddleware(event, input["~middleware"], () => {
+                restore();
+                return next();
+              });
+              if (typeof (result as PromiseLike<unknown>)?.then === "function") {
+                // Promise.resolve normalizes bare thenables that lack .finally
+                return Promise.resolve(result).finally(restore);
+              }
+              restore();
+              return result;
+            } catch (err) {
+              restore();
+              throw err;
+            }
           });
         }
         for (const r of input["~routes"]) {

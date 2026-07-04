@@ -19,6 +19,19 @@ export interface ProxyOptions {
   cookieDomainRewrite?: string | Record<string, string>;
   cookiePathRewrite?: string | Record<string, string>;
   onResponse?: (event: H3Event, response: Response) => void | Promise<void>;
+  /**
+   * Control how a client disconnect is handled.
+   *
+   * The incoming request's abort signal (`event.req.signal`) is always forwarded
+   * to the proxied request, so a client disconnect aborts the upstream request
+   * and releases its connection. By default the resulting abort is handled
+   * quietly with a `499 Client Closed Request` response (never delivered, since
+   * the client is already gone) rather than logged as a `502` gateway error.
+   *
+   * Set this to `true` to instead let the `AbortError` propagate to your handler
+   * (e.g. to run cleanup). This also applies to a custom `fetchOptions.signal`.
+   */
+  propagateAbortError?: boolean;
 }
 
 /**
@@ -27,11 +40,24 @@ export interface ProxyOptions {
  * If the `target` starts with `/`, the request is handled internally by the app router
  * via `event.app.fetch()` instead of making an external HTTP request.
  *
+ * The request body is streamed to the target without buffering. Per the Fetch
+ * standard, a request body can only be consumed once, so reading it beforehand
+ * (e.g. via `readBody()`, `readFormData()`, or body-reading middleware) locks
+ * the stream and proxying fails. If you need to inspect the body and still
+ * proxy it, read from a clone and leave the original event untouched.
+ *
  * **Security:** Never pass unsanitized user input as the `target`. Callers are
  * responsible for validating and restricting the target URL (e.g. allowlisting
  * hosts, blocking internal paths, enforcing protocol). Consider using
  * `bodyLimit()` middleware to prevent large request bodies from consuming
  * excessive resources when proxying untrusted input.
+ *
+ * @example
+ * app.all("/proxy", async (event) => {
+ *   const body = await event.req.clone().json(); // read from the clone
+ *   // ...inspect body...
+ *   return proxyRequest(event, "/target"); // original stream still intact
+ * });
  */
 export async function proxyRequest(
   event: H3Event,
@@ -83,9 +109,15 @@ export async function proxy(
   target: string,
   opts: ProxyOptions = {},
 ): Promise<HTTPResponse> {
+  // Always forward the client's abort signal so a disconnect aborts the
+  // upstream request and releases its connection. If the caller also supplied
+  // `fetchOptions.signal`, honor both (either aborting aborts the request)
+  // instead of letting the spread silently drop `event.req.signal`.
+  const callerSignal = opts.fetchOptions?.signal;
   const fetchOptions: RequestInit = {
     headers: opts.headers as HeadersInit,
     ...opts.fetchOptions,
+    signal: callerSignal ? AbortSignal.any([event.req.signal, callerSignal]) : event.req.signal,
   };
 
   let response: Response | undefined;
@@ -95,6 +127,21 @@ export async function proxy(
         ? await event.app!.fetch(createSubRequest(event, target, fetchOptions))
         : await fetch(target, fetchOptions);
   } catch (error) {
+    // Key off the error itself (not `event.req.signal.aborted`) so an abort is
+    // detected even with a custom `fetchOptions.signal`, and a real upstream
+    // failure is never mistaken for an abort.
+    if ((error as Error)?.name === "AbortError") {
+      // Opted in: surface the abort as-is so the caller can handle it.
+      if (opts.propagateAbortError) {
+        throw error;
+      }
+      // Default: a client disconnect is not a gateway failure. Respond quietly
+      // instead of throwing a 502 for every dropped connection (the response is
+      // never delivered — the client is already gone).
+      if (event.req.signal.aborted) {
+        return new HTTPResponse(null, { status: 499, statusText: "Client Closed Request" });
+      }
+    }
     throw new HTTPError({ status: 502, cause: error });
   }
 
@@ -132,6 +179,12 @@ export async function proxy(
     await opts.onResponse(event, response);
   }
 
+  // Stream the upstream body through natively so the common case has zero
+  // overhead. A client disconnect during streaming aborts the forwarded
+  // `event.req.signal`, which errors the upstream body; that error is delivered
+  // to whoever consumes the stream — the server runtime, which is already
+  // tearing down the now-closed connection — so it needs no special handling
+  // here and never becomes a gateway (502) error.
   return new HTTPResponse(response.body, {
     status: response.status,
     statusText: response.statusText,

@@ -18,7 +18,9 @@ import type { ServerRequest } from "srvx";
  * Avoids cloning the original request (no `new Request()` allocation).
  */
 export function requestWithURL(req: ServerRequest, url: string): ServerRequest {
-  const cache: Record<string | symbol, unknown> = { url };
+  // Shadow `_url` too: the runtime-parsed URL object reflects the original
+  // request URL and consumers must re-parse the overridden `url` instead.
+  const cache: Record<string | symbol, unknown> = { url, _url: undefined };
   return new Proxy(req, {
     get(target, prop) {
       if (prop in cache) return cache[prop];
@@ -34,7 +36,14 @@ export function requestWithURL(req: ServerRequest, url: string): ServerRequest {
  */
 export function requestWithBaseURL(req: ServerRequest, base: string): ServerRequest {
   const url = new URL(req.url);
-  url.pathname = decodePathname(url.pathname).slice(base.length) || "/";
+  let pathname: string;
+  try {
+    pathname = decodePathname(url.pathname);
+  } catch {
+    // Malformed percent-encoding: fall back to the raw pathname instead of throwing.
+    pathname = url.pathname;
+  }
+  url.pathname = pathname.slice(base.length) || "/";
   return requestWithURL(req, url.href);
 }
 
@@ -54,7 +63,10 @@ export function toRequest(
     if (url[0] === "/") {
       const headers = options?.headers ? new Headers(options.headers) : undefined;
       const host = headers?.get("host") || "localhost";
-      const proto = headers?.get("x-forwarded-proto") === "https" ? "https" : "http";
+      const proto =
+        (headers?.get("x-forwarded-proto") || "").split(",")[0].trim() === "https"
+          ? "https"
+          : "http";
       url = `${proto}://${host}${url}`;
     }
     return new Request(url, options);
@@ -204,7 +216,7 @@ export function getValidatedRouterParams<
 /**
  * Get matched route params and validate with validate function.
  *
- * If `decode` option is `true`, it will decode the matched route params using `decodeURI`.
+ * If `decode` option is `true`, it will decode the matched route params using `decodeURIComponent`.
  *
  * You can use a simple function to validate the params object or use a Standard-Schema compatible library like `zod` to define a schema.
  *
@@ -267,7 +279,7 @@ export function getValidatedRouterParams(
 /**
  * Get a matched route param by name.
  *
- * If `decode` option is `true`, it will decode the matched route param using `decodeURI`.
+ * If `decode` option is `true`, it will decode the matched route param using `decodeURIComponent`.
  *
  * @example
  * app.get("/", (event) => {
@@ -374,7 +386,7 @@ export function getRequestHost(event: HTTPEvent, opts: { xForwardedHost?: boolea
 /**
  * Get the request protocol.
  *
- * If `x-forwarded-proto` header is set to "https", it will return "https". You can disable this behavior by setting `xForwardedProto` to `false`.
+ * If `x-forwarded-proto` header is set to "https", it will return "https". If the header contains a comma-separated list of protocols, the first entry is used. You can disable this behavior by setting `xForwardedProto` to `false`.
  *
  * If protocol cannot be determined, it will default to "http".
  *
@@ -388,7 +400,8 @@ export function getRequestProtocol(
   opts: { xForwardedProto?: boolean } = {},
 ): "http" | "https" | (string & {}) {
   if (opts.xForwardedProto !== false) {
-    const forwardedProto = event.req.headers.get("x-forwarded-proto");
+    const _header = event.req.headers.get("x-forwarded-proto");
+    const forwardedProto = (_header || "").split(",")[0].trim();
     if (forwardedProto === "https") {
       return "https";
     }

@@ -156,7 +156,7 @@ describe(`iron crypto`, () => {
       };
       await rejects(
         Iron.generateKey(password, options),
-        /Invalid typed array length|Array buffer allocation failed/,
+        /Invalid typed array length|Array buffer allocation failed|length exceeds/,
       );
     });
   });

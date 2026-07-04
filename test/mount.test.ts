@@ -1,4 +1,5 @@
 import { H3 } from "../src/h3.ts";
+import { HTTPError } from "../src/error.ts";
 import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("mount", (t, { it, expect, describe }) => {
@@ -26,6 +27,17 @@ describeMatrix("mount", (t, { it, expect, describe }) => {
       // Percent-encoded base path should still be blocked
       const res2 = await t.fetch("/%61pi/admin");
       expect(res2.status).toBe(403);
+    });
+
+    it("strips base for h3-based fetch handlers when runtime provides req._url", async () => {
+      const subApp = new H3();
+      subApp.get("/hello", () => "sub");
+      // Passing the bound fetch function takes the generic fetch-handler path,
+      // so the sub-app re-parses the proxied request instead of sharing routes.
+      t.app.mount("/sub", subApp.fetch);
+      const res = await t.fetch("/sub/hello");
+      expect(res.status).toBe(200);
+      expect(await res.text()).toBe("sub");
     });
 
     it("works with compat object", async () => {
@@ -171,6 +183,83 @@ describeMatrix("mount", (t, { it, expect, describe }) => {
       await t.fetch("/api/admin/users");
 
       expect(logs).toContain("admin: /admin/users"); // Adjusted path
+    });
+
+    it("restores pathname when mounted middleware returns without calling next", async () => {
+      let pathInResponse = "";
+      t.app.config.onResponse = (_res, event) => {
+        pathInResponse = event.url.pathname;
+      };
+
+      const subApp = new H3();
+      subApp.use((_event) => {
+        return "intercepted";
+      });
+      subApp.get("/test", () => new Response("ok"));
+
+      t.app.mount("/api", subApp);
+
+      const res = await t.fetch("/api/test");
+      expect(await res.text()).toBe("intercepted");
+      // onResponse must see the original pathname, not the stripped one
+      expect(pathInResponse).toBe("/api/test");
+    });
+
+    it("restores pathname when mounted middleware throws synchronously", async () => {
+      const subApp = new H3();
+      subApp.use((_event) => {
+        throw new HTTPError({ status: 500, statusText: "Sync Error" });
+      });
+      subApp.get("/test", () => new Response("ok"));
+
+      t.app.mount("/api", subApp);
+
+      t.app.config.onError = (error, event) => {
+        return Response.json({ path: event.url.pathname }, { status: 500 });
+      };
+
+      const res = await t.fetch("/api/test");
+      const body = await res.json();
+      expect(body.path).toBe("/api/test");
+      t.errors = [];
+    });
+
+    it("restores pathname when mounted middleware throws asynchronously", async () => {
+      const subApp = new H3();
+      subApp.use(async (_event) => {
+        await Promise.resolve();
+        throw new HTTPError({ status: 500, statusText: "Async Error" });
+      });
+      subApp.get("/test", () => new Response("ok"));
+
+      t.app.mount("/api", subApp);
+
+      t.app.config.onError = (error, event) => {
+        return Response.json({ path: event.url.pathname }, { status: 500 });
+      };
+
+      const res = await t.fetch("/api/test");
+      const body = await res.json();
+      expect(body.path).toBe("/api/test");
+      t.errors = [];
+    });
+
+    it("supports mounted handler returning a bare thenable (no .finally)", async () => {
+      const subApp = new H3();
+      subApp.use((_event, next) => {
+        next(); // returns undefined, so the raw handler result propagates
+      });
+      subApp.get("/test", () => ({
+        // eslint-disable-next-line unicorn/no-thenable
+        then(resolve: (value: string) => void) {
+          resolve("thenable");
+        },
+      }));
+
+      t.app.mount("/api", subApp);
+
+      const res = await t.fetch("/api/test");
+      expect(await res.text()).toBe("thenable");
     });
 
     it("v1 compat: app.use(router) with H3 instance (#1341)", async () => {

@@ -1,5 +1,5 @@
-import { beforeEach, vi } from "vitest";
-import { serveStatic, type ServeStaticOptions } from "../src/index.ts";
+import { beforeEach, describe, it, expect, vi } from "vitest";
+import { H3, serveStatic, type ServeStaticOptions } from "../src/index.ts";
 import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("serve static", (t, { it, expect }) => {
@@ -97,6 +97,30 @@ describeMatrix("serve static", (t, { it, expect }) => {
     expect(headRes.status).toEqual(404);
   });
 
+  it("Handles cache (if-modified-since) for sub-second mtime", async () => {
+    // mtime with millisecond precision. The `last-modified` header the server
+    // emits is truncated to whole seconds (HTTP-date granularity), so a client
+    // echoing that exact value in `if-modified-since` must still get a 304.
+    const subSecondOptions: ServeStaticOptions = {
+      getContents: vi.fn((id) => `asset:${id}`),
+      getMeta: vi.fn((id) => ({
+        type: "text/plain",
+        mtime: 1_700_000_000_500, // 500ms past the whole second
+        path: id,
+        size: `asset:${id}`.length,
+      })),
+    };
+    t.app.all("/subsec/**", (event) => serveStatic(event, subSecondOptions));
+
+    // The exact value the server reports in `last-modified`.
+    const lastModified = new Date(1_700_000_000_500).toUTCString();
+    const res = await t.fetch("/subsec/test.png", {
+      headers: { "if-modified-since": lastModified },
+    });
+    expect(res.status).toEqual(304);
+    expect(await res.text()).toBe("");
+  });
+
   it("Returns 405 if other methods used", async () => {
     const res = await t.fetch("/test.png", { method: "POST" });
     expect(res.status).toEqual(405);
@@ -137,6 +161,47 @@ describeMatrix("serve static", (t, { it, expect }) => {
     // Backend must NOT see %2e%2e which could be resolved as .. by downstream
     expect(text).not.toContain("%2e%2e");
     expect(text).not.toContain("%2E%2E");
+  });
+
+  it("does not reintroduce a backslash separator when decoding the id", async () => {
+    // A double-encoded backslash traversal exercises the final `decodeURI`:
+    // `%255c` survives `resolveDotSegments` (a single `%5c` is decoded to `\`
+    // and normalized away one layer earlier), and the decode must collapse it
+    // to a *literal* `%5c` — never a raw `\`. So the whole thing stays one
+    // opaque segment: the `..` never becomes a bare path segment, and no new
+    // separator boundary is introduced.
+    const res = await t.fetch("/..%255c..%255cetc%255cpasswd");
+    const text = await res.text();
+    expect(text).not.toContain("\\"); // no raw backslash separator
+    expect(text).toContain("%5c"); // stayed literal, not decoded to `\`
+    // no bare `..` segment — boundaries include `\` so a decoded backslash
+    // separator would be caught too, not only a `/`.
+    expect(text).not.toMatch(/(^|[\\/])\.\.([\\/]|$)/);
+  });
+
+  it("decodes an encoded separator for the on-disk lookup", async () => {
+    // serveStatic resolves `.`/`..` traversal first, then decodes once more, so
+    // the id reaches the backend fully decoded — matching `sirv`/`serve-static`
+    // and letting a filesystem-backed `getContents` skip self-decoding.
+    // `/files/a%252fb` → id `a%2fb` (the encoded slash stays a literal `%2f`
+    // segment, so no traversal is reintroduced).
+    const res = await t.fetch("/files/a%252fb");
+    expect(res.status).toEqual(200);
+    const text = await res.text();
+    expect(text).toContain("a%2fb");
+    expect(text).not.toContain("a%252fb");
+  });
+
+  it("decodes a literal `%` in a filename for the on-disk lookup", async () => {
+    // A file whose name contains a literal `%` (`50%.png`) is requested as
+    // `/50%25.png`. The event layer preserves `%25`, then serveStatic decodes it
+    // once more so the id reaches the backend as `/50%.png` — the on-disk name —
+    // aligning with `sirv`/`serve-static` instead of forcing self-decoding.
+    const res = await t.fetch("/50%25.png");
+    expect(res.status).toEqual(200);
+    const text = await res.text();
+    expect(text).toContain("/50%.png");
+    expect(text).not.toContain("/50%25.png");
   });
 
   it("allows legitimate paths with dots", async () => {
@@ -301,5 +366,79 @@ describeMatrix("serve static MIME types", (t, { it, expect }) => {
     expect(res3.headers.get("content-type")).toBe(
       t.target === "web" ? null : "text/plain; charset=UTF-8",
     );
+  });
+
+  it("does not overwrite a content-length already set on the response", async () => {
+    // An explicit response content-length must win over the size derived from
+    // meta — consistent with content-type / content-encoding / last-modified,
+    // which are only set when not already present on the response.
+    const options: ServeStaticOptions = {
+      getContents: vi.fn(() => "content"),
+      getMeta: vi.fn(() => ({ size: 18 })),
+      headers: { "content-length": "999" },
+    };
+
+    t.app.all("/clen/**", (event) => {
+      return serveStatic(event, options);
+    });
+
+    const res = await t.fetch("/clen/file.txt", { method: "HEAD" });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-length")).toBe("999");
+  });
+});
+
+describe("serve static (malformed url)", () => {
+  it("falls through on a malformed `%` instead of throwing", async () => {
+    // With `allowMalformedURL`, a raw malformed `%` (e.g. `/foo%`) reaches
+    // serveStatic and the final `decodeURI` would throw a URIError — a 500 that
+    // bypasses `fallthrough`. The guarded decode falls back to the resolved id
+    // so `fallthrough` (and 404 when off) are reached as normal.
+    const options: ServeStaticOptions = {
+      getContents: () => undefined,
+      getMeta: () => undefined,
+    };
+
+    const fallthroughApp = new H3({ allowMalformedURL: true })
+      .use((event) => serveStatic(event, { ...options, fallthrough: true }))
+      .use(() => "next");
+    const res = await fallthroughApp.request("/foo%");
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe("next");
+
+    const notFoundApp = new H3({ allowMalformedURL: true }).all("/**", (event) =>
+      serveStatic(event, options),
+    );
+    const res404 = await notFoundApp.request("/foo%");
+    expect(res404.status).toBe(404);
+  });
+
+  it("never hands a raw backslash or bare `..` to the backend under allowMalformedURL", async () => {
+    // Defense-in-depth guard for the trickiest input we could construct: a
+    // malformed `%` (forcing the raw pathname) whose segment is popped by a
+    // `..`, leaving single-encoded `%5c` separators. If the on-disk decode
+    // (`%5c` → `\`) were not neutralized, the id would become
+    // `/..\..\windows\win.ini` — a traversal above the root on backslash-aware
+    // (e.g. Windows) filesystem backends. It is neutralized because the event
+    // layer's URL normalization collapses `\` → `/` and resolves `..` when the
+    // decoded pathname is assigned back, *before* serveStatic runs. This asserts
+    // that invariant end-to-end so a future event-layer change can't silently
+    // regress it.
+    let servedId: string | undefined;
+    const app = new H3({ allowMalformedURL: true }).all("/**", (event) =>
+      serveStatic(event, {
+        getContents: (id) => {
+          servedId = id;
+          return `asset:${id}`;
+        },
+        getMeta: () => ({ size: 1 }),
+      }),
+    );
+
+    const res = await app.request("/a%ZZ/../..%5c..%5cwindows%5cwin.ini");
+    expect(res.status).toBe(200);
+    expect(servedId).toBeDefined();
+    expect(servedId).not.toContain("\\"); // no raw backslash separator
+    expect(servedId).not.toMatch(/(^|[\\/])\.\.([\\/]|$)/); // no bare `..` segment
   });
 });

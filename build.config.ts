@@ -14,7 +14,12 @@ export default defineBuildConfig({
   hooks: {
     rolldownOutput(config) {
       config.codeSplitting = {};
-      config.chunkFileNames = "h3-[hash].mjs";
+      config.chunkFileNames = (chunkInfo) => {
+        if (chunkInfo.name === "src") {
+          return "h3.mjs";
+        }
+        return "[name].mjs";
+      };
     },
     async end() {
       const { exportSource } = await import("mdzilla");
@@ -26,8 +31,9 @@ export default defineBuildConfig({
     rolldownConfig(config) {
       config.experimental ??= {};
       config.experimental.attachDebugInfo = "none";
-
-      config.plugins ??= [];
+      if (!Array.isArray(config.plugins)) {
+        config.plugins = [];
+      }
       config.plugins.push({
         name: "remove-comments",
         renderChunk(code) {

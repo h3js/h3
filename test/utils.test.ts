@@ -284,6 +284,24 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
       //     .then((r) => r.text()),
       // ).toMatch("http://localhost/");
     });
+
+    it("x-forwarded-proto comma list uses first entry", async () => {
+      const res = await t
+        .fetch("http://localhost/test", {
+          headers: { "x-forwarded-proto": "https,http" },
+        })
+        .then((r) => r.text());
+      expect(res).toMatch(/^https:\/\//);
+    });
+
+    it("x-forwarded-proto comma list with spaces uses first entry trimmed", async () => {
+      const res = await t
+        .fetch("http://localhost/test", {
+          headers: { "x-forwarded-proto": "https, http" },
+        })
+        .then((r) => r.text());
+      expect(res).toMatch(/^https:\/\//);
+    });
   });
 
   describe("getRequestIP", () => {
@@ -497,6 +515,89 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
         );
       },
     );
+
+    // Empty/falsy link values must be dropped on the fallback path too, so no
+    // malformed empty `Link:` header is emitted (matches the Node path filter).
+    it.skipIf(t.target === "node")(
+      "does not set an empty Link header for falsy link values (fallback)",
+      async () => {
+        t.app.get("/empty-string", async (event) => {
+          await writeEarlyHints(event, { link: "" });
+          return "ok";
+        });
+        t.app.get("/mixed", async (event) => {
+          await writeEarlyHints(event, { link: ["", "</a.css>; rel=preload; as=style"] });
+          return "ok";
+        });
+
+        const res = await t.fetch("/empty-string");
+        expect(res.headers.get("Link")).toBe(null);
+
+        const res2 = await t.fetch("/mixed");
+        expect(res2.headers.get("Link")).toBe("</a.css>; rel=preload; as=style");
+      },
+    );
+
+    // Regression tests for #1383: on the Node.js native path, writeEarlyHints
+    // returns without invoking its callback when the resolved `link` value is
+    // missing/empty. h3 wraps that callback in a promise, so a missing callback
+    // left the promise (and the request) hanging forever. These run in both web
+    // and node targets; the node target is what actually exercises the fix.
+    // Each handler races writeEarlyHints against a short timer and reports the
+    // winner, so a hang surfaces as "timeout" instead of an assertion pass.
+    const raceEarlyHints = async (
+      event: Parameters<typeof writeEarlyHints>[0],
+      hints: Parameters<typeof writeEarlyHints>[1],
+    ) => {
+      let timer: ReturnType<typeof setTimeout>;
+      const result = await Promise.race([
+        Promise.resolve(writeEarlyHints(event, hints)).then(() => "resolved" as const),
+        new Promise<"timeout">((resolve) => {
+          timer = setTimeout(() => resolve("timeout"), 500);
+        }),
+      ]);
+      clearTimeout(timer!);
+      return result;
+    };
+
+    it("resolves promptly instead of hanging with empty hints (#1383)", async () => {
+      t.app.get("/", (event) => raceEarlyHints(event, {}));
+      const res = await t.fetch("/");
+      expect(await res.text()).toBe("resolved");
+    });
+
+    it("resolves promptly when the link hint value is empty", async () => {
+      t.app.get("/empty-string", (event) => raceEarlyHints(event, { link: "" }));
+      t.app.get("/empty-array", (event) => raceEarlyHints(event, { Link: [] }));
+
+      expect(await (await t.fetch("/empty-string")).text()).toBe("resolved");
+      expect(await (await t.fetch("/empty-array")).text()).toBe("resolved");
+    });
+
+    it("resolves when only a capital-cased Link key is provided", async () => {
+      t.app.get("/", (event) =>
+        raceEarlyHints(event, { Link: "</style.css>; rel=preload; as=style" }),
+      );
+      const res = await t.fetch("/");
+      expect(await res.text()).toBe("resolved");
+    });
+
+    it("merges both link and Link keys without dropping values", async () => {
+      t.app.get("/", (event) =>
+        raceEarlyHints(event, {
+          link: "</a.css>; rel=preload; as=style",
+          Link: "</b.js>; rel=preload; as=script",
+        }),
+      );
+      const res = await t.fetch("/");
+      expect(await res.text()).toBe("resolved");
+      // On the web fallback path both values are merged onto the `link` header.
+      if (t.target === "web") {
+        expect(res.headers.get("Link")).toBe(
+          "</a.css>; rel=preload; as=style, </b.js>; rel=preload; as=script",
+        );
+      }
+    });
   });
 
   describe("handleCacheHeaders", () => {
@@ -555,6 +656,23 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
       const res = await t.fetch("/", {
         headers: {
           "if-modified-since": "Fri, 01 Jan 2021 00:00:00 GMT",
+        },
+      });
+      expect(res.status).toBe(304);
+    });
+
+    it("returns 304 when if-none-match is a comma-separated list containing the etag", async () => {
+      t.app.use((event) => {
+        handleCacheHeaders(event, {
+          maxAge: 60,
+          etag: '"v2"',
+        });
+        return "ok";
+      });
+      const res = await t.fetch("/", {
+        headers: {
+          // RFC 7232 §3.2: the field-value is a list of entity-tags
+          "if-none-match": '"v1", "v2"',
         },
       });
       expect(res.status).toBe(304);

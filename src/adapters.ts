@@ -48,14 +48,21 @@ export function fromNodeHandler(handler: NodeHandler | NodeMiddleware): EventHan
     throw new TypeError(`Invalid handler. It should be a function: ${handler}`);
   }
   return function _nodeHandler(event) {
-    if (!event.runtime?.node?.res) {
+    const node = event.runtime?.node;
+    if (!node?.res) {
       throw new Error("[h3] Executing Node.js middleware is not supported in this server!");
     }
-    return callNodeHandler(
-      handler,
-      event.runtime?.node.req,
-      event.runtime?.node.res,
-    ) as EventHandlerResponse;
+    // Legacy handlers route on the raw req.url — sync it with the h3 view so
+    // rewrites (withBase/mount) and pathname normalization propagate (#1432)
+    const url = event.url.pathname + event.url.search;
+    if (node.req.url === url) {
+      return callNodeHandler(handler, node.req, node.res) as EventHandlerResponse;
+    }
+    const originalUrl = node.req.url;
+    node.req.url = url;
+    return (callNodeHandler(handler, node.req, node.res) as Promise<unknown>).finally(() => {
+      node.req.url = originalUrl;
+    }) as EventHandlerResponse;
   };
 }
 

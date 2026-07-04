@@ -2,5 +2,17 @@ packages:
   - playground
   - examples
 
+allowBuilds:
+  "@parcel/watcher": false
+  esbuild: false
+
 ignoredBuiltDependencies:
   - esbuild
+
+minimumReleaseAgeExclude:
+  - obuild*
+  - srvx*
+  - rou3*
+  - crossws*
+  - cookie-es*
+  - h3*

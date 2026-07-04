@@ -3,7 +3,6 @@
 export type {
   H3Config,
   H3CoreConfig,
-  H3Plugin,
   H3Route,
   H3RouteMeta,
   HTTPMethod,
@@ -14,9 +13,12 @@ export type {
   MatchedRoute,
 } from "./types/h3.ts";
 
-export { definePlugin } from "./types/h3.ts";
-
 export { H3Core, H3 } from "./h3.ts";
+
+// Plugins
+
+export type { H3Plugin } from "./plugin.ts";
+export { definePlugin } from "./plugin.ts";
 
 // Event
 
@@ -159,6 +161,10 @@ export { sanitizeStatusCode, sanitizeStatusMessage } from "./utils/sanitize.ts";
 // Cache
 
 export { type CacheConditions, handleCacheHeaders } from "./utils/cache.ts";
+
+// Path
+
+export { type ResolveDotSegmentsOptions, resolveDotSegments } from "./utils/path.ts";
 
 // Static
 
