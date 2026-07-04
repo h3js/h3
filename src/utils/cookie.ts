@@ -35,13 +35,16 @@ export function parseCookies(event: HTTPEvent): Record<string, string | undefine
   const headers = event.req.headers;
   const source = headers.get("cookie") || "";
   const cached = requestCookiesCache.get(headers);
+  // Return a fresh copy so callers can mutate the result without corrupting the
+  // cache (matching the previous parse-per-call behavior), while the expensive
+  // parse itself stays memoized across reads of the same header.
   if (cached && cached.source === source) {
-    return cached.cookies;
+    return { ...cached.cookies };
   }
 
   const cookies = parseCookie(source);
   requestCookiesCache.set(headers, { source, cookies });
-  return cookies;
+  return { ...cookies };
 }
 
 /**
@@ -295,23 +298,24 @@ function chunkCookieName(name: string, chunkNumber: number): string {
 }
 
 function _getSetCookieState(headers: Headers): SetCookieState {
-  let state = responseCookiesCache.get(headers);
-  if (state) {
-    return state;
+  // Live headers are the source of truth. If they still match our cached view
+  // (i.e. every set-cookie was written through setCookie), reuse it without
+  // re-parsing. Otherwise the headers were mutated elsewhere (middleware,
+  // proxy, direct append) and we rebuild — parsing only the unknown cookies.
+  const current = headers.getSetCookie();
+  const cached = responseCookiesCache.get(headers);
+  if (cached && _sameCookies(cached.cookies, current)) {
+    return cached;
   }
 
-  state = {
+  const state: SetCookieState = {
     cookies: [],
     keys: [],
     distinctKeys: new Set(),
   };
   responseCookiesCache.set(headers, state);
 
-  if (!headers.has("set-cookie")) {
-    return state;
-  }
-
-  for (const cookie of headers.getSetCookie()) {
+  for (const cookie of current) {
     state.cookies.push(cookie);
     const parsed = parseSetCookie(cookie);
     const key = parsed ? _getDistinctCookieKey(parsed.name, parsed) : undefined;
@@ -322,6 +326,18 @@ function _getSetCookieState(headers: Headers): SetCookieState {
   }
 
   return state;
+}
+
+function _sameCookies(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) {
+    return false;
+  }
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) {
+      return false;
+    }
+  }
+  return true;
 }
 
 function _writeSetCookieState(
