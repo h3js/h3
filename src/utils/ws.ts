@@ -3,6 +3,7 @@ import { defineHandler } from "../handler.ts";
 import type { Hooks as WebSocketHooks } from "crossws";
 import type { H3Event } from "../event.ts";
 import type { EventHandler, EventHandlerRequest } from "../types/handler.ts";
+import type { MaybePromise } from "../types/_utils.ts";
 
 export type {
   Hooks as WebSocketHooks,
@@ -16,8 +17,11 @@ export type {
  * were attached to it. Adapters (like the crossws `serve()` plugin) read
  * `crossws` off this response to wire up the platform-specific WebSocket
  * upgrade.
+ *
+ * When the handler is defined with an async hooks factory, `crossws` is the
+ * still-unresolved `Promise` (adapters await it), hence `MaybePromise`.
  */
-export type WebSocketResponse = Response & { crossws?: Partial<WebSocketHooks> };
+export type WebSocketResponse = Response & { crossws?: MaybePromise<Partial<WebSocketHooks>> };
 
 /**
  * Define WebSocket hooks.
