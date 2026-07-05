@@ -175,5 +175,19 @@ describe("types", () => {
       expectTypeOf(res).toExtend<string | (Response & { crossws?: unknown })>();
       expectTypeOf(res).not.toBeUnknown();
     });
+
+    it("types an async hooks factory's return value without a cast", async () => {
+      // Given a WebSocket handler defined with an async hooks factory
+      const wsHandler = defineWebSocketHandler(async (_event) => {
+        await Promise.resolve();
+        return { message: () => {} };
+      });
+      // When the handler is invoked directly (as crossws adapters do)
+      const res = wsHandler({} as H3Event);
+      // Then the return type already reflects that it can be a Promise,
+      // so it can be awaited and have `crossws` read with no cast.
+      const awaited = await res;
+      expectTypeOf(awaited).toHaveProperty("crossws");
+    });
   });
 });

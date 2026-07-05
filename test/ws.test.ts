@@ -64,11 +64,12 @@ describe("defineWebSocketHandler", () => {
       return hooks;
     });
     // When the handler is invoked in-process (as crossws adapters do internally)
-    const res = await (wsHandler({} as any) as unknown as Promise<Response>);
+    // Then the return type already reflects the Promise branch, no cast needed
+    const res = await wsHandler({} as any);
     expect(res).toBeInstanceOf(Response);
     expect(res.status).toBe(426);
     // Then `crossws` is the resolved hooks object, not an unresolved Promise
-    expect((res as any).crossws).not.toBeInstanceOf(Promise);
-    expect((res as any).crossws).toEqual(hooks);
+    expect(res.crossws).not.toBeInstanceOf(Promise);
+    expect(res.crossws).toEqual(hooks);
   });
 });

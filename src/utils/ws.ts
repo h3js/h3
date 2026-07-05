@@ -2,7 +2,7 @@ import { defineHandler } from "../handler.ts";
 
 import type { Hooks as WebSocketHooks } from "crossws";
 import type { H3Event } from "../event.ts";
-import type { EventHandler, EventHandlerRequest } from "../types/handler.ts";
+import type { EventHandler, EventHandlerRequest, EventHandlerResponse } from "../types/handler.ts";
 
 export type {
   Hooks as WebSocketHooks,
@@ -66,16 +66,19 @@ export function defineWebSocket(hooks: Partial<WebSocketHooks>): Partial<WebSock
  * @see https://h3.dev/guide/websocket
  */
 export function defineWebSocketHandler(
-  hooks:
-    | Partial<WebSocketHooks>
-    | ((event: H3Event) => Partial<WebSocketHooks> | Promise<Partial<WebSocketHooks>>),
+  hooks: Partial<WebSocketHooks>,
 ): EventHandler<EventHandlerRequest, WebSocketResponse>;
+export function defineWebSocketHandler(
+  hooks: (event: H3Event) => Partial<WebSocketHooks> | Promise<Partial<WebSocketHooks>>,
+): EventHandler<EventHandlerRequest, EventHandlerResponse<WebSocketResponse>>;
 export function defineWebSocketHandler<Http extends EventHandler>(
-  hooks:
-    | Partial<WebSocketHooks>
-    | ((event: H3Event) => Partial<WebSocketHooks> | Promise<Partial<WebSocketHooks>>),
+  hooks: Partial<WebSocketHooks>,
   http: Http,
 ): EventHandler<EventHandlerRequest, WebSocketResponse | ReturnType<Http>>;
+export function defineWebSocketHandler<Http extends EventHandler>(
+  hooks: (event: H3Event) => Partial<WebSocketHooks> | Promise<Partial<WebSocketHooks>>,
+  http: Http,
+): EventHandler<EventHandlerRequest, EventHandlerResponse<WebSocketResponse> | ReturnType<Http>>;
 export function defineWebSocketHandler(
   hooks:
     | Partial<WebSocketHooks>
@@ -93,26 +96,10 @@ export function defineWebSocketHandler(
     // otherwise the response ends up carrying an unresolved Promise instead
     // of the hooks object. Sync hooks stay on the sync path (no wrapping).
     if (crossws instanceof Promise) {
-      return crossws.then((resolvedCrossws) =>
-        Object.assign(
-          new Response("WebSocket upgrade is required.", {
-            status: 426,
-          }),
-          {
-            crossws: resolvedCrossws,
-          },
-        ),
-      );
+      return crossws.then(toUpgradeResponse);
     }
 
-    return Object.assign(
-      new Response("WebSocket upgrade is required.", {
-        status: 426,
-      }),
-      {
-        crossws,
-      },
-    );
+    return toUpgradeResponse(crossws);
   });
 }
 
@@ -121,4 +108,14 @@ export function defineWebSocketHandler(
  */
 function isWebSocketUpgrade(event: H3Event): boolean {
   return event.req.headers.get("upgrade")?.toLowerCase() === "websocket";
+}
+
+/**
+ * Build the `426 Upgrade Required` response, with the resolved `crossws`
+ * hooks attached for adapters to read.
+ */
+function toUpgradeResponse(crossws: Partial<WebSocketHooks>): WebSocketResponse {
+  return Object.assign(new Response("WebSocket upgrade is required.", { status: 426 }), {
+    crossws,
+  });
 }
