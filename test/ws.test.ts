@@ -56,4 +56,19 @@ describe("defineWebSocketHandler", () => {
     // Then `res.crossws` is readable, typed, and is the exact hooks object
     expect(res.crossws).toBe(hooks);
   });
+
+  it("awaits an async hooks factory before attaching crossws", async () => {
+    // Given a WebSocket handler defined with an async hooks factory
+    const wsHandler = defineWebSocketHandler(async (_event) => {
+      await Promise.resolve();
+      return hooks;
+    });
+    // When the handler is invoked in-process (as crossws adapters do internally)
+    const res = await (wsHandler({} as any) as unknown as Promise<Response>);
+    expect(res).toBeInstanceOf(Response);
+    expect(res.status).toBe(426);
+    // Then `crossws` is the resolved hooks object, not an unresolved Promise
+    expect((res as any).crossws).not.toBeInstanceOf(Promise);
+    expect((res as any).crossws).toEqual(hooks);
+  });
 });

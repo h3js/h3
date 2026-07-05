@@ -3,7 +3,6 @@ import { defineHandler } from "../handler.ts";
 import type { Hooks as WebSocketHooks } from "crossws";
 import type { H3Event } from "../event.ts";
 import type { EventHandler, EventHandlerRequest } from "../types/handler.ts";
-import type { MaybePromise } from "../types/_utils.ts";
 
 export type {
   Hooks as WebSocketHooks,
@@ -18,10 +17,11 @@ export type {
  * `crossws` off this response to wire up the platform-specific WebSocket
  * upgrade.
  *
- * When the handler is defined with an async hooks factory, `crossws` is the
- * still-unresolved `Promise` (adapters await it), hence `MaybePromise`.
+ * `crossws` is always the resolved hooks object: when the handler is defined
+ * with an async hooks factory, `defineWebSocketHandler()` awaits it before
+ * attaching it to the response.
  */
-export type WebSocketResponse = Response & { crossws?: MaybePromise<Partial<WebSocketHooks>> };
+export type WebSocketResponse = Response & { crossws?: Partial<WebSocketHooks> };
 
 /**
  * Define WebSocket hooks.
@@ -88,6 +88,22 @@ export function defineWebSocketHandler(
     }
 
     const crossws = typeof hooks === "function" ? hooks(event) : hooks;
+
+    // Async hook factories must be awaited before `crossws` is attached,
+    // otherwise the response ends up carrying an unresolved Promise instead
+    // of the hooks object. Sync hooks stay on the sync path (no wrapping).
+    if (crossws instanceof Promise) {
+      return crossws.then((resolvedCrossws) =>
+        Object.assign(
+          new Response("WebSocket upgrade is required.", {
+            status: 426,
+          }),
+          {
+            crossws: resolvedCrossws,
+          },
+        ),
+      );
+    }
 
     return Object.assign(
       new Response("WebSocket upgrade is required.", {
