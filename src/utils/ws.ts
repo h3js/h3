@@ -2,13 +2,26 @@ import { defineHandler } from "../handler.ts";
 
 import type { Hooks as WebSocketHooks } from "crossws";
 import type { H3Event } from "../event.ts";
-import type { EventHandler } from "../types/handler.ts";
+import type { EventHandler, EventHandlerRequest, EventHandlerResponse } from "../types/handler.ts";
 
 export type {
   Hooks as WebSocketHooks,
   Message as WebSocketMessage,
   Peer as WebSocketPeer,
 } from "crossws";
+
+/**
+ * The `426 Upgrade Required` response returned by `defineWebSocketHandler()`
+ * for WebSocket upgrade requests, augmented with the `crossws` hooks that
+ * were attached to it. Adapters (like the crossws `serve()` plugin) read
+ * `crossws` off this response to wire up the platform-specific WebSocket
+ * upgrade.
+ *
+ * `crossws` is always the resolved hooks object: when the handler is defined
+ * with an async hooks factory, `defineWebSocketHandler()` awaits it before
+ * attaching it to the response.
+ */
+export type WebSocketResponse = Response & { crossws?: Partial<WebSocketHooks> };
 
 /**
  * Define WebSocket hooks.
@@ -26,6 +39,20 @@ export function defineWebSocket(hooks: Partial<WebSocketHooks>): Partial<WebSock
   return hooks;
 }
 
+export function defineWebSocketHandler(
+  hooks: Partial<WebSocketHooks>,
+): EventHandler<EventHandlerRequest, WebSocketResponse>;
+export function defineWebSocketHandler(
+  hooks: (event: H3Event) => Partial<WebSocketHooks> | Promise<Partial<WebSocketHooks>>,
+): EventHandler<EventHandlerRequest, EventHandlerResponse<WebSocketResponse>>;
+export function defineWebSocketHandler<Http extends EventHandler>(
+  hooks: Partial<WebSocketHooks>,
+  http: Http,
+): EventHandler<EventHandlerRequest, WebSocketResponse | ReturnType<Http>>;
+export function defineWebSocketHandler<Http extends EventHandler>(
+  hooks: (event: H3Event) => Partial<WebSocketHooks> | Promise<Partial<WebSocketHooks>>,
+  http: Http,
+): EventHandler<EventHandlerRequest, EventHandlerResponse<WebSocketResponse> | ReturnType<Http>>;
 /**
  * Define WebSocket event handler.
  *
@@ -65,14 +92,14 @@ export function defineWebSocketHandler(
 
     const crossws = typeof hooks === "function" ? hooks(event) : hooks;
 
-    return Object.assign(
-      new Response("WebSocket upgrade is required.", {
-        status: 426,
-      }),
-      {
-        crossws,
-      },
-    );
+    // Async hook factories must be awaited before `crossws` is attached,
+    // otherwise the response ends up carrying an unresolved Promise instead
+    // of the hooks object. Sync hooks stay on the sync path (no wrapping).
+    if (crossws instanceof Promise) {
+      return crossws.then(toUpgradeResponse);
+    }
+
+    return toUpgradeResponse(crossws);
   });
 }
 
@@ -81,4 +108,14 @@ export function defineWebSocketHandler(
  */
 function isWebSocketUpgrade(event: H3Event): boolean {
   return event.req.headers.get("upgrade")?.toLowerCase() === "websocket";
+}
+
+/**
+ * Build the `426 Upgrade Required` response, with the resolved `crossws`
+ * hooks attached for adapters to read.
+ */
+function toUpgradeResponse(crossws: Partial<WebSocketHooks>): WebSocketResponse {
+  return Object.assign(new Response("WebSocket upgrade is required.", { status: 426 }), {
+    crossws,
+  });
 }
