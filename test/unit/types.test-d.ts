@@ -1,4 +1,4 @@
-import type { H3Event } from "../../src/index.ts";
+import type { H3Event, WebSocketResponse } from "../../src/index.ts";
 import { describe, it, expectTypeOf } from "vitest";
 import {
   defineHandler,
@@ -184,8 +184,12 @@ describe("types", () => {
       });
       // When the handler is invoked directly (as crossws adapters do)
       const res = wsHandler({} as H3Event);
-      // Then the return type already reflects that it can be a Promise,
-      // so it can be awaited and have `crossws` read with no cast.
+      // Then the return type must itself be the union of the sync response
+      // and a Promise of it, not just `WebSocketResponse`. Otherwise
+      // await-ing a sync-typed value would be a no-op and this assertion
+      // would pass regardless of whether the factory was actually awaited.
+      expectTypeOf(res).toEqualTypeOf<WebSocketResponse | Promise<WebSocketResponse>>();
+      // And the resolved value still exposes `crossws` with no cast.
       const awaited = await res;
       expectTypeOf(awaited).toHaveProperty("crossws");
     });
