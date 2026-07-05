@@ -39,6 +39,20 @@ export function defineWebSocket(hooks: Partial<WebSocketHooks>): Partial<WebSock
   return hooks;
 }
 
+export function defineWebSocketHandler(
+  hooks: Partial<WebSocketHooks>,
+): EventHandler<EventHandlerRequest, WebSocketResponse>;
+export function defineWebSocketHandler(
+  hooks: (event: H3Event) => Partial<WebSocketHooks> | Promise<Partial<WebSocketHooks>>,
+): EventHandler<EventHandlerRequest, EventHandlerResponse<WebSocketResponse>>;
+export function defineWebSocketHandler<Http extends EventHandler>(
+  hooks: Partial<WebSocketHooks>,
+  http: Http,
+): EventHandler<EventHandlerRequest, WebSocketResponse | ReturnType<Http>>;
+export function defineWebSocketHandler<Http extends EventHandler>(
+  hooks: (event: H3Event) => Partial<WebSocketHooks> | Promise<Partial<WebSocketHooks>>,
+  http: Http,
+): EventHandler<EventHandlerRequest, EventHandlerResponse<WebSocketResponse> | ReturnType<Http>>;
 /**
  * Define WebSocket event handler.
  *
@@ -65,20 +79,6 @@ export function defineWebSocket(hooks: Partial<WebSocketHooks>): Partial<WebSock
  *
  * @see https://h3.dev/guide/websocket
  */
-export function defineWebSocketHandler(
-  hooks: Partial<WebSocketHooks>,
-): EventHandler<EventHandlerRequest, WebSocketResponse>;
-export function defineWebSocketHandler(
-  hooks: (event: H3Event) => Partial<WebSocketHooks> | Promise<Partial<WebSocketHooks>>,
-): EventHandler<EventHandlerRequest, EventHandlerResponse<WebSocketResponse>>;
-export function defineWebSocketHandler<Http extends EventHandler>(
-  hooks: Partial<WebSocketHooks>,
-  http: Http,
-): EventHandler<EventHandlerRequest, WebSocketResponse | ReturnType<Http>>;
-export function defineWebSocketHandler<Http extends EventHandler>(
-  hooks: (event: H3Event) => Partial<WebSocketHooks> | Promise<Partial<WebSocketHooks>>,
-  http: Http,
-): EventHandler<EventHandlerRequest, EventHandlerResponse<WebSocketResponse> | ReturnType<Http>>;
 export function defineWebSocketHandler(
   hooks:
     | Partial<WebSocketHooks>
