@@ -269,6 +269,76 @@ describeMatrix("body", (t, { it, expect, describe }) => {
     });
   });
 
+  describe("readBody with an explicit type", () => {
+    it("type: text returns the raw string, ignoring the content-type", async () => {
+      let _body: any;
+      t.app.all("/api/test", async (event) => {
+        _body = await readBody(event, { type: "text" });
+        return "200";
+      });
+      // JSON content-type, but `type: text` forces the raw string.
+      await t.fetch("/api/test", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: '{ "hello": true }',
+      });
+      expect(_body).toBe('{ "hello": true }');
+    });
+
+    it("type: text returns an empty string for an empty body", async () => {
+      let _body: any = "unset";
+      t.app.all("/api/test", async (event) => {
+        _body = await readBody(event, { type: "text" });
+        return "200";
+      });
+      await t.fetch("/api/test", { method: "POST" });
+      expect(_body).toBe("");
+    });
+
+    it("type: urlencoded parses regardless of the content-type", async () => {
+      let _body: any;
+      t.app.all("/api/test", async (event) => {
+        _body = await readBody(event, { type: "urlencoded" });
+        return "200";
+      });
+      // No urlencoded content-type, but `type: urlencoded` forces the parser.
+      await t.fetch("/api/test", {
+        method: "POST",
+        headers: { "content-type": "text/plain" },
+        body: "field=value&number=20&number=30",
+      });
+      expect(_body).toMatchObject({ field: "value", number: ["20", "30"] });
+    });
+
+    it("type: json parses even when the content-type is urlencoded", async () => {
+      let _body: any;
+      t.app.all("/api/test", async (event) => {
+        _body = await readBody(event, { type: "json" });
+        return "200";
+      });
+      // urlencoded content-type is ignored in favor of the forced JSON parser.
+      await t.fetch("/api/test", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: '{ "hello": true }',
+      });
+      expect(_body).toMatchObject({ hello: true });
+    });
+
+    it("type: json throws a 400 on an invalid JSON body", async () => {
+      t.app.all("/api/test", async (event) => {
+        await readBody(event, { type: "json" });
+        return "200";
+      });
+      const result = await t.fetch("/api/test", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: "field=value",
+      });
+      expect(result.status).toBe(400);
+    });
+  });
+
   it("returns empty string if body is not present with text/plain", async () => {
     let _body: string | undefined;
     t.app.all("/api/test", async (event) => {

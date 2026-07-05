@@ -127,7 +127,7 @@ export {
 
 // Body
 
-export { readBody, readValidatedBody, assertBodySize } from "./utils/body.ts";
+export { readBody, readValidatedBody, assertBodySize, type ReadBodyOptions } from "./utils/body.ts";
 
 // Cookie
 

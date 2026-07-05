@@ -7,6 +7,18 @@ import type { InferEventInput } from "../types/handler.ts";
 import type { ValidateResult } from "./internal/validate.ts";
 import type { StandardSchemaV1, FailureResult, InferOutput } from "./internal/standard-schema.ts";
 
+export interface ReadBodyOptions {
+  /**
+   * Force a parser instead of inferring it from the request `Content-Type`.
+   *
+   * - `"json"` (default): parse as JSON.
+   * - `"text"`: return the raw string body.
+   * - `"urlencoded"`: parse as `application/x-www-form-urlencoded`.
+   * - `"formData"`: parse as `multipart/form-data` (or url-encoded) form data.
+   */
+  type?: "json" | "text" | "urlencoded" | "formData";
+}
+
 /**
  * Reads request body and tries to parse using JSON.parse or URLSearchParams.
  *
@@ -34,10 +46,7 @@ export async function readBody<
   T,
   _Event extends HTTPEvent = HTTPEvent,
   _T = InferEventInput<"body", _Event, T>,
->(
-  event: _Event,
-  options?: { type?: "json" | "text" | "urlencoded" | "formData" },
-): Promise<undefined | _T> {
+>(event: _Event, options?: ReadBodyOptions): Promise<undefined | _T> {
   const contentType = event.req.headers.get("content-type") || "";
   const type = options?.type;
 
@@ -61,12 +70,13 @@ export async function readBody<
 
   const text = await event.req.text();
 
-  if (!text) {
-    return undefined;
-  }
-
+  // Text is returned verbatim, including an empty body as `""`.
   if (type === "text") {
     return text as _T;
+  }
+
+  if (!text) {
+    return undefined;
   }
 
   if (
