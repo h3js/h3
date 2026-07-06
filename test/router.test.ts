@@ -138,6 +138,36 @@ describeMatrix("router", (t, { it, expect, describe }) => {
 
         expect(await result.text()).toBe("200");
       });
+
+      it("decode does not reintroduce path separators or traversal", async () => {
+        // `decode:true` must not be able to turn an encoded path separator
+        // (`%2f`/`%5c`) that route matching and pathname-based middleware only
+        // ever saw as one opaque, still-encoded segment into a raw `/` or `\`
+        // (and thus `..`-based traversal) — a path desync / smuggling vector.
+        t.app.get("/files/:id", (event) => {
+          return getRouterParams(event, { decode: true }).id;
+        });
+
+        const encodedSlash = await (await t.fetch("/files/%2F")).text();
+        expect(encodedSlash).not.toContain("/");
+
+        const encodedBackslash = await (await t.fetch("/files/%5C")).text();
+        expect(encodedBackslash).not.toContain("\\");
+
+        const encodedTraversal = await (await t.fetch("/files/%2E%2E%2Fetc")).text();
+        expect(encodedTraversal).not.toContain("/");
+        expect(encodedTraversal).not.toContain("../");
+
+        // Double-encoded separator must not decode down to a raw `/` either.
+        const doubleEncodedSlash = await (await t.fetch("/files/%252F")).text();
+        expect(doubleEncodedSlash).not.toContain("/");
+
+        // Legitimate decoding of other characters is preserved.
+        const spaced = await (await t.fetch("/files/a%20b")).text();
+        expect(spaced).toBe("a b");
+        const nonAscii = await (await t.fetch("/files/caf%C3%A9")).text();
+        expect(nonAscii).toBe("café");
+      });
     });
 
     describe("without router", () => {
