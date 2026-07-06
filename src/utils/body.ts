@@ -1,40 +1,92 @@
 import { type ErrorDetails, HTTPError } from "../error.ts";
 import { type OnValidateError, validateData } from "./internal/validate.ts";
-import { parseURLEncodedBody } from "./internal/body.ts";
+import { parseURLEncodedBody, parseFormData } from "./internal/body.ts";
 
 import type { HTTPEvent } from "../event.ts";
 import type { InferEventInput } from "../types/handler.ts";
 import type { ValidateResult } from "./internal/validate.ts";
 import type { StandardSchemaV1, FailureResult, InferOutput } from "./internal/standard-schema.ts";
 
+export interface ReadBodyOptions {
+  /**
+   * Force a parser instead of inferring it from the request `Content-Type`.
+   *
+   * - `"json"` (default): parse as JSON.
+   * - `"text"`: return the raw string body.
+   * - `"urlencoded"`: parse as `application/x-www-form-urlencoded`.
+   * - `"formData"`: parse as `multipart/form-data` (or url-encoded) form data.
+   */
+  type?: "json" | "text" | "urlencoded" | "formData";
+}
+
 /**
  * Reads request body and tries to parse using JSON.parse or URLSearchParams.
  *
+ * By default the body is parsed as JSON (falling back to URL-encoded parsing
+ * when the `Content-Type` is `application/x-www-form-urlencoded`). Other body
+ * types, such as `multipart/form-data`, must be opted into explicitly via
+ * `options.type` and are never auto-detected from the request headers.
+ *
  * @example
- * app.get("/", async (event) => {
+ * app.post("/", async (event) => {
  *   const body = await readBody(event);
+ * });
+ * @example
+ * app.post("/upload", async (event) => {
+ *   const body = await readBody(event, { type: "formData" });
  * });
  *
  * @param event H3 event passed by h3 handler
- * @param encoding The character encoding to use, defaults to 'utf-8'.
+ * @param options Parsing options. Set `type` to force a parser instead of
+ *   inferring it from the request `Content-Type`.
  *
- * @return {*} The `Object`, `Array`, `String`, `Number`, `Boolean`, or `null` value corresponding to the request JSON body
+ * @return {*} The `Object`, `Array`, `String`, `Number`, `Boolean`, or `null` value corresponding to the request body
  */
 export async function readBody<
   T,
   _Event extends HTTPEvent = HTTPEvent,
   _T = InferEventInput<"body", _Event, T>,
->(event: _Event): Promise<undefined | _T> {
+>(event: _Event, options?: ReadBodyOptions): Promise<undefined | _T> {
+  const contentType = event.req.headers.get("content-type") || "";
+  const type = options?.type;
+
+  // `formData` (multipart or url-encoded) is strictly opt-in: unlike JSON it
+  // is never auto-detected from the `Content-Type` header, so an untrusted
+  // request cannot push readBody into (potentially expensive) multipart
+  // parsing without the handler explicitly asking for it. See #875.
+  if (type === "formData") {
+    let form: FormData;
+    try {
+      form = await event.req.formData();
+    } catch {
+      throw new HTTPError({
+        status: 400,
+        statusText: "Bad Request",
+        message: "Invalid form data body",
+      });
+    }
+    return parseFormData(form) as _T;
+  }
+
   const text = await event.req.text();
+
+  // Text is returned verbatim, including an empty body as `""`.
+  if (type === "text") {
+    return text as _T;
+  }
+
   if (!text) {
     return undefined;
   }
 
-  const contentType = event.req.headers.get("content-type") || "";
-  if (contentType.startsWith("application/x-www-form-urlencoded")) {
+  if (
+    type === "urlencoded" ||
+    (!type && contentType.startsWith("application/x-www-form-urlencoded"))
+  ) {
     return parseURLEncodedBody(text) as _T;
   }
 
+  // Default, and explicit `type: "json"`.
   try {
     return JSON.parse(text) as _T;
   } catch {

@@ -219,6 +219,126 @@ describeMatrix("body", (t, { it, expect, describe }) => {
     ]);
   });
 
+  describe("readBody with multipart/form-data", () => {
+    // Reusable multipart payload with a repeated `number` field.
+    const multipart = {
+      headers: {
+        "content-type":
+          "multipart/form-data; boundary=---------------------------12537827810750053901680552518",
+      },
+      body: '-----------------------------12537827810750053901680552518\r\nContent-Disposition: form-data; name="field"\r\n\r\nvalue\r\n-----------------------------12537827810750053901680552518\r\nContent-Disposition: form-data; name="number"\r\n\r\n20\r\n-----------------------------12537827810750053901680552518\r\nContent-Disposition: form-data; name="number"\r\n\r\n30\r\n-----------------------------12537827810750053901680552518--\r\n',
+    };
+
+    it("parses form data into an object when opted in via type: formData", async () => {
+      let _body: any;
+      t.app.all("/api/test", async (event) => {
+        _body = await readBody(event, { type: "formData" });
+        return "200";
+      });
+      const result = await t.fetch("/api/test", { method: "POST", ...multipart });
+      // Repeated keys are preserved as an array, not collapsed to the last value.
+      expect(_body).toMatchObject({ field: "value", number: ["20", "30"] });
+      expect(await result.text()).toBe("200");
+    });
+
+    it("does NOT auto-parse multipart without an explicit opt-in", async () => {
+      // Without `type: "formData"` a multipart body falls through to the JSON
+      // parser and is rejected — parsing form data is never header-driven.
+      t.app.all("/api/test", async (event) => {
+        await readBody(event);
+        return "200";
+      });
+      const result = await t.fetch("/api/test", { method: "POST", ...multipart });
+      expect(result.status).toBe(400);
+    });
+
+    it("throws a 400 on a malformed multipart body", async () => {
+      t.app.all("/api/test", async (event) => {
+        await readBody(event, { type: "formData" });
+        return "200";
+      });
+      const result = await t.fetch("/api/test", {
+        method: "POST",
+        headers: {
+          "content-type": "multipart/form-data; boundary=----broken",
+        },
+        // Body does not match the declared boundary → formData() throws.
+        body: "not a valid multipart body",
+      });
+      expect(result.status).toBe(400);
+    });
+  });
+
+  describe("readBody with an explicit type", () => {
+    it("type: text returns the raw string, ignoring the content-type", async () => {
+      let _body: any;
+      t.app.all("/api/test", async (event) => {
+        _body = await readBody(event, { type: "text" });
+        return "200";
+      });
+      // JSON content-type, but `type: text` forces the raw string.
+      await t.fetch("/api/test", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: '{ "hello": true }',
+      });
+      expect(_body).toBe('{ "hello": true }');
+    });
+
+    it("type: text returns an empty string for an empty body", async () => {
+      let _body: any = "unset";
+      t.app.all("/api/test", async (event) => {
+        _body = await readBody(event, { type: "text" });
+        return "200";
+      });
+      await t.fetch("/api/test", { method: "POST" });
+      expect(_body).toBe("");
+    });
+
+    it("type: urlencoded parses regardless of the content-type", async () => {
+      let _body: any;
+      t.app.all("/api/test", async (event) => {
+        _body = await readBody(event, { type: "urlencoded" });
+        return "200";
+      });
+      // No urlencoded content-type, but `type: urlencoded` forces the parser.
+      await t.fetch("/api/test", {
+        method: "POST",
+        headers: { "content-type": "text/plain" },
+        body: "field=value&number=20&number=30",
+      });
+      expect(_body).toMatchObject({ field: "value", number: ["20", "30"] });
+    });
+
+    it("type: json parses even when the content-type is urlencoded", async () => {
+      let _body: any;
+      t.app.all("/api/test", async (event) => {
+        _body = await readBody(event, { type: "json" });
+        return "200";
+      });
+      // urlencoded content-type is ignored in favor of the forced JSON parser.
+      await t.fetch("/api/test", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: '{ "hello": true }',
+      });
+      expect(_body).toMatchObject({ hello: true });
+    });
+
+    it("type: json throws a 400 on an invalid JSON body", async () => {
+      t.app.all("/api/test", async (event) => {
+        await readBody(event, { type: "json" });
+        return "200";
+      });
+      const result = await t.fetch("/api/test", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: "field=value",
+      });
+      expect(result.status).toBe(400);
+    });
+  });
+
   it("returns empty string if body is not present with text/plain", async () => {
     let _body: string | undefined;
     t.app.all("/api/test", async (event) => {
