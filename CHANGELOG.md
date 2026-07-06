@@ -2,6 +2,94 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## v2.0.1-rc.23
+
+[compare changes](https://github.com/h3js/h3/compare/v2.0.1-rc.22...v2.0.1-rc.23)
+
+### 🚀 Enhancements
+
+- **proxy:** Support client aborts ([#1417](https://github.com/h3js/h3/pull/1417))
+- **ws:** Allow optional HTTP handling in defineWebSocketHandler ([#1425](https://github.com/h3js/h3/pull/1425))
+- Export `resolveDotSegments` as a public path utility ([#1428](https://github.com/h3js/h3/pull/1428))
+- **readBody:** Support formdata type ([#1164](https://github.com/h3js/h3/pull/1164))
+
+### 🩹 Fixes
+
+- **sanitizeStatusCode:** Return default for non-numeric input instead of NaN ([#1420](https://github.com/h3js/h3/pull/1420))
+- **auth:** Reject Basic credentials with no colon separator ([#1393](https://github.com/h3js/h3/pull/1393))
+- **sse:** Ignore pushes after stream close ([#1411](https://github.com/h3js/h3/pull/1411))
+- **proxy:** Ignore incoming accept-encoding header ([#1423](https://github.com/h3js/h3/pull/1423))
+- **cache:** HandleCacheHeaders ignores multi-value If-None-Match header ([#1395](https://github.com/h3js/h3/pull/1395))
+- **serve-static:** Compare if-modified-since at whole-second precision ([#1394](https://github.com/h3js/h3/pull/1394))
+- **request:** Parse first entry of comma-list x-forwarded-proto header ([#1413](https://github.com/h3js/h3/pull/1413))
+- **serve-static:** Check the response (not request) for an existing content-length ([#1391](https://github.com/h3js/h3/pull/1391))
+- **cors:** Merge Vary headers when both origin and allow-headers emit vary ([#1396](https://github.com/h3js/h3/pull/1396))
+- **writeEarlyHints:** Normalize Link key to prevent hanging with Node.js ([#1385](https://github.com/h3js/h3/pull/1385))
+- **event:** Return 400 for malformed percent-encoded request URLs ([#1424](https://github.com/h3js/h3/pull/1424))
+- **mount:** Restore pathname on error with try/finally ([#1319](https://github.com/h3js/h3/pull/1319))
+- **serve-static:** Decode the resolved id before lookup ([#1431](https://github.com/h3js/h3/pull/1431))
+- **request:** Shadow parsed _url in requestWithURL proxy ([d21d93c](https://github.com/h3js/h3/commit/d21d93c))
+- **event:** Clone URL for pathname normalization instead of mutating shared _url ([a1cf066](https://github.com/h3js/h3/commit/a1cf066))
+- **adapters:** Sync raw node req.url with event.url in fromNodeHandler ([#1433](https://github.com/h3js/h3/pull/1433))
+
+### 💅 Refactors
+
+- **validate:** Drop always-true `if (validate.body)` guard in body proxy ([#1392](https://github.com/h3js/h3/pull/1392))
+- Leftover changes from #1428 ([#1430](https://github.com/h3js/h3/pull/1430), [#1428](https://github.com/h3js/h3/issues/1428))
+
+### 📖 Documentation
+
+- **proxy:** Add note about reading body ([7eb018e](https://github.com/h3js/h3/commit/7eb018e))
+- Fix decode function name in router param helpers ([#1419](https://github.com/h3js/h3/pull/1419))
+- **session:** Note secure cookie limitation over local HTTP ([#1409](https://github.com/h3js/h3/pull/1409))
+- Document the session name option for multiple sessions ([#1405](https://github.com/h3js/h3/pull/1405))
+- Add arkstack framework to community section ([#1382](https://github.com/h3js/h3/pull/1382))
+- **ws:** Use zero-config crossws server plugin ([#1427](https://github.com/h3js/h3/pull/1427))
+
+### 🌊 Types
+
+- Expose `.crossws` on `defineWebSocketHandler` return type ([#1435](https://github.com/h3js/h3/pull/1435))
+
+### 🏡 Chore
+
+- Update deps ([8f2d46d](https://github.com/h3js/h3/commit/8f2d46d))
+- Apply automated updates ([edb53fe](https://github.com/h3js/h3/commit/edb53fe))
+- Update deps ([d4dceb7](https://github.com/h3js/h3/commit/d4dceb7))
+- Remove extra `/* @__PURE__ */` comment ([c98f2d0](https://github.com/h3js/h3/commit/c98f2d0))
+- Fix lint issue ([6962251](https://github.com/h3js/h3/commit/6962251))
+- Update deps ([ece0ea2](https://github.com/h3js/h3/commit/ece0ea2))
+- Bump bundle size ([b458796](https://github.com/h3js/h3/commit/b458796))
+- Update deps ([78e7152](https://github.com/h3js/h3/commit/78e7152))
+
+### ✅ Tests
+
+- Cover zod schema query validation types ([#1404](https://github.com/h3js/h3/pull/1404))
+- Cover cloned pipeable node responses ([#1414](https://github.com/h3js/h3/pull/1414))
+- **iron-crypto:** Accept getRandomValues length error for invalid salt bits ([dae12fe](https://github.com/h3js/h3/commit/dae12fe))
+- **event:** Cover shared _url normalization semantics ([4a218a8](https://github.com/h3js/h3/commit/4a218a8))
+- **event:** Assert req.url reflects normalization per runtime ([8410ec9](https://github.com/h3js/h3/commit/8410ec9))
+
+### ❤️ Contributors
+
+- Pooya Parsa ([@pi0](https://github.com/pi0))
+- Huseeiin ([@huseeiin](https://github.com/huseeiin))
+- M.M ([@momomuchu](https://github.com/momomuchu))
+- Pi0x <x@pi0.io>
+- Wind ([@productdevbook](https://github.com/productdevbook))
+- Iain Sproat ([@iainsproat](https://github.com/iainsproat))
+- Frank Johnston <francisjohnjohnston@gmail.com>
+- Mixelburg ([@mixelburg](https://github.com/mixelburg))
+- Legacy ([@3m1n3nc3](https://github.com/3m1n3nc3))
+- Shaurya Singh ([@LeSingh1](https://github.com/LeSingh1))
+- Pupuking723 <2318857637@qq.com>
+- Harsh Agarwal <harshagarwal48756@gmail.com>
+- Aimee ([@Aimee1608](https://github.com/Aimee1608))
+- Alan747271363-art <alan747271363@gmail.com>
+- Greymoth <m.hirakawa07@icloud.com>
+- Patrick Wehbe ([@patrickwehbe](https://github.com/patrickwehbe))
+- Shawn <ccai40359@gmail.com>
+- Alexander Kireyev ([@chatman-media](https://github.com/chatman-media))
+
 ## v2.0.1-rc.22
 
 [compare changes](https://github.com/h3js/h3/compare/v2.0.1-rc.21...v2.0.1-rc.22)
