@@ -1,6 +1,6 @@
 {
   "name": "h3",
-  "version": "2.0.1-rc.23",
+  "version": "2.0.1-rc.22",
   "description": "Minimal H(TTP) framework built for high performance and portability.",
   "homepage": "https://h3.dev",
   "license": "MIT",
@@ -45,7 +45,7 @@
     "play:node": "pnpm test/fixture/node.ts",
     "play:plain": "pnpm test/fixture/plain.ts",
     "play:web": "pnpm test/fixture/web.ts",
-    "release": "pnpm test && pnpm build && changelogen --release --prerelease --publish && git push --follow-tags",
+    "release": "pnpm test && pnpm build && changelogen --release --prerelease && npm publish && git push --follow-tags",
     "test": "pnpm lint && vitest --run --coverage"
   },
   "dependencies": {
