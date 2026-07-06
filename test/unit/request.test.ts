@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { requestWithURL, requestWithBaseURL } from "../../src/utils/request.ts";
-import { getRequestProtocol } from "../../src/index.ts";
+import { getRequestHeaders, getRequestProtocol } from "../../src/index.ts";
 
 // Minimal fake HTTPEvent for unit-testing getRequestProtocol without a live server
 function makeEvent(headers: Record<string, string>, url = "http://localhost/test") {
@@ -87,6 +87,13 @@ describe("requestWithBaseURL", () => {
   it("is instanceof Request", () => {
     const proxied = requestWithBaseURL(original, "/base");
     expect(proxied instanceof Request).toBe(true);
+  });
+});
+
+describe("getRequestHeaders", () => {
+  it("supports plain object request headers", () => {
+    const event = { req: { headers: { "x-test": "works" } } } as any;
+    expect(getRequestHeaders(event)).toEqual({ "x-test": "works" });
   });
 });
 

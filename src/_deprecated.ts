@@ -54,7 +54,10 @@ export const getHeader: (event: H3Event, name: string) => string | undefined = g
 
 /** @deprecated Please use `Object.fromEntries(event.req.headers.entries())` */
 export function getRequestHeaders(event: H3Event): Record<string, string> {
-  return Object.fromEntries(event.req.headers.entries());
+  const { headers } = event.req;
+  return Object.fromEntries(
+    typeof headers.entries === "function" ? headers.entries() : Object.entries(headers),
+  );
 }
 
 /** @deprecated Please use `Object.fromEntries(event.req.headers.entries())` */
