@@ -261,7 +261,7 @@ describe("defineJsonRpcWebSocketHandler", () => {
       expect(JSON.parse(sent[0])).toEqual({
         jsonrpc: "2.0",
         id: 4,
-        error: { code: -32_603, message: "Internal error", data: "Handler error" },
+        error: { code: -32_603, message: "Internal error" },
       });
     });
 

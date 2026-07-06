@@ -31,6 +31,17 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
       errorPrimitive: () => {
         throw "Primitive error";
       },
+      // Simulates an unexpected internal exception whose message must not leak.
+      leaky: () => {
+        throw new Error("secret internal detail");
+      },
+      httpErrorWithData: () => {
+        throw new HTTPError({
+          status: 422,
+          message: "Validation failed",
+          data: { field: "email" },
+        });
+      },
       // "constructor" is a valid method name — the null-prototype map
       // ensures it doesn't resolve to Object.prototype.constructor.
       constructor: () => {
@@ -256,10 +267,54 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
       expect(json).toEqual({
         error: {
           code: -32_603,
-          data: "Handler error",
           message: "Internal error",
         },
         id: 4,
+        jsonrpc: "2.0",
+      });
+    });
+
+    it("should not leak internal error details in error data", async () => {
+      t.app.post("/json-rpc", eventHandler);
+      const result = await t.fetch("/json-rpc", {
+        method: "POST",
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          method: "leaky",
+          id: 42,
+        }),
+      });
+      const json = await result.json();
+      // Unexpected internal exceptions must not surface their message to clients.
+      expect(json).toEqual({
+        error: {
+          code: -32_603,
+          message: "Internal error",
+        },
+        id: 42,
+        jsonrpc: "2.0",
+      });
+      expect(JSON.stringify(json)).not.toContain("secret internal detail");
+    });
+
+    it("should still surface data for thrown HTTPError (developer opt-in)", async () => {
+      t.app.post("/json-rpc", eventHandler);
+      const result = await t.fetch("/json-rpc", {
+        method: "POST",
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          method: "httpErrorWithData",
+          id: 43,
+        }),
+      });
+      const json = await result.json();
+      expect(json).toEqual({
+        error: {
+          code: -32_602,
+          data: { field: "email" },
+          message: "Validation failed",
+        },
+        id: 43,
         jsonrpc: "2.0",
       });
     });
@@ -676,7 +731,6 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
         error: {
           code: -32_603,
           message: "Internal error",
-          data: "Handler error",
         },
       });
     });
