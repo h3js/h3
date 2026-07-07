@@ -49,7 +49,7 @@
     "test": "pnpm lint && vitest --run --coverage"
   },
   "dependencies": {
-    "rou3": "^0.9.0",
+    "rou3": "^0.9.1",
     "srvx": "^0.11.21"
   },
   "devDependencies": {
@@ -61,7 +61,7 @@
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@typescript/native-preview": "latest",
-    "@vitest/coverage-v8": "^4.1.9",
+    "@vitest/coverage-v8": "^4.1.10",
     "automd": "^0.4.3",
     "changelogen": "^0.6.2",
     "connect": "^3.7.0",
@@ -75,13 +75,13 @@
     "h3": "workspace:*",
     "h3-nightly": "latest",
     "happy-dom": "^20.10.6",
-    "hono": "^4.12.27",
+    "hono": "^4.12.28",
     "magic-string": "^0.30.21",
     "mdzilla": "^0.2.1",
     "memoirist": "^1.1.0",
     "mitata": "^1.0.34",
     "obuild": "^0.4.37",
-    "oxc-parser": "^0.138.0",
+    "oxc-parser": "^0.139.0",
     "oxfmt": "^0.57.0",
     "oxlint": "^1.72.0",
     "oxlint-tsgolint": "^0.24.0",
