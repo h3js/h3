@@ -20,8 +20,7 @@ export function defineEventHandler<
   Response = EventHandlerResponse,
 >(
   handler:
-    | EventHandler<Request, Response>
-    | EventHandlerObject<Request, Response>,
+    EventHandler<Request, Response> | EventHandlerObject<Request, Response>,
 ): EventHandler<Request, Response>;
 // TODO: remove when appropriate
 // This signature provides backwards compatibility with previous signature where first generic was return type
@@ -42,8 +41,7 @@ export function defineEventHandler<
   Response = EventHandlerResponse,
 >(
   handler:
-    | EventHandler<Request, Response>
-    | EventHandlerObject<Request, Response>,
+    EventHandler<Request, Response> | EventHandlerObject<Request, Response>,
 ): EventHandler<Request, Response> {
   // Function Syntax
   if (typeof handler === "function") {
