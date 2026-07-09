@@ -13,7 +13,7 @@ import type { H3Event, HTTPEvent } from "../event.ts";
  *
  * @example
  * app.query("/search", (event) => {
- *   setResponseAcceptQuery(event, ["application/sql;charset=UTF-8", "application/jsonpath"]);
+ *   setAcceptQuery(event, ["application/sql;charset=UTF-8", "application/jsonpath"]);
  *   // Accept-Query: application/sql;charset="UTF-8", application/jsonpath
  *   return handleSearch(event);
  * });
@@ -21,7 +21,7 @@ import type { H3Event, HTTPEvent } from "../event.ts";
  * @param event The H3Event passed by the handler.
  * @param mediaTypes A media type (with optional parameters) or an array of them.
  */
-export function setResponseAcceptQuery(event: H3Event, mediaTypes: string | string[]): void {
+export function setAcceptQuery(event: H3Event, mediaTypes: string | string[]): void {
   const list = Array.isArray(mediaTypes) ? mediaTypes : [mediaTypes];
   if (list.length === 0) {
     return;

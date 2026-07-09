@@ -113,7 +113,7 @@ export {
 
 // Query (RFC 10008 HTTP QUERY method)
 
-export { setResponseAcceptQuery, requireContentType } from "./utils/query.ts";
+export { setAcceptQuery, requireContentType } from "./utils/query.ts";
 
 // Middleware
 
