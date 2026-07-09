@@ -1,11 +1,11 @@
-import { setAcceptQuery, requireContentType } from "../src/index.ts";
+import { appendAcceptQuery, requireContentType } from "../src/index.ts";
 import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("query utils", (t, { it, expect, describe }) => {
-  describe("setAcceptQuery", () => {
+  describe("appendAcceptQuery", () => {
     it("serializes media types as a structured fields list", async () => {
       t.app.query("/search", (event) => {
-        setAcceptQuery(event, ["application/sql;charset=UTF-8", "application/jsonpath"]);
+        appendAcceptQuery(event, ["application/sql;charset=UTF-8", "application/jsonpath"]);
         return "ok";
       });
       const res = await t.fetch("/search", { method: "QUERY" });
@@ -16,7 +16,7 @@ describeMatrix("query utils", (t, { it, expect, describe }) => {
 
     it("accepts a single media type string", async () => {
       t.app.query("/one", (event) => {
-        setAcceptQuery(event, "application/jsonpath");
+        appendAcceptQuery(event, "application/jsonpath");
         return "ok";
       });
       const res = await t.fetch("/one", { method: "QUERY" });
@@ -25,7 +25,7 @@ describeMatrix("query utils", (t, { it, expect, describe }) => {
 
     it("normalizes already-quoted parameter values", async () => {
       t.app.query("/quoted", (event) => {
-        setAcceptQuery(event, 'application/sql;charset="UTF-8"');
+        appendAcceptQuery(event, 'application/sql;charset="UTF-8"');
         return "ok";
       });
       const res = await t.fetch("/quoted", { method: "QUERY" });
@@ -34,7 +34,7 @@ describeMatrix("query utils", (t, { it, expect, describe }) => {
 
     it("does not set the header for an empty list", async () => {
       t.app.query("/none", (event) => {
-        setAcceptQuery(event, []);
+        appendAcceptQuery(event, []);
         return "ok";
       });
       const res = await t.fetch("/none", { method: "QUERY" });
@@ -43,7 +43,7 @@ describeMatrix("query utils", (t, { it, expect, describe }) => {
 
     it("escapes quotes and backslashes in parameter values", async () => {
       t.app.query("/escape", (event) => {
-        setAcceptQuery(event, 'application/sql;note=a "b" \\c');
+        appendAcceptQuery(event, 'application/sql;note=a "b" \\c');
         return "ok";
       });
       const res = await t.fetch("/escape", { method: "QUERY" });
@@ -52,7 +52,7 @@ describeMatrix("query utils", (t, { it, expect, describe }) => {
 
     it("throws on an invalid media type token", async () => {
       t.app.query("/invalid", (event) => {
-        expect(() => setAcceptQuery(event, "not a token")).toThrow(TypeError);
+        expect(() => appendAcceptQuery(event, "not a token")).toThrow(TypeError);
         return "ok";
       });
       await t.fetch("/invalid", { method: "QUERY" });
@@ -60,8 +60,8 @@ describeMatrix("query utils", (t, { it, expect, describe }) => {
 
     it("accumulates formats across multiple calls instead of overwriting", async () => {
       t.app.query("/accumulate", (event) => {
-        setAcceptQuery(event, "application/jsonpath");
-        setAcceptQuery(event, "application/sql");
+        appendAcceptQuery(event, "application/jsonpath");
+        appendAcceptQuery(event, "application/sql");
         return "ok";
       });
       const res = await t.fetch("/accumulate", { method: "QUERY" });
