@@ -1,6 +1,9 @@
 import { HTTPError } from "../error.ts";
+import { defineHandler } from "../handler.ts";
+import { serializeAcceptQuery, baseMediaType, mediaTypeMatches } from "./internal/media-type.ts";
 
 import type { H3Event, HTTPEvent } from "../event.ts";
+import type { EventHandlerObject, EventHandlerWithFetch } from "../types/handler.ts";
 
 /**
  * Advertise the query formats a resource accepts by setting the `Accept-Query`
@@ -26,10 +29,9 @@ export function appendAcceptQuery(event: H3Event, mediaTypes: string | string[])
   if (list.length === 0) {
     return;
   }
-  const value = list.map(serializeMediaType).join(", ");
   // Append so multiple callers (e.g. middleware + handler) accumulate formats
   // into a single comma-separated Structured Fields List instead of clobbering.
-  event.res.headers.append("accept-query", value);
+  event.res.headers.append("accept-query", serializeAcceptQuery(list));
 }
 
 /**
@@ -69,7 +71,7 @@ export function requireContentType(event: HTTPEvent, acceptedTypes: string | str
     });
   }
 
-  const mediaType = header.split(";")[0].trim().toLowerCase();
+  const mediaType = baseMediaType(header);
   const slash = mediaType.indexOf("/");
   if (slash <= 0 || slash === mediaType.length - 1) {
     throw new HTTPError({
@@ -83,9 +85,7 @@ export function requireContentType(event: HTTPEvent, acceptedTypes: string | str
   // Strip parameters from accepted entries too so a parameterized accepted type
   // (e.g. "application/json; charset=utf-8") still matches the parameter-less
   // request media type computed above.
-  if (
-    accepted.some((type) => mediaTypeMatches(mediaType, type.split(";")[0].trim().toLowerCase()))
-  ) {
+  if (accepted.some((type) => mediaTypeMatches(mediaType, baseMediaType(type)))) {
     return mediaType;
   }
 
@@ -96,86 +96,66 @@ export function requireContentType(event: HTTPEvent, acceptedTypes: string | str
   });
 }
 
-// --- internal helpers ---
+/**
+ * Define an HTTP `QUERY` method handler (RFC 10008) with the accepted query
+ * `formats` enforced and advertised.
+ *
+ * The `formats` array lists the accepted query media types (wildcards like
+ * `application/*` are supported). On every response — including error
+ * responses — they are advertised via the `Accept-Query` header. The handler
+ * receives the matched request media type as `format` (lower-cased, without
+ * parameters) and reads the query from the request body as usual.
+ *
+ * Requests are rejected with `405` (non-`QUERY` method), `400` (missing
+ * `Content-Type`), `422` (malformed `Content-Type`), or `415` (unsupported
+ * query format).
+ *
+ * @example
+ * app.query("/books", defineQueryHandler({
+ *   formats: ["application/sql", "application/jsonpath"],
+ *   handler: async (event, { format }) => {
+ *     const query = await readBody(event, { type: "text" });
+ *     return runQuery(format, query);
+ *   },
+ * }));
+ *
+ * @param def Handler options: the accepted `formats`, the `handler`, plus optional `middleware` and `meta`.
+ */
+export function defineQueryHandler(
+  def: Omit<EventHandlerObject, "handler" | "fetch"> & {
+    formats: string[];
+    handler: (event: H3Event, context: { format: string }) => unknown | Promise<unknown>;
+  },
+): EventHandlerWithFetch {
+  if (def.formats.length === 0) {
+    throw new TypeError("defineQueryHandler requires at least one format");
+  }
 
-// sf-token: ( ALPHA / "*" ) *( tchar / ":" / "/" ) — https://www.rfc-editor.org/rfc/rfc8941#section-3.3.4
-const SF_TOKEN_RE = /^[A-Za-z*][\w!#$%&'*+.^`|~:/-]*$/;
-// sf-key: ( lcalpha / "*" ) *( lcalpha / DIGIT / "_" / "-" / "." / "*" )
-const SF_KEY_RE = /^[a-z*][a-z0-9_.*-]*$/;
+  // Serialize once at definition time: validates the media types eagerly and
+  // avoids re-serializing on every request.
+  const acceptQuery = serializeAcceptQuery(def.formats);
 
-/** Serialize a `type/subtype;param=value` media type into a Structured Fields item. */
-function serializeMediaType(mediaType: string): string {
-  const parts = splitOutsideQuotes(mediaType, ";");
-  const base = parts[0].trim();
-  if (!SF_TOKEN_RE.test(base)) {
-    throw new TypeError(`Invalid media type: ${JSON.stringify(mediaType)}`);
-  }
-  let result = base;
-  for (let i = 1; i < parts.length; i++) {
-    const param = parts[i].trim();
-    if (!param) {
-      continue;
-    }
-    const eq = param.indexOf("=");
-    const key = (eq === -1 ? param : param.slice(0, eq)).trim().toLowerCase();
-    if (!SF_KEY_RE.test(key)) {
-      throw new TypeError(`Invalid media type parameter: ${JSON.stringify(param)}`);
-    }
-    // Bare parameters serialize to the boolean `true` (an implicit `;key`).
-    result +=
-      eq === -1 ? `;${key}` : `;${key}="${escapeQuotes(unquote(param.slice(eq + 1).trim()))}"`;
-  }
-  return result;
-}
+  return defineHandler({
+    ...def,
+    handler: function _queryHandler(event) {
+      // Advertise the accepted formats on every response, including error
+      // responses (405/415/...), so clients can discover the supported query
+      // formats per RFC 10008.
+      event.res.headers.append("accept-query", acceptQuery);
+      event.res.errHeaders.append("accept-query", acceptQuery);
 
-function mediaTypeMatches(mediaType: string, accepted: string): boolean {
-  if (accepted === "*/*" || accepted === "*") {
-    return true;
-  }
-  if (accepted === mediaType) {
-    return true;
-  }
-  if (accepted.endsWith("/*")) {
-    return mediaType.startsWith(accepted.slice(0, -1));
-  }
-  return false;
-}
-
-/** Split on `sep` while ignoring separators inside double-quoted strings. */
-function splitOutsideQuotes(input: string, sep: string): string[] {
-  const parts: string[] = [];
-  let current = "";
-  let inQuotes = false;
-  for (let i = 0; i < input.length; i++) {
-    const ch = input[i];
-    if (inQuotes) {
-      current += ch;
-      if (ch === "\\" && i + 1 < input.length) {
-        current += input[++i];
-      } else if (ch === '"') {
-        inQuotes = false;
+      if (event.req.method !== "QUERY") {
+        throw new HTTPError({
+          status: 405,
+          statusText: "Method Not Allowed",
+          headers: { allow: "QUERY" },
+        });
       }
-    } else if (ch === '"') {
-      inQuotes = true;
-      current += ch;
-    } else if (ch === sep) {
-      parts.push(current);
-      current = "";
-    } else {
-      current += ch;
-    }
-  }
-  parts.push(current);
-  return parts;
-}
 
-function escapeQuotes(value: string): string {
-  return value.replace(/[\\"]/g, "\\$&");
-}
+      // Throws 400 (missing), 422 (malformed), or 415 (unsupported).
+      const format = requireContentType(event, def.formats);
 
-function unquote(value: string): string {
-  if (value.length >= 2 && value[0] === '"' && value.endsWith('"')) {
-    return value.slice(1, -1).replace(/\\(.)/g, "$1");
-  }
-  return value;
+      return def.handler(event, { format });
+    },
+  });
 }

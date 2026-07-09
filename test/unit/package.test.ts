@@ -40,6 +40,7 @@ describe("h3 package", () => {
         "defineNodeListener",
         "defineNodeMiddleware",
         "definePlugin",
+        "defineQueryHandler",
         "defineRoute",
         "defineValidatedHandler",
         "defineWebSocket",

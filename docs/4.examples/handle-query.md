@@ -8,7 +8,28 @@ icon: ph:arrow-right
 
 The [HTTP `QUERY` method (RFC 10008)](https://www.rfc-editor.org/rfc/rfc10008) is like `GET` — **safe, idempotent, and cacheable** — but carries a query in the request **body** with a `Content-Type`. It's the standard answer to "I need a GET, but my query is too large or too structured for the URL".
 
-H3 supports `QUERY` as a first-class method via [`app.query()`](/guide/basics/routing#http-query-method), plus two helper utilities.
+H3 supports `QUERY` as a first-class method via [`app.query()`](/guide/basics/routing#http-query-method), a high-level [`defineQueryHandler`](#define-a-query-handler) factory, and two lower-level helper utilities.
+
+## Define a `QUERY` Handler
+
+[`defineQueryHandler`](/utils/request#definequeryhandlerdef) captures the whole RFC 10008 ceremony: declare the accepted query `formats`, and it advertises them via `Accept-Query` on every response (including errors), validates the request `Content-Type` (`400`/`415`/`422`, plus `405` for non-`QUERY` methods), and passes the matched media type to the handler as `format`:
+
+```ts
+import { defineQueryHandler, readBody } from "h3";
+
+app.query(
+  "/books",
+  defineQueryHandler({
+    formats: ["application/sql", "application/jsonpath"],
+    handler: async (event, { format }) => {
+      const query = await readBody(event, { type: "text" });
+      return runQuery(format, query);
+    },
+  }),
+);
+```
+
+Formats may use wildcards (`application/*`, `*/*`) — `format` is always the concrete request media type. The sections below show the lower-level utilities it builds on, for when you need custom behavior.
 
 ## Register a `QUERY` Handler
 

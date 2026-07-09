@@ -4,7 +4,7 @@ import {
   html,
   getRouterParam,
   appendAcceptQuery,
-  requireContentType,
+  defineQueryHandler,
   readBody,
   HTTPError,
 } from "../dist/_entries/node.mjs";
@@ -116,28 +116,30 @@ app
     event.res.headers.set("cache-control", "public, max-age=60");
     return result;
   })
-  .query("/books", async (event) => {
-    // Echo the accepted formats via the `Accept-Query` response header so a
-    // successful response also advertises what this resource understands.
-    appendAcceptQuery(event, ACCEPTED);
+  .query(
+    "/books",
+    // `defineQueryHandler` wires up the RFC 10008 ceremony: it advertises the
+    // accepted formats via `Accept-Query` on every response (including 415
+    // errors), validates the request `Content-Type` (throws 400/415/422), and
+    // passes the matched media type to the handler as `format`.
+    defineQueryHandler({
+      formats: ACCEPTED,
+      handler: async (event, { format }) => {
+        const query = (await readBody(event, { type: "text" }))?.trim() ?? "";
+        const result = runQuery(format, query);
 
-    // Validate the request `Content-Type`. Throws 400 (missing),
-    // 422 (malformed), or 415 (unsupported) — and returns the matched type.
-    const type = requireContentType(event, ACCEPTED);
+        // Offer a cacheable GET alternative for this exact query (RFC 10008):
+        // stash the result under a stable id and point the client at it via
+        // `Content-Location`. A client repeating this query can just GET that
+        // URL and benefit from ordinary HTTP caching.
+        const id = queryId(format, query);
+        cache.set(id, result);
+        event.res.headers.set("content-location", `/books/${id}`);
 
-    const query = (await readBody(event, { type: "text" }))?.trim() ?? "";
-    const result = runQuery(type, query);
-
-    // Offer a cacheable GET alternative for this exact query (RFC 10008): stash
-    // the result under a stable id and point the client at it via
-    // `Content-Location`. A client repeating this query can just GET that URL
-    // and benefit from ordinary HTTP caching.
-    const id = queryId(type, query);
-    cache.set(id, result);
-    event.res.headers.set("content-location", `/books/${id}`);
-
-    return result;
-  });
+        return result;
+      },
+    }),
+  );
 
 serve(app);
 
