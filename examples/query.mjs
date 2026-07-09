@@ -3,7 +3,7 @@ import {
   serve,
   html,
   getRouterParam,
-  setAcceptQuery,
+  appendAcceptQuery,
   requireContentType,
   readBody,
   HTTPError,
@@ -103,7 +103,7 @@ app
   .get("/books", (event) => {
     // Advertise the accepted query formats on a plain GET too, so clients can
     // discover them before sending a QUERY request.
-    setAcceptQuery(event, ACCEPTED);
+    appendAcceptQuery(event, ACCEPTED);
     return "Send a QUERY request to /books with a SQL or JSONPath body.";
   })
   .get("/books/:id", (event) => {
@@ -119,7 +119,7 @@ app
   .query("/books", async (event) => {
     // Echo the accepted formats via the `Accept-Query` response header so a
     // successful response also advertises what this resource understands.
-    setAcceptQuery(event, ACCEPTED);
+    appendAcceptQuery(event, ACCEPTED);
 
     // Validate the request `Content-Type`. Throws 400 (missing),
     // 422 (malformed), or 415 (unsupported) — and returns the matched type.
