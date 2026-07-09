@@ -227,7 +227,7 @@ export const H3 = /* @__PURE__ */ (() => {
   }
 
   // prettier-ignore
-  for (const method of ["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS", "CONNECT", "TRACE"] as const) {
+  for (const method of ["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS", "CONNECT", "TRACE", "QUERY"] as const) {
     (H3Core as any).prototype[method.toLowerCase()] = function (
       this: H3Type,
       route: string,

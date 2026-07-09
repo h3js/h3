@@ -119,6 +119,22 @@ describeMatrix("body", (t, { it, expect, describe }) => {
     expect(await result.text()).toBe("200");
   });
 
+  it("can parse query method json payload", async () => {
+    t.app.query("/api/query", async (event) => {
+      const body = await readBody(event);
+      expect(body).toMatchObject({ query: true });
+      return "200";
+    });
+
+    const result = await t.fetch("/api/query", {
+      method: "QUERY",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ query: true }),
+    });
+
+    expect(await result.text()).toBe("200");
+  });
+
   it("handles non-present body", async () => {
     let _body: string | undefined;
     t.app.all("/api/test", async (event) => {

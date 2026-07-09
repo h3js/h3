@@ -22,7 +22,7 @@ export type MatchedRoute<T = any> = {
 
 // https://www.rfc-editor.org/rfc/rfc7231#section-4.1
 // prettier-ignore
-export type HTTPMethod =  "GET" | "HEAD" | "PATCH" | "POST" | "PUT" | "DELETE" | "CONNECT" | "OPTIONS" | "TRACE";
+export type HTTPMethod =  "GET" | "HEAD" | "PATCH" | "POST" | "PUT" | "DELETE" | "CONNECT" | "OPTIONS" | "TRACE" | "QUERY";
 
 export interface H3Config {
   /**
@@ -184,4 +184,5 @@ export declare class H3 extends H3Core {
   options(route: string, handler: HTTPHandler, opts?: RouteOptions): this;
   connect(route: string, handler: HTTPHandler, opts?: RouteOptions): this;
   trace(route: string, handler: HTTPHandler, opts?: RouteOptions): this;
+  query(route: string, handler: HTTPHandler, opts?: RouteOptions): this;
 }
