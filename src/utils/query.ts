@@ -27,7 +27,9 @@ export function setAcceptQuery(event: H3Event, mediaTypes: string | string[]): v
     return;
   }
   const value = list.map(serializeMediaType).join(", ");
-  event.res.headers.set("accept-query", value);
+  // Append so multiple callers (e.g. middleware + handler) accumulate formats
+  // into a single comma-separated Structured Fields List instead of clobbering.
+  event.res.headers.append("accept-query", value);
 }
 
 /**
@@ -36,8 +38,11 @@ export function setAcceptQuery(event: H3Event, mediaTypes: string | string[]): v
  * method.
  *
  * Throws:
+ *
  * - `400 Bad Request` if the `Content-Type` header is missing.
+ *
  * - `422 Unprocessable Content` if the `Content-Type` header is malformed.
+ *
  * - `415 Unsupported Media Type` if the media type is not accepted.
  *
  * Accepted types may use wildcards: `*` / `*&#47;*` match anything and
@@ -65,7 +70,8 @@ export function requireContentType(event: HTTPEvent, acceptedTypes: string | str
   }
 
   const mediaType = header.split(";")[0].trim().toLowerCase();
-  if (!mediaType.includes("/")) {
+  const slash = mediaType.indexOf("/");
+  if (slash <= 0 || slash === mediaType.length - 1) {
     throw new HTTPError({
       status: 422,
       statusText: "Unprocessable Content",
@@ -74,7 +80,12 @@ export function requireContentType(event: HTTPEvent, acceptedTypes: string | str
   }
 
   const accepted = Array.isArray(acceptedTypes) ? acceptedTypes : [acceptedTypes];
-  if (accepted.some((type) => mediaTypeMatches(mediaType, type.trim().toLowerCase()))) {
+  // Strip parameters from accepted entries too so a parameterized accepted type
+  // (e.g. "application/json; charset=utf-8") still matches the parameter-less
+  // request media type computed above.
+  if (
+    accepted.some((type) => mediaTypeMatches(mediaType, type.split(";")[0].trim().toLowerCase()))
+  ) {
     return mediaType;
   }
 

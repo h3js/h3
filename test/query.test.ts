@@ -57,6 +57,16 @@ describeMatrix("query utils", (t, { it, expect, describe }) => {
       });
       await t.fetch("/invalid", { method: "QUERY" });
     });
+
+    it("accumulates formats across multiple calls instead of overwriting", async () => {
+      t.app.query("/accumulate", (event) => {
+        setAcceptQuery(event, "application/jsonpath");
+        setAcceptQuery(event, "application/sql");
+        return "ok";
+      });
+      const res = await t.fetch("/accumulate", { method: "QUERY" });
+      expect(res.headers.get("accept-query")).toBe("application/jsonpath, application/sql");
+    });
   });
 
   describe("requireContentType", () => {
@@ -79,6 +89,19 @@ describeMatrix("query utils", (t, { it, expect, describe }) => {
       expect(res.status).toBe(400);
     });
 
+    it("matches an accepted type that carries parameters", async () => {
+      t.app.query("/paramized", (event) => {
+        return requireContentType(event, "application/json; charset=utf-8");
+      });
+      const res = await t.fetch("/paramized", {
+        method: "QUERY",
+        body: "{}",
+        headers: { "content-type": "application/json; charset=utf-8" },
+      });
+      expect(res.status).toBe(200);
+      expect(await res.text()).toBe("application/json");
+    });
+
     it("throws 415 for an unsupported media type", async () => {
       t.app.query("/unsupported", (event) => requireContentType(event, "application/sql"));
       const res = await t.fetch("/unsupported", {
@@ -95,6 +118,16 @@ describeMatrix("query utils", (t, { it, expect, describe }) => {
         method: "QUERY",
         body: "x",
         headers: { "content-type": "nonsense" },
+      });
+      expect(res.status).toBe(422);
+    });
+
+    it("throws 422 for a Content-Type with an empty subtype", async () => {
+      t.app.query("/emptysub", (event) => requireContentType(event, "application/sql"));
+      const res = await t.fetch("/emptysub", {
+        method: "QUERY",
+        body: "x",
+        headers: { "content-type": "application/" },
       });
       expect(res.status).toBe(422);
     });
