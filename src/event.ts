@@ -29,6 +29,7 @@ export interface HTTPEvent<_RequestT extends EventHandlerRequest = EventHandlerR
 
 export class H3Event<
   _RequestT extends EventHandlerRequest = EventHandlerRequest,
+  _ContextT extends H3EventContext = H3EventContext,
 > implements HTTPEvent<_RequestT> {
   /**
    * Access to the H3 application instance.
@@ -52,14 +53,14 @@ export class H3Event<
   /**
    * Event context.
    */
-  readonly context: H3EventContext;
+  readonly context: _ContextT;
 
   /**
    * @internal
    */
   static __is_event__ = true;
 
-  constructor(req: ServerRequest, context?: H3EventContext, app?: H3Core) {
+  constructor(req: ServerRequest, context?: _ContextT, app?: H3Core) {
     this.context = context || req.context || new EmptyObject();
     this.req = req;
     this.app = app;
