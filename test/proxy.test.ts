@@ -69,6 +69,34 @@ describeMatrix("proxy", (t, { it, expect, describe }) => {
         `);
       });
 
+      it("can proxy query request body", async () => {
+        t.app.all("/debug", async (event) => {
+          return {
+            method: event.req.method,
+            body: await event.req.text(),
+          };
+        });
+
+        t.app.all("/", (event) => {
+          return proxyRequest(event, "/debug");
+        });
+
+        const result = await t
+          .fetch("/", {
+            method: "QUERY",
+            body: "query body",
+            headers: {
+              "content-type": "text/plain",
+            },
+          })
+          .then((r) => r.json());
+
+        expect(result).toMatchObject({
+          method: "QUERY",
+          body: "query body",
+        });
+      });
+
       it("does not forward incoming accept-encoding header", async () => {
         t.app.all("/debug", (event) => {
           return { headers: Object.fromEntries(event.req.headers.entries()) };

@@ -35,6 +35,17 @@ describeMatrix("router", (t, { it, expect, describe }) => {
     const res2 = await t.fetch("/test", { method: "POST" });
     expect(await res2.text()).toEqual("Test (POST)");
   });
+
+  it("Handle query method", async () => {
+    t.app.get("/query", () => "Test (GET)").query("/query", () => "Test (QUERY)");
+
+    const getRes = await t.fetch("/query");
+    expect(await getRes.text()).toEqual("Test (GET)");
+
+    const queryRes = await t.fetch("/query", { method: "QUERY" });
+    expect(await queryRes.text()).toEqual("Test (QUERY)");
+  });
+
   it("Handle url with query parameters", async () => {
     const res = await t.fetch("/test?title=test");
     expect(res.status).toEqual(200);

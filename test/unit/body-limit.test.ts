@@ -24,6 +24,18 @@ describe("body limit (unit)", () => {
       await expect(assertBodySize(eventMock, BODY.length - 2)).rejects.toThrow(HTTPError);
     });
 
+    it("query method body", async () => {
+      const BODY = "a query request body";
+
+      const eventMock = mockEvent("/", {
+        method: "QUERY",
+        body: BODY,
+      });
+
+      await expect(assertBodySize(eventMock, BODY.length)).resolves.toBeUndefined();
+      await expect(assertBodySize(eventMock, BODY.length - 2)).rejects.toThrow(HTTPError);
+    });
+
     it("streaming body", async () => {
       const BODY_PARTS = ["parts", "of", "the", "body", "that", "are", "streamed", "in"];
 
