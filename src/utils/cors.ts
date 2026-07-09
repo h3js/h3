@@ -28,9 +28,13 @@ export interface CorsOptions {
   /**
    * This determines the value of the "access-control-allow-methods" response header of a preflight request.
    *
+   * The default `"*"` permits any method (including non-safelisted ones like `QUERY`).
+   * When using an explicit allowlist, remember that `QUERY` is **not** a CORS-safelisted
+   * method, so browsers preflight it — include `"QUERY"` in the array to allow it.
+   *
    * @see https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Methods
    * @default "*"
-   * @example ["GET", "HEAD", "PUT", "POST"]
+   * @example ["GET", "HEAD", "PUT", "POST", "QUERY"]
    */
   methods?: "*" | string[];
 
