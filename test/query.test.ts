@@ -1,12 +1,8 @@
-import {
-  setResponseAcceptQuery,
-  getResponseAcceptQuery,
-  requireContentType,
-} from "../src/index.ts";
+import { setResponseAcceptQuery, requireContentType } from "../src/index.ts";
 import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("query utils", (t, { it, expect, describe }) => {
-  describe("setResponseAcceptQuery / getResponseAcceptQuery", () => {
+  describe("setResponseAcceptQuery", () => {
     it("serializes media types as a structured fields list", async () => {
       t.app.query("/search", (event) => {
         setResponseAcceptQuery(event, ["application/sql;charset=UTF-8", "application/jsonpath"]);
@@ -27,15 +23,13 @@ describeMatrix("query utils", (t, { it, expect, describe }) => {
       expect(res.headers.get("accept-query")).toBe("application/jsonpath");
     });
 
-    it("reads back the media types it set", async () => {
-      let roundtrip: string[] = [];
-      t.app.query("/roundtrip", (event) => {
-        setResponseAcceptQuery(event, ['application/sql;charset="UTF-8"', "application/jsonpath"]);
-        roundtrip = getResponseAcceptQuery(event);
+    it("normalizes already-quoted parameter values", async () => {
+      t.app.query("/quoted", (event) => {
+        setResponseAcceptQuery(event, 'application/sql;charset="UTF-8"');
         return "ok";
       });
-      await t.fetch("/roundtrip", { method: "QUERY" });
-      expect(roundtrip).toEqual(["application/sql;charset=UTF-8", "application/jsonpath"]);
+      const res = await t.fetch("/quoted", { method: "QUERY" });
+      expect(res.headers.get("accept-query")).toBe('application/sql;charset="UTF-8"');
     });
 
     it("does not set the header for an empty list", async () => {
@@ -45,16 +39,6 @@ describeMatrix("query utils", (t, { it, expect, describe }) => {
       });
       const res = await t.fetch("/none", { method: "QUERY" });
       expect(res.headers.has("accept-query")).toBe(false);
-    });
-
-    it("returns an empty array when the header is not set", async () => {
-      let accepted: string[] = ["not-empty"];
-      t.app.query("/empty", (event) => {
-        accepted = getResponseAcceptQuery(event);
-        return "ok";
-      });
-      await t.fetch("/empty", { method: "QUERY" });
-      expect(accepted).toEqual([]);
     });
 
     it("escapes quotes and backslashes in parameter values", async () => {

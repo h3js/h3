@@ -20,7 +20,6 @@ import type { H3Event, HTTPEvent } from "../event.ts";
  *
  * @param event The H3Event passed by the handler.
  * @param mediaTypes A media type (with optional parameters) or an array of them.
- * @see {@link getResponseAcceptQuery}
  */
 export function setResponseAcceptQuery(event: H3Event, mediaTypes: string | string[]): void {
   const list = Array.isArray(mediaTypes) ? mediaTypes : [mediaTypes];
@@ -29,31 +28,6 @@ export function setResponseAcceptQuery(event: H3Event, mediaTypes: string | stri
   }
   const value = list.map(serializeMediaType).join(", ");
   event.res.headers.set("accept-query", value);
-}
-
-/**
- * Read the `Accept-Query` media types previously set on the response via
- * {@link setResponseAcceptQuery}.
- *
- * The Structured Fields List is parsed back into an array of media type strings
- * with any quoted parameter values unquoted (e.g. `application/sql;charset="UTF-8"`
- * becomes `application/sql;charset=UTF-8`). Returns an empty array if the header
- * is not set.
- *
- * @example
- * const accepted = getResponseAcceptQuery(event); // ["application/sql;charset=UTF-8"]
- *
- * @param event The H3Event passed by the handler.
- * @see {@link setResponseAcceptQuery}
- */
-export function getResponseAcceptQuery(event: H3Event): string[] {
-  const header = event.res.headers.get("accept-query");
-  if (!header) {
-    return [];
-  }
-  return splitOutsideQuotes(header, ",")
-    .map((member) => parseMediaType(member.trim()))
-    .filter(Boolean);
 }
 
 /**
@@ -139,24 +113,6 @@ function serializeMediaType(mediaType: string): string {
     // Bare parameters serialize to the boolean `true` (an implicit `;key`).
     result +=
       eq === -1 ? `;${key}` : `;${key}="${escapeQuotes(unquote(param.slice(eq + 1).trim()))}"`;
-  }
-  return result;
-}
-
-/** Parse a Structured Fields item back into a `type/subtype;param=value` media type. */
-function parseMediaType(member: string): string {
-  const parts = splitOutsideQuotes(member, ";");
-  let result = parts[0].trim();
-  for (let i = 1; i < parts.length; i++) {
-    const param = parts[i].trim();
-    if (!param) {
-      continue;
-    }
-    const eq = param.indexOf("=");
-    result +=
-      eq === -1
-        ? `;${param}`
-        : `;${param.slice(0, eq).trim()}=${unquote(param.slice(eq + 1).trim())}`;
   }
   return result;
 }

@@ -69,7 +69,6 @@ describe("h3 package", () => {
         "getRequestProtocol",
         "getRequestURL",
         "getRequestWebStream",
-        "getResponseAcceptQuery",
         "getResponseHeader",
         "getResponseHeaders",
         "getResponseStatus",
