@@ -1,4 +1,9 @@
-import { appendAcceptQuery, requireContentType } from "../src/index.ts";
+import {
+  appendAcceptQuery,
+  handleCacheHeaders,
+  handleCors,
+  requireContentType,
+} from "../src/index.ts";
 import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("query utils", (t, { it, expect, describe }) => {
@@ -150,6 +155,77 @@ describeMatrix("query utils", (t, { it, expect, describe }) => {
         headers: { "content-type": "text/plain" },
       });
       expect(res.status).toBe(200);
+    });
+  });
+
+  // QUERY is not a CORS-safelisted method, so browsers preflight it.
+  // h3's CORS is method-agnostic, so no special handling is needed — these
+  // tests guard that a QUERY preflight keeps working like any other method.
+  describe("CORS preflight", () => {
+    it("allows a QUERY preflight with the default wildcard methods", async () => {
+      t.app.all("/search", (event) => {
+        const cors = handleCors(event, { origin: "*" });
+        if (cors !== false) return cors;
+        return "ok";
+      });
+      const res = await t.fetch("/search", {
+        method: "OPTIONS",
+        headers: {
+          origin: "https://example.com",
+          "access-control-request-method": "QUERY",
+        },
+      });
+      expect(res.status).toBe(204);
+      expect(res.headers.get("access-control-allow-methods")).toBe("*");
+    });
+
+    it("echoes QUERY in an explicit methods allowlist", async () => {
+      t.app.all("/search", (event) => {
+        const cors = handleCors(event, {
+          origin: ["https://example.com"],
+          methods: ["GET", "QUERY"],
+        });
+        if (cors !== false) return cors;
+        return "ok";
+      });
+      const res = await t.fetch("/search", {
+        method: "OPTIONS",
+        headers: {
+          origin: "https://example.com",
+          "access-control-request-method": "QUERY",
+        },
+      });
+      expect(res.status).toBe(204);
+      expect(res.headers.get("access-control-allow-methods")).toBe("GET,QUERY");
+    });
+  });
+
+  // QUERY is safe, idempotent, and cacheable like GET (RFC 10008 §2), so
+  // conditional-request handling must apply to it. handleCacheHeaders is not
+  // method-gated — these tests guard that it stays that way for QUERY.
+  describe("conditional caching", () => {
+    it("returns 304 for a QUERY request matching If-None-Match", async () => {
+      t.app.query("/search", (event) => {
+        if (handleCacheHeaders(event, { etag: '"v1"' })) return null;
+        return "results";
+      });
+      const res = await t.fetch("/search", {
+        method: "QUERY",
+        headers: { "if-none-match": '"v1"' },
+      });
+      expect(res.status).toBe(304);
+    });
+
+    it("returns 304 for a QUERY request matching If-Modified-Since", async () => {
+      t.app.query("/search", (event) => {
+        if (handleCacheHeaders(event, { modifiedTime: new Date("2021-01-01") })) return null;
+        return "results";
+      });
+      const res = await t.fetch("/search", {
+        method: "QUERY",
+        headers: { "if-modified-since": "Fri, 01 Jan 2021 00:00:00 GMT" },
+      });
+      expect(res.status).toBe(304);
     });
   });
 });
