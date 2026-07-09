@@ -111,6 +111,14 @@ export {
   html,
 } from "./utils/response.ts";
 
+// Query (RFC 10008 HTTP QUERY method)
+
+export {
+  setResponseAcceptQuery,
+  getResponseAcceptQuery,
+  requireContentType,
+} from "./utils/query.ts";
+
 // Middleware
 
 export { onError, onRequest, onResponse, bodyLimit } from "./utils/middleware.ts";

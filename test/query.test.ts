@@ -1,0 +1,138 @@
+import {
+  setResponseAcceptQuery,
+  getResponseAcceptQuery,
+  requireContentType,
+} from "../src/index.ts";
+import { describeMatrix } from "./_setup.ts";
+
+describeMatrix("query utils", (t, { it, expect, describe }) => {
+  describe("setResponseAcceptQuery / getResponseAcceptQuery", () => {
+    it("serializes media types as a structured fields list", async () => {
+      t.app.query("/search", (event) => {
+        setResponseAcceptQuery(event, ["application/sql;charset=UTF-8", "application/jsonpath"]);
+        return "ok";
+      });
+      const res = await t.fetch("/search", { method: "QUERY" });
+      expect(res.headers.get("accept-query")).toBe(
+        'application/sql;charset="UTF-8", application/jsonpath',
+      );
+    });
+
+    it("accepts a single media type string", async () => {
+      t.app.query("/one", (event) => {
+        setResponseAcceptQuery(event, "application/jsonpath");
+        return "ok";
+      });
+      const res = await t.fetch("/one", { method: "QUERY" });
+      expect(res.headers.get("accept-query")).toBe("application/jsonpath");
+    });
+
+    it("reads back the media types it set", async () => {
+      let roundtrip: string[] = [];
+      t.app.query("/roundtrip", (event) => {
+        setResponseAcceptQuery(event, ['application/sql;charset="UTF-8"', "application/jsonpath"]);
+        roundtrip = getResponseAcceptQuery(event);
+        return "ok";
+      });
+      await t.fetch("/roundtrip", { method: "QUERY" });
+      expect(roundtrip).toEqual(["application/sql;charset=UTF-8", "application/jsonpath"]);
+    });
+
+    it("does not set the header for an empty list", async () => {
+      t.app.query("/none", (event) => {
+        setResponseAcceptQuery(event, []);
+        return "ok";
+      });
+      const res = await t.fetch("/none", { method: "QUERY" });
+      expect(res.headers.has("accept-query")).toBe(false);
+    });
+
+    it("returns an empty array when the header is not set", async () => {
+      let accepted: string[] = ["not-empty"];
+      t.app.query("/empty", (event) => {
+        accepted = getResponseAcceptQuery(event);
+        return "ok";
+      });
+      await t.fetch("/empty", { method: "QUERY" });
+      expect(accepted).toEqual([]);
+    });
+
+    it("escapes quotes and backslashes in parameter values", async () => {
+      t.app.query("/escape", (event) => {
+        setResponseAcceptQuery(event, 'application/sql;note=a "b" \\c');
+        return "ok";
+      });
+      const res = await t.fetch("/escape", { method: "QUERY" });
+      expect(res.headers.get("accept-query")).toBe('application/sql;note="a \\"b\\" \\\\c"');
+    });
+
+    it("throws on an invalid media type token", async () => {
+      t.app.query("/invalid", (event) => {
+        expect(() => setResponseAcceptQuery(event, "not a token")).toThrow(TypeError);
+        return "ok";
+      });
+      await t.fetch("/invalid", { method: "QUERY" });
+    });
+  });
+
+  describe("requireContentType", () => {
+    it("passes and returns the matched media type", async () => {
+      t.app.query("/typed", (event) => {
+        return requireContentType(event, ["application/sql", "application/jsonpath"]);
+      });
+      const res = await t.fetch("/typed", {
+        method: "QUERY",
+        body: "SELECT 1",
+        headers: { "content-type": "application/sql; charset=utf-8" },
+      });
+      expect(res.status).toBe(200);
+      expect(await res.text()).toBe("application/sql");
+    });
+
+    it("throws 400 when Content-Type is missing", async () => {
+      t.app.query("/missing", (event) => requireContentType(event, "application/sql"));
+      const res = await t.fetch("/missing", { method: "QUERY" });
+      expect(res.status).toBe(400);
+    });
+
+    it("throws 415 for an unsupported media type", async () => {
+      t.app.query("/unsupported", (event) => requireContentType(event, "application/sql"));
+      const res = await t.fetch("/unsupported", {
+        method: "QUERY",
+        body: "{}",
+        headers: { "content-type": "application/json" },
+      });
+      expect(res.status).toBe(415);
+    });
+
+    it("throws 422 for a malformed Content-Type", async () => {
+      t.app.query("/malformed", (event) => requireContentType(event, "application/sql"));
+      const res = await t.fetch("/malformed", {
+        method: "QUERY",
+        body: "x",
+        headers: { "content-type": "nonsense" },
+      });
+      expect(res.status).toBe(422);
+    });
+
+    it("supports wildcard subtypes", async () => {
+      t.app.query("/wildcard", (event) => requireContentType(event, "application/*"));
+      const res = await t.fetch("/wildcard", {
+        method: "QUERY",
+        body: "{}",
+        headers: { "content-type": "application/json" },
+      });
+      expect(res.status).toBe(200);
+    });
+
+    it("supports the */* wildcard", async () => {
+      t.app.query("/any", (event) => requireContentType(event, "*/*"));
+      const res = await t.fetch("/any", {
+        method: "QUERY",
+        body: "x",
+        headers: { "content-type": "text/plain" },
+      });
+      expect(res.status).toBe(200);
+    });
+  });
+});
