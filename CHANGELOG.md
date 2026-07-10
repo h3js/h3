@@ -31,8 +31,8 @@ All notable changes to this project will be documented in this file. See [standa
 - **event:** Return 400 for malformed percent-encoded request URLs ([#1424](https://github.com/h3js/h3/pull/1424))
 - **mount:** Restore pathname on error with try/finally ([#1319](https://github.com/h3js/h3/pull/1319))
 - **serve-static:** Decode the resolved id before lookup ([#1431](https://github.com/h3js/h3/pull/1431))
-- **request:** Shadow parsed _url in requestWithURL proxy ([d21d93c](https://github.com/h3js/h3/commit/d21d93c))
-- **event:** Clone URL for pathname normalization instead of mutating shared _url ([a1cf066](https://github.com/h3js/h3/commit/a1cf066))
+- **request:** Shadow parsed \_url in requestWithURL proxy ([d21d93c](https://github.com/h3js/h3/commit/d21d93c))
+- **event:** Clone URL for pathname normalization instead of mutating shared \_url ([a1cf066](https://github.com/h3js/h3/commit/a1cf066))
 - **adapters:** Sync raw node req.url with event.url in fromNodeHandler ([#1433](https://github.com/h3js/h3/pull/1433))
 - **json-rpc:** Do not leak internal exception messages to clients ([ea2f2a3](https://github.com/h3js/h3/commit/ea2f2a3))
 - **request:** Prevent decode:true from reintroducing path separators ([cd03d41](https://github.com/h3js/h3/commit/cd03d41))
@@ -81,7 +81,7 @@ All notable changes to this project will be documented in this file. See [standa
 - Cover zod schema query validation types ([#1404](https://github.com/h3js/h3/pull/1404))
 - Cover cloned pipeable node responses ([#1414](https://github.com/h3js/h3/pull/1414))
 - **iron-crypto:** Accept getRandomValues length error for invalid salt bits ([dae12fe](https://github.com/h3js/h3/commit/dae12fe))
-- **event:** Cover shared _url normalization semantics ([4a218a8](https://github.com/h3js/h3/commit/4a218a8))
+- **event:** Cover shared \_url normalization semantics ([4a218a8](https://github.com/h3js/h3/commit/4a218a8))
 - **event:** Assert req.url reflects normalization per runtime ([8410ec9](https://github.com/h3js/h3/commit/8410ec9))
 
 ### ❤️ Contributors
