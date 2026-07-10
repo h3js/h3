@@ -163,10 +163,10 @@ describeMatrix("query utils", (t, { it, expect, describe }) => {
     const booksHandler = () =>
       defineQueryHandler({
         formats: ["application/sql", "application/jsonpath"],
-        handler: async (event, { format }) => ({ format, query: await event.req.text() }),
+        handler: (_event, { format, query }) => ({ format, query }),
       });
 
-    it("passes the matched format and lets the handler read the query body", async () => {
+    it("passes the matched format and the query body read as text", async () => {
       t.app.query("/books", booksHandler());
       const res = await t.fetch("/books", {
         method: "QUERY",
@@ -290,11 +290,29 @@ describeMatrix("query utils", (t, { it, expect, describe }) => {
       expect(res.headers.get("x-middleware")).toBe("1");
     });
 
+    it("lets the handler read the body itself with `body: false`", async () => {
+      t.app.query(
+        "/books",
+        defineQueryHandler({
+          formats: ["application/sql"],
+          body: false,
+          handler: async (event, { format }) => ({ format, query: await event.req.text() }),
+        }),
+      );
+      const res = await t.fetch("/books", {
+        method: "QUERY",
+        body: "SELECT 1",
+        headers: { "content-type": "application/sql" },
+      });
+      expect(await res.json()).toEqual({ format: "application/sql", query: "SELECT 1" });
+    });
+
     describe("get equivalence", () => {
+      // `get: true` uses the default `?q=` / `?f=` param names.
       const searchHandler = () =>
         defineQueryHandler({
           formats: ["application/sql", "application/jsonpath"],
-          get: "q",
+          get: true,
           handler: (event, { format, query }) => ({ method: event.req.method, format, query }),
         });
 
@@ -309,7 +327,7 @@ describeMatrix("query utils", (t, { it, expect, describe }) => {
         expect(queryRes.status).toBe(200);
         const location = queryRes.headers.get("content-location")!;
         expect(location).toBe(
-          "/books?q=SELECT+*+FROM+books+WHERE+author+%3D+%27a+%26+b+%2B+c%27&format=application%2Fsql",
+          "/books?q=SELECT+*+FROM+books+WHERE+author+%3D+%27a+%26+b+%2B+c%27&f=application%2Fsql",
         );
         const getRes = await t.fetch(location);
         expect(getRes.status).toBe(200);
@@ -328,7 +346,7 @@ describeMatrix("query utils", (t, { it, expect, describe }) => {
         const location = new URLSearchParams(res.headers.get("content-location")!.split("?")[1]);
         expect(location.get("lang")).toBe("en");
         expect(location.get("q")).toBe("SELECT 1");
-        expect(location.get("format")).toBe("application/sql");
+        expect(location.get("f")).toBe("application/sql");
       });
 
       it("passes the query read from the body on the QUERY path", async () => {
@@ -354,7 +372,7 @@ describeMatrix("query utils", (t, { it, expect, describe }) => {
 
       it("rejects a GET with an unsupported format param with 400", async () => {
         t.app.get("/books", searchHandler());
-        const res = await t.fetch("/books?q=SELECT+1&format=text/plain");
+        const res = await t.fetch("/books?q=SELECT+1&f=text/plain");
         expect(res.status).toBe(400);
       });
 
@@ -392,7 +410,7 @@ describeMatrix("query utils", (t, { it, expect, describe }) => {
         );
         const missing = await t.fetch("/books?q=x");
         expect(missing.status).toBe(400);
-        const res = await t.fetch("/books?q=x&format=application/jsonpath");
+        const res = await t.fetch("/books?q=x&f=application/jsonpath");
         expect(await res.text()).toBe("application/jsonpath");
       });
 
@@ -422,7 +440,7 @@ describeMatrix("query utils", (t, { it, expect, describe }) => {
 
       it("does not set Content-Location on the GET path", async () => {
         t.app.get("/books", searchHandler());
-        const res = await t.fetch("/books?q=SELECT+1&format=application/sql");
+        const res = await t.fetch("/books?q=SELECT+1&f=application/sql");
         expect(res.status).toBe(200);
         expect(res.headers.has("content-location")).toBe(false);
       });
@@ -430,7 +448,7 @@ describeMatrix("query utils", (t, { it, expect, describe }) => {
       it("serves HEAD requests via the GET route with an empty body", async () => {
         const h = searchHandler();
         t.app.get("/books", h).query("/books", h);
-        const res = await t.fetch("/books?q=SELECT+1&format=application/sql", {
+        const res = await t.fetch("/books?q=SELECT+1&f=application/sql", {
           method: "HEAD",
         });
         expect(res.status).toBe(200);

@@ -80,12 +80,13 @@ const page = html`<!doctype html>
 // matched media type and the query to the handler.
 //
 // The `get` option makes the same handler serve an equivalent, HTTP-cacheable
-// GET (`/books?q=<query>&format=<format>`): successful QUERY responses
-// advertise it via `Content-Location` (RFC 10008 §2.3), and a client
-// repeating the query can just GET that URL — no server-side result store.
+// GET (`/books?q=<query>&f=<format>`): successful QUERY responses advertise it
+// via `Content-Location` (RFC 10008 §2.3), and a client repeating the query can
+// just GET that URL — no server-side result store. `get: true` uses the default
+// `?q=` / `?f=` param names (pass a string or object to customize).
 const searchBooks = defineQueryHandler({
   formats: ACCEPTED,
-  get: "q",
+  get: true,
   handler: (event, { format, query }) => {
     if (event.req.method === "GET") {
       // Unlike a QUERY response, this GET is safe for browsers/CDNs to cache.
@@ -115,14 +116,14 @@ serve(app);
 //   curl -i -X QUERY http://localhost:3000/books \
 //     -H "Content-Type: application/sql" \
 //     --data "SELECT * FROM books WHERE author = 'Simpson'"
-//   # -> 200, Content-Location: /books?q=SELECT+...&format=application%2Fsql
+//   # -> 200, Content-Location: /books?q=SELECT+...&f=application%2Fsql
 //
 //   # Re-run the same query via the equivalent, cacheable GET:
-//   curl -i "http://localhost:3000/books?q=SELECT%20*%20FROM%20books%20WHERE%20author%20=%20'Simpson'&format=application/sql"
+//   curl -i "http://localhost:3000/books?q=SELECT%20*%20FROM%20books%20WHERE%20author%20=%20'Simpson'&f=application/sql"
 //   # -> 200, Cache-Control: public, max-age=60
 //
 //   # Or probe it with HEAD (the bodiless form of the cacheable GET, RFC 9110):
-//   curl -I "http://localhost:3000/books?q=SELECT%20*%20FROM%20books%20WHERE%20author%20=%20'Simpson'&format=application/sql"
+//   curl -I "http://localhost:3000/books?q=SELECT%20*%20FROM%20books%20WHERE%20author%20=%20'Simpson'&f=application/sql"
 //   # -> 200, same headers, no body
 //
 //   # JSONPath query:

@@ -102,14 +102,14 @@ export function requireContentType(event: HTTPEvent, acceptedTypes: string | str
  */
 export interface QueryHandlerGetOptions {
   /**
-   * URL search param carrying the query on GET/HEAD requests.
+   * URL search param carrying the query on GET/HEAD requests (default: `"q"`).
    */
-  param: string;
+  param?: string;
 
   /**
    * URL search param selecting the query format on GET/HEAD requests
-   * (default: `"format"`). It may be omitted by clients when exactly one
-   * concrete (non-wildcard) format is accepted.
+   * (default: `"f"`). It may be omitted by clients when exactly one concrete
+   * (non-wildcard) format is accepted.
    */
   formatParam?: string;
 }
@@ -120,18 +120,20 @@ type QueryHandlerBase = Omit<EventHandlerObject, "handler" | "fetch"> & {
 
 export function defineQueryHandler(
   def: QueryHandlerBase & {
-    get: string | QueryHandlerGetOptions;
-    handler: (
-      event: H3Event,
-      context: { format: string; query: string },
-    ) => unknown | Promise<unknown>;
+    get?: undefined;
+    body: false;
+    handler: (event: H3Event, context: { format: string }) => unknown | Promise<unknown>;
   },
 ): EventHandlerWithFetch;
 
 export function defineQueryHandler(
   def: QueryHandlerBase & {
-    get?: undefined;
-    handler: (event: H3Event, context: { format: string }) => unknown | Promise<unknown>;
+    get?: true | string | QueryHandlerGetOptions;
+    body?: true;
+    handler: (
+      event: H3Event,
+      context: { format: string; query: string },
+    ) => unknown | Promise<unknown>;
   },
 ): EventHandlerWithFetch;
 
@@ -143,45 +145,49 @@ export function defineQueryHandler(
  * `application/*` are supported). On every response — including error
  * responses — they are advertised via the `Accept-Query` header. The handler
  * receives the matched request media type as `format` (lower-cased, without
- * parameters) and reads the query from the request body as usual.
+ * parameters) and the query text as `query`, read from the request body.
  *
  * Requests are rejected with `405` (non-`QUERY` method), `400` (missing
  * `Content-Type`), `422` (malformed `Content-Type`), or `415` (unsupported
  * query format).
  *
+ * Set `body: false` to opt out of reading the request body: the handler then
+ * receives only `{ format }` and reads the body itself (e.g. as a stream or
+ * with a custom parser).
+ *
+ * With the `get` option, the same handler also serves an equivalent,
+ * HTTP-cacheable GET (RFC 10008 §2.3): the query is read from the `?q=` URL
+ * search param and the format from `?f=` (both names configurable), the handler
+ * receives the resolved `query` on both paths, and successful QUERY responses
+ * advertise the equivalent GET via `Content-Location` — preserving existing
+ * search params, and skipped when the URL would exceed 2048 chars. The handler
+ * gates the method itself (`405` for anything else), so a single `app.all`
+ * route serves QUERY, GET, and HEAD. GET-path rejections are `400`. Pass
+ * `get: true` for the default param names, a string to set the query param, or
+ * an object to set both.
+ *
  * @example
  * app.query("/books", defineQueryHandler({
  *   formats: ["application/sql", "application/jsonpath"],
- *   handler: async (event, { format }) => {
- *     const query = await readBody(event, { type: "text" });
- *     return runQuery(format, query);
- *   },
+ *   handler: (event, { format, query }) => runQuery(format, query),
  * }));
- *
- * With the `get` option, the same handler also serves an equivalent,
- * HTTP-cacheable GET (RFC 10008 §2.3): the query is read from the given URL
- * search param (and the format from `?format=`), the handler receives the
- * resolved `query` in its context on both paths, and successful QUERY
- * responses advertise the equivalent GET via `Content-Location` — preserving
- * existing search params, and skipped when the URL would exceed 2048 chars.
- * The handler gates the method itself (`405` for anything else), so a single
- * `app.all` route serves QUERY, GET, and HEAD. GET-path rejections are `400`.
  *
  * @example
  * const searchBooks = defineQueryHandler({
  *   formats: ["application/sql", "application/jsonpath"],
- *   get: "q",
+ *   get: true,
  *   handler: (event, { format, query }) => runQuery(format, query),
  * });
  * app.all("/books", searchBooks);
- * // QUERY /books        -> 200 + Content-Location: /books?q=<query>&format=<format>
- * // GET /books?q=...    -> same result, ordinary HTTP caching applies
+ * // QUERY /books     -> 200 + Content-Location: /books?q=<query>&f=<format>
+ * // GET /books?q=... -> same result, ordinary HTTP caching applies
  *
- * @param def Handler options: the accepted `formats`, the `handler`, optional `get` equivalence, plus optional `middleware` and `meta`.
+ * @param def Handler options: the accepted `formats`, the `handler`, optional `get` equivalence, optional `body: false` opt-out, plus optional `middleware` and `meta`.
  */
 export function defineQueryHandler(
   def: QueryHandlerBase & {
-    get?: string | QueryHandlerGetOptions;
+    get?: true | string | QueryHandlerGetOptions;
+    body?: boolean;
     handler: (event: H3Event, context: any) => unknown | Promise<unknown>;
   },
 ): EventHandlerWithFetch {
@@ -193,8 +199,14 @@ export function defineQueryHandler(
   // avoids re-serializing on every request.
   const acceptQuery = serializeAcceptQuery(def.formats);
 
+  const getOpts =
+    typeof def.get === "object"
+      ? def.get
+      : typeof def.get === "string"
+        ? { param: def.get }
+        : undefined;
   const get = def.get
-    ? { formatParam: "format", ...(typeof def.get === "string" ? { param: def.get } : def.get) }
+    ? { param: getOpts?.param ?? "q", formatParam: getOpts?.formatParam ?? "f" }
     : undefined;
 
   // With a single concrete (non-wildcard) accepted format, GET requests may
@@ -203,6 +215,11 @@ export function defineQueryHandler(
     def.formats.length === 1 && !def.formats[0].includes("*")
       ? baseMediaType(def.formats[0])
       : undefined;
+
+  // Read the query body as text by default, exposing it as `context.query`.
+  // `get` always reads it (needed for the `query` context and `Content-Location`);
+  // `body: false` opts out so the handler reads the body itself.
+  const readBody = !!get || def.body !== false;
 
   return defineHandler({
     ...def,
@@ -230,12 +247,14 @@ export function defineQueryHandler(
       // Throws 400 (missing), 422 (malformed), or 415 (unsupported).
       const format = requireContentType(event, def.formats);
 
-      if (!get) {
+      if (!readBody) {
         return def.handler(event, { format });
       }
 
       return event.req.text().then((query) => {
-        setQueryContentLocation(event, get, query, format, defaultFormat);
+        if (get) {
+          setQueryContentLocation(event, get, query, format, defaultFormat);
+        }
         return def.handler(event, { format, query });
       });
     },

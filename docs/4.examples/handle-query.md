@@ -12,24 +12,21 @@ H3 supports `QUERY` as a first-class method via [`app.query()`](/guide/basics/ro
 
 ## Define a `QUERY` Handler
 
-[`defineQueryHandler`](/utils/request#definequeryhandlerdef) captures the whole RFC 10008 ceremony: declare the accepted query `formats`, and it advertises them via `Accept-Query` on every response (including errors), validates the request `Content-Type` (`400`/`415`/`422`, plus `405` for non-`QUERY` methods), and passes the matched media type to the handler as `format`:
+[`defineQueryHandler`](/utils/request#definequeryhandlerdef) captures the whole RFC 10008 ceremony: declare the accepted query `formats`, and it advertises them via `Accept-Query` on every response (including errors), validates the request `Content-Type` (`400`/`415`/`422`, plus `405` for non-`QUERY` methods), reads the body as text, and passes the matched media type and query to the handler as `format` and `query`:
 
 ```ts
-import { defineQueryHandler, readBody } from "h3";
+import { defineQueryHandler } from "h3";
 
 app.query(
   "/books",
   defineQueryHandler({
     formats: ["application/sql", "application/jsonpath"],
-    handler: async (event, { format }) => {
-      const query = await readBody(event, { type: "text" });
-      return runQuery(format, query);
-    },
+    handler: (event, { format, query }) => runQuery(format, query),
   }),
 );
 ```
 
-Formats may use wildcards (`application/*`, `*/*`) — `format` is always the concrete request media type. The sections below show the lower-level utilities it builds on, for when you need custom behavior.
+Formats may use wildcards (`application/*`, `*/*`) — `format` is always the concrete request media type. Pass `body: false` to read the body yourself (e.g. as a stream or with a custom parser); the handler then receives only `{ format }`. The sections below show the lower-level utilities it builds on, for when you need custom behavior.
 
 ## Offer a Cacheable `GET` Equivalent
 
@@ -38,17 +35,17 @@ A `QUERY` response is not URL-addressable (and content-keyed `QUERY` caching is 
 ```ts
 const searchBooks = defineQueryHandler({
   formats: ["application/sql", "application/jsonpath"],
-  get: "q",
+  get: true,
   handler: (event, { format, query }) => runQuery(format, query),
 });
 
 // The handler gates the method itself, so one `all` route serves QUERY/GET/HEAD.
 app.all("/books", searchBooks);
-// QUERY /books     -> 200 + Content-Location: /books?q=<query>&format=<format>
+// QUERY /books     -> 200 + Content-Location: /books?q=<query>&f=<format>
 // GET /books?q=... -> same result, ordinary HTTP caching applies
 ```
 
-With `get` set, the handler receives the resolved `query` in its context on both paths (read from the body on `QUERY`, from the URL param on `GET`/`HEAD`). On `GET`, the format comes from `?format=` (customizable via `get: { param, formatParam }`) and may be omitted when exactly one concrete format is accepted; rejections on the `GET` path are `400`. `Content-Location` preserves the request's existing search params and is skipped when the equivalent URL would exceed 2048 characters — very long queries are the reason `QUERY` exists. `HEAD` is served as the bodiless form of the cacheable `GET` ([RFC 9110 §9.3.2](https://www.rfc-editor.org/rfc/rfc9110#section-9.3.2) — there is no HEAD-of-`QUERY`), so it works only when `get` is set. Registering with `app.all` covers all three and returns `405 Method Not Allowed` (with an `Allow` header) for any other method — the handler enforces the allowed verbs itself, so you don't wire up per-method routes.
+With `get` set, the handler receives the resolved `query` in its context on both paths (read from the body on `QUERY`, from the URL param on `GET`/`HEAD`). `get: true` uses the default `?q=` / `?f=` param names; pass a string to set the query param (`get: "q"`) or an object to set both (`get: { param, formatParam }`). On `GET`, the format comes from `?f=` and may be omitted when exactly one concrete format is accepted; rejections on the `GET` path are `400`. `Content-Location` preserves the request's existing search params and is skipped when the equivalent URL would exceed 2048 characters — very long queries are the reason `QUERY` exists. `HEAD` is served as the bodiless form of the cacheable `GET` ([RFC 9110 §9.3.2](https://www.rfc-editor.org/rfc/rfc9110#section-9.3.2) — there is no HEAD-of-`QUERY`), so it works only when `get` is set. Registering with `app.all` covers all three and returns `405 Method Not Allowed` (with an `Allow` header) for any other method — the handler enforces the allowed verbs itself, so you don't wire up per-method routes.
 
 ## Register a `QUERY` Handler
 
