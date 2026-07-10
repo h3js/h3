@@ -692,5 +692,57 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
       });
       expect(res.status).toBe(304);
     });
+
+    it("does not force `public` when explicit cacheControls are provided (#1442, #1453)", async () => {
+      t.app.use((event) => {
+        handleCacheHeaders(event, {
+          maxAge: 60,
+          cacheControls: ["private"],
+        });
+        return "ok";
+      });
+      const res = await t.fetch("/");
+      expect(res.headers.get("cache-control")).toBe("private, max-age=60, s-maxage=60");
+    });
+
+    it("ignores if-modified-since when if-none-match is present (RFC 9110 §13.1.3, #1453)", async () => {
+      t.app.use((event) => {
+        if (
+          handleCacheHeaders(event, {
+            etag: '"v2"',
+            modifiedTime: new Date("2021-01-01"),
+          })
+        ) {
+          return null;
+        }
+        return "ok";
+      });
+      // The ETag does not match, so If-Modified-Since must be ignored and a 200
+      // returned even though the resource was not modified since that date.
+      const res = await t.fetch("/", {
+        headers: {
+          "if-none-match": '"v1"',
+          "if-modified-since": "Fri, 01 Jan 2021 00:00:00 GMT",
+        },
+      });
+      expect(res.status).toBe(200);
+      expect(await res.text()).toBe("ok");
+    });
+
+    it("matches etag using weak comparison and wildcard (#1453)", async () => {
+      t.app.use((event) => {
+        handleCacheHeaders(event, { etag: '"v2"' });
+        return "ok";
+      });
+      const weak = await t.fetch("/", {
+        headers: { "if-none-match": 'W/"v2"' },
+      });
+      expect(weak.status).toBe(304);
+
+      const wildcard = await t.fetch("/", {
+        headers: { "if-none-match": "*" },
+      });
+      expect(wildcard.status).toBe(304);
+    });
   });
 });
