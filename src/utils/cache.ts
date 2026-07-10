@@ -1,4 +1,5 @@
 import type { H3Event } from "../event.ts";
+import { matchETag } from "./internal/cache.ts";
 
 export interface CacheConditions {
   modifiedTime?: string | Date;
@@ -10,17 +11,29 @@ export interface CacheConditions {
 /**
  * Check request caching headers (`If-None-Match`, `If-Modified-Since`) and add caching headers (Last-Modified, ETag, Cache-Control).
  *
- * Note: `public` is only added to `Cache-Control` when no explicit `cacheControls` are provided, so passing `cacheControls: ["private"]` no longer results in a contradictory `public, private`.
+ * Note: `public` is added by default, but never alongside a caller-supplied `private`/`no-store` directive, so passing `cacheControls: ["private"]` no longer produces a contradictory `public, private`.
  * @returns `true` when cache headers are matching. When `true` is returned, no response should be sent anymore
  */
 export function handleCacheHeaders(event: H3Event, opts: CacheConditions): boolean {
-  // Only default to `public` when the user did not provide explicit cache controls.
-  // Prepending `public` unconditionally would produce contradictory directives
-  // like `public, private` for authenticated/personalized responses.
-  const cacheControls = opts.cacheControls ? [...opts.cacheControls] : ["public"];
+  const cacheControls = [...(opts.cacheControls || [])];
+
+  // A response is private when the caller opts into `private` or `no-store`;
+  // shared-cache directives (`public`, `s-maxage`) must not be added for it.
+  const isPrivate = cacheControls.some((c) => /^\s*(?:private|no-store)\b/i.test(c));
+
+  // Default to `public` for shared caches, but never alongside an explicit
+  // visibility directive — that would produce contradictory pairs like
+  // `public, private` for authenticated/personalized responses.
+  if (!isPrivate && !cacheControls.some((c) => /^\s*public\b/i.test(c))) {
+    cacheControls.unshift("public");
+  }
 
   if (opts.maxAge !== undefined) {
-    cacheControls.push(`max-age=${+opts.maxAge}`, `s-maxage=${+opts.maxAge}`);
+    cacheControls.push(`max-age=${+opts.maxAge}`);
+    // `s-maxage` only applies to shared caches; omit it for private responses.
+    if (!isPrivate) {
+      cacheControls.push(`s-maxage=${+opts.maxAge}`);
+    }
   }
 
   if (opts.etag) {
@@ -38,10 +51,11 @@ export function handleCacheHeaders(event: H3Event, opts: CacheConditions): boole
 
   // RFC 9110 §13.1.3: a recipient MUST ignore `If-Modified-Since` when the
   // request contains an `If-None-Match` header field. `If-None-Match` takes
-  // precedence; `If-Modified-Since` is only evaluated when it is absent.
+  // precedence; `If-Modified-Since` is only evaluated when it is absent. A
+  // present-but-empty `If-None-Match` is malformed and treated as absent.
   let cacheMatched = false;
   const ifNoneMatch = event.req.headers.get("if-none-match");
-  if (ifNoneMatch !== null) {
+  if (ifNoneMatch) {
     cacheMatched = !!opts.etag && matchETag(ifNoneMatch, opts.etag);
   } else if (lastModified) {
     const ifModifiedSince = event.req.headers.get("if-modified-since");
@@ -54,24 +68,4 @@ export function handleCacheHeaders(event: H3Event, opts: CacheConditions): boole
   }
 
   return false;
-}
-
-/**
- * Evaluate an `If-None-Match` field-value against an ETag using the weak
- * comparison function (RFC 9110 §8.8.3.2 and §13.1.2).
- *
- * - `*` matches any current representation.
- * - The field-value is a comma-separated list of entity-tags.
- * - Weak comparison ignores the `W/` weakness indicator on either side.
- */
-function matchETag(ifNoneMatch: string, etag: string): boolean {
-  if (ifNoneMatch.trim() === "*") {
-    return true;
-  }
-  const target = opaqueTag(etag);
-  return ifNoneMatch.split(",").some((tag) => opaqueTag(tag.trim()) === target);
-}
-
-function opaqueTag(tag: string): string {
-  return tag.startsWith("W/") ? tag.slice(2) : tag;
 }

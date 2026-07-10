@@ -3,6 +3,7 @@ import { HTTPError } from "../error.ts";
 import { withoutTrailingSlash } from "./internal/path.ts";
 import { resolveDotSegments } from "./path.ts";
 import { getType, getExtension } from "./internal/mime.ts";
+import { matchETag } from "./internal/cache.ts";
 import { HTTPResponse } from "../response.ts";
 
 export interface StaticAssetMeta {
@@ -170,7 +171,8 @@ export async function serveStatic(
     event.res.headers.set("etag", meta.etag);
   }
 
-  const ifNotMatch = meta.etag && event.req.headers.get("if-none-match") === meta.etag;
+  const ifNoneMatch = event.req.headers.get("if-none-match");
+  const ifNotMatch = !!meta.etag && !!ifNoneMatch && matchETag(ifNoneMatch, meta.etag);
   if (ifNotMatch) {
     return new HTTPResponse(null, {
       status: 304,

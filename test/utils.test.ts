@@ -702,7 +702,53 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
         return "ok";
       });
       const res = await t.fetch("/");
-      expect(res.headers.get("cache-control")).toBe("private, max-age=60, s-maxage=60");
+      // `private` responses must not carry the shared-cache `s-maxage` directive (#1454).
+      expect(res.headers.get("cache-control")).toBe("private, max-age=60");
+    });
+
+    it("keeps `public` when explicit cacheControls do not set visibility (#1454)", async () => {
+      t.app.use((event) => {
+        handleCacheHeaders(event, {
+          cacheControls: ["must-revalidate"],
+        });
+        return "ok";
+      });
+      // A shared cache needs `public` to store authenticated responses (RFC 9111 §3.5),
+      // so it must survive alongside non-visibility directives like `must-revalidate`.
+      const res = await t.fetch("/");
+      expect(res.headers.get("cache-control")).toBe("public, must-revalidate");
+    });
+
+    it("omits `s-maxage` when `no-store` is set (#1454)", async () => {
+      t.app.use((event) => {
+        handleCacheHeaders(event, {
+          maxAge: 60,
+          cacheControls: ["no-store"],
+        });
+        return "ok";
+      });
+      const res = await t.fetch("/");
+      expect(res.headers.get("cache-control")).toBe("no-store, max-age=60");
+    });
+
+    it("treats an empty `if-none-match` as absent so `if-modified-since` still applies (#1454)", async () => {
+      t.app.use((event) => {
+        if (
+          handleCacheHeaders(event, {
+            modifiedTime: new Date("2021-01-01"),
+          })
+        ) {
+          return null;
+        }
+        return "ok";
+      });
+      const res = await t.fetch("/", {
+        headers: {
+          "if-none-match": "",
+          "if-modified-since": "Fri, 01 Jan 2021 00:00:00 GMT",
+        },
+      });
+      expect(res.status).toBe(304);
     });
 
     it("ignores if-modified-since when if-none-match is present (RFC 9110 §13.1.3, #1453)", async () => {
