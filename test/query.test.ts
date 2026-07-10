@@ -427,12 +427,14 @@ describeMatrix("query utils", (t, { it, expect, describe }) => {
         expect(res.headers.has("content-location")).toBe(false);
       });
 
-      it("serves HEAD requests with an empty body", async () => {
-        t.app.all("/books", searchHandler());
+      it("serves HEAD requests via the GET route with an empty body", async () => {
+        const h = searchHandler();
+        t.app.get("/books", h).query("/books", h);
         const res = await t.fetch("/books?q=SELECT+1&format=application/sql", {
           method: "HEAD",
         });
         expect(res.status).toBe(200);
+        expect(res.headers.get("content-type")).toMatch(/application\/json/);
         expect(await res.text()).toBe("");
       });
 

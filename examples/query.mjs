@@ -119,6 +119,10 @@ serve(app);
 //   curl -i "http://localhost:3000/books?q=SELECT%20*%20FROM%20books%20WHERE%20author%20=%20'Simpson'&format=application/sql"
 //   # -> 200, Cache-Control: public, max-age=60
 //
+//   # Or probe it with HEAD (served automatically via the GET route):
+//   curl -I "http://localhost:3000/books?q=SELECT%20*%20FROM%20books%20WHERE%20author%20=%20'Simpson'&format=application/sql"
+//   # -> 200, same headers, no body
+//
 //   # JSONPath query:
 //   curl -X QUERY http://localhost:3000/books \
 //     -H "Content-Type: application/jsonpath" \

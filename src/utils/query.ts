@@ -164,7 +164,8 @@ export function defineQueryHandler(
  * resolved `query` in its context on both paths, and successful QUERY
  * responses advertise the equivalent GET via `Content-Location` — preserving
  * existing search params, and skipped when the URL would exceed 2048 chars.
- * Register the handler for both methods; GET-path rejections are `400`.
+ * Register the handler for both methods; `HEAD` is served automatically via
+ * the GET route. GET-path rejections are `400`.
  *
  * @example
  * const searchBooks = defineQueryHandler({

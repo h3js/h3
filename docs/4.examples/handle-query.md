@@ -47,7 +47,7 @@ app.get("/books", searchBooks).query("/books", searchBooks);
 // GET /books?q=... -> same result, ordinary HTTP caching applies
 ```
 
-With `get` set, the handler receives the resolved `query` in its context on both paths (read from the body on `QUERY`, from the URL param on `GET`/`HEAD`). On `GET`, the format comes from `?format=` (customizable via `get: { param, formatParam }`) and may be omitted when exactly one concrete format is accepted; rejections on the `GET` path are `400`. `Content-Location` preserves the request's existing search params and is skipped when the equivalent URL would exceed 2048 characters — very long queries are the reason `QUERY` exists.
+With `get` set, the handler receives the resolved `query` in its context on both paths (read from the body on `QUERY`, from the URL param on `GET`/`HEAD`). On `GET`, the format comes from `?format=` (customizable via `get: { param, formatParam }`) and may be omitted when exactly one concrete format is accepted; rejections on the `GET` path are `400`. `Content-Location` preserves the request's existing search params and is skipped when the equivalent URL would exceed 2048 characters — very long queries are the reason `QUERY` exists. `HEAD` requests are served too — h3 [automatically matches `GET` routes for `HEAD`](/guide/basics/routing#head-requests), so the `app.get()` registration covers them.
 
 ## Register a `QUERY` Handler
 
