@@ -28,7 +28,7 @@ export interface EventStreamMessage {
  * @example
  *
  * ```ts
- * import { createEventStream, sendEventStream } from "h3";
+ * import { createEventStream } from "h3";
  *
  * app.get("/sse", (event) => {
  *   const eventStream = createEventStream(event);
