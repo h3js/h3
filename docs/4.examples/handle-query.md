@@ -31,6 +31,24 @@ app.query(
 
 Formats may use wildcards (`application/*`, `*/*`) — `format` is always the concrete request media type. The sections below show the lower-level utilities it builds on, for when you need custom behavior.
 
+## Offer a Cacheable `GET` Equivalent
+
+A `QUERY` response is not URL-addressable (and content-keyed `QUERY` caching is not deployed in practice), so browsers and CDNs won't reuse it. RFC 10008 (§2.3) suggests advertising an equivalent, cacheable `GET` via the `Content-Location` header. Pass `get` to `defineQueryHandler` and register the handler for both methods — the _same_ handler serves the advertised `GET`, so no server-side result store is needed:
+
+```ts
+const searchBooks = defineQueryHandler({
+  formats: ["application/sql", "application/jsonpath"],
+  get: "q",
+  handler: (event, { format, query }) => runQuery(format, query),
+});
+
+app.get("/books", searchBooks).query("/books", searchBooks);
+// QUERY /books     -> 200 + Content-Location: /books?q=<query>&format=<format>
+// GET /books?q=... -> same result, ordinary HTTP caching applies
+```
+
+With `get` set, the handler receives the resolved `query` in its context on both paths (read from the body on `QUERY`, from the URL param on `GET`/`HEAD`). On `GET`, the format comes from `?format=` (customizable via `get: { param, formatParam }`) and may be omitted when exactly one concrete format is accepted; rejections on the `GET` path are `400`. `Content-Location` preserves the request's existing search params and is skipped when the equivalent URL would exceed 2048 characters — very long queries are the reason `QUERY` exists. `HEAD` requests are served too — h3 [automatically matches `GET` routes for `HEAD`](/guide/basics/routing#head-requests), so the `app.get()` registration covers them.
+
 ## Register a `QUERY` Handler
 
 Read the request body just like you would for a `POST`:
@@ -71,20 +89,6 @@ app.query("/books", async (event) => {
   const type = requireContentType(event, ["application/sql", "application/jsonpath"]);
   const query = await readBody(event, { type: "text" });
   return runQuery(type, query);
-});
-```
-
-## Offer a Cacheable `GET` Alternative
-
-A `QUERY` response is not addressable by URL, so browsers and CDNs can't cache it. RFC 10008 suggests pointing clients at an equivalent, cacheable `GET` via the `Content-Location` header. Stash the result under a stable id and let a client repeat the query with an ordinary, HTTP-cacheable `GET`:
-
-```ts
-app.query("/books", async (event) => {
-  const result = runQuery(type, query);
-  const id = queryId(type, query); // stable hash of the query
-  cache.set(id, result);
-  event.res.headers.set("content-location", `/books/${id}`);
-  return result;
 });
 ```
 

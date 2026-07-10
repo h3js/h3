@@ -1,13 +1,4 @@
-import {
-  H3,
-  serve,
-  html,
-  getRouterParam,
-  appendAcceptQuery,
-  defineQueryHandler,
-  readBody,
-  HTTPError,
-} from "../dist/_entries/node.mjs";
+import { H3, serve, html, defineQueryHandler } from "../dist/_entries/node.mjs";
 
 // The HTTP QUERY method (RFC 10008) is a safe, idempotent request that carries a
 // query in its BODY — useful when a query is too large or too structured for the
@@ -22,10 +13,6 @@ const BOOKS = [
 
 const ACCEPTED = ["application/sql", "application/jsonpath"];
 
-// Results of past queries, keyed by a stable id, so the same query can be
-// retrieved again through a cacheable GET (see `Content-Location` below).
-const cache = new Map();
-
 // Run a query and return the matching books.
 function runQuery(type, query) {
   if (type === "application/jsonpath") {
@@ -36,15 +23,6 @@ function runQuery(type, query) {
   // application/sql — e.g. `SELECT * FROM books WHERE author = 'Simpson'`.
   const author = query.match(/author\s*=\s*'([^']*)'/i)?.[1];
   return author ? BOOKS.filter((b) => b.author === author) : BOOKS;
-}
-
-// Stable id (FNV-1a) so identical queries map to the same cacheable URL.
-function queryId(type, query) {
-  let h = 0x81_1c_9d_c5;
-  for (const ch of `${type}\n${query}`) {
-    h = Math.imul(h ^ ch.charCodeAt(0), 0x01_00_01_93);
-  }
-  return (h >>> 0).toString(16);
 }
 
 // A minimal self-contained page that sends QUERY requests to /books via fetch.
@@ -96,67 +74,54 @@ const page = html`<!doctype html>
     });
   </script>`;
 
+// `defineQueryHandler` wires up the RFC 10008 ceremony: it advertises the
+// accepted formats via `Accept-Query` on every response (including errors),
+// validates the request `Content-Type` (throws 400/415/422), and passes the
+// matched media type and the query to the handler.
+//
+// The `get` option makes the same handler serve an equivalent, HTTP-cacheable
+// GET (`/books?q=<query>&format=<format>`): successful QUERY responses
+// advertise it via `Content-Location` (RFC 10008 §2.3), and a client
+// repeating the query can just GET that URL — no server-side result store.
+const searchBooks = defineQueryHandler({
+  formats: ACCEPTED,
+  get: "q",
+  handler: (event, { format, query }) => {
+    if (event.req.method === "GET") {
+      // Unlike a QUERY response, this GET is safe for browsers/CDNs to cache.
+      event.res.headers.set("cache-control", "public, max-age=60");
+    }
+    return runQuery(format, query.trim());
+  },
+});
+
 export const app = new H3();
 
 app
   .get("/", () => page)
-  .get("/books", (event) => {
-    // Advertise the accepted query formats on a plain GET too, so clients can
-    // discover them before sending a QUERY request.
-    appendAcceptQuery(event, ACCEPTED);
-    return "Send a QUERY request to /books with a SQL or JSONPath body.";
-  })
-  .get("/books/:id", (event) => {
-    // The cacheable GET alternative advertised by the QUERY response below.
-    const result = cache.get(getRouterParam(event, "id"));
-    if (!result) {
-      throw new HTTPError({ status: 404, message: "Unknown query id" });
-    }
-    // Unlike a QUERY response, this GET is safe for browsers/CDNs to cache.
-    event.res.headers.set("cache-control", "public, max-age=60");
-    return result;
-  })
-  .query(
-    "/books",
-    // `defineQueryHandler` wires up the RFC 10008 ceremony: it advertises the
-    // accepted formats via `Accept-Query` on every response (including 415
-    // errors), validates the request `Content-Type` (throws 400/415/422), and
-    // passes the matched media type to the handler as `format`.
-    defineQueryHandler({
-      formats: ACCEPTED,
-      handler: async (event, { format }) => {
-        const query = (await readBody(event, { type: "text" }))?.trim() ?? "";
-        const result = runQuery(format, query);
-
-        // Offer a cacheable GET alternative for this exact query (RFC 10008):
-        // stash the result under a stable id and point the client at it via
-        // `Content-Location`. A client repeating this query can just GET that
-        // URL and benefit from ordinary HTTP caching.
-        const id = queryId(format, query);
-        cache.set(id, result);
-        event.res.headers.set("content-location", `/books/${id}`);
-
-        return result;
-      },
-    }),
-  );
+  .get("/books", searchBooks)
+  .query("/books", searchBooks);
 
 serve(app);
 
 // Or try it from the terminal:
-//   # Discover the accepted query formats:
+//   # Discover the accepted query formats (every response advertises them):
 //   curl -i http://localhost:3000/books
-//   # -> Accept-Query: application/sql, application/jsonpath
+//   # -> 400, Accept-Query: application/sql, application/jsonpath
 //
 //   # SQL query (note the `Content-Location` header in the response):
 //   curl -i -X QUERY http://localhost:3000/books \
 //     -H "Content-Type: application/sql" \
 //     --data "SELECT * FROM books WHERE author = 'Simpson'"
-//   # -> 200, Content-Location: /books/<id>
+//   # -> 200, Content-Location: /books?q=SELECT+...&format=application%2Fsql
 //
-//   # Re-fetch the same result via the cacheable GET alternative:
-//   curl -i http://localhost:3000/books/<id>
+//   # Re-run the same query via the equivalent, cacheable GET:
+//   curl -i "http://localhost:3000/books?q=SELECT%20*%20FROM%20books%20WHERE%20author%20=%20'Simpson'&format=application/sql"
 //   # -> 200, Cache-Control: public, max-age=60
+//
+//   # Or probe it with HEAD (served automatically via the GET route):
+//   curl -I "http://localhost:3000/books?q=SELECT%20*%20FROM%20books%20WHERE%20author%20=%20'Simpson'&format=application/sql"
+//   # -> 200, same headers, no body
 //
 //   # JSONPath query:
 //   curl -X QUERY http://localhost:3000/books \
