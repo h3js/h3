@@ -35,7 +35,10 @@ function createMatcher(opts: MiddlewareOptions & { route?: string }) {
   const method = opts.method?.toUpperCase();
   return function _middlewareMatcher(event: H3Event) {
     if (method && event.req.method !== method) {
-      return false;
+      // HEAD is served by GET handlers (RFC 9110), so GET-scoped middleware also matches HEAD
+      if (!(method === "GET" && event.req.method === "HEAD")) {
+        return false;
+      }
     }
     if (opts.match && !opts.match(event)) {
       return false;

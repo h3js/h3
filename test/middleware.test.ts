@@ -160,6 +160,27 @@ describeMatrix("middleware", (t, { it, expect }) => {
     expect(await res2.text()).toBe("hi!");
   });
 
+  it("GET-scoped global middleware also runs for HEAD requests", async () => {
+    const app = new H3();
+    const seen: string[] = [];
+    app.use(
+      (event) => {
+        seen.push(event.req.method);
+      },
+      { method: "GET" },
+    );
+    app.get("/foo", () => "hello");
+
+    const headRes = await app.request("/foo", { method: "HEAD" });
+    expect(headRes.status).toBe(200);
+    expect(await headRes.text()).toBe("");
+
+    const postRes = await app.request("/foo", { method: "POST" });
+    expect(postRes.status).toBe(404); // no POST route; POST-scoped exclusion still holds
+
+    expect(seen).toEqual(["HEAD"]); // ran for HEAD, not for POST
+  });
+
   it('onResponse() does not duplicate "Set-Cookie" headers', async () => {
     // onResponse uses toResponse() internally (#1259)
     t.app.use(onResponse(() => {}));
