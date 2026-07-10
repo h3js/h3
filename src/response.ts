@@ -116,6 +116,14 @@ function prepareResponse(
 
   // Avoid merging if no prepared headers are provided or we are rendering an Error
   if (!preparedHeaders || nested || !val.ok) {
+    // Strip the body for HEAD requests (runtimes usually do this, but keep self-consistent)
+    if (event.req.method === "HEAD" && val.body !== null) {
+      return new FastResponse(null, {
+        status: val.status,
+        statusText: val.statusText,
+        headers: val.headers,
+      }) as Response;
+    }
     return val; // Fast path: no headers to merge
   }
   try {

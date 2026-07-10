@@ -198,7 +198,13 @@ export const H3 = /* @__PURE__ */ (() => {
     }
 
     override "~findRoute"(_event: H3Event): MatchedRoute<H3Route> | void {
-      return findRoute(this["~rou3"], _event.req.method, _event.url.pathname);
+      const match = findRoute<H3Route>(this["~rou3"], _event.req.method, _event.url.pathname);
+      if (match === undefined && _event.req.method === "HEAD") {
+        // Fall back to the matching GET route (RFC 9110). The method stays "HEAD"
+        // so the response body is stripped by nullBody() in prepareResponse.
+        return findRoute(this["~rou3"], "GET", _event.url.pathname);
+      }
+      return match;
     }
 
     override "~addRoute"(_route: H3Route): void {

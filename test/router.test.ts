@@ -306,4 +306,69 @@ describeMatrix("router", (t, { it, expect, describe }) => {
       expect(await postRes.text()).toBe("post");
     });
   });
+
+  describe("HEAD fallback", () => {
+    it("HEAD falls back to GET route with empty body", async () => {
+      t.app.get("/head-fallback", () => ({ hello: "world" }));
+      const res = await t.fetch("/head-fallback", { method: "HEAD" });
+      expect(res.status).toBe(200);
+      expect(res.headers.get("content-type")).toMatch(/application\/json/);
+      expect(await res.text()).toBe("");
+    });
+
+    it("explicit HEAD route takes precedence over GET fallback", async () => {
+      t.app.get("/head-precedence", () => "get");
+      t.app.head("/head-precedence", (event) => {
+        event.res.headers.set("x-handler", "head");
+        return null;
+      });
+      const res = await t.fetch("/head-precedence", { method: "HEAD" });
+      expect(res.status).toBe(200);
+      expect(res.headers.get("x-handler")).toBe("head");
+      expect(await res.text()).toBe("");
+    });
+
+    it("HEAD to a path with no GET route still 404s", async () => {
+      const res = await t.fetch("/head-missing", { method: "HEAD" });
+      expect(res.status).toBe(404);
+    });
+
+    it("HEAD to a handler returning a raw Response strips body", async () => {
+      t.app.get(
+        "/head-raw",
+        () =>
+          new Response("body content", {
+            status: 200,
+            headers: { "x-custom": "value" },
+          }),
+      );
+      const res = await t.fetch("/head-raw", { method: "HEAD" });
+      expect(res.status).toBe(200);
+      expect(res.headers.get("x-custom")).toBe("value");
+      expect(await res.text()).toBe("");
+    });
+
+    it("HEAD matching an all() route still works", async () => {
+      t.app.all("/head-all", () => "all");
+      const res = await t.fetch("/head-all", { method: "HEAD" });
+      expect(res.status).toBe(200);
+      expect(await res.text()).toBe("");
+    });
+
+    it("route-level middleware on the GET route runs for fallback HEAD", async () => {
+      let ran = false;
+      t.app.get("/head-mw", () => "get", {
+        middleware: [
+          (_event, next) => {
+            ran = true;
+            return next();
+          },
+        ],
+      });
+      const res = await t.fetch("/head-mw", { method: "HEAD" });
+      expect(res.status).toBe(200);
+      expect(ran).toBe(true);
+      expect(await res.text()).toBe("");
+    });
+  });
 });
