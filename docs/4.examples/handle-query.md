@@ -33,7 +33,7 @@ Formats may use wildcards (`application/*`, `*/*`) — `format` is always the co
 
 ## Offer a Cacheable `GET` Equivalent
 
-A `QUERY` response is not URL-addressable (and content-keyed `QUERY` caching is not deployed in practice), so browsers and CDNs won't reuse it. RFC 10008 (§2.3) suggests advertising an equivalent, cacheable `GET` via the `Content-Location` header. Pass `get` to `defineQueryHandler` and register the handler for both methods — the _same_ handler serves the advertised `GET`, so no server-side result store is needed:
+A `QUERY` response is not URL-addressable (and content-keyed `QUERY` caching is not deployed in practice), so browsers and CDNs won't reuse it. RFC 10008 (§2.3) suggests advertising an equivalent, cacheable `GET` via the `Content-Location` header. Pass `get` to `defineQueryHandler` — the _same_ handler serves the advertised `GET`, so no server-side result store is needed:
 
 ```ts
 const searchBooks = defineQueryHandler({
@@ -42,12 +42,13 @@ const searchBooks = defineQueryHandler({
   handler: (event, { format, query }) => runQuery(format, query),
 });
 
-app.get("/books", searchBooks).query("/books", searchBooks);
+// The handler gates the method itself, so one `all` route serves QUERY/GET/HEAD.
+app.all("/books", searchBooks);
 // QUERY /books     -> 200 + Content-Location: /books?q=<query>&format=<format>
 // GET /books?q=... -> same result, ordinary HTTP caching applies
 ```
 
-With `get` set, the handler receives the resolved `query` in its context on both paths (read from the body on `QUERY`, from the URL param on `GET`/`HEAD`). On `GET`, the format comes from `?format=` (customizable via `get: { param, formatParam }`) and may be omitted when exactly one concrete format is accepted; rejections on the `GET` path are `400`. `Content-Location` preserves the request's existing search params and is skipped when the equivalent URL would exceed 2048 characters — very long queries are the reason `QUERY` exists. `HEAD` requests are served too — h3 [automatically matches `GET` routes for `HEAD`](/guide/basics/routing#head-requests), so the `app.get()` registration covers them.
+With `get` set, the handler receives the resolved `query` in its context on both paths (read from the body on `QUERY`, from the URL param on `GET`/`HEAD`). On `GET`, the format comes from `?format=` (customizable via `get: { param, formatParam }`) and may be omitted when exactly one concrete format is accepted; rejections on the `GET` path are `400`. `Content-Location` preserves the request's existing search params and is skipped when the equivalent URL would exceed 2048 characters — very long queries are the reason `QUERY` exists. `HEAD` is served as the bodiless form of the cacheable `GET` ([RFC 9110 §9.3.2](https://www.rfc-editor.org/rfc/rfc9110#section-9.3.2) — there is no HEAD-of-`QUERY`), so it works only when `get` is set. Registering with `app.all` covers all three and returns `405 Method Not Allowed` (with an `Allow` header) for any other method — the handler enforces the allowed verbs itself, so you don't wire up per-method routes.
 
 ## Register a `QUERY` Handler
 

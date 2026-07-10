@@ -164,8 +164,8 @@ export function defineQueryHandler(
  * resolved `query` in its context on both paths, and successful QUERY
  * responses advertise the equivalent GET via `Content-Location` — preserving
  * existing search params, and skipped when the URL would exceed 2048 chars.
- * Register the handler for both methods; `HEAD` is served automatically via
- * the GET route. GET-path rejections are `400`.
+ * The handler gates the method itself (`405` for anything else), so a single
+ * `app.all` route serves QUERY, GET, and HEAD. GET-path rejections are `400`.
  *
  * @example
  * const searchBooks = defineQueryHandler({
@@ -173,7 +173,7 @@ export function defineQueryHandler(
  *   get: "q",
  *   handler: (event, { format, query }) => runQuery(format, query),
  * });
- * app.get("/books", searchBooks).query("/books", searchBooks);
+ * app.all("/books", searchBooks);
  * // QUERY /books        -> 200 + Content-Location: /books?q=<query>&format=<format>
  * // GET /books?q=...    -> same result, ordinary HTTP caching applies
  *
