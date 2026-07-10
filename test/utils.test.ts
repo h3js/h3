@@ -790,5 +790,30 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
       });
       expect(wildcard.status).toBe(304);
     });
+
+    it("detects `private` when bundled into a single cacheControls entry (#1454)", async () => {
+      t.app.use((event) => {
+        handleCacheHeaders(event, {
+          maxAge: 60,
+          cacheControls: ["max-age=30, private"],
+        });
+        return "ok";
+      });
+      // A combined directive string must still be recognized as private so no
+      // contradictory `public`/`s-maxage` is added for a personalized response.
+      const res = await t.fetch("/");
+      expect(res.headers.get("cache-control")).toBe("max-age=30, private, max-age=60");
+    });
+
+    it("matches a quoted etag whose value contains a comma (#1454)", async () => {
+      t.app.use((event) => {
+        handleCacheHeaders(event, { etag: '"a,b"' });
+        return "ok";
+      });
+      const res = await t.fetch("/", {
+        headers: { "if-none-match": '"a,b"' },
+      });
+      expect(res.status).toBe(304);
+    });
   });
 });

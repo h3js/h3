@@ -146,21 +146,14 @@ export async function serveStatic(
     throw new HTTPError({ statusCode: 404 });
   }
 
+  let mtimeDate: Date | undefined;
   if (meta.mtime) {
-    const mtimeDate = new Date(meta.mtime);
+    mtimeDate = new Date(meta.mtime);
     // HTTP dates have whole-second precision, but `mtime` may carry sub-second
     // milliseconds. The `last-modified` header is emitted truncated to seconds,
     // so the comparison must also ignore milliseconds — otherwise a client that
     // echoes our own `last-modified` value in `if-modified-since` never matches.
     mtimeDate.setMilliseconds(0);
-
-    const ifModifiedSinceH = event.req.headers.get("if-modified-since");
-    if (ifModifiedSinceH && new Date(ifModifiedSinceH) >= mtimeDate) {
-      return new HTTPResponse(null, {
-        status: 304,
-        statusText: "Not Modified",
-      });
-    }
 
     if (!event.res.headers.get("last-modified")) {
       event.res.headers.set("last-modified", mtimeDate.toUTCString());
@@ -171,9 +164,19 @@ export async function serveStatic(
     event.res.headers.set("etag", meta.etag);
   }
 
+  // RFC 9110 §13.1.3: a recipient MUST ignore `If-Modified-Since` when the
+  // request contains an `If-None-Match` header field. `If-None-Match` takes
+  // precedence; `If-Modified-Since` is only evaluated when it is absent.
+  let cacheMatched = false;
   const ifNoneMatch = event.req.headers.get("if-none-match");
-  const ifNotMatch = !!meta.etag && !!ifNoneMatch && matchETag(ifNoneMatch, meta.etag);
-  if (ifNotMatch) {
+  if (ifNoneMatch) {
+    cacheMatched = !!meta.etag && matchETag(ifNoneMatch, meta.etag);
+  } else if (mtimeDate) {
+    const ifModifiedSinceH = event.req.headers.get("if-modified-since");
+    cacheMatched = !!ifModifiedSinceH && new Date(ifModifiedSinceH) >= mtimeDate;
+  }
+
+  if (cacheMatched) {
     return new HTTPResponse(null, {
       status: 304,
       statusText: "Not Modified",

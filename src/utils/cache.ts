@@ -8,6 +8,14 @@ export interface CacheConditions {
   cacheControls?: string[];
 }
 
+// Match a whole comma-separated Cache-Control directive (optionally with an
+// `=value`), anchored to the start of an entry or a comma so we don't match a
+// substring like `x-private` or a quoted value such as `no-cache="private"`.
+// Entries may bundle multiple directives (e.g. "max-age=60, private"), which is
+// why anchoring only to `^` would miss them.
+const RE_PRIVATE = /(?:^|,)\s*(?:private|no-store)(?:\s*=|\s*,|\s*$)/i;
+const RE_PUBLIC = /(?:^|,)\s*public(?:\s*=|\s*,|\s*$)/i;
+
 /**
  * Check request caching headers (`If-None-Match`, `If-Modified-Since`) and add caching headers (Last-Modified, ETag, Cache-Control).
  *
@@ -16,15 +24,16 @@ export interface CacheConditions {
  */
 export function handleCacheHeaders(event: H3Event, opts: CacheConditions): boolean {
   const cacheControls = [...(opts.cacheControls || [])];
+  const joined = cacheControls.join(",");
 
   // A response is private when the caller opts into `private` or `no-store`;
   // shared-cache directives (`public`, `s-maxage`) must not be added for it.
-  const isPrivate = cacheControls.some((c) => /^\s*(?:private|no-store)\b/i.test(c));
+  const isPrivate = RE_PRIVATE.test(joined);
 
   // Default to `public` for shared caches, but never alongside an explicit
   // visibility directive — that would produce contradictory pairs like
   // `public, private` for authenticated/personalized responses.
-  if (!isPrivate && !cacheControls.some((c) => /^\s*public\b/i.test(c))) {
+  if (!isPrivate && !RE_PUBLIC.test(joined)) {
     cacheControls.unshift("public");
   }
 

@@ -322,6 +322,19 @@ describeMatrix("serve static with fallthrough", (t, { it, expect }) => {
     expect(headRes.status).toEqual(404);
   });
 
+  it("ignores if-modified-since when a non-matching if-none-match is present (RFC 9110 §13.1.3, #1454)", async () => {
+    // If-None-Match takes precedence: it does not match, so a fresh 200 must be
+    // returned even though If-Modified-Since alone would have produced a 304.
+    const res = await t.fetch("/test.png", {
+      headers: {
+        "if-none-match": "w/999",
+        "if-modified-since": new Date(1_700_000_000_001).toUTCString(),
+      },
+    });
+    expect(res.status).toEqual(200);
+    expect(await res.text()).toContain("asset:/test.png");
+  });
+
   it("Falls through to the next handler", async () => {
     const res = await t.fetch("/fallthrough/test.png");
     expect(res.status).toEqual(200);
