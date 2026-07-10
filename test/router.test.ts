@@ -355,6 +355,32 @@ describeMatrix("router", (t, { it, expect, describe }) => {
       expect(await res.text()).toBe("");
     });
 
+    it("preserves a content-length header set by the GET handler", async () => {
+      t.app.get("/head-cl", (event) => {
+        event.res.headers.set("content-length", "13");
+        return { hello: "world" };
+      });
+      const res = await t.fetch("/head-cl", { method: "HEAD" });
+      expect(res.status).toBe(200);
+      expect(res.headers.get("content-length")).toBe("13");
+      expect(await res.text()).toBe("");
+    });
+
+    it("preserves content-length on a raw Response for HEAD", async () => {
+      t.app.get(
+        "/head-raw-cl",
+        () =>
+          new Response("hello world!!", {
+            status: 200,
+            headers: { "content-length": "13" },
+          }),
+      );
+      const res = await t.fetch("/head-raw-cl", { method: "HEAD" });
+      expect(res.status).toBe(200);
+      expect(res.headers.get("content-length")).toBe("13");
+      expect(await res.text()).toBe("");
+    });
+
     it("route-level middleware on the GET route runs for fallback HEAD", async () => {
       let ran = false;
       t.app.get("/head-mw", () => "get", {
