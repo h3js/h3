@@ -692,5 +692,128 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
       });
       expect(res.status).toBe(304);
     });
+
+    it("does not force `public` when explicit cacheControls are provided (#1442, #1453)", async () => {
+      t.app.use((event) => {
+        handleCacheHeaders(event, {
+          maxAge: 60,
+          cacheControls: ["private"],
+        });
+        return "ok";
+      });
+      const res = await t.fetch("/");
+      // `private` responses must not carry the shared-cache `s-maxage` directive (#1454).
+      expect(res.headers.get("cache-control")).toBe("private, max-age=60");
+    });
+
+    it("keeps `public` when explicit cacheControls do not set visibility (#1454)", async () => {
+      t.app.use((event) => {
+        handleCacheHeaders(event, {
+          cacheControls: ["must-revalidate"],
+        });
+        return "ok";
+      });
+      // A shared cache needs `public` to store authenticated responses (RFC 9111 §3.5),
+      // so it must survive alongside non-visibility directives like `must-revalidate`.
+      const res = await t.fetch("/");
+      expect(res.headers.get("cache-control")).toBe("public, must-revalidate");
+    });
+
+    it("omits `s-maxage` when `no-store` is set (#1454)", async () => {
+      t.app.use((event) => {
+        handleCacheHeaders(event, {
+          maxAge: 60,
+          cacheControls: ["no-store"],
+        });
+        return "ok";
+      });
+      const res = await t.fetch("/");
+      expect(res.headers.get("cache-control")).toBe("no-store, max-age=60");
+    });
+
+    it("treats an empty `if-none-match` as absent so `if-modified-since` still applies (#1454)", async () => {
+      t.app.use((event) => {
+        if (
+          handleCacheHeaders(event, {
+            modifiedTime: new Date("2021-01-01"),
+          })
+        ) {
+          return null;
+        }
+        return "ok";
+      });
+      const res = await t.fetch("/", {
+        headers: {
+          "if-none-match": "",
+          "if-modified-since": "Fri, 01 Jan 2021 00:00:00 GMT",
+        },
+      });
+      expect(res.status).toBe(304);
+    });
+
+    it("ignores if-modified-since when if-none-match is present (RFC 9110 §13.1.3, #1453)", async () => {
+      t.app.use((event) => {
+        if (
+          handleCacheHeaders(event, {
+            etag: '"v2"',
+            modifiedTime: new Date("2021-01-01"),
+          })
+        ) {
+          return null;
+        }
+        return "ok";
+      });
+      // The ETag does not match, so If-Modified-Since must be ignored and a 200
+      // returned even though the resource was not modified since that date.
+      const res = await t.fetch("/", {
+        headers: {
+          "if-none-match": '"v1"',
+          "if-modified-since": "Fri, 01 Jan 2021 00:00:00 GMT",
+        },
+      });
+      expect(res.status).toBe(200);
+      expect(await res.text()).toBe("ok");
+    });
+
+    it("matches etag using weak comparison and wildcard (#1453)", async () => {
+      t.app.use((event) => {
+        handleCacheHeaders(event, { etag: '"v2"' });
+        return "ok";
+      });
+      const weak = await t.fetch("/", {
+        headers: { "if-none-match": 'W/"v2"' },
+      });
+      expect(weak.status).toBe(304);
+
+      const wildcard = await t.fetch("/", {
+        headers: { "if-none-match": "*" },
+      });
+      expect(wildcard.status).toBe(304);
+    });
+
+    it("detects `private` when bundled into a single cacheControls entry (#1454)", async () => {
+      t.app.use((event) => {
+        handleCacheHeaders(event, {
+          maxAge: 60,
+          cacheControls: ["max-age=30, private"],
+        });
+        return "ok";
+      });
+      // A combined directive string must still be recognized as private so no
+      // contradictory `public`/`s-maxage` is added for a personalized response.
+      const res = await t.fetch("/");
+      expect(res.headers.get("cache-control")).toBe("max-age=30, private, max-age=60");
+    });
+
+    it("matches a quoted etag whose value contains a comma (#1454)", async () => {
+      t.app.use((event) => {
+        handleCacheHeaders(event, { etag: '"a,b"' });
+        return "ok";
+      });
+      const res = await t.fetch("/", {
+        headers: { "if-none-match": '"a,b"' },
+      });
+      expect(res.status).toBe(304);
+    });
   });
 });

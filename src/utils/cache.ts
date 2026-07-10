@@ -1,4 +1,5 @@
 import type { H3Event } from "../event.ts";
+import { matchETag } from "./internal/cache.ts";
 
 export interface CacheConditions {
   modifiedTime?: string | Date;
@@ -7,40 +8,68 @@ export interface CacheConditions {
   cacheControls?: string[];
 }
 
+// Match a whole comma-separated Cache-Control directive (optionally with an
+// `=value`), anchored to the start of an entry or a comma so we don't match a
+// substring like `x-private` or a quoted value such as `no-cache="private"`.
+// Entries may bundle multiple directives (e.g. "max-age=60, private"), which is
+// why anchoring only to `^` would miss them.
+const RE_PRIVATE = /(?:^|,)\s*(?:private|no-store)(?:\s*=|\s*,|\s*$)/i;
+const RE_PUBLIC = /(?:^|,)\s*public(?:\s*=|\s*,|\s*$)/i;
+
 /**
- * Check request caching headers (`If-Modified-Since`) and add caching headers (Last-Modified, Cache-Control)
- * Note: `public` cache control will be added by default
+ * Check request caching headers (`If-None-Match`, `If-Modified-Since`) and add caching headers (Last-Modified, ETag, Cache-Control).
+ *
+ * Note: `public` is added by default, but never alongside a caller-supplied `private`/`no-store` directive, so passing `cacheControls: ["private"]` no longer produces a contradictory `public, private`.
  * @returns `true` when cache headers are matching. When `true` is returned, no response should be sent anymore
  */
 export function handleCacheHeaders(event: H3Event, opts: CacheConditions): boolean {
-  const cacheControls = ["public", ...(opts.cacheControls || [])];
-  let cacheMatched = false;
+  const cacheControls = [...(opts.cacheControls || [])];
+  const joined = cacheControls.join(",");
 
-  if (opts.maxAge !== undefined) {
-    cacheControls.push(`max-age=${+opts.maxAge}`, `s-maxage=${+opts.maxAge}`);
+  // A response is private when the caller opts into `private` or `no-store`;
+  // shared-cache directives (`public`, `s-maxage`) must not be added for it.
+  const isPrivate = RE_PRIVATE.test(joined);
+
+  // Default to `public` for shared caches, but never alongside an explicit
+  // visibility directive — that would produce contradictory pairs like
+  // `public, private` for authenticated/personalized responses.
+  if (!isPrivate && !RE_PUBLIC.test(joined)) {
+    cacheControls.unshift("public");
   }
 
-  if (opts.modifiedTime) {
-    const modifiedTime = new Date(opts.modifiedTime);
-    modifiedTime.setMilliseconds(0);
-    const ifModifiedSince = event.req.headers.get("if-modified-since");
-    event.res.headers.set("last-modified", modifiedTime.toUTCString());
-    if (ifModifiedSince && new Date(ifModifiedSince) >= modifiedTime) {
-      cacheMatched = true;
+  if (opts.maxAge !== undefined) {
+    cacheControls.push(`max-age=${+opts.maxAge}`);
+    // `s-maxage` only applies to shared caches; omit it for private responses.
+    if (!isPrivate) {
+      cacheControls.push(`s-maxage=${+opts.maxAge}`);
     }
   }
 
   if (opts.etag) {
     event.res.headers.set("etag", opts.etag);
-    const ifNonMatch = event.req.headers.get("if-none-match");
-    // RFC 7232 §3.2: If-None-Match is a comma-separated list of entity-tags.
-    // A match occurs when any token in the list equals the ETag.
-    if (ifNonMatch && ifNonMatch.split(",").some((token) => token.trim() === opts.etag)) {
-      cacheMatched = true;
-    }
+  }
+
+  let lastModified: Date | undefined;
+  if (opts.modifiedTime) {
+    lastModified = new Date(opts.modifiedTime);
+    lastModified.setMilliseconds(0);
+    event.res.headers.set("last-modified", lastModified.toUTCString());
   }
 
   event.res.headers.set("cache-control", cacheControls.join(", "));
+
+  // RFC 9110 §13.1.3: a recipient MUST ignore `If-Modified-Since` when the
+  // request contains an `If-None-Match` header field. `If-None-Match` takes
+  // precedence; `If-Modified-Since` is only evaluated when it is absent. A
+  // present-but-empty `If-None-Match` is malformed and treated as absent.
+  let cacheMatched = false;
+  const ifNoneMatch = event.req.headers.get("if-none-match");
+  if (ifNoneMatch) {
+    cacheMatched = !!opts.etag && matchETag(ifNoneMatch, opts.etag);
+  } else if (lastModified) {
+    const ifModifiedSince = event.req.headers.get("if-modified-since");
+    cacheMatched = !!ifModifiedSince && new Date(ifModifiedSince) >= lastModified;
+  }
 
   if (cacheMatched) {
     event.res.status = 304;
