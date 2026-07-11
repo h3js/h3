@@ -14,7 +14,27 @@ export const ignoredHeaders: Set<string> = new Set([
   "te",
   "trailer",
   "host",
+  // Hop-by-hop credentials/controls meant for this proxy, not the upstream.
+  // Forwarding `proxy-authorization` would disclose the inbound proxy's
+  // credentials to the target (RFC 9110 §7.6.1 / §11.7.1).
+  "proxy-authorization",
+  "proxy-connection",
 ]);
+
+/**
+ * Parse a `Connection` header value into a lowercased set of the field names it
+ * nominates as hop-by-hop (RFC 9110 §7.6.1). Those fields must not be relayed
+ * across the proxy in either direction.
+ */
+export function connectionTokens(connection: string | null): Set<string> {
+  return new Set(
+    (connection || "")
+      .toLowerCase()
+      .split(",")
+      .map((name) => name.trim())
+      .filter(Boolean),
+  );
+}
 
 /**
  * Hop-by-hop response headers (plus length/encoding headers that fetch has
@@ -43,10 +63,12 @@ export function rewriteCookieProperty(
   return header.replace(
     new RegExp(`(;\\s*${property}=)([^;]+)`, "gi"),
     (match, prefix, previousValue) => {
+      // Own-property checks (like `rewritePrefix`) so a polluted
+      // `Object.prototype` cannot inject phantom domain/path rewrite rules.
       let newValue;
-      if (previousValue in _map) {
+      if (Object.hasOwn(_map, previousValue)) {
         newValue = _map[previousValue];
-      } else if ("*" in _map) {
+      } else if (Object.hasOwn(_map, "*")) {
         newValue = _map["*"];
       } else {
         return match;

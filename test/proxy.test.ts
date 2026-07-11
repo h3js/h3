@@ -264,6 +264,69 @@ describeMatrix("proxy", (t, { it, expect, describe }) => {
         expect(result.headers["x-keep"]).toBe("kept");
       });
 
+      // Node's transport layer manages the `connection` header, so a custom
+      // nomination only survives the round-trip on the web target.
+      it.runIf(t.target === "web")(
+        "does not forward request headers nominated by the incoming Connection header",
+        async () => {
+          t.app.all("/debug", (event) => {
+            return { headers: Object.fromEntries(event.req.headers.entries()) };
+          });
+          t.app.all("/", (event) => proxyRequest(event, "/debug"));
+
+          const result = await t
+            .fetch("/", {
+              headers: {
+                connection: "x-internal-auth, keep-alive",
+                "x-internal-auth": "secret",
+                "x-keep": "kept",
+              },
+            })
+            .then((r) => r.json());
+
+          // RFC 9110 §7.6.1: fields nominated by `Connection` are hop-by-hop.
+          expect(result.headers["x-internal-auth"]).toBeUndefined();
+          expect(result.headers["x-keep"]).toBe("kept");
+        },
+      );
+
+      it("does not forward proxy-authorization / proxy-connection by default", async () => {
+        t.app.all("/debug", (event) => {
+          return { headers: Object.fromEntries(event.req.headers.entries()) };
+        });
+        t.app.all("/", (event) => proxyRequest(event, "/debug"));
+
+        const result = await t
+          .fetch("/", {
+            headers: {
+              "proxy-authorization": "Basic c2VjcmV0",
+              "proxy-connection": "keep-alive",
+            },
+          })
+          .then((r) => r.json());
+
+        expect(result.headers["proxy-authorization"]).toBeUndefined();
+        expect(result.headers["proxy-connection"]).toBeUndefined();
+      });
+
+      it("lets filterHeaders win over forwardHeaders", async () => {
+        t.app.all("/debug", (event) => {
+          return { headers: Object.fromEntries(event.req.headers.entries()) };
+        });
+        t.app.all("/", (event) =>
+          proxyRequest(event, "/debug", {
+            forwardHeaders: ["x-both"],
+            filterHeaders: ["x-both"],
+          }),
+        );
+
+        const result = await t
+          .fetch("/", { headers: { "x-both": "secret" } })
+          .then((r) => r.json());
+
+        expect(result.headers["x-both"]).toBeUndefined();
+      });
+
       it("strips hop-by-hop headers from the proxied response", async () => {
         t.app.all("/debug", (event) => {
           // Hop-by-hop response headers that must not leak to the client.
@@ -512,6 +575,22 @@ describeMatrix("proxy", (t, { it, expect, describe }) => {
       );
 
       it.runIf(t.target === "web")(
+        "treats a client disconnect aborting with a non-AbortError (ECONNRESET) as 499",
+        async () => {
+          // srvx on Node aborts a client disconnect with the raw socket error
+          // (name "Error", not "AbortError"). Classifying by the composed signal
+          // reason — not the thrown error's name — must still yield a quiet 499.
+          t.app.all("/", (event) => proxyRequest(event, "https://example.test/"));
+
+          const controller = new AbortController();
+          controller.abort(Object.assign(new Error("read ECONNRESET"), { code: "ECONNRESET" }));
+
+          const res = await t.fetch("/", { signal: controller.signal });
+          expect(res.status).toBe(499);
+        },
+      );
+
+      it.runIf(t.target === "web")(
         "propagates the abort error when `propagateAbortError` is enabled",
         async () => {
           let caught: unknown;
@@ -745,6 +824,25 @@ describeMatrix("proxy", (t, { it, expect, describe }) => {
         const fetchMock = vi
           .spyOn(globalThis, "fetch")
           .mockImplementation(() => Promise.resolve({ type: "opaqueredirect" } as Response));
+
+        try {
+          t.app.all("/", (event) => proxyRequest(event, "https://upstream.test/"));
+
+          const res = await t.fetch("/");
+          expect(res.status).toBe(502);
+        } finally {
+          fetchMock.mockRestore();
+        }
+      });
+
+      it.runIf(t.target === "web")("fails loudly on an opaque (status 0) response", async () => {
+        // A `no-cors` fetch yields an opaque response with status 0 and no
+        // readable headers/body. Relaying it would surface an empty 200.
+        const fetchMock = vi
+          .spyOn(globalThis, "fetch")
+          .mockImplementation(() =>
+            Promise.resolve({ type: "opaque", status: 0, headers: new Headers() } as Response),
+          );
 
         try {
           t.app.all("/", (event) => proxyRequest(event, "https://upstream.test/"));

@@ -4,6 +4,7 @@ import { HTTPError } from "../error.ts";
 import {
   abortable,
   applyXForwardedHeaders,
+  connectionTokens,
   ignoredHeaders,
   ignoredResponseHeaders,
   mergeHeaders,
@@ -17,11 +18,13 @@ import { HTTPResponse } from "../response.ts";
 export interface ProxyOptions {
   headers?: HeadersInit;
   /**
-   * Allowlist of incoming request header names to forward to the upstream.
-   * Header names are matched case-insensitively.
+   * Header names allowed to bypass the built-in hop-by-hop denylist. Matched
+   * case-insensitively.
    *
-   * Note: this bypasses the built-in hop-by-hop denylist — e.g.
-   * `forwardHeaders: ["host"]` forwards the client's `host` verbatim.
+   * This is **not** an exclusive allowlist: all ordinary request headers are
+   * still forwarded regardless. It only lists exceptions that force-forward a
+   * header the proxy would otherwise drop — e.g. `forwardHeaders: ["host"]`
+   * forwards the client's `host` verbatim. `filterHeaders` still wins over it.
    */
   forwardHeaders?: string[];
   /**
@@ -109,6 +112,12 @@ export interface ProxyOptions {
    * added. On an internet-facing server (no trusted proxy in front), strip
    * incoming values first with `filterHeaders: ["x-forwarded-for"]` if the
    * upstream trusts this header for allowlisting, rate limiting, or logging.
+   *
+   * Note that `x-forwarded-proto`/`-host` are derived from `event.url`, which
+   * some runtimes (e.g. Node via srvx) build from the incoming
+   * `x-forwarded-proto`/`host` headers. On such a runtime `filterHeaders`
+   * cannot fully sanitize them — the value is recreated from `event.url`. Trust
+   * these only behind a proxy you control (configure its trust-proxy handling).
    *
    * Only applied by `proxyRequest` (which forwards the incoming request);
    * the lower-level `proxy` ignores this option.
@@ -295,23 +304,33 @@ export async function proxy(
           )
         : await fetch(target, fetchOptions);
   } catch (error) {
+    // Classify by the composed signal's abort reason, not just the thrown
+    // error's `name`: some runtimes abort with the raw cause rather than an
+    // `AbortError`. srvx on Node, for instance, aborts a client disconnect with
+    // the socket error (`ECONNRESET`), whose name is `"Error"` — keying only off
+    // `name === "AbortError"` would misreport that disconnect as a `502`.
+    const reason = signal.aborted ? (signal.reason as Error | undefined) : undefined;
+
     // A fired timeout signal aborts with a `TimeoutError`. Map it (including a
     // caller-supplied `AbortSignal.timeout`) to `504 Gateway Timeout`, never the
     // `499`/propagation path used for client disconnects.
-    if ((error as Error)?.name === "TimeoutError") {
+    if (reason?.name === "TimeoutError" || (error as Error)?.name === "TimeoutError") {
       throw new HTTPError({ status: 504, statusText: "Gateway Timeout", cause: error });
     }
-    // Key off the error itself (not `event.req.signal.aborted`) so an abort is
-    // detected even with a custom `fetchOptions.signal`, and a real upstream
-    // failure is never mistaken for an abort.
-    if ((error as Error)?.name === "AbortError") {
+
+    // Treat the failure as an abort when our composed signal fired, or (for a
+    // custom `fetchOptions.signal` on runtimes that surface it that way) when
+    // the thrown error is itself an `AbortError`. A genuine upstream failure —
+    // where no signal aborted — is never mistaken for an abort.
+    if (signal.aborted || (error as Error)?.name === "AbortError") {
       // Opted in: surface the abort as-is so the caller can handle it.
       if (opts.propagateAbortError) {
         throw error;
       }
       // Default: a client disconnect is not a gateway failure. Respond quietly
       // instead of throwing a 502 for every dropped connection (the response is
-      // never delivered — the client is already gone).
+      // never delivered — the client is already gone). A caller-signal abort
+      // (client still connected) falls through to the 502 below.
       if (event.req.signal.aborted) {
         return new HTTPResponse(null, { status: 499, statusText: "Client Closed Request" });
       }
@@ -334,17 +353,23 @@ export async function proxy(
     });
   }
 
+  // A `no-cors` (`opaque`) or network-`error` filtered response — and any other
+  // status-0 response — exposes no readable status, headers, or body. Relaying
+  // it would surface an empty `200 OK` (`HTTPResponse`'s `status || 200`),
+  // falsely reporting success. Fail loudly instead.
+  if (response.type === "opaque" || response.type === "error" || response.status === 0) {
+    throw new HTTPError({
+      status: 502,
+      message:
+        "Cannot relay an opaque or errored upstream response (status 0), typically caused by a `no-cors` request mode on browser/service-worker runtimes.",
+    });
+  }
+
   const headers = new Headers();
 
   // Also strip response headers the upstream marked hop-by-hop via its
-  // `Connection` header (RFC 7230 §6.1), on top of the static denylist.
-  const connectionNominated = new Set(
-    (response.headers.get("connection") || "")
-      .toLowerCase()
-      .split(",")
-      .map((name) => name.trim())
-      .filter(Boolean),
-  );
+  // `Connection` header (RFC 9110 §7.6.1), on top of the static denylist.
+  const connectionNominated = connectionTokens(response.headers.get("connection"));
 
   for (const [key, value] of response.headers.entries()) {
     if (ignoredResponseHeaders.has(key) || connectionNominated.has(key) || key === "set-cookie") {
@@ -418,13 +443,22 @@ export function getProxyRequestHeaders(
   // once up front to keep the allow/deny matching case-insensitive.
   const filterHeaders = opts?.filterHeaders?.map((h) => h.toLowerCase());
   const forwardHeaders = opts?.forwardHeaders?.map((h) => h.toLowerCase());
+  // RFC 9110 §7.6.1: fields the incoming `Connection` header nominates are
+  // hop-by-hop and must not be forwarded upstream (mirrors the response path).
+  const connectionNominated = connectionTokens(event.req.headers.get("connection"));
   for (const [name, value] of event.req.headers.entries()) {
     if (filterHeaders?.includes(name)) {
       continue;
     }
 
+    // An explicit `forwardHeaders` entry is a deliberate escape hatch, so it
+    // wins over both the static denylist and `Connection` nominations.
     if (forwardHeaders?.includes(name)) {
       headers[name] = value;
+      continue;
+    }
+
+    if (connectionNominated.has(name)) {
       continue;
     }
 
@@ -437,10 +471,17 @@ export function getProxyRequestHeaders(
 }
 
 /**
- * Make a fetch request with the event's context and headers.
+ * Make a fetch request carrying the event's context.
  *
- * If the `url` starts with `/`, the request is dispatched internally via
- * `event.app.fetch()` (sub-request) and never leaves the process.
+ * Behavior depends on the target:
+ * - An **internal** `url` (starting with `/`) is dispatched via
+ *   `event.app.fetch()` (sub-request) and never leaves the process. It inherits
+ *   the incoming request's filtered headers (via `getProxyRequestHeaders`) and
+ *   runtime metadata (`ip`, `waitUntil`, ...).
+ * - An **external** `url` is sent with native `fetch(url, init)` **unchanged** —
+ *   the event's headers and context are *not* inherited (forwarding cookies or
+ *   authorization to arbitrary hosts would be unsafe). A streamed `init.body`
+ *   is given `duplex: "half"` when unset, which Node's `fetch` requires.
  *
  * **Security:** Never pass unsanitized user input as the `url`. Callers are
  * responsible for validating and restricting the URL.
@@ -448,9 +489,14 @@ export function getProxyRequestHeaders(
 export async function fetchWithEvent(
   event: H3Event,
   url: string,
-  init?: RequestInit,
+  init?: RequestInit & { duplex?: "half" | "full" },
 ): Promise<Response> {
   if (url[0] !== "/") {
+    // A `ReadableStream` body requires `duplex: "half"` or Node's `fetch`
+    // throws; default it when a body is present and no duplex is set.
+    if (init?.body != null && init.duplex === undefined) {
+      init = { ...init, duplex: "half" };
+    }
     return fetch(url, init);
   }
   return event.app!.fetch(
