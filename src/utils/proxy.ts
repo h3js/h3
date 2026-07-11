@@ -32,6 +32,17 @@ export interface ProxyOptions {
    * (e.g. to run cleanup). This also applies to a custom `fetchOptions.signal`.
    */
   propagateAbortError?: boolean;
+
+  /**
+   * Milliseconds to wait for the upstream response before giving up. On timeout
+   * the proxy responds with `504 Gateway Timeout`.
+   *
+   * Internally this composes an `AbortSignal.timeout(timeout)` into the request's
+   * abort signal. Because a fired timeout aborts with a `TimeoutError`, a
+   * caller-supplied `fetchOptions.signal` that is itself an `AbortSignal.timeout`
+   * is also mapped to `504` (rather than the `499` used for client disconnects).
+   */
+  timeout?: number;
 }
 
 /**
@@ -113,11 +124,20 @@ export async function proxy(
   // upstream request and releases its connection. If the caller also supplied
   // `fetchOptions.signal`, honor both (either aborting aborts the request)
   // instead of letting the spread silently drop `event.req.signal`.
-  const callerSignal = opts.fetchOptions?.signal;
+  // Optionally add a timeout signal so a slow upstream maps to `504` instead of
+  // hanging. Combine every applicable signal (client, caller, timeout) so any of
+  // them aborting aborts the request, without dropping `event.req.signal`.
+  const signals: AbortSignal[] = [event.req.signal];
+  if (opts.fetchOptions?.signal) {
+    signals.push(opts.fetchOptions.signal);
+  }
+  if (opts.timeout) {
+    signals.push(AbortSignal.timeout(opts.timeout));
+  }
   const fetchOptions: RequestInit = {
     headers: opts.headers as HeadersInit,
     ...opts.fetchOptions,
-    signal: callerSignal ? AbortSignal.any([event.req.signal, callerSignal]) : event.req.signal,
+    signal: signals.length > 1 ? AbortSignal.any(signals) : signals[0],
   };
 
   let response: Response | undefined;
@@ -127,6 +147,12 @@ export async function proxy(
         ? await event.app!.fetch(createSubRequest(event, target, fetchOptions))
         : await fetch(target, fetchOptions);
   } catch (error) {
+    // A fired timeout signal aborts with a `TimeoutError`. Map it (including a
+    // caller-supplied `AbortSignal.timeout`) to `504 Gateway Timeout`, never the
+    // `499`/propagation path used for client disconnects.
+    if ((error as Error)?.name === "TimeoutError") {
+      throw new HTTPError({ status: 504, statusText: "Gateway Timeout", cause: error });
+    }
     // Key off the error itself (not `event.req.signal.aborted`) so an abort is
     // detected even with a custom `fetchOptions.signal`, and a real upstream
     // failure is never mistaken for an abort.
