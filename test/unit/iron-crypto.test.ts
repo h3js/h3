@@ -214,19 +214,28 @@ describe(`iron crypto`, () => {
     it("unseals a ticket", async () => {
       const ticket =
         "Fe26.2**0cdd607945dd1dffb7da0b0bf5f1a7daa6218cbae14cac51dcbd91fb077aeb5b*aOZLCKLhCt0D5IU1qLTtYw*g0ilNDlQ3TsdFUqJCqAm9iL7Wa60H7eYcHL_5oP136TOJREkS3BzheDC1dlxz5oJ**05b8943049af490e913bbc3a2485bee2aaf7b823f4c41d0ff0b7c168371a3772*R8yscVdTBRMdsoVbdDiFmUL8zb-c3PQLGJn4Y8C-AqI";
-      const unsealed = await Iron.unseal(ticket, password, Iron.defaults);
+      // Fixed iron test vector: sealed upstream with iterations:1
+      const options = {
+        ...Iron.defaults,
+        encryption: { ...Iron.defaults.encryption, iterations: 1 },
+        integrity: { ...Iron.defaults.integrity, iterations: 1 },
+      };
+      const unsealed = await Iron.unseal(ticket, password, options);
       assert.deepEqual(unsealed, obj);
     });
 
     it("unseals a aes-128-ctr ticket", async () => {
       const ticket =
         "Fe26.2**63c87cc87254b834dbb13cc62abc8713d1da035a9b38f54e5d5795135e217167*TpIsHHn-7txnl14Or7-D6A*HFGMGpcTRPUBSTQobuo27KOZ76MhVWgOsjA5SkFoy3vyqaHuixbd**3c8c403569a744a39c58adfb81e654f6860cb01f145488313e1895276e719f52*d5J1jY3WxP61klQza6q7zTqiYpjWPwocqHmjtDcSeq0";
+      // Fixed iron test vector: sealed upstream with iterations:1
       const options = {
         ...Iron.defaults,
         encryption: {
           ...Iron.defaults.encryption,
           algorithm: "aes-128-ctr" as any,
+          iterations: 1,
         },
+        integrity: { ...Iron.defaults.integrity, iterations: 1 },
       };
       const unsealed = await Iron.unseal(ticket, password, options);
       assert.deepEqual(unsealed, obj);
