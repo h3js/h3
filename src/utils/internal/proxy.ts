@@ -1,6 +1,6 @@
 import type { H3Event } from "../../event.ts";
 
-export const ignoredHeaders: Set<string> = new Set([
+export const ignoredHeaders: Set<string> = /* @__PURE__ */ new Set([
   "transfer-encoding",
   // `accept-encoding` is stripped because fetch auto-decompresses upstream
   // responses; forwarding the client's value would advertise encodings we
@@ -41,7 +41,7 @@ export function connectionTokens(connection: string | null): Set<string> {
  * already normalized) that must be stripped from the upstream response instead
  * of being relayed to the client.
  */
-export const ignoredResponseHeaders: Set<string> = new Set([
+export const ignoredResponseHeaders: Set<string> = /* @__PURE__ */ new Set([
   "content-encoding",
   "content-length",
   "transfer-encoding",

@@ -44,7 +44,7 @@ const DOT_SEGMENT_RE = /(?:^|\/)(?:\.|%(?:25)*2e){1,2}(?:\/|$)/i;
 // for the fast-path guard; global form (derived from the same source, so the
 // pattern lives in one place) to decode every occurrence.
 const ENCODED_SEP_RE = /%(?:25)*(?:2f|5c)/i;
-const ENCODED_SEP_RE_G = new RegExp(ENCODED_SEP_RE.source, "gi");
+const ENCODED_SEP_RE_G = /* @__PURE__ */ new RegExp(ENCODED_SEP_RE.source, "gi");
 
 // Percent-encoded dots at any `%25`-nesting depth, for per-segment decoding.
 const ENCODED_DOT_RE_G = /%(?:25)*2e/gi;

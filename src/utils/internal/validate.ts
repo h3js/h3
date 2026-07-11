@@ -73,7 +73,7 @@ export async function validateData<T>(
 }
 
 // prettier-ignore
-const reqBodyKeys = new Set(["body", "text", "formData", "arrayBuffer"]);
+const reqBodyKeys = /* @__PURE__ */ new Set(["body", "text", "formData", "arrayBuffer"]);
 
 export function validatedRequest<
   RequestBody extends StandardSchemaV1,
