@@ -138,6 +138,68 @@ describeMatrix("proxy", (t, { it, expect, describe }) => {
         expect(result.headers["accept-encoding"]).toBeUndefined();
       });
 
+      it("forwards the incoming accept header to the upstream", async () => {
+        t.app.all("/debug", (event) => {
+          return { accept: event.req.headers.get("accept") };
+        });
+
+        t.app.all("/", (event) => {
+          return proxyRequest(event, "/debug");
+        });
+
+        const result = await t
+          .fetch("/", {
+            headers: { accept: "application/json" },
+          })
+          .then((r) => r.json());
+
+        expect(result.accept).toBe("application/json");
+      });
+
+      it("does not forward headers listed in filterHeaders (case-insensitive)", async () => {
+        t.app.all("/debug", (event) => {
+          return { headers: Object.fromEntries(event.req.headers.entries()) };
+        });
+
+        t.app.all("/", (event) => {
+          return proxyRequest(event, "/debug", {
+            // Mixed-case option must still match the lowercased header name.
+            filterHeaders: ["X-Custom"],
+          });
+        });
+
+        const result = await t
+          .fetch("/", {
+            headers: { "x-custom": "secret", "x-keep": "kept" },
+          })
+          .then((r) => r.json());
+
+        expect(result.headers["x-custom"]).toBeUndefined();
+        expect(result.headers["x-keep"]).toBe("kept");
+      });
+
+      it("strips hop-by-hop headers from the proxied response", async () => {
+        t.app.all("/debug", (event) => {
+          // Hop-by-hop response headers that must not leak to the client.
+          event.res.headers.set("proxy-authenticate", "Basic");
+          event.res.headers.set("trailer", "Expires");
+          // A normal header that must be preserved.
+          event.res.headers.set("x-custom-header", "preserved");
+          return "hello";
+        });
+
+        t.app.all("/", (event) => {
+          return proxyRequest(event, "/debug");
+        });
+
+        const res = await t.fetch("/", { method: "GET" });
+
+        expect(res.headers.has("proxy-authenticate")).toBe(false);
+        expect(res.headers.has("trailer")).toBe(false);
+        expect(res.headers.get("x-custom-header")).toBe("preserved");
+        expect(await res.text()).toBe("hello");
+      });
+
       it("can proxy binary request", async () => {
         t.app.all("/debug", async (event) => {
           const body = await event.req.arrayBuffer();
