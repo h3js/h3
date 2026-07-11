@@ -123,6 +123,33 @@ describeMatrix("session", (t, { it, expect }) => {
     ).toMatchObject({ id: "legacy", data: { foo: "legacy" } });
   });
 
+  it("rejects legacy sessions with legacySealFallback: false", async () => {
+    const legacySealed = await seal(
+      { id: "legacy", createdAt: Date.now(), data: { foo: "legacy" } },
+      sessionConfig.password,
+      {
+        ...sealDefaults,
+        encryption: { ...sealDefaults.encryption, iterations: 1 },
+        integrity: { ...sealDefaults.integrity, iterations: 1 },
+      },
+    );
+
+    t.app.all("/strict", async (event) => {
+      const session = await useSession(event, {
+        ...sessionConfig,
+        legacySealFallback: false,
+      });
+      return { session };
+    });
+
+    const result = await t.fetch("/strict", {
+      headers: { Cookie: `h3-test=${legacySealed}` },
+    });
+    const body = await result.json();
+    expect(body.session.id).not.toBe("legacy");
+    expect(body.session.data).toEqual({});
+  });
+
   it("stores large data in chunks", async () => {
     const token = Array.from({ length: 5000 /* ~4k + one more */ }).fill("x").join("");
     const res = await t.fetch("/", {

@@ -47,6 +47,12 @@ export interface SessionConfig {
   /** Default is x-h3-session / x-{name}-session */
   sessionHeader?: false | string;
   seal?: SealOptions;
+  /**
+   * Set to `false` to reject sessions sealed with the legacy default of 1
+   * PBKDF2 iteration instead of unsealing and resealing them.
+   *
+   */
+  legacySealFallback?: boolean;
   crypto?: Crypto;
   /** Default is Crypto.randomUUID */
   generateId?: () => string;
@@ -249,6 +255,7 @@ export async function unsealSession(
     // sessions survive the upgrade (getSession reseals them with the current
     // options).
     if (
+      config.legacySealFallback === false ||
       sealOptions.integrity.iterations === 1 ||
       !(error instanceof Error) ||
       error.message !== "Bad hmac value"
