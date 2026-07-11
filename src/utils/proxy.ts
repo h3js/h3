@@ -476,12 +476,12 @@ export function getProxyRequestHeaders(
  * Make a fetch request carrying the event's context.
  *
  * Behavior depends on the target:
- * 
+ *
  * An **internal** `url` (starting with `/`) is dispatched via
  * `event.app.fetch()` (sub-request) and never leaves the process. It inherits
  * the incoming request's filtered headers (via `getProxyRequestHeaders`) and
  * runtime metadata (`ip`, `waitUntil`, ...).
- *   
+ *
  * An **external** `url` is sent with native `fetch(url, init)` **unchanged** —
  * the event's headers and context are *not* inherited (forwarding cookies or
  * authorization to arbitrary hosts would be unsafe). A streamed `init.body`
