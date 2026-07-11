@@ -113,11 +113,13 @@ export interface ProxyOptions {
    * incoming values first with `filterHeaders: ["x-forwarded-for"]` if the
    * upstream trusts this header for allowlisting, rate limiting, or logging.
    *
-   * Note that `x-forwarded-proto`/`-host` are derived from `event.url`, which
-   * some runtimes (e.g. Node via srvx) build from the incoming
-   * `x-forwarded-proto`/`host` headers. On such a runtime `filterHeaders`
-   * cannot fully sanitize them — the value is recreated from `event.url`. Trust
-   * these only behind a proxy you control (configure its trust-proxy handling).
+   * Note that `x-forwarded-proto`/`-host` reflect `event.url` (the server's
+   * resolved protocol and host), not the raw client headers — so `filterHeaders`
+   * does not affect them. By default the server derives these from the real
+   * transport and the on-the-wire `Host`, so a client cannot spoof them; they
+   * only follow an inbound `x-forwarded-*` header when the server is explicitly
+   * configured to trust an upstream proxy (e.g. srvx's `trustProxy`), which is
+   * the correct setup when a proxy you control sits in front.
    *
    * Only applied by `proxyRequest` (which forwards the incoming request);
    * the lower-level `proxy` ignores this option.
