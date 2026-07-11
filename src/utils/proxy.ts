@@ -166,6 +166,13 @@ export async function proxyRequest(
  * cannot be replayed once consumed. (Internal sub-requests via `event.app.fetch()`
  * never follow redirects.)
  *
+ * **Limitations** (inherited from `fetch`): upstream response bodies are always
+ * decompressed (compression is not preserved end-to-end), the `host` header is
+ * rewritten to the target (preserving it via `forwardHeaders: ["host"]` works on
+ * Node.js but may be ignored on other runtimes), and unix sockets, TLS options,
+ * or connection agents require a runtime-specific escape hatch (e.g. undici's
+ * `dispatcher` in `fetchOptions` on Node.js).
+ *
  * **Security:** Never pass unsanitized user input as the `target`. Callers are
  * responsible for validating and restricting the target URL (e.g. allowlisting
  * hosts, blocking internal paths, enforcing protocol).
