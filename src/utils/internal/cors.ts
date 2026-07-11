@@ -38,9 +38,15 @@ export function resolveCorsOptions(options: CorsOptions = {}): ResolvedCorsOptio
     },
   };
 
-  if (resolved.credentials && (!options.origin || options.origin === "*")) {
-    console.warn(
+  if (resolved.credentials && resolved.origin === "*") {
+    warnOnce(
       "[h3] CORS: `credentials: true` with wildcard origin is not allowed. Browsers will reject the response.",
+    );
+  }
+
+  if (resolved.credentials && resolved.exposeHeaders === "*") {
+    warnOnce(
+      "[h3] CORS: `credentials: true` with wildcard `exposeHeaders` has no effect. Browsers treat `*` literally on credentialed requests — list the headers explicitly.",
     );
   }
 
@@ -92,28 +98,36 @@ export function createOriginHeaders(event: H3Event, options: CorsOptions): Recor
     return { "access-control-allow-origin": "*" };
   }
 
-  if (originOption === "null") {
-    return { "access-control-allow-origin": "null", vary: "origin" };
-  }
-
   if (isCorsOriginAllowed(origin, options)) {
     return { "access-control-allow-origin": origin!, vary: "origin" };
   }
 
-  return {};
+  // The response depends on the request origin even when it is rejected —
+  // without `vary: origin` a shared cache could serve this response to an allowed origin.
+  return { vary: "origin" };
 }
 
 /**
  * Create the `access-control-allow-methods` header.
  */
-export function createMethodsHeaders(options: CorsOptions): Record<string, string> {
-  const { methods } = options;
+export function createMethodsHeaders(event: H3Event, options: CorsOptions): Record<string, string> {
+  const { methods, credentials } = options;
 
   if (!methods) {
     return {};
   }
 
   if (methods === "*") {
+    if (credentials) {
+      // Browsers treat `*` literally on credentialed requests — reflect the requested method instead
+      const requestMethod = event.req.headers.get("access-control-request-method");
+      return requestMethod
+        ? {
+            "access-control-allow-methods": requestMethod,
+            vary: "access-control-request-method",
+          }
+        : {};
+    }
     return { "access-control-allow-methods": "*" };
   }
 
@@ -145,12 +159,14 @@ export function createAllowHeaderHeaders(
   if (!allowHeaders || allowHeaders === "*" || allowHeaders.length === 0) {
     const header = event.req.headers.get("access-control-request-headers");
 
+    // The response reflects the request header, so declare the variance
+    // even when the header is absent.
     return header
       ? {
           "access-control-allow-headers": header,
           vary: "access-control-request-headers",
         }
-      : {};
+      : { vary: "access-control-request-headers" };
   }
 
   return {
@@ -163,14 +179,15 @@ export function createAllowHeaderHeaders(
  * Create the `access-control-expose-headers` header.
  */
 export function createExposeHeaders(options: CorsOptions): Record<string, string> {
-  const { exposeHeaders } = options;
+  const { exposeHeaders, credentials } = options;
 
   if (!exposeHeaders) {
     return {};
   }
 
   if (exposeHeaders === "*") {
-    return { "access-control-expose-headers": exposeHeaders };
+    // Browsers treat `*` literally on credentialed requests — omit the useless header
+    return credentials ? {} : { "access-control-expose-headers": exposeHeaders };
   }
 
   return { "access-control-expose-headers": exposeHeaders.join(",") };
@@ -187,4 +204,18 @@ export function createMaxAgeHeader(options: CorsOptions): Record<string, string>
   }
 
   return {};
+}
+
+// `resolveCorsOptions` runs on every request, so config warnings are emitted
+// at most once per process to avoid flooding logs under load. The dedup set is
+// allocated lazily so there is no top-level side effect and a correctly
+// configured app never pays for it.
+let warnedMessages: Set<string> | undefined;
+function warnOnce(message: string): void {
+  warnedMessages ??= new Set();
+  if (warnedMessages.has(message)) {
+    return;
+  }
+  warnedMessages.add(message);
+  console.warn(message);
 }
