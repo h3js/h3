@@ -34,7 +34,13 @@ app.use(async (event) => {
 ```
 
 > [!WARNING]
-> You must provide a password to encrypt the session. The examples below use a hardcoded value so they stay readable, but in a real app load it from an environment variable such as `process.env.SESSION_PASSWORD`, keep it a strong secret of at least 32 characters, and never commit it to source control.
+> The `password` seals every session cookie, and its **entropy is the real security boundary**. A stolen session cookie carries the salt and integrity digest in plaintext, so a weak or guessable password can be brute-forced offline — increasing PBKDF2 iterations only slows this, it does not fix a low-entropy secret. Always generate the password from a cryptographically secure random source, for example:
+>
+> ```sh
+> node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"
+> ```
+>
+> The examples below use a hardcoded value so they stay readable, but in a real app load a randomly generated secret of at least 32 characters from an environment variable such as `process.env.SESSION_PASSWORD`, and never commit it to source control. A guessable passphrase (even one ≥32 characters) is not safe.
 
 This will initialize a session and return an header `Set-Cookie` with a cookie named `h3` and an encrypted content.
 

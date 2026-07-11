@@ -2,7 +2,7 @@ import { seal, unseal, defaults as sealDefaults } from "./internal/iron-crypto.t
 import { getChunkedCookie, setChunkedCookie, deleteChunkedCookie } from "./cookie.ts";
 import { DEFAULT_SESSION_NAME, DEFAULT_SESSION_COOKIE } from "./internal/session.ts";
 import { EmptyObject } from "./internal/obj.ts";
-import { kGetSession } from "./internal/session.ts";
+import { kGetSession, kLegacySeal } from "./internal/session.ts";
 
 import type { H3Event, HTTPEvent } from "../event.ts";
 import type { CookieSerializeOptions } from "cookie-es";
@@ -29,7 +29,14 @@ export interface SessionManager<T extends SessionDataT = SessionDataT> {
 }
 
 export interface SessionConfig {
-  /** Private key used to encrypt session tokens */
+  /**
+   * Private key used to seal session tokens. Must be at least 32 characters.
+   *
+   * Its entropy is the security boundary: a stolen cookie can be brute-forced
+   * offline, so generate this from a cryptographically random source (e.g.
+   * `crypto.randomBytes(32).toString("base64")`) — a guessable passphrase is
+   * unsafe even at 32+ characters.
+   */
   password: string;
   /** Session expiration time in seconds */
   maxAge?: number;
@@ -120,16 +127,26 @@ export async function getSession<T extends SessionData = SessionData>(
     }
   }
   // Fallback to cookies
+  let sessionFromCookie = false;
   if (!sealedSession) {
     sealedSession = getChunkedCookie(event, sessionName);
+    sessionFromCookie = true;
   }
   if (sealedSession) {
     // Unseal session data from cookie
     const promise = unsealSession(event, config, sealedSession)
       .catch(() => {})
-      .then((unsealed) => {
+      .then(async (unsealed) => {
+        const legacySeal = unsealed && (unsealed as any)[kLegacySeal];
+        if (legacySeal) {
+          delete (unsealed as any)[kLegacySeal];
+        }
         Object.assign(session, unsealed);
         delete context.sessions![sessionName][kGetSession];
+        if (legacySeal && sessionFromCookie) {
+          // Proactively reseal legacy cookies with the current seal options
+          await updateSession(event, config);
+        }
         return session as Session<T>;
       });
     context.sessions![sessionName][kGetSession] = promise;
@@ -217,11 +234,36 @@ export async function unsealSession(
   config: SessionConfig,
   sealed: string,
 ): Promise<Partial<Session>> {
-  const unsealed = (await unseal(sealed, config.password, {
+  const sealOptions = {
     ...sealDefaults,
     ttl: config.maxAge ? config.maxAge * 1000 : 0,
     ...config.seal,
-  })) as Partial<Session>;
+  };
+  let unsealed: Partial<Session>;
+  try {
+    unsealed = (await unseal(sealed, config.password, sealOptions)) as Partial<Session>;
+  } catch (error) {
+    // TODO: Remove this fallback before the v2 stable release
+    // Sessions sealed before the default PBKDF2 iterations were raised from 1
+    // to 8192 fail HMAC verification; retry with the legacy count so existing
+    // sessions survive the upgrade (getSession reseals them with the current
+    // options).
+    if (
+      sealOptions.integrity.iterations === 1 ||
+      !(error instanceof Error) ||
+      error.message !== "Bad hmac value"
+    ) {
+      throw error;
+    }
+    unsealed = (await unseal(sealed, config.password, {
+      ...sealOptions,
+      encryption: { ...sealOptions.encryption, iterations: 1 },
+      integrity: { ...sealOptions.integrity, iterations: 1 },
+    })) as Partial<Session>;
+    if (unsealed) {
+      (unsealed as any)[kLegacySeal] = true;
+    }
+  }
   if (config.maxAge) {
     const age = Date.now() - (unsealed.createdAt || Number.NEGATIVE_INFINITY);
     if (age > config.maxAge * 1000) {

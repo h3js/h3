@@ -1,6 +1,7 @@
 import type { SessionConfig } from "../src/utils/session.ts";
 import { beforeEach } from "vitest";
 import { useSession, clearSession, readBody, H3 } from "../src/index.ts";
+import { seal, unseal, defaults as sealDefaults } from "../src/utils/internal/iron-crypto.ts";
 import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("session", (t, { it, expect }) => {
@@ -93,6 +94,33 @@ describeMatrix("session", (t, { it, expect }) => {
     const cookies = res.headers.getSetCookie();
     expect(cookies.length).toBeGreaterThanOrEqual(1);
     expect(cookies[0]).toContain("Max-Age=0");
+  });
+
+  it("unseals and reseals legacy sessions sealed with iterations: 1", async () => {
+    const legacySealed = await seal(
+      { id: "legacy", createdAt: Date.now(), data: { foo: "legacy" } },
+      sessionConfig.password,
+      {
+        ...sealDefaults,
+        encryption: { ...sealDefaults.encryption, iterations: 1 },
+        integrity: { ...sealDefaults.integrity, iterations: 1 },
+      },
+    );
+
+    const result = await t.fetch("/", {
+      headers: { Cookie: `h3-test=${legacySealed}` },
+    });
+    expect(await result.json()).toMatchObject({
+      session: { id: "legacy", data: { foo: "legacy" } },
+    });
+
+    // Legacy cookie is transparently resealed with the current default
+    const setCookies = result.headers.getSetCookie();
+    expect(setCookies).toHaveLength(1);
+    const resealed = decodeURIComponent(setCookies[0].match(/h3-test=([^;]+)/)![1]);
+    expect(
+      await unseal(resealed, sessionConfig.password, sealDefaults), // current iterations, no fallback
+    ).toMatchObject({ id: "legacy", data: { foo: "legacy" } });
   });
 
   it("stores large data in chunks", async () => {
