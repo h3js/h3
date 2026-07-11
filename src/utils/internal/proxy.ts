@@ -1,3 +1,5 @@
+import type { H3Event } from "../../event.ts";
+
 export const ignoredHeaders: Set<string> = new Set([
   "transfer-encoding",
   // `accept-encoding` is stripped because fetch auto-decompresses upstream
@@ -50,6 +52,39 @@ export function rewriteCookieProperty(
       return newValue ? prefix + newValue : "";
     },
   );
+}
+
+/**
+ * Apply `x-forwarded-*` headers derived from the incoming request onto the
+ * given proxy headers (mutating and returning a `Headers` instance).
+ *
+ * `x-forwarded-for` / `x-forwarded-proto` are appended to any existing value;
+ * `x-forwarded-host` / `x-forwarded-port` are only set when absent.
+ */
+export function applyXForwardedHeaders(headers: HeadersInit, event: H3Event): Headers {
+  const merged = headers instanceof Headers ? headers : new Headers(headers);
+
+  const ip = event.req.ip;
+  if (ip) {
+    const existing = merged.get("x-forwarded-for");
+    merged.set("x-forwarded-for", existing ? `${existing}, ${ip}` : ip);
+  }
+
+  const proto = event.url.protocol.slice(0, -1); // strip trailing ":"
+  if (proto) {
+    const existing = merged.get("x-forwarded-proto");
+    merged.set("x-forwarded-proto", existing ? `${existing}, ${proto}` : proto);
+  }
+
+  if (!merged.has("x-forwarded-host")) {
+    merged.set("x-forwarded-host", event.url.host);
+  }
+
+  if (!merged.has("x-forwarded-port")) {
+    merged.set("x-forwarded-port", event.url.port || (proto === "https" ? "443" : "80"));
+  }
+
+  return merged;
 }
 
 export function mergeHeaders(

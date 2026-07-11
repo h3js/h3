@@ -286,6 +286,53 @@ describeMatrix("proxy", (t, { it, expect, describe }) => {
         expect(await res.text()).toBe("hello");
       });
 
+      describe("xfwd", () => {
+        beforeEach(() => {
+          t.app.all("/debug", (event) => {
+            return { headers: Object.fromEntries(event.req.headers.entries()) };
+          });
+        });
+
+        it("adds x-forwarded-* headers when enabled", async () => {
+          t.app.all("/", (event) => {
+            return proxyRequest(event, "/debug", { xfwd: true });
+          });
+
+          const result = await t.fetch("/").then((r) => r.json());
+          const headers = result.headers;
+
+          expect(headers["x-forwarded-proto"]).toBe("http");
+          expect(headers["x-forwarded-host"]).toBeTruthy();
+          expect(headers["x-forwarded-port"]).toBeTruthy();
+        });
+
+        it("appends the client ip to an existing x-forwarded-for", async () => {
+          t.app.all("/", (event) => {
+            return proxyRequest(event, "/debug", { xfwd: true });
+          });
+
+          const result = await t
+            .fetch("/", {
+              headers: { "x-forwarded-for": "1.2.3.4" },
+            })
+            .then((r) => r.json());
+
+          // The original value is preserved and possibly extended with the
+          // client ip (which may be undefined in web mode, `::1`/`127.0.0.1`
+          // in node mode), so assert the prefix rather than an exact match.
+          expect(result.headers["x-forwarded-for"]).toMatch(/^1\.2\.3\.4/);
+        });
+
+        it("does not add x-forwarded-* headers by default", async () => {
+          t.app.all("/", (event) => {
+            return proxyRequest(event, "/debug");
+          });
+
+          const result = await t.fetch("/").then((r) => r.json());
+          expect(result.headers["x-forwarded-proto"]).toBeUndefined();
+        });
+      });
+
       it("can proxy binary request", async () => {
         t.app.all("/debug", async (event) => {
           const body = await event.req.arrayBuffer();

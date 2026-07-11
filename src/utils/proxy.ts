@@ -2,6 +2,7 @@ import type { H3Event } from "../event.ts";
 
 import { HTTPError } from "../error.ts";
 import {
+  applyXForwardedHeaders,
   ignoredHeaders,
   ignoredResponseHeaders,
   mergeHeaders,
@@ -60,6 +61,22 @@ export interface ProxyOptions {
    * is also mapped to `504` (rather than the `499` used for client disconnects).
    */
   timeout?: number;
+
+  /**
+   * When `true`, add `x-forwarded-*` request headers derived from the incoming
+   * request so the upstream learns the real client and original request info:
+   *
+   * - `x-forwarded-for`: the client IP (`event.req.ip`) appended to any existing
+   *   value; left untouched when no IP is available.
+   * - `x-forwarded-proto`: the incoming request protocol, appended to any
+   *   existing value.
+   * - `x-forwarded-host`: the original host (incl. port), only set when absent.
+   * - `x-forwarded-port`: the original port (or the protocol default — `443` for
+   *   https, `80` for http), only set when absent.
+   *
+   * @default false
+   */
+  xfwd?: boolean;
 }
 
 /**
@@ -131,7 +148,7 @@ export async function proxyRequest(
       body: requestBody,
       ...opts.fetchOptions,
       duplex: opts.fetchOptions?.duplex ?? (fetchBody != null ? "half" : undefined),
-      headers: fetchHeaders,
+      headers: opts.xfwd ? applyXForwardedHeaders(fetchHeaders, event) : fetchHeaders,
     },
   });
 }
