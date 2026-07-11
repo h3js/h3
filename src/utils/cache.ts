@@ -1,5 +1,5 @@
 import type { H3Event } from "../event.ts";
-import { matchETag } from "./internal/cache.ts";
+import { isCacheMatch } from "./internal/cache.ts";
 
 export interface CacheConditions {
   modifiedTime?: string | Date;
@@ -58,20 +58,7 @@ export function handleCacheHeaders(event: H3Event, opts: CacheConditions): boole
 
   event.res.headers.set("cache-control", cacheControls.join(", "));
 
-  // RFC 9110 §13.1.3: a recipient MUST ignore `If-Modified-Since` when the
-  // request contains an `If-None-Match` header field. `If-None-Match` takes
-  // precedence; `If-Modified-Since` is only evaluated when it is absent. A
-  // present-but-empty `If-None-Match` is malformed and treated as absent.
-  let cacheMatched = false;
-  const ifNoneMatch = event.req.headers.get("if-none-match");
-  if (ifNoneMatch) {
-    cacheMatched = !!opts.etag && matchETag(ifNoneMatch, opts.etag);
-  } else if (lastModified) {
-    const ifModifiedSince = event.req.headers.get("if-modified-since");
-    cacheMatched = !!ifModifiedSince && new Date(ifModifiedSince) >= lastModified;
-  }
-
-  if (cacheMatched) {
+  if (isCacheMatch(event.req.headers, { etag: opts.etag, lastModified })) {
     event.res.status = 304;
     return true;
   }

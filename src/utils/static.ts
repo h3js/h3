@@ -3,7 +3,7 @@ import { HTTPError } from "../error.ts";
 import { withoutTrailingSlash } from "./internal/path.ts";
 import { resolveDotSegments } from "./path.ts";
 import { getType, getExtension } from "./internal/mime.ts";
-import { matchETag } from "./internal/cache.ts";
+import { isCacheMatch } from "./internal/cache.ts";
 import { HTTPResponse } from "../response.ts";
 
 export interface StaticAssetMeta {
@@ -164,19 +164,7 @@ export async function serveStatic(
     event.res.headers.set("etag", meta.etag);
   }
 
-  // RFC 9110 §13.1.3: a recipient MUST ignore `If-Modified-Since` when the
-  // request contains an `If-None-Match` header field. `If-None-Match` takes
-  // precedence; `If-Modified-Since` is only evaluated when it is absent.
-  let cacheMatched = false;
-  const ifNoneMatch = event.req.headers.get("if-none-match");
-  if (ifNoneMatch) {
-    cacheMatched = !!meta.etag && matchETag(ifNoneMatch, meta.etag);
-  } else if (mtimeDate) {
-    const ifModifiedSinceH = event.req.headers.get("if-modified-since");
-    cacheMatched = !!ifModifiedSinceH && new Date(ifModifiedSinceH) >= mtimeDate;
-  }
-
-  if (cacheMatched) {
+  if (isCacheMatch(event.req.headers, { etag: meta.etag, lastModified: mtimeDate })) {
     return new HTTPResponse(null, {
       status: 304,
       statusText: "Not Modified",

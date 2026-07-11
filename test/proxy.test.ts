@@ -653,6 +653,18 @@ describeMatrix("proxy", (t, { it, expect, describe }) => {
         expect(await res.text()).toBe("fast");
       });
 
+      it("does not treat a sub-millisecond timeout as an immediate deadline", async () => {
+        // `Math.trunc(0.5)` is `0`, which would schedule `setTimeout(..., 0)`
+        // and abort on the next tick — 504-ing every request. A positive
+        // timeout must clamp up to at least 1ms.
+        t.app.all("/fast", () => "fast");
+        t.app.all("/", (event) => proxy(event, "/fast", { timeout: 0.5 }));
+
+        const res = await t.fetch("/");
+        expect(res.status).toBe(200);
+        expect(await res.text()).toBe("fast");
+      });
+
       it.runIf(t.target === "web")(
         "does not truncate a response body streaming past the timeout",
         async () => {

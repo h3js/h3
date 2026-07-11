@@ -260,8 +260,10 @@ export async function proxy(
     timeoutId = setTimeout(
       () => timeoutController.abort(new DOMException("Proxy request timed out", "TimeoutError")),
       // setTimeout clamps anything above its int32 limit down to 1ms — treat
-      // larger deadlines as "practically no timeout" instead.
-      Math.min(Math.trunc(opts.timeout!), 2_147_483_647),
+      // larger deadlines as "practically no timeout" instead. Clamp up to 1ms
+      // too, so a sub-millisecond deadline doesn't `Math.trunc` to `0` and fire
+      // immediately, aborting every request before the upstream can respond.
+      Math.min(Math.max(Math.trunc(opts.timeout!), 1), 2_147_483_647),
     );
     signals.push(timeoutController.signal);
   }
@@ -282,6 +284,9 @@ export async function proxy(
     // `H3.fetch()` does not observe the request signal, so race internal
     // sub-requests against it explicitly — otherwise `timeout` and client
     // disconnects would be silent no-ops for internal (`/`) targets.
+    // Note: because `abortable` short-circuits an already-aborted signal, an
+    // internal sub-request whose client disconnected *before* the proxy call is
+    // never dispatched — its handler side effects (writes, logging) do not run.
     response =
       target[0] === "/"
         ? await abortable(

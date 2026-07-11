@@ -16,6 +16,31 @@ export function matchETag(ifNoneMatch: string, etag: string): boolean {
   return splitETags(ifNoneMatch).some((tag) => opaqueTag(tag.trim()) === target);
 }
 
+/**
+ * Evaluate an incoming conditional request against the current representation's
+ * validators, returning `true` when it matches and a `304 Not Modified` should
+ * be sent.
+ *
+ * RFC 9110 §13.1.3: a recipient MUST ignore `If-Modified-Since` when the request
+ * contains an `If-None-Match` header field. `If-None-Match` takes precedence;
+ * `If-Modified-Since` is only evaluated when it is absent. A present-but-empty
+ * `If-None-Match` is malformed and treated as absent.
+ */
+export function isCacheMatch(
+  headers: Headers,
+  validators: { etag?: string; lastModified?: Date },
+): boolean {
+  const ifNoneMatch = headers.get("if-none-match");
+  if (ifNoneMatch) {
+    return !!validators.etag && matchETag(ifNoneMatch, validators.etag);
+  }
+  if (validators.lastModified) {
+    const ifModifiedSince = headers.get("if-modified-since");
+    return !!ifModifiedSince && new Date(ifModifiedSince) >= validators.lastModified;
+  }
+  return false;
+}
+
 function opaqueTag(tag: string): string {
   return tag.startsWith("W/") ? tag.slice(2) : tag;
 }
