@@ -18,6 +18,29 @@ describeMatrix("proxy", (t, { it, expect, describe }) => {
 
         expect(await result.text()).toBe("hello");
       });
+
+      it.runIf(t.target === "node")(
+        "passes upstream redirects through to the client by default",
+        async () => {
+          t.app.all("/redirect", (event) => {
+            event.res.headers.set("location", "https://example.test/moved");
+            return new Response(null, {
+              status: 302,
+              headers: event.res.headers,
+            });
+          });
+          // Proxy to an absolute URL so the external `fetch()` path is exercised.
+          t.app.all("/", (event) => {
+            return proxy(event, `${t.url}/redirect`);
+          });
+
+          const result = await t.fetch("/", { redirect: "manual" });
+
+          // The 3xx response is passed through verbatim, not followed.
+          expect(result.status).toBe(302);
+          expect(result.headers.get("location")).toBe("https://example.test/moved");
+        },
+      );
     });
 
     describe("proxyRequest()", () => {

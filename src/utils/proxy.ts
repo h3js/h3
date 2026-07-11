@@ -15,6 +15,15 @@ export interface ProxyOptions {
   headers?: HeadersInit;
   forwardHeaders?: string[];
   filterHeaders?: string[];
+  /**
+   * Options forwarded to the underlying `fetch()` call.
+   *
+   * Upstream 3xx responses are passed through to the client by default
+   * (`redirect: "manual"`) rather than followed. Set
+   * `fetchOptions: { redirect: "follow" }` to restore following redirects — but
+   * note that following a redirect for a request with a streamed body can fail,
+   * since the body cannot be replayed once it has been consumed.
+   */
   fetchOptions?: RequestInit & { duplex?: "half" | "full" };
   cookieDomainRewrite?: string | Record<string, string>;
   cookiePathRewrite?: string | Record<string, string>;
@@ -45,6 +54,11 @@ export interface ProxyOptions {
  * (e.g. via `readBody()`, `readFormData()`, or body-reading middleware) locks
  * the stream and proxying fails. If you need to inspect the body and still
  * proxy it, read from a clone and leave the original event untouched.
+ *
+ * Upstream 3xx responses are passed through to the client by default rather than
+ * followed. Set `fetchOptions: { redirect: "follow" }` to follow them instead —
+ * but following a redirect with a streamed request body can fail, since the body
+ * cannot be replayed once consumed.
  *
  * **Security:** Never pass unsanitized user input as the `target`. Callers are
  * responsible for validating and restricting the target URL (e.g. allowlisting
@@ -100,6 +114,12 @@ export async function proxyRequest(
  * `event.app.fetch()` (sub-request) and never leaves the process. This bypasses
  * any external security layer (reverse proxy auth, IP allowlisting, mTLS).
  *
+ * Upstream 3xx responses are passed through to the client by default rather than
+ * followed. Set `fetchOptions: { redirect: "follow" }` to follow them instead —
+ * but following a redirect with a streamed request body can fail, since the body
+ * cannot be replayed once consumed. (Internal sub-requests via `event.app.fetch()`
+ * never follow redirects.)
+ *
  * **Security:** Never pass unsanitized user input as the `target`. Callers are
  * responsible for validating and restricting the target URL (e.g. allowlisting
  * hosts, blocking internal paths, enforcing protocol).
@@ -116,6 +136,10 @@ export async function proxy(
   const callerSignal = opts.fetchOptions?.signal;
   const fetchOptions: RequestInit = {
     headers: opts.headers as HeadersInit,
+    // Default to passing upstream 3xx responses through to the client instead of
+    // silently following them. Placed before the spread so an explicit
+    // `fetchOptions.redirect` from the caller still wins.
+    redirect: "manual",
     ...opts.fetchOptions,
     signal: callerSignal ? AbortSignal.any([event.req.signal, callerSignal]) : event.req.signal,
   };
