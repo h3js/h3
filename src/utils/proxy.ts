@@ -1,12 +1,7 @@
 import type { H3Event } from "../event.ts";
 
 import { HTTPError } from "../error.ts";
-import {
-  PayloadMethods,
-  ignoredHeaders,
-  mergeHeaders,
-  rewriteCookieProperty,
-} from "./internal/proxy.ts";
+import { ignoredHeaders, mergeHeaders, rewriteCookieProperty } from "./internal/proxy.ts";
 import { EmptyObject } from "./internal/obj.ts";
 import type { ServerRequest } from "srvx";
 import { HTTPResponse } from "../response.ts";
@@ -65,10 +60,14 @@ export async function proxyRequest(
   opts: ProxyOptions = {},
 ): Promise<HTTPResponse> {
   // Request Body
-  const requestBody = PayloadMethods.has(event.req.method) ? event.req.body : undefined;
-
-  // Method
+  // Forward the body based on presence, not a method allowlist, so bodies on
+  // WebDAV-style (PROPFIND/REPORT/SEARCH) and custom methods are not dropped.
+  // GET/HEAD are excluded because fetch rejects a body on those methods.
   const method = opts.fetchOptions?.method || event.req.method;
+  const requestBody =
+    event.req.body != null && event.req.method !== "GET" && event.req.method !== "HEAD"
+      ? event.req.body
+      : undefined;
 
   // Headers
   const fetchHeaders = mergeHeaders(
@@ -81,13 +80,19 @@ export async function proxyRequest(
     opts.headers,
   );
 
+  // Derive `duplex` from the FINAL body (a caller may override it via
+  // `opts.fetchOptions.body`), so a streamed override on a body-less incoming
+  // request still sets `duplex` and fetch does not throw. An explicit
+  // `opts.fetchOptions.duplex` still wins.
+  const fetchBody = opts.fetchOptions?.body ?? requestBody;
+
   return proxy(event, target, {
     ...opts,
     fetchOptions: {
       method,
       body: requestBody,
-      duplex: requestBody ? "half" : undefined,
       ...opts.fetchOptions,
+      duplex: opts.fetchOptions?.duplex ?? (fetchBody != null ? "half" : undefined),
       headers: fetchHeaders,
     },
   });
@@ -249,6 +254,12 @@ export async function fetchWithEvent(
 
 function createSubRequest(event: H3Event, path: string, init: RequestInit): ServerRequest {
   const url = new URL(path, event.url);
+  // A ReadableStream body requires `duplex: "half"` or the Request constructor
+  // throws on Node. Default it when a body is present and no duplex is set (e.g.
+  // the `fetchWithEvent` path, which never sets it).
+  if (init.body != null && (init as { duplex?: string }).duplex === undefined) {
+    init = { ...init, duplex: "half" } as RequestInit;
+  }
   const req = new Request(url, init) as ServerRequest;
   req.runtime = event.req.runtime;
   req.waitUntil = event.req.waitUntil;

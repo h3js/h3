@@ -1,5 +1,3 @@
-export const PayloadMethods: Set<string> = new Set(["PATCH", "POST", "PUT", "DELETE", "QUERY"]);
-
 export const ignoredHeaders: Set<string> = new Set([
   "transfer-encoding",
   "accept-encoding",
