@@ -418,6 +418,41 @@ describeMatrix("proxy", (t, { it, expect, describe }) => {
         },
       );
 
+      it.runIf(t.target === "web")(
+        "responds with 504 when the upstream exceeds the timeout",
+        async () => {
+          // Upstream never resolves until its request signal aborts. The
+          // composed `AbortSignal.timeout` fires with a `TimeoutError`, which the
+          // proxy maps to `504` (not the `502` generic gateway error).
+          const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((_input, init) => {
+            const signal = (init as RequestInit | undefined)?.signal ?? undefined;
+            return new Promise<Response>((_resolve, reject) => {
+              signal?.addEventListener("abort", () => reject(signal.reason));
+            });
+          });
+
+          try {
+            t.app.all("/", (event) =>
+              proxyRequest(event, "https://upstream.test/", { timeout: 50 }),
+            );
+
+            const res = await t.fetch("/");
+            expect(res.status).toBe(504);
+          } finally {
+            fetchMock.mockRestore();
+          }
+        },
+      );
+
+      it("succeeds within a generous timeout", async () => {
+        t.app.all("/fast", () => "fast");
+        t.app.all("/", (event) => proxy(event, "/fast", { timeout: 1000 }));
+
+        const res = await t.fetch("/");
+        expect(res.status).toBe(200);
+        expect(await res.text()).toBe("fast");
+      });
+
       it(
         "can handle failed proxy requests gracefully",
         async () => {
