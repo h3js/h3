@@ -3,6 +3,7 @@ import type { H3Event } from "../event.ts";
 import { HTTPError } from "../error.ts";
 import {
   PayloadMethods,
+  applyXForwardedHeaders,
   ignoredHeaders,
   mergeHeaders,
   rewriteCookieProperty,
@@ -32,6 +33,21 @@ export interface ProxyOptions {
    * (e.g. to run cleanup). This also applies to a custom `fetchOptions.signal`.
    */
   propagateAbortError?: boolean;
+  /**
+   * When `true`, add `x-forwarded-*` request headers derived from the incoming
+   * request so the upstream learns the real client and original request info:
+   *
+   * - `x-forwarded-for`: the client IP (`event.req.ip`) appended to any existing
+   *   value; left untouched when no IP is available.
+   * - `x-forwarded-proto`: the incoming request protocol, appended to any
+   *   existing value.
+   * - `x-forwarded-host`: the original host (incl. port), only set when absent.
+   * - `x-forwarded-port`: the original port (or the protocol default — `443` for
+   *   https, `80` for http), only set when absent.
+   *
+   * @default false
+   */
+  xfwd?: boolean;
 }
 
 /**
@@ -88,7 +104,7 @@ export async function proxyRequest(
       body: requestBody,
       duplex: requestBody ? "half" : undefined,
       ...opts.fetchOptions,
-      headers: fetchHeaders,
+      headers: opts.xfwd ? applyXForwardedHeaders(fetchHeaders, event) : fetchHeaders,
     },
   });
 }
