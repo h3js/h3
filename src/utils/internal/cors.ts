@@ -38,14 +38,14 @@ export function resolveCorsOptions(options: CorsOptions = {}): ResolvedCorsOptio
     },
   };
 
-  if (resolved.credentials && (!options.origin || options.origin === "*")) {
-    console.warn(
+  if (resolved.credentials && resolved.origin === "*") {
+    warnOnce(
       "[h3] CORS: `credentials: true` with wildcard origin is not allowed. Browsers will reject the response.",
     );
   }
 
-  if (resolved.credentials && options.exposeHeaders === "*") {
-    console.warn(
+  if (resolved.credentials && resolved.exposeHeaders === "*") {
+    warnOnce(
       "[h3] CORS: `credentials: true` with wildcard `exposeHeaders` has no effect. Browsers treat `*` literally on credentialed requests — list the headers explicitly.",
     );
   }
@@ -204,4 +204,18 @@ export function createMaxAgeHeader(options: CorsOptions): Record<string, string>
   }
 
   return {};
+}
+
+// `resolveCorsOptions` runs on every request, so config warnings are emitted
+// at most once per process to avoid flooding logs under load. The dedup set is
+// allocated lazily so there is no top-level side effect and a correctly
+// configured app never pays for it.
+let warnedMessages: Set<string> | undefined;
+function warnOnce(message: string): void {
+  warnedMessages ??= new Set();
+  if (warnedMessages.has(message)) {
+    return;
+  }
+  warnedMessages.add(message);
+  console.warn(message);
 }

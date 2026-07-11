@@ -1,4 +1,4 @@
-import { expect, it, describe, vi } from "vitest";
+import { expect, it, describe, beforeEach, vi } from "vitest";
 import {
   mockEvent,
   isPreflightRequest,
@@ -60,49 +60,85 @@ describe("cors (unit)", () => {
       });
     });
 
-    it("warns when credentials is used with wildcard origin", () => {
-      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-
-      resolveCorsOptions({ credentials: true });
-      expect(warnSpy).toHaveBeenCalledOnce();
-      expect(warnSpy.mock.calls[0][0]).toContain("credentials");
-
-      warnSpy.mockRestore();
-    });
-
-    it("does not warn when credentials is used with specific origin", () => {
-      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-
-      resolveCorsOptions({
-        credentials: true,
-        origin: ["https://example.com"],
+    describe("credentials warnings", () => {
+      // `resolveCorsOptions` runs on every request and warns at most once per
+      // process (warn-once dedup), so reset module state between tests to
+      // observe each warning in isolation.
+      let resolveCorsOptions: (typeof import("../../src/utils/internal/cors.ts"))["resolveCorsOptions"];
+      beforeEach(async () => {
+        vi.resetModules();
+        ({ resolveCorsOptions } = await import("../../src/utils/internal/cors.ts"));
       });
-      expect(warnSpy).not.toHaveBeenCalled();
 
-      warnSpy.mockRestore();
-    });
+      it("warns when credentials is used with wildcard origin", () => {
+        const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-    it("does not warn when credentials is false", () => {
-      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+        resolveCorsOptions({ credentials: true, exposeHeaders: ["X-Custom"] });
+        expect(warnSpy).toHaveBeenCalledOnce();
+        expect(warnSpy.mock.calls[0][0]).toContain("origin");
 
-      resolveCorsOptions({ credentials: false, origin: "*" });
-      expect(warnSpy).not.toHaveBeenCalled();
-
-      warnSpy.mockRestore();
-    });
-
-    it("warns when credentials is used with an explicit wildcard exposeHeaders", () => {
-      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-
-      resolveCorsOptions({
-        credentials: true,
-        origin: ["https://example.com"],
-        exposeHeaders: "*",
+        warnSpy.mockRestore();
       });
-      expect(warnSpy).toHaveBeenCalledOnce();
-      expect(warnSpy.mock.calls[0][0]).toContain("exposeHeaders");
 
-      warnSpy.mockRestore();
+      it("warns when credentials is used with default wildcard exposeHeaders", () => {
+        const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+        resolveCorsOptions({
+          credentials: true,
+          origin: ["https://example.com"],
+        });
+        expect(warnSpy).toHaveBeenCalledOnce();
+        expect(warnSpy.mock.calls[0][0]).toContain("exposeHeaders");
+
+        warnSpy.mockRestore();
+      });
+
+      it("warns when credentials is used with an explicit wildcard exposeHeaders", () => {
+        const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+        resolveCorsOptions({
+          credentials: true,
+          origin: ["https://example.com"],
+          exposeHeaders: "*",
+        });
+        expect(warnSpy).toHaveBeenCalledOnce();
+        expect(warnSpy.mock.calls[0][0]).toContain("exposeHeaders");
+
+        warnSpy.mockRestore();
+      });
+
+      it("does not warn when credentials is properly configured", () => {
+        const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+        resolveCorsOptions({
+          credentials: true,
+          origin: ["https://example.com"],
+          exposeHeaders: ["X-Custom"],
+        });
+        expect(warnSpy).not.toHaveBeenCalled();
+
+        warnSpy.mockRestore();
+      });
+
+      it("does not warn when credentials is false", () => {
+        const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+        resolveCorsOptions({ credentials: false, origin: "*" });
+        expect(warnSpy).not.toHaveBeenCalled();
+
+        warnSpy.mockRestore();
+      });
+
+      it("warns at most once per message across repeated calls", () => {
+        const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+        // Default origin + exposeHeaders are both wildcard → two distinct messages.
+        resolveCorsOptions({ credentials: true });
+        resolveCorsOptions({ credentials: true });
+        expect(warnSpy).toHaveBeenCalledTimes(2);
+
+        warnSpy.mockRestore();
+      });
     });
   });
 
