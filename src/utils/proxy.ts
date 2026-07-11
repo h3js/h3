@@ -4,6 +4,7 @@ import { HTTPError } from "../error.ts";
 import {
   PayloadMethods,
   ignoredHeaders,
+  ignoredResponseHeaders,
   mergeHeaders,
   rewriteCookieProperty,
 } from "./internal/proxy.ts";
@@ -13,7 +14,15 @@ import { HTTPResponse } from "../response.ts";
 
 export interface ProxyOptions {
   headers?: HeadersInit;
+  /**
+   * Allowlist of incoming request header names to forward to the upstream.
+   * Header names are matched case-insensitively.
+   */
   forwardHeaders?: string[];
+  /**
+   * Denylist of incoming request header names to drop before proxying.
+   * Header names are matched case-insensitively.
+   */
   filterHeaders?: string[];
   fetchOptions?: RequestInit & { duplex?: "half" | "full" };
   cookieDomainRewrite?: string | Record<string, string>;
@@ -150,7 +159,7 @@ export async function proxy(
   const cookies: string[] = [];
 
   for (const [key, value] of response.headers.entries()) {
-    if (key === "content-encoding" || key === "content-length" || key === "transfer-encoding") {
+    if (ignoredResponseHeaders.has(key)) {
       continue;
     }
     if (key === "set-cookie") {
@@ -204,12 +213,16 @@ export function getProxyRequestHeaders(
   },
 ): Record<string, string> {
   const headers = new EmptyObject();
+  // `Headers.entries()` yields lowercased names, so lowercase the option arrays
+  // once up front to keep the allow/deny matching case-insensitive.
+  const filterHeaders = opts?.filterHeaders?.map((h) => h.toLowerCase());
+  const forwardHeaders = opts?.forwardHeaders?.map((h) => h.toLowerCase());
   for (const [name, value] of event.req.headers.entries()) {
-    if (opts?.filterHeaders?.includes(name)) {
+    if (filterHeaders?.includes(name)) {
       continue;
     }
 
-    if (opts?.forwardHeaders?.includes(name)) {
+    if (forwardHeaders?.includes(name)) {
       headers[name] = value;
       continue;
     }

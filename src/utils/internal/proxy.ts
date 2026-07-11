@@ -2,13 +2,34 @@ export const PayloadMethods: Set<string> = new Set(["PATCH", "POST", "PUT", "DEL
 
 export const ignoredHeaders: Set<string> = new Set([
   "transfer-encoding",
+  // `accept-encoding` is stripped because fetch auto-decompresses upstream
+  // responses; forwarding the client's value would advertise encodings we
+  // then transparently decode. The client's `accept` header is forwarded so
+  // upstream content negotiation (JSON vs HTML) keeps working behind the proxy.
   "accept-encoding",
   "connection",
   "keep-alive",
   "upgrade",
   "expect",
   "host",
-  "accept",
+]);
+
+/**
+ * Hop-by-hop response headers (plus length/encoding headers that fetch has
+ * already normalized) that must be stripped from the upstream response instead
+ * of being relayed to the client.
+ */
+export const ignoredResponseHeaders: Set<string> = new Set([
+  "content-encoding",
+  "content-length",
+  "transfer-encoding",
+  "connection",
+  "keep-alive",
+  "proxy-authenticate",
+  "proxy-connection",
+  "upgrade",
+  "trailer",
+  "te",
 ]);
 
 export function rewriteCookieProperty(
