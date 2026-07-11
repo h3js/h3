@@ -2,6 +2,32 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## v2.0.1-rc.25
+
+[compare changes](https://github.com/h3js/h3/compare/v2.0.1-rc.24...v2.0.1-rc.25)
+
+### 🚀 Enhancements
+
+- Proxy improvements ([#1455](https://github.com/h3js/h3/pull/1455))
+
+### 🩹 Fixes
+
+- **cors:** Correct vary handling and credentialed wildcard behavior ([#1456](https://github.com/h3js/h3/pull/1456))
+- **session:** Raise default seal PBKDF2 iterations to 8192 ([#1457](https://github.com/h3js/h3/pull/1457))
+
+### 🏡 Chore
+
+- Apply automated updates ([3813e9b](https://github.com/h3js/h3/commit/3813e9b))
+- Add missing `@__PURE__` annotations ([b17c451](https://github.com/h3js/h3/commit/b17c451))
+- Update deps ([b1b4ce0](https://github.com/h3js/h3/commit/b1b4ce0))
+- Apply automated updates ([e2c9648](https://github.com/h3js/h3/commit/e2c9648))
+- Fix release script ([50c8a33](https://github.com/h3js/h3/commit/50c8a33))
+
+### ❤️ Contributors
+
+- Pooya Parsa ([@pi0](https://github.com/pi0))
+- Pi0x <x@pi0.io>
+
 ## v2.0.1-rc.24
 
 [compare changes](https://github.com/h3js/h3/compare/v2.0.1-rc.22...v2.0.1-rc.24)
