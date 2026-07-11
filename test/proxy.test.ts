@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { vi, beforeEach } from "vitest";
 import { setCookie } from "../src/index.ts";
-import { proxy, proxyRequest } from "../src/utils/proxy.ts";
+import { fetchWithEvent, proxy, proxyRequest } from "../src/utils/proxy.ts";
 import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("proxy", (t, { it, expect, describe }) => {
@@ -18,6 +18,29 @@ describeMatrix("proxy", (t, { it, expect, describe }) => {
 
         expect(await result.text()).toBe("hello");
       });
+
+      it.runIf(t.target === "node")(
+        "passes upstream redirects through to the client by default",
+        async () => {
+          t.app.all("/redirect", (event) => {
+            event.res.headers.set("location", "https://example.test/moved");
+            return new Response(null, {
+              status: 302,
+              headers: event.res.headers,
+            });
+          });
+          // Proxy to an absolute URL so the external `fetch()` path is exercised.
+          t.app.all("/", (event) => {
+            return proxy(event, `${t.url}/redirect`);
+          });
+
+          const result = await t.fetch("/", { redirect: "manual" });
+
+          // The 3xx response is passed through verbatim, not followed.
+          expect(result.status).toBe(302);
+          expect(result.headers.get("location")).toBe("https://example.test/moved");
+        },
+      );
     });
 
     describe("proxyRequest()", () => {
@@ -97,6 +120,92 @@ describeMatrix("proxy", (t, { it, expect, describe }) => {
         });
       });
 
+      it("forwards the body of a custom method (not just the payload allowlist)", async () => {
+        t.app.all("/debug", async (event) => {
+          return {
+            method: event.req.method,
+            body: await event.req.text(),
+          };
+        });
+
+        t.app.all("/", (event) => {
+          return proxyRequest(event, "/debug");
+        });
+
+        const result = await t
+          .fetch("/", {
+            method: "REPORT",
+            body: "report body",
+            headers: {
+              "content-type": "text/plain",
+            },
+          })
+          .then((r) => r.json());
+
+        expect(result).toMatchObject({
+          method: "REPORT",
+          body: "report body",
+        });
+      });
+
+      it("sets duplex when a stream body is supplied via fetchOptions on a GET event", async () => {
+        t.app.all("/debug", async (event) => {
+          return {
+            method: event.req.method,
+            body: await event.req.text(),
+          };
+        });
+
+        t.app.all("/", (event) => {
+          const body = new ReadableStream({
+            start(controller) {
+              controller.enqueue(new TextEncoder().encode("override body"));
+              controller.close();
+            },
+          });
+          // Incoming event is a GET (no body); the caller supplies a stream body
+          // and overrides the method. `duplex` must be derived from this final
+          // body or the underlying fetch/Request throws.
+          return proxyRequest(event, "/debug", {
+            fetchOptions: { method: "POST", body },
+          });
+        });
+
+        const result = await t.fetch("/", { method: "GET" }).then((r) => r.json());
+
+        expect(result).toMatchObject({
+          method: "POST",
+          body: "override body",
+        });
+      });
+
+      it("fetchWithEvent forwards a stream body without throwing on duplex", async () => {
+        t.app.all("/debug", async (event) => {
+          return {
+            method: event.req.method,
+            body: await event.req.text(),
+          };
+        });
+
+        t.app.all("/", async (event) => {
+          const body = new ReadableStream({
+            start(controller) {
+              controller.enqueue(new TextEncoder().encode("stream body"));
+              controller.close();
+            },
+          });
+          const res = await fetchWithEvent(event, "/debug", { method: "POST", body });
+          return res.json();
+        });
+
+        const result = await t.fetch("/", { method: "GET" }).then((r) => r.json());
+
+        expect(result).toMatchObject({
+          method: "POST",
+          body: "stream body",
+        });
+      });
+
       it("does not forward incoming accept-encoding header", async () => {
         t.app.all("/debug", (event) => {
           return { headers: Object.fromEntries(event.req.headers.entries()) };
@@ -113,6 +222,175 @@ describeMatrix("proxy", (t, { it, expect, describe }) => {
           .then((r) => r.json());
 
         expect(result.headers["accept-encoding"]).toBeUndefined();
+      });
+
+      it("forwards the incoming accept header to the upstream", async () => {
+        t.app.all("/debug", (event) => {
+          return { accept: event.req.headers.get("accept") };
+        });
+
+        t.app.all("/", (event) => {
+          return proxyRequest(event, "/debug");
+        });
+
+        const result = await t
+          .fetch("/", {
+            headers: { accept: "application/json" },
+          })
+          .then((r) => r.json());
+
+        expect(result.accept).toBe("application/json");
+      });
+
+      it("does not forward headers listed in filterHeaders (case-insensitive)", async () => {
+        t.app.all("/debug", (event) => {
+          return { headers: Object.fromEntries(event.req.headers.entries()) };
+        });
+
+        t.app.all("/", (event) => {
+          return proxyRequest(event, "/debug", {
+            // Mixed-case option must still match the lowercased header name.
+            filterHeaders: ["X-Custom"],
+          });
+        });
+
+        const result = await t
+          .fetch("/", {
+            headers: { "x-custom": "secret", "x-keep": "kept" },
+          })
+          .then((r) => r.json());
+
+        expect(result.headers["x-custom"]).toBeUndefined();
+        expect(result.headers["x-keep"]).toBe("kept");
+      });
+
+      // Node's transport layer manages the `connection` header, so a custom
+      // nomination only survives the round-trip on the web target.
+      it.runIf(t.target === "web")(
+        "does not forward request headers nominated by the incoming Connection header",
+        async () => {
+          t.app.all("/debug", (event) => {
+            return { headers: Object.fromEntries(event.req.headers.entries()) };
+          });
+          t.app.all("/", (event) => proxyRequest(event, "/debug"));
+
+          const result = await t
+            .fetch("/", {
+              headers: {
+                connection: "x-internal-auth, keep-alive",
+                "x-internal-auth": "secret",
+                "x-keep": "kept",
+              },
+            })
+            .then((r) => r.json());
+
+          // RFC 9110 §7.6.1: fields nominated by `Connection` are hop-by-hop.
+          expect(result.headers["x-internal-auth"]).toBeUndefined();
+          expect(result.headers["x-keep"]).toBe("kept");
+        },
+      );
+
+      it("does not forward proxy-authorization / proxy-connection by default", async () => {
+        t.app.all("/debug", (event) => {
+          return { headers: Object.fromEntries(event.req.headers.entries()) };
+        });
+        t.app.all("/", (event) => proxyRequest(event, "/debug"));
+
+        const result = await t
+          .fetch("/", {
+            headers: {
+              "proxy-authorization": "Basic c2VjcmV0",
+              "proxy-connection": "keep-alive",
+            },
+          })
+          .then((r) => r.json());
+
+        expect(result.headers["proxy-authorization"]).toBeUndefined();
+        expect(result.headers["proxy-connection"]).toBeUndefined();
+      });
+
+      it("lets filterHeaders win over forwardHeaders", async () => {
+        t.app.all("/debug", (event) => {
+          return { headers: Object.fromEntries(event.req.headers.entries()) };
+        });
+        t.app.all("/", (event) =>
+          proxyRequest(event, "/debug", {
+            forwardHeaders: ["x-both"],
+            filterHeaders: ["x-both"],
+          }),
+        );
+
+        const result = await t
+          .fetch("/", { headers: { "x-both": "secret" } })
+          .then((r) => r.json());
+
+        expect(result.headers["x-both"]).toBeUndefined();
+      });
+
+      it("strips hop-by-hop headers from the proxied response", async () => {
+        t.app.all("/debug", (event) => {
+          // Hop-by-hop response headers that must not leak to the client.
+          event.res.headers.set("proxy-authenticate", "Basic");
+          event.res.headers.set("trailer", "Expires");
+          // A normal header that must be preserved.
+          event.res.headers.set("x-custom-header", "preserved");
+          return "hello";
+        });
+
+        t.app.all("/", (event) => {
+          return proxyRequest(event, "/debug");
+        });
+
+        const res = await t.fetch("/", { method: "GET" });
+
+        expect(res.headers.has("proxy-authenticate")).toBe(false);
+        expect(res.headers.has("trailer")).toBe(false);
+        expect(res.headers.get("x-custom-header")).toBe("preserved");
+        expect(await res.text()).toBe("hello");
+      });
+
+      describe("xfwd", () => {
+        beforeEach(() => {
+          t.app.all("/debug", (event) => {
+            return { headers: Object.fromEntries(event.req.headers.entries()) };
+          });
+        });
+
+        it("adds x-forwarded-* headers when enabled", async () => {
+          t.app.all("/", (event) => {
+            return proxyRequest(event, "/debug", { xfwd: true });
+          });
+
+          const result = await t.fetch("/").then((r) => r.json());
+          const headers = result.headers;
+
+          expect(headers["x-forwarded-proto"]).toBe("http");
+          expect(headers["x-forwarded-host"]).toBeTruthy();
+          expect(headers["x-forwarded-port"]).toBeTruthy();
+        });
+
+        it("does not override an existing x-forwarded-for", async () => {
+          t.app.all("/", (event) => {
+            return proxyRequest(event, "/debug", { xfwd: true });
+          });
+
+          const result = await t
+            .fetch("/", {
+              headers: { "x-forwarded-for": "1.2.3.4" },
+            })
+            .then((r) => r.json());
+
+          expect(result.headers["x-forwarded-for"]).toBe("1.2.3.4");
+        });
+
+        it("does not add x-forwarded-* headers by default", async () => {
+          t.app.all("/", (event) => {
+            return proxyRequest(event, "/debug");
+          });
+
+          const result = await t.fetch("/").then((r) => r.json());
+          expect(result.headers["x-forwarded-proto"]).toBeUndefined();
+        });
       });
 
       it("can proxy binary request", async () => {
@@ -261,16 +539,24 @@ describeMatrix("proxy", (t, { it, expect, describe }) => {
       );
 
       it.runIf(t.target === "web")(
-        "forwards the client abort signal to the proxied request",
+        "responds 499 for internal targets when the client is already gone",
         async () => {
-          t.app.all("/debug", (event) => ({ aborted: event.req.signal.aborted }));
+          // Consistent with external targets: a pre-aborted client signal
+          // short-circuits the internal sub-request into a quiet 499 (the
+          // signal is still attached to the sub-request for mid-flight aborts).
+          let handled = false;
+          t.app.all("/debug", () => {
+            handled = true;
+            return "hello";
+          });
           t.app.all("/", (event) => proxyRequest(event, "/debug"));
 
           const controller = new AbortController();
           controller.abort();
 
           const res = await t.fetch("/", { signal: controller.signal });
-          expect(await res.json()).toMatchObject({ aborted: true });
+          expect(res.status).toBe(499);
+          expect(handled).toBe(false);
         },
       );
 
@@ -284,6 +570,22 @@ describeMatrix("proxy", (t, { it, expect, describe }) => {
 
           const res = await t.fetch("/", { signal: controller.signal });
           // Client-caused abort is not a gateway error: no 502, no thrown error.
+          expect(res.status).toBe(499);
+        },
+      );
+
+      it.runIf(t.target === "web")(
+        "treats a client disconnect aborting with a non-AbortError (ECONNRESET) as 499",
+        async () => {
+          // srvx on Node aborts a client disconnect with the raw socket error
+          // (name "Error", not "AbortError"). Classifying by the composed signal
+          // reason — not the thrown error's name — must still yield a quiet 499.
+          t.app.all("/", (event) => proxyRequest(event, "https://example.test/"));
+
+          const controller = new AbortController();
+          controller.abort(Object.assign(new Error("read ECONNRESET"), { code: "ECONNRESET" }));
+
+          const res = await t.fetch("/", { signal: controller.signal });
           expect(res.status).toBe(499);
         },
       );
@@ -394,6 +696,388 @@ describeMatrix("proxy", (t, { it, expect, describe }) => {
           }
         },
       );
+
+      it.runIf(t.target === "web")(
+        "responds with 504 when the upstream exceeds the timeout",
+        async () => {
+          // Upstream never resolves until its request signal aborts. The
+          // composed `AbortSignal.timeout` fires with a `TimeoutError`, which the
+          // proxy maps to `504` (not the `502` generic gateway error).
+          const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((_input, init) => {
+            const signal = (init as RequestInit | undefined)?.signal ?? undefined;
+            return new Promise<Response>((_resolve, reject) => {
+              signal?.addEventListener("abort", () => reject(signal.reason));
+            });
+          });
+
+          try {
+            t.app.all("/", (event) =>
+              proxyRequest(event, "https://upstream.test/", { timeout: 50 }),
+            );
+
+            const res = await t.fetch("/");
+            expect(res.status).toBe(504);
+          } finally {
+            fetchMock.mockRestore();
+          }
+        },
+      );
+
+      it("succeeds within a generous timeout", async () => {
+        t.app.all("/fast", () => "fast");
+        t.app.all("/", (event) => proxy(event, "/fast", { timeout: 1000 }));
+
+        const res = await t.fetch("/");
+        expect(res.status).toBe(200);
+        expect(await res.text()).toBe("fast");
+      });
+
+      it("does not treat a sub-millisecond timeout as an immediate deadline", async () => {
+        // `Math.trunc(0.5)` is `0`, which would schedule `setTimeout(..., 0)`
+        // and abort on the next tick — 504-ing every request. A positive
+        // timeout must clamp up to at least 1ms.
+        t.app.all("/fast", () => "fast");
+        t.app.all("/", (event) => proxy(event, "/fast", { timeout: 0.5 }));
+
+        const res = await t.fetch("/");
+        expect(res.status).toBe(200);
+        expect(await res.text()).toBe("fast");
+      });
+
+      it.runIf(t.target === "web")(
+        "does not truncate a response body streaming past the timeout",
+        async () => {
+          // The upstream responds instantly but streams its body slowly, past
+          // the timeout. The deadline must only cover waiting for the response
+          // headers — it is cleared once they arrive and must never abort the
+          // body mid-stream.
+          const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((_input, init) => {
+            const signal = (init as RequestInit | undefined)?.signal;
+            const encoder = new TextEncoder();
+            const body = new ReadableStream<Uint8Array>({
+              async start(controller) {
+                controller.enqueue(encoder.encode("first"));
+                await new Promise((r) => setTimeout(r, 150));
+                if (signal?.aborted) {
+                  controller.error(signal.reason);
+                  return;
+                }
+                controller.enqueue(encoder.encode("second"));
+                controller.close();
+              },
+            });
+            return Promise.resolve(new Response(body, { status: 200 }));
+          });
+
+          try {
+            t.app.all("/", (event) =>
+              proxyRequest(event, "https://upstream.test/", { timeout: 50 }),
+            );
+
+            const res = await t.fetch("/");
+            expect(res.status).toBe(200);
+            expect(await res.text()).toBe("firstsecond");
+          } finally {
+            fetchMock.mockRestore();
+          }
+        },
+      );
+
+      it("responds 504 when an internal target exceeds the timeout", async () => {
+        t.app.all("/slow", async () => {
+          await new Promise((r) => setTimeout(r, 300));
+          return "late";
+        });
+        t.app.all("/", (event) => proxy(event, "/slow", { timeout: 50 }));
+
+        const res = await t.fetch("/");
+        expect(res.status).toBe(504);
+      });
+
+      it.runIf(t.target === "web")(
+        "keeps manual redirect mode for an explicitly undefined redirect option",
+        async () => {
+          let redirectMode: unknown = "unset";
+          const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((_input, init) => {
+            redirectMode = (init as RequestInit | undefined)?.redirect;
+            return Promise.resolve(new Response("ok"));
+          });
+
+          try {
+            t.app.all("/", (event) =>
+              proxyRequest(event, "https://upstream.test/", {
+                fetchOptions: { redirect: undefined },
+              }),
+            );
+
+            await t.fetch("/");
+            expect(redirectMode).toBe("manual");
+          } finally {
+            fetchMock.mockRestore();
+          }
+        },
+      );
+
+      it.runIf(t.target === "web")("fails loudly on an opaque redirect response", async () => {
+        // Browser/service-worker fetch filters manual-mode 3xx into an
+        // opaque redirect (status 0) that cannot be relayed.
+        const fetchMock = vi
+          .spyOn(globalThis, "fetch")
+          .mockImplementation(() => Promise.resolve({ type: "opaqueredirect" } as Response));
+
+        try {
+          t.app.all("/", (event) => proxyRequest(event, "https://upstream.test/"));
+
+          const res = await t.fetch("/");
+          expect(res.status).toBe(502);
+        } finally {
+          fetchMock.mockRestore();
+        }
+      });
+
+      it.runIf(t.target === "web")("fails loudly on an opaque (status 0) response", async () => {
+        // A `no-cors` fetch yields an opaque response with status 0 and no
+        // readable headers/body. Relaying it would surface an empty 200.
+        const fetchMock = vi
+          .spyOn(globalThis, "fetch")
+          .mockImplementation(() =>
+            Promise.resolve({ type: "opaque", status: 0, headers: new Headers() } as Response),
+          );
+
+        try {
+          t.app.all("/", (event) => proxyRequest(event, "https://upstream.test/"));
+
+          const res = await t.fetch("/");
+          expect(res.status).toBe(502);
+        } finally {
+          fetchMock.mockRestore();
+        }
+      });
+
+      it("drops the body when the outgoing method is overridden to GET", async () => {
+        t.app.all("/debug", async (event) => ({
+          method: event.req.method,
+          body: await event.req.text(),
+        }));
+        t.app.all("/", (event) =>
+          proxyRequest(event, "/debug", { fetchOptions: { method: "GET" } }),
+        );
+
+        const result = await t.fetch("/", { method: "POST", body: "hello" }).then((r) => r.json());
+
+        expect(result).toMatchObject({ method: "GET", body: "" });
+      });
+
+      it("drops the stale content-length when the body is overridden", async () => {
+        t.app.all("/debug", async (event) => ({
+          contentLength: event.req.headers.get("content-length"),
+          body: await event.req.text(),
+        }));
+        t.app.all("/", (event) =>
+          proxyRequest(event, "/debug", { fetchOptions: { body: "short" } }),
+        );
+
+        const result = await t
+          .fetch("/", {
+            method: "POST",
+            body: "a-much-longer-payload",
+            headers: { "content-type": "text/plain" },
+          })
+          .then((r) => r.json());
+
+        expect(result.body).toBe("short");
+        // The incoming request's content-length must not describe the new body.
+        expect(result.contentLength).not.toBe("21");
+      });
+
+      it("strips response headers nominated by the upstream connection header", async () => {
+        t.app.all("/debug", (event) => {
+          event.res.headers.set("connection", "x-internal-token");
+          event.res.headers.set("x-internal-token", "secret");
+          event.res.headers.set("x-keep", "kept");
+          return "hello";
+        });
+        t.app.all("/", (event) => proxyRequest(event, "/debug"));
+
+        const res = await t.fetch("/");
+        expect(res.headers.has("x-internal-token")).toBe(false);
+        expect(res.headers.get("x-keep")).toBe("kept");
+        expect(await res.text()).toBe("hello");
+      });
+
+      it.runIf(t.target === "web")("does not forward te/trailer request headers", async () => {
+        t.app.all("/debug", (event) => ({
+          headers: Object.fromEntries(event.req.headers.entries()),
+        }));
+        t.app.all("/", (event) => proxyRequest(event, "/debug"));
+
+        const result = await t
+          .fetch("/", { headers: { te: "trailers", trailer: "x-checksum" } })
+          .then((r) => r.json());
+
+        expect(result.headers.te).toBeUndefined();
+        expect(result.headers.trailer).toBeUndefined();
+      });
+
+      describe("location rewrite", () => {
+        const mockUpstream = (headers: Record<string, string>) =>
+          vi
+            .spyOn(globalThis, "fetch")
+            .mockImplementation(() =>
+              Promise.resolve(new Response(null, { status: 302, headers })),
+            );
+
+        it.runIf(t.target === "web")(
+          "rewrites a location pointing at the target to the proxy origin",
+          async () => {
+            const fetchMock = mockUpstream({ location: "https://upstream.test/foo/bar?q=1" });
+            try {
+              let origin = "";
+              t.app.all("/", (event) => {
+                origin = event.url.origin;
+                return proxyRequest(event, "https://upstream.test/test");
+              });
+
+              const res = await t.fetch("/", { redirect: "manual" });
+              expect(res.status).toBe(302);
+              expect(res.headers.get("location")).toBe(`${origin}/foo/bar?q=1`);
+            } finally {
+              fetchMock.mockRestore();
+            }
+          },
+        );
+
+        it.runIf(t.target === "web")(
+          "rewrites a refresh header pointing at the target",
+          async () => {
+            const fetchMock = mockUpstream({ refresh: "5; url=https://upstream.test/foo" });
+            try {
+              let origin = "";
+              t.app.all("/", (event) => {
+                origin = event.url.origin;
+                return proxyRequest(event, "https://upstream.test/test");
+              });
+
+              const res = await t.fetch("/", { redirect: "manual" });
+              expect(res.headers.get("refresh")).toBe(`5; url=${origin}/foo`);
+            } finally {
+              fetchMock.mockRestore();
+            }
+          },
+        );
+
+        it.runIf(t.target === "web")(
+          "leaves third-party and relative locations untouched",
+          async () => {
+            t.app.all("/", (event) => proxyRequest(event, "https://upstream.test/test"));
+
+            for (const location of ["https://other.test/moved", "/foo/bar"]) {
+              const fetchMock = mockUpstream({ location });
+              try {
+                const res = await t.fetch("/", { redirect: "manual" });
+                expect(res.headers.get("location")).toBe(location);
+              } finally {
+                fetchMock.mockRestore();
+              }
+            }
+          },
+        );
+
+        it.runIf(t.target === "web")(
+          "forwards the location verbatim with locationRewrite: false",
+          async () => {
+            const fetchMock = mockUpstream({ location: "https://upstream.test/foo" });
+            try {
+              t.app.all("/", (event) =>
+                proxyRequest(event, "https://upstream.test/test", { locationRewrite: false }),
+              );
+
+              const res = await t.fetch("/", { redirect: "manual" });
+              expect(res.headers.get("location")).toBe("https://upstream.test/foo");
+            } finally {
+              fetchMock.mockRestore();
+            }
+          },
+        );
+
+        it.runIf(t.target === "web")(
+          "replaces the first matching prefix with a locationRewrite record",
+          async () => {
+            const fetchMock = mockUpstream({ location: "https://upstream.test/two/some/uri?x=1" });
+            try {
+              t.app.all("/", (event) =>
+                proxyRequest(event, "https://upstream.test/test", {
+                  locationRewrite: {
+                    "https://other.test/": "/none/",
+                    "https://upstream.test/two/": "/one/",
+                  },
+                }),
+              );
+
+              const res = await t.fetch("/", { redirect: "manual" });
+              expect(res.headers.get("location")).toBe("/one/some/uri?x=1");
+            } finally {
+              fetchMock.mockRestore();
+            }
+          },
+        );
+
+        it.runIf(t.target === "web")(
+          "rewrites a protocol-relative location pointing at the target",
+          async () => {
+            const fetchMock = mockUpstream({ location: "//upstream.test/foo" });
+            try {
+              let origin = "";
+              t.app.all("/", (event) => {
+                origin = event.url.origin;
+                return proxyRequest(event, "https://upstream.test/test");
+              });
+
+              const res = await t.fetch("/", { redirect: "manual" });
+              expect(res.headers.get("location")).toBe(`${origin}/foo`);
+            } finally {
+              fetchMock.mockRestore();
+            }
+          },
+        );
+
+        it.runIf(t.target === "web")("rewrites non-canonical refresh header shapes", async () => {
+          let origin = "";
+          t.app.all("/", (event) => {
+            origin = event.url.origin;
+            return proxyRequest(event, "https://upstream.test/test");
+          });
+
+          for (const [refresh, expected] of [
+            ["url=https://upstream.test/x", () => `url=${origin}/x`],
+            ["0; url='https://upstream.test/x'", () => `0; url='${origin}/x'`],
+          ] as const) {
+            const fetchMock = mockUpstream({ refresh });
+            try {
+              const res = await t.fetch("/", { redirect: "manual" });
+              expect(res.headers.get("refresh")).toBe(expected());
+            } finally {
+              fetchMock.mockRestore();
+            }
+          }
+        });
+
+        it("applies a locationRewrite record to internal targets too", async () => {
+          t.app.all("/sub/redirect", (event) => {
+            event.res.headers.set("location", "/sub/moved");
+            return new Response(null, { status: 302, headers: event.res.headers });
+          });
+          t.app.all("/", (event) =>
+            proxy(event, "/sub/redirect", {
+              locationRewrite: { "/sub/": "/" },
+            }),
+          );
+
+          const res = await t.fetch("/", { redirect: "manual" });
+          expect(res.status).toBe(302);
+          expect(res.headers.get("location")).toBe("/moved");
+        });
+      });
 
       it(
         "can handle failed proxy requests gracefully",
