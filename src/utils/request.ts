@@ -223,7 +223,7 @@ function decodeRouterParam(value: string): string {
   let result = "";
   let lastIndex = 0;
   ENCODED_SEP_RE_G.lastIndex = 0;
-  for (let m: RegExpExecArray | null; (m = ENCODED_SEP_RE_G.exec(value)); ) {
+  for (let m: RegExpExecArray | null; (m = ENCODED_SEP_RE_G.exec(value));) {
     result += decodeURIComponent(value.slice(lastIndex, m.index)) + m[0];
     lastIndex = m.index + m[0].length;
   }
