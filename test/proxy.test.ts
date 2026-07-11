@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { vi, beforeEach } from "vitest";
 import { setCookie } from "../src/index.ts";
-import { proxy, proxyRequest } from "../src/utils/proxy.ts";
+import { fetchWithEvent, proxy, proxyRequest } from "../src/utils/proxy.ts";
 import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("proxy", (t, { it, expect, describe }) => {
@@ -117,6 +117,92 @@ describeMatrix("proxy", (t, { it, expect, describe }) => {
         expect(result).toMatchObject({
           method: "QUERY",
           body: "query body",
+        });
+      });
+
+      it("forwards the body of a custom method (not just the payload allowlist)", async () => {
+        t.app.all("/debug", async (event) => {
+          return {
+            method: event.req.method,
+            body: await event.req.text(),
+          };
+        });
+
+        t.app.all("/", (event) => {
+          return proxyRequest(event, "/debug");
+        });
+
+        const result = await t
+          .fetch("/", {
+            method: "REPORT",
+            body: "report body",
+            headers: {
+              "content-type": "text/plain",
+            },
+          })
+          .then((r) => r.json());
+
+        expect(result).toMatchObject({
+          method: "REPORT",
+          body: "report body",
+        });
+      });
+
+      it("sets duplex when a stream body is supplied via fetchOptions on a GET event", async () => {
+        t.app.all("/debug", async (event) => {
+          return {
+            method: event.req.method,
+            body: await event.req.text(),
+          };
+        });
+
+        t.app.all("/", (event) => {
+          const body = new ReadableStream({
+            start(controller) {
+              controller.enqueue(new TextEncoder().encode("override body"));
+              controller.close();
+            },
+          });
+          // Incoming event is a GET (no body); the caller supplies a stream body
+          // and overrides the method. `duplex` must be derived from this final
+          // body or the underlying fetch/Request throws.
+          return proxyRequest(event, "/debug", {
+            fetchOptions: { method: "POST", body },
+          });
+        });
+
+        const result = await t.fetch("/", { method: "GET" }).then((r) => r.json());
+
+        expect(result).toMatchObject({
+          method: "POST",
+          body: "override body",
+        });
+      });
+
+      it("fetchWithEvent forwards a stream body without throwing on duplex", async () => {
+        t.app.all("/debug", async (event) => {
+          return {
+            method: event.req.method,
+            body: await event.req.text(),
+          };
+        });
+
+        t.app.all("/", async (event) => {
+          const body = new ReadableStream({
+            start(controller) {
+              controller.enqueue(new TextEncoder().encode("stream body"));
+              controller.close();
+            },
+          });
+          const res = await fetchWithEvent(event, "/debug", { method: "POST", body });
+          return res.json();
+        });
+
+        const result = await t.fetch("/", { method: "GET" }).then((r) => r.json());
+
+        expect(result).toMatchObject({
+          method: "POST",
+          body: "stream body",
         });
       });
 
