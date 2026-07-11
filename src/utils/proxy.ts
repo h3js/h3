@@ -7,6 +7,7 @@ import {
   ignoredResponseHeaders,
   mergeHeaders,
   rewriteCookieProperty,
+  rewriteLocationHeaders,
 } from "./internal/proxy.ts";
 import { EmptyObject } from "./internal/obj.ts";
 import type { ServerRequest } from "srvx";
@@ -36,6 +37,18 @@ export interface ProxyOptions {
   fetchOptions?: RequestInit & { duplex?: "half" | "full" };
   cookieDomainRewrite?: string | Record<string, string>;
   cookiePathRewrite?: string | Record<string, string>;
+  /**
+   * Rewrite `location` and `refresh` response headers that point at the proxy
+   * `target` back to the proxy's own origin (like nginx `proxy_redirect`), so
+   * client-side redirects keep flowing through the proxy instead of exposing
+   * the upstream host. Relative and third-party URLs are left untouched, as
+   * are internal (`/`-prefixed) targets, which already share the proxy origin.
+   *
+   * Set to `false` to forward these headers verbatim.
+   *
+   * @default true
+   */
+  locationRewrite?: boolean;
   onResponse?: (event: H3Event, response: Response) => void | Promise<void>;
   /**
    * Control how a client disconnect is handled.
@@ -266,6 +279,13 @@ export async function proxy(
     for (const cookie of _cookies) {
       headers.append("set-cookie", cookie);
     }
+  }
+
+  // Rewrite redirect-ish headers pointing at the target back to the proxy's
+  // own origin (like nginx `proxy_redirect`) so the client keeps talking to
+  // the proxy. Internal (`/`) targets already share the request origin.
+  if (opts.locationRewrite !== false && target[0] !== "/") {
+    rewriteLocationHeaders(headers, new URL(target).origin, event.url.origin);
   }
 
   if (opts.onResponse) {

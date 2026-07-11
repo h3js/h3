@@ -85,6 +85,55 @@ export function applyXForwardedHeaders(headers: HeadersInit, event: H3Event): He
   return merged;
 }
 
+/**
+ * Rewrite `location` and `refresh` response headers that point at the proxy
+ * target back to the proxy's own origin (like nginx `proxy_redirect`), so the
+ * client follows redirects through the proxy instead of reaching for the
+ * upstream host directly. Relative and third-party URLs are left untouched.
+ */
+export function rewriteLocationHeaders(
+  headers: Headers,
+  targetOrigin: string,
+  requestOrigin: string,
+): void {
+  if (targetOrigin === requestOrigin) {
+    return;
+  }
+  const location = headers.get("location");
+  if (location) {
+    const rewritten = rewriteOrigin(location, targetOrigin, requestOrigin);
+    if (rewritten) {
+      headers.set("location", rewritten);
+    }
+  }
+  const refresh = headers.get("refresh");
+  if (refresh) {
+    // `Refresh: 5; url=https://target/path`
+    const match = refresh.match(/^(\s*[\d.]+\s*;\s*url=\s*)(.+)$/i);
+    const rewritten = match && rewriteOrigin(match[2]!, targetOrigin, requestOrigin);
+    if (rewritten) {
+      headers.set("refresh", match![1]! + rewritten);
+    }
+  }
+}
+
+function rewriteOrigin(
+  value: string,
+  targetOrigin: string,
+  requestOrigin: string,
+): string | undefined {
+  // A relative URL already resolves against the proxy origin on the client.
+  if (!URL.canParse(value)) {
+    return undefined;
+  }
+  const url = new URL(value);
+  // A URL pointing anywhere but the proxied target is not ours to rewrite.
+  if (url.origin !== targetOrigin) {
+    return undefined;
+  }
+  return requestOrigin + url.pathname + url.search + url.hash;
+}
+
 export function mergeHeaders(
   defaults: HeadersInit,
   ...inputs: (HeadersInit | undefined)[]

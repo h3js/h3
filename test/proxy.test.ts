@@ -645,6 +645,88 @@ describeMatrix("proxy", (t, { it, expect, describe }) => {
         expect(await res.text()).toBe("fast");
       });
 
+      describe("location rewrite", () => {
+        const mockUpstream = (headers: Record<string, string>) =>
+          vi
+            .spyOn(globalThis, "fetch")
+            .mockImplementation(() =>
+              Promise.resolve(new Response(null, { status: 302, headers })),
+            );
+
+        it.runIf(t.target === "web")(
+          "rewrites a location pointing at the target to the proxy origin",
+          async () => {
+            const fetchMock = mockUpstream({ location: "https://upstream.test/foo/bar?q=1" });
+            try {
+              let origin = "";
+              t.app.all("/", (event) => {
+                origin = event.url.origin;
+                return proxyRequest(event, "https://upstream.test/test");
+              });
+
+              const res = await t.fetch("/", { redirect: "manual" });
+              expect(res.status).toBe(302);
+              expect(res.headers.get("location")).toBe(`${origin}/foo/bar?q=1`);
+            } finally {
+              fetchMock.mockRestore();
+            }
+          },
+        );
+
+        it.runIf(t.target === "web")(
+          "rewrites a refresh header pointing at the target",
+          async () => {
+            const fetchMock = mockUpstream({ refresh: "5; url=https://upstream.test/foo" });
+            try {
+              let origin = "";
+              t.app.all("/", (event) => {
+                origin = event.url.origin;
+                return proxyRequest(event, "https://upstream.test/test");
+              });
+
+              const res = await t.fetch("/", { redirect: "manual" });
+              expect(res.headers.get("refresh")).toBe(`5; url=${origin}/foo`);
+            } finally {
+              fetchMock.mockRestore();
+            }
+          },
+        );
+
+        it.runIf(t.target === "web")(
+          "leaves third-party and relative locations untouched",
+          async () => {
+            t.app.all("/", (event) => proxyRequest(event, "https://upstream.test/test"));
+
+            for (const location of ["https://other.test/moved", "/foo/bar"]) {
+              const fetchMock = mockUpstream({ location });
+              try {
+                const res = await t.fetch("/", { redirect: "manual" });
+                expect(res.headers.get("location")).toBe(location);
+              } finally {
+                fetchMock.mockRestore();
+              }
+            }
+          },
+        );
+
+        it.runIf(t.target === "web")(
+          "forwards the location verbatim with locationRewrite: false",
+          async () => {
+            const fetchMock = mockUpstream({ location: "https://upstream.test/foo" });
+            try {
+              t.app.all("/", (event) =>
+                proxyRequest(event, "https://upstream.test/test", { locationRewrite: false }),
+              );
+
+              const res = await t.fetch("/", { redirect: "manual" });
+              expect(res.headers.get("location")).toBe("https://upstream.test/foo");
+            } finally {
+              fetchMock.mockRestore();
+            }
+          },
+        );
+      });
+
       it(
         "can handle failed proxy requests gracefully",
         async () => {
