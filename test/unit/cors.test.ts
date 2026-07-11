@@ -90,6 +90,20 @@ describe("cors (unit)", () => {
 
       warnSpy.mockRestore();
     });
+
+    it("warns when credentials is used with an explicit wildcard exposeHeaders", () => {
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      resolveCorsOptions({
+        credentials: true,
+        origin: ["https://example.com"],
+        exposeHeaders: "*",
+      });
+      expect(warnSpy).toHaveBeenCalledOnce();
+      expect(warnSpy.mock.calls[0][0]).toContain("exposeHeaders");
+
+      warnSpy.mockRestore();
+    });
   });
 
   describe("isPreflightRequest", () => {
@@ -244,8 +258,14 @@ describe("cors (unit)", () => {
       });
     });
 
-    it('returns an object with `access-control-allow-origin` and `vary` keys if `origin` option is `"null"`', () => {
-      const eventMock = mockEvent("/", {
+    it('handles `"null"` origin option consistently with `isCorsOriginAllowed`', () => {
+      const nullOriginEventMock = mockEvent("/", {
+        method: "OPTIONS",
+        headers: {
+          origin: "null",
+        },
+      });
+      const otherOriginEventMock = mockEvent("/", {
         method: "OPTIONS",
         headers: {
           origin: "https://example.com",
@@ -255,8 +275,11 @@ describe("cors (unit)", () => {
         origin: "null",
       };
 
-      expect(createOriginHeaders(eventMock, options)).toEqual({
+      expect(createOriginHeaders(nullOriginEventMock, options)).toEqual({
         "access-control-allow-origin": "null",
+        vary: "origin",
+      });
+      expect(createOriginHeaders(otherOriginEventMock, options)).toEqual({
         vary: "origin",
       });
     });
@@ -285,15 +308,19 @@ describe("cors (unit)", () => {
         "access-control-allow-origin": "http://example.com",
         vary: "origin",
       });
-      expect(createOriginHeaders(noMatchEventMock, options1)).toEqual({});
+      expect(createOriginHeaders(noMatchEventMock, options1)).toEqual({
+        vary: "origin",
+      });
       expect(createOriginHeaders(eventMock, options2)).toEqual({
         "access-control-allow-origin": "http://example.com",
         vary: "origin",
       });
-      expect(createOriginHeaders(noMatchEventMock, options2)).toEqual({});
+      expect(createOriginHeaders(noMatchEventMock, options2)).toEqual({
+        vary: "origin",
+      });
     });
 
-    it("returns an empty object if `origin` option is one that is not allowed", () => {
+    it("returns only `vary` if `origin` option is one that is not allowed", () => {
       const eventMock = mockEvent("/", {
         method: "OPTIONS",
         headers: {
@@ -307,11 +334,11 @@ describe("cors (unit)", () => {
         origin: () => false,
       };
 
-      expect(createOriginHeaders(eventMock, options1)).toEqual({});
-      expect(createOriginHeaders(eventMock, options2)).toEqual({});
+      expect(createOriginHeaders(eventMock, options1)).toEqual({ vary: "origin" });
+      expect(createOriginHeaders(eventMock, options2)).toEqual({ vary: "origin" });
     });
 
-    it("returns an empty object if `origin` option is not wildcard and `origin` header is not defined", () => {
+    it("returns only `vary` if `origin` option is not wildcard and `origin` header is not defined", () => {
       const eventMock = mockEvent("/", {
         method: "OPTIONS",
         headers: {},
@@ -323,20 +350,27 @@ describe("cors (unit)", () => {
         origin: () => false,
       };
 
-      expect(createOriginHeaders(eventMock, options1)).toEqual({});
-      expect(createOriginHeaders(eventMock, options2)).toEqual({});
+      expect(createOriginHeaders(eventMock, options1)).toEqual({ vary: "origin" });
+      expect(createOriginHeaders(eventMock, options2)).toEqual({ vary: "origin" });
     });
   });
 
   describe("createMethodsHeaders", () => {
+    const eventMock = mockEvent("/", {
+      method: "OPTIONS",
+      headers: {
+        "access-control-request-method": "POST",
+      },
+    });
+
     it("returns an empty object if `methods` option is not defined or an empty array", () => {
       const options1: CorsOptions = {};
       const options2: CorsOptions = {
         methods: [],
       };
 
-      expect(createMethodsHeaders(options1)).toEqual({});
-      expect(createMethodsHeaders(options2)).toEqual({});
+      expect(createMethodsHeaders(eventMock, options1)).toEqual({});
+      expect(createMethodsHeaders(eventMock, options2)).toEqual({});
     });
 
     it('returns an object whose `access-control-allow-methods` is `"*"` if `methods` option is `"*"`', () => {
@@ -344,9 +378,27 @@ describe("cors (unit)", () => {
         methods: "*",
       };
 
-      expect(createMethodsHeaders(options1)).toEqual({
+      expect(createMethodsHeaders(eventMock, options1)).toEqual({
         "access-control-allow-methods": "*",
       });
+    });
+
+    it('reflects the requested method if `methods` option is `"*"` and `credentials` is enabled', () => {
+      const options: CorsOptions = {
+        methods: "*",
+        credentials: true,
+      };
+
+      expect(createMethodsHeaders(eventMock, options)).toEqual({
+        "access-control-allow-methods": "POST",
+        vary: "access-control-request-method",
+      });
+
+      const noRequestMethodEventMock = mockEvent("/", {
+        method: "OPTIONS",
+        headers: {},
+      });
+      expect(createMethodsHeaders(noRequestMethodEventMock, options)).toEqual({});
     });
 
     it("returns an object whose `access-control-allow-methods` is set as `methods` option", () => {
@@ -354,7 +406,7 @@ describe("cors (unit)", () => {
         methods: ["GET", "POST"],
       };
 
-      expect(createMethodsHeaders(options)).toEqual({
+      expect(createMethodsHeaders(eventMock, options)).toEqual({
         "access-control-allow-methods": "GET,POST",
       });
     });
@@ -423,7 +475,7 @@ describe("cors (unit)", () => {
       });
     });
 
-    it('returns an empty object if `allowHeaders` option is not defined, `"*"`, or an empty array, and `access-control-request-headers` is not defined', () => {
+    it('returns only `vary` if `allowHeaders` option is not defined, `"*"`, or an empty array, and `access-control-request-headers` is not defined', () => {
       const eventMock = mockEvent("/", {
         method: "OPTIONS",
         headers: {},
@@ -436,9 +488,10 @@ describe("cors (unit)", () => {
         allowHeaders: [],
       };
 
-      expect(createAllowHeaderHeaders(eventMock, options1)).toEqual({});
-      expect(createAllowHeaderHeaders(eventMock, options2)).toEqual({});
-      expect(createAllowHeaderHeaders(eventMock, options3)).toEqual({});
+      const expected = { vary: "access-control-request-headers" };
+      expect(createAllowHeaderHeaders(eventMock, options1)).toEqual(expected);
+      expect(createAllowHeaderHeaders(eventMock, options2)).toEqual(expected);
+      expect(createAllowHeaderHeaders(eventMock, options3)).toEqual(expected);
     });
   });
 
@@ -463,6 +516,15 @@ describe("cors (unit)", () => {
       expect(createExposeHeaders(options2)).toEqual({
         "access-control-expose-headers": "EXPOSED-HEADER-1,EXPOSED-HEADER-2",
       });
+    });
+
+    it('omits the header if `exposeHeaders` option is `"*"` and `credentials` is enabled', () => {
+      const options: CorsOptions = {
+        exposeHeaders: "*",
+        credentials: true,
+      };
+
+      expect(createExposeHeaders(options)).toEqual({});
     });
   });
 
@@ -577,11 +639,35 @@ describe("cors (unit)", () => {
         expect(eventMock.res.headers.get("access-control-allow-origin")).toEqual(
           "https://example.com",
         );
-        expect(eventMock.res.headers.get("vary")).toEqual("origin");
+        expect(eventMock.res.headers.get("vary")).toEqual("origin, access-control-request-headers");
         expect(eventMock.res.headers.get("access-control-allow-credentials")).toEqual("true");
         expect(eventMock.res.headers.has("access-control-allow-methods")).toEqual(false);
         expect(eventMock.res.headers.has("access-control-allow-headers")).toEqual(false);
         expect(eventMock.res.headers.has("access-control-max-age")).toEqual(false);
+      }
+
+      {
+        // credentials + wildcard methods: the requested method is reflected
+        // (browsers treat a literal `*` as a method name on credentialed requests)
+        const eventMock = mockEvent("/", {
+          method: "OPTIONS",
+          headers: {
+            origin: "https://example.com",
+            "access-control-request-method": "PUT",
+          },
+        });
+        const options: CorsOptions = {
+          origin: ["https://example.com"],
+          methods: "*",
+          credentials: true,
+        };
+
+        appendCorsPreflightHeaders(eventMock, options);
+
+        expect(eventMock.res.headers.get("access-control-allow-methods")).toEqual("PUT");
+        const vary = eventMock.res.headers.get("vary") ?? "";
+        expect(vary).toContain("origin");
+        expect(vary).toContain("access-control-request-method");
       }
 
       {
@@ -683,6 +769,24 @@ describe("cors (unit)", () => {
         expect(eventMock.res.headers.get("vary")).toEqual("origin");
         expect(eventMock.res.headers.get("access-control-allow-credentials")).toEqual("true");
       }
+    });
+
+    it("adds `vary: origin` even when the origin is not allowed", () => {
+      // Without `vary: origin`, a shared cache could store this response (which
+      // has no `access-control-allow-origin`) and serve it to an allowed origin.
+      const eventMock = mockEvent("/", {
+        method: "GET",
+        headers: {
+          origin: "https://evil.example",
+        },
+      });
+
+      appendCorsHeaders(eventMock, {
+        origin: ["https://example.com"],
+      });
+
+      expect(eventMock.res.headers.has("access-control-allow-origin")).toEqual(false);
+      expect(eventMock.res.headers.get("vary")).toEqual("origin");
     });
   });
 

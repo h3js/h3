@@ -32,6 +32,9 @@ export interface CorsOptions {
    * When using an explicit allowlist, remember that `QUERY` is **not** a CORS-safelisted
    * method, so browsers preflight it — include `"QUERY"` in the array to allow it.
    *
+   * When `credentials` is enabled, browsers treat `"*"` as a literal method name — in that
+   * case the requested method is reflected back instead of sending a literal `*`.
+   *
    * @see https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Methods
    * @default "*"
    * @example ["GET", "HEAD", "PUT", "POST", "QUERY"]
@@ -48,6 +51,9 @@ export interface CorsOptions {
 
   /**
    * This determines the value of the "access-control-expose-headers" response header.
+   *
+   * When `credentials` is enabled, browsers treat `"*"` as a literal header name — in that
+   * case the header is omitted; list the headers explicitly to expose them.
    *
    * @see https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Expose-Headers
    * @default "*"
@@ -95,18 +101,17 @@ export function isPreflightRequest(event: HTTPEvent): boolean {
  * Append CORS preflight headers to the response.
  */
 export function appendCorsPreflightHeaders(event: H3Event, options: CorsOptions): void {
-  const originHeaders = createOriginHeaders(event, options);
-  const allowHeaderHeaders = createAllowHeaderHeaders(event, options);
-  const headers = {
-    ...originHeaders,
-    ...createCredentialsHeaders(options),
-    ...createMethodsHeaders(options),
-    ...allowHeaderHeaders,
-    ...createMaxAgeHeader(options),
-  };
-  // Both createOriginHeaders and createAllowHeaderHeaders can independently emit a `vary`
-  // key. Plain spread overwrites the first — merge them so neither is lost.
-  const varyValues = [originHeaders.vary, allowHeaderHeaders.vary].filter(Boolean);
+  const headerGroups = [
+    createOriginHeaders(event, options),
+    createCredentialsHeaders(options),
+    createMethodsHeaders(event, options),
+    createAllowHeaderHeaders(event, options),
+    createMaxAgeHeader(options),
+  ];
+  // Several groups can independently emit a `vary` key. Plain spread would keep
+  // only the last one — merge them so none is lost.
+  const headers: Record<string, string> = Object.assign({}, ...headerGroups);
+  const varyValues = headerGroups.map((group) => group.vary).filter(Boolean);
   if (varyValues.length > 0) {
     headers.vary = varyValues.join(", ");
   }
