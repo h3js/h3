@@ -38,17 +38,24 @@ export interface ProxyOptions {
   cookieDomainRewrite?: string | Record<string, string>;
   cookiePathRewrite?: string | Record<string, string>;
   /**
-   * Rewrite `location` and `refresh` response headers that point at the proxy
-   * `target` back to the proxy's own origin (like nginx `proxy_redirect`), so
-   * client-side redirects keep flowing through the proxy instead of exposing
-   * the upstream host. Relative and third-party URLs are left untouched, as
-   * are internal (`/`-prefixed) targets, which already share the proxy origin.
+   * Rewrite `location` and `refresh` response headers, like nginx
+   * `proxy_redirect`:
    *
-   * Set to `false` to forward these headers verbatim.
+   * - `true` (default): a URL whose origin matches the proxy `target` is
+   *   rewritten to the proxy's own origin (path and query preserved), so
+   *   client-side redirects keep flowing through the proxy instead of
+   *   exposing the upstream host. Relative and third-party URLs are left
+   *   untouched, as are internal (`/`-prefixed) targets, which already share
+   *   the proxy origin.
+   * - A record maps URL prefixes to replacements (nginx
+   *   `proxy_redirect <from> <to>`); the first matching prefix is replaced,
+   *   e.g. `{ "https://upstream.example/two/": "/one/" }`. Only the explicit
+   *   mappings apply in this mode (including for internal targets).
+   * - `false`: forward these headers verbatim.
    *
    * @default true
    */
-  locationRewrite?: boolean;
+  locationRewrite?: boolean | Record<string, string>;
   onResponse?: (event: H3Event, response: Response) => void | Promise<void>;
   /**
    * Control how a client disconnect is handled.
@@ -282,10 +289,17 @@ export async function proxy(
   }
 
   // Rewrite redirect-ish headers pointing at the target back to the proxy's
-  // own origin (like nginx `proxy_redirect`) so the client keeps talking to
-  // the proxy. Internal (`/`) targets already share the request origin.
-  if (opts.locationRewrite !== false && target[0] !== "/") {
-    rewriteLocationHeaders(headers, new URL(target).origin, event.url.origin);
+  // own origin, or per explicit prefix mappings (like nginx `proxy_redirect`),
+  // so the client keeps talking to the proxy. In default mode internal (`/`)
+  // targets are skipped: they already share the request origin.
+  const locationRewrite = opts.locationRewrite ?? true;
+  if (locationRewrite !== false && (locationRewrite !== true || target[0] !== "/")) {
+    rewriteLocationHeaders(
+      headers,
+      locationRewrite,
+      target[0] === "/" ? undefined : new URL(target).origin,
+      event.url.origin,
+    );
   }
 
   if (opts.onResponse) {

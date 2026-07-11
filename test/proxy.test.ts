@@ -725,6 +725,44 @@ describeMatrix("proxy", (t, { it, expect, describe }) => {
             }
           },
         );
+
+        it.runIf(t.target === "web")(
+          "replaces the first matching prefix with a locationRewrite record",
+          async () => {
+            const fetchMock = mockUpstream({ location: "https://upstream.test/two/some/uri?x=1" });
+            try {
+              t.app.all("/", (event) =>
+                proxyRequest(event, "https://upstream.test/test", {
+                  locationRewrite: {
+                    "https://other.test/": "/none/",
+                    "https://upstream.test/two/": "/one/",
+                  },
+                }),
+              );
+
+              const res = await t.fetch("/", { redirect: "manual" });
+              expect(res.headers.get("location")).toBe("/one/some/uri?x=1");
+            } finally {
+              fetchMock.mockRestore();
+            }
+          },
+        );
+
+        it("applies a locationRewrite record to internal targets too", async () => {
+          t.app.all("/sub/redirect", (event) => {
+            event.res.headers.set("location", "/sub/moved");
+            return new Response(null, { status: 302, headers: event.res.headers });
+          });
+          t.app.all("/", (event) =>
+            proxy(event, "/sub/redirect", {
+              locationRewrite: { "/sub/": "/" },
+            }),
+          );
+
+          const res = await t.fetch("/", { redirect: "manual" });
+          expect(res.status).toBe(302);
+          expect(res.headers.get("location")).toBe("/moved");
+        });
       });
 
       it(

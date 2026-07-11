@@ -86,22 +86,26 @@ export function applyXForwardedHeaders(headers: HeadersInit, event: H3Event): He
 }
 
 /**
- * Rewrite `location` and `refresh` response headers that point at the proxy
- * target back to the proxy's own origin (like nginx `proxy_redirect`), so the
- * client follows redirects through the proxy instead of reaching for the
- * upstream host directly. Relative and third-party URLs are left untouched.
+ * Rewrite `location` and `refresh` response headers (like nginx
+ * `proxy_redirect`) so the client follows redirects through the proxy instead
+ * of reaching for the upstream host directly. With `rewrite: true`, a URL
+ * whose origin matches the proxy target is rewritten to the proxy's own
+ * origin (relative and third-party URLs are left untouched). With a record,
+ * the first matching URL prefix is replaced with its mapped value.
  */
 export function rewriteLocationHeaders(
   headers: Headers,
-  targetOrigin: string,
+  rewrite: true | Record<string, string>,
+  targetOrigin: string | undefined,
   requestOrigin: string,
 ): void {
-  if (targetOrigin === requestOrigin) {
-    return;
-  }
+  const rewriteValue = (value: string) =>
+    rewrite === true
+      ? rewriteOrigin(value, targetOrigin, requestOrigin)
+      : rewritePrefix(value, rewrite);
   const location = headers.get("location");
   if (location) {
-    const rewritten = rewriteOrigin(location, targetOrigin, requestOrigin);
+    const rewritten = rewriteValue(location);
     if (rewritten) {
       headers.set("location", rewritten);
     }
@@ -110,7 +114,7 @@ export function rewriteLocationHeaders(
   if (refresh) {
     // `Refresh: 5; url=https://target/path`
     const match = refresh.match(/^(\s*[\d.]+\s*;\s*url=\s*)(.+)$/i);
-    const rewritten = match && rewriteOrigin(match[2]!, targetOrigin, requestOrigin);
+    const rewritten = match && rewriteValue(match[2]!);
     if (rewritten) {
       headers.set("refresh", match![1]! + rewritten);
     }
@@ -119,9 +123,12 @@ export function rewriteLocationHeaders(
 
 function rewriteOrigin(
   value: string,
-  targetOrigin: string,
+  targetOrigin: string | undefined,
   requestOrigin: string,
 ): string | undefined {
+  if (!targetOrigin || targetOrigin === requestOrigin) {
+    return undefined;
+  }
   // A relative URL already resolves against the proxy origin on the client.
   if (!URL.canParse(value)) {
     return undefined;
@@ -132,6 +139,15 @@ function rewriteOrigin(
     return undefined;
   }
   return requestOrigin + url.pathname + url.search + url.hash;
+}
+
+function rewritePrefix(value: string, map: Record<string, string>): string | undefined {
+  for (const prefix in map) {
+    if (value.startsWith(prefix)) {
+      return map[prefix] + value.slice(prefix.length);
+    }
+  }
+  return undefined;
 }
 
 export function mergeHeaders(
