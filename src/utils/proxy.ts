@@ -66,13 +66,14 @@ export interface ProxyOptions {
    * When `true`, add `x-forwarded-*` request headers derived from the incoming
    * request so the upstream learns the real client and original request info:
    *
-   * - `x-forwarded-for`: the client IP (`event.req.ip`) appended to any existing
-   *   value; left untouched when no IP is available.
-   * - `x-forwarded-proto`: the incoming request protocol, appended to any
-   *   existing value.
-   * - `x-forwarded-host`: the original host (incl. port), only set when absent.
+   * - `x-forwarded-for`: the client IP (`event.req.ip`, when available).
+   * - `x-forwarded-proto`: the incoming request protocol.
+   * - `x-forwarded-host`: the original host (incl. port).
    * - `x-forwarded-port`: the original port (or the protocol default — `443` for
-   *   https, `80` for http), only set when absent.
+   *   https, `80` for http).
+   *
+   * Each header is only set when absent — a value already present on the
+   * incoming request (or set via header options) is left untouched.
    *
    * @default false
    */

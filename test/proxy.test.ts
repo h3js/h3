@@ -306,7 +306,7 @@ describeMatrix("proxy", (t, { it, expect, describe }) => {
           expect(headers["x-forwarded-port"]).toBeTruthy();
         });
 
-        it("appends the client ip to an existing x-forwarded-for", async () => {
+        it("does not override an existing x-forwarded-for", async () => {
           t.app.all("/", (event) => {
             return proxyRequest(event, "/debug", { xfwd: true });
           });
@@ -317,10 +317,7 @@ describeMatrix("proxy", (t, { it, expect, describe }) => {
             })
             .then((r) => r.json());
 
-          // The original value is preserved and possibly extended with the
-          // client ip (which may be undefined in web mode, `::1`/`127.0.0.1`
-          // in node mode), so assert the prefix rather than an exact match.
-          expect(result.headers["x-forwarded-for"]).toMatch(/^1\.2\.3\.4/);
+          expect(result.headers["x-forwarded-for"]).toBe("1.2.3.4");
         });
 
         it("does not add x-forwarded-* headers by default", async () => {

@@ -65,15 +65,13 @@ export function applyXForwardedHeaders(headers: HeadersInit, event: H3Event): He
   const merged = headers instanceof Headers ? headers : new Headers(headers);
 
   const ip = event.req.ip;
-  if (ip) {
-    const existing = merged.get("x-forwarded-for");
-    merged.set("x-forwarded-for", existing ? `${existing}, ${ip}` : ip);
+  if (ip && !merged.has("x-forwarded-for")) {
+    merged.set("x-forwarded-for", ip);
   }
 
   const proto = event.url.protocol.slice(0, -1); // strip trailing ":"
-  if (proto) {
-    const existing = merged.get("x-forwarded-proto");
-    merged.set("x-forwarded-proto", existing ? `${existing}, ${proto}` : proto);
+  if (proto && !merged.has("x-forwarded-proto")) {
+    merged.set("x-forwarded-proto", proto);
   }
 
   if (!merged.has("x-forwarded-host")) {
