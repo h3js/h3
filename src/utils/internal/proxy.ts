@@ -11,6 +11,8 @@ export const ignoredHeaders: Set<string> = new Set([
   "keep-alive",
   "upgrade",
   "expect",
+  "te",
+  "trailer",
   "host",
 ]);
 
@@ -56,10 +58,10 @@ export function rewriteCookieProperty(
 
 /**
  * Apply `x-forwarded-*` headers derived from the incoming request onto the
- * given proxy headers (mutating and returning a `Headers` instance).
+ * given proxy headers (returning a `Headers` instance).
  *
- * `x-forwarded-for` / `x-forwarded-proto` are appended to any existing value;
- * `x-forwarded-host` / `x-forwarded-port` are only set when absent.
+ * Each header is only set when absent — a value already present (from the
+ * incoming request or header options) is never modified.
  */
 export function applyXForwardedHeaders(headers: HeadersInit, event: H3Event): Headers {
   const merged = headers instanceof Headers ? headers : new Headers(headers);
@@ -112,11 +114,12 @@ export function rewriteLocationHeaders(
   }
   const refresh = headers.get("refresh");
   if (refresh) {
-    // `Refresh: 5; url=https://target/path`
-    const match = refresh.match(/^(\s*[\d.]+\s*;\s*url=\s*)(.+)$/i);
-    const rewritten = match && rewriteValue(match[2]!);
+    // `Refresh: 5; url=https://target/path` — the delay is optional in
+    // practice, `=` may be padded, and the URL may be quoted.
+    const match = refresh.match(/^(\s*(?:[\d.]+\s*[;,]\s*)?url\s*=\s*)(['"]?)(.*?)\2(\s*)$/i);
+    const rewritten = match && rewriteValue(match[3]!);
     if (rewritten) {
-      headers.set("refresh", match![1]! + rewritten);
+      headers.set("refresh", match![1]! + match![2]! + rewritten + match![2]! + match![4]!);
     }
   }
 }
@@ -129,25 +132,59 @@ function rewriteOrigin(
   if (!targetOrigin || targetOrigin === requestOrigin) {
     return undefined;
   }
-  // A relative URL already resolves against the proxy origin on the client.
-  if (!URL.canParse(value)) {
-    return undefined;
-  }
-  const url = new URL(value);
+  // A protocol-relative URL (`//host/path`) needs a base to parse; resolve it
+  // against the target origin so one pointing at the target is caught too
+  // (otherwise it would leak the upstream host). A plain-relative URL already
+  // resolves against the proxy origin on the client and stays untouched.
+  const url = value.startsWith("//")
+    ? URL.canParse(value, targetOrigin)
+      ? new URL(value, targetOrigin)
+      : undefined
+    : URL.canParse(value)
+      ? new URL(value)
+      : undefined;
   // A URL pointing anywhere but the proxied target is not ours to rewrite.
-  if (url.origin !== targetOrigin) {
+  if (!url || url.origin !== targetOrigin) {
     return undefined;
   }
   return requestOrigin + url.pathname + url.search + url.hash;
 }
 
 function rewritePrefix(value: string, map: Record<string, string>): string | undefined {
-  for (const prefix in map) {
+  // `Object.keys` (not `for...in`) so a polluted `Object.prototype` cannot
+  // inject phantom rewrite rules.
+  for (const prefix of Object.keys(map)) {
     if (value.startsWith(prefix)) {
       return map[prefix] + value.slice(prefix.length);
     }
   }
   return undefined;
+}
+
+/**
+ * Run a task raced against an abort signal, rejecting with the signal's
+ * reason on abort (without starting the task when already aborted). Needed
+ * for internal sub-requests: `H3.fetch()` does not observe the request
+ * signal, so timeouts/disconnects would otherwise never settle it.
+ */
+export function abortable<T>(run: () => Promise<T> | T, signal: AbortSignal): Promise<T> {
+  if (signal.aborted) {
+    return Promise.reject(signal.reason as Error);
+  }
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(signal.reason as Error);
+    signal.addEventListener("abort", onAbort, { once: true });
+    Promise.resolve(run()).then(
+      (value) => {
+        signal.removeEventListener("abort", onAbort);
+        resolve(value);
+      },
+      (error) => {
+        signal.removeEventListener("abort", onAbort);
+        reject(error as Error);
+      },
+    );
+  });
 }
 
 export function mergeHeaders(

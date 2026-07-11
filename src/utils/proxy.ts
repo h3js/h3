@@ -2,6 +2,7 @@ import type { H3Event } from "../event.ts";
 
 import { HTTPError } from "../error.ts";
 import {
+  abortable,
   applyXForwardedHeaders,
   ignoredHeaders,
   ignoredResponseHeaders,
@@ -18,6 +19,9 @@ export interface ProxyOptions {
   /**
    * Allowlist of incoming request header names to forward to the upstream.
    * Header names are matched case-insensitively.
+   *
+   * Note: this bypasses the built-in hop-by-hop denylist — e.g.
+   * `forwardHeaders: ["host"]` forwards the client's `host` verbatim.
    */
   forwardHeaders?: string[];
   /**
@@ -67,24 +71,29 @@ export interface ProxyOptions {
    * the client is already gone) rather than logged as a `502` gateway error.
    *
    * Set this to `true` to instead let the `AbortError` propagate to your handler
-   * (e.g. to run cleanup). This also applies to a custom `fetchOptions.signal`.
+   * (e.g. to run cleanup). This also applies to a custom `fetchOptions.signal`,
+   * except when it aborts with a `TimeoutError` — timeouts always map to `504`
+   * (see `timeout`).
    */
   propagateAbortError?: boolean;
 
   /**
-   * Milliseconds to wait for the upstream response before giving up. On timeout
-   * the proxy responds with `504 Gateway Timeout`.
+   * Milliseconds to wait for the upstream response (headers) before giving up.
+   * On timeout the proxy responds with `504 Gateway Timeout`. The deadline is
+   * cleared once the upstream responds — it never cuts off a long-running
+   * response body stream.
    *
-   * Internally this composes an `AbortSignal.timeout(timeout)` into the request's
-   * abort signal. Because a fired timeout aborts with a `TimeoutError`, a
-   * caller-supplied `fetchOptions.signal` that is itself an `AbortSignal.timeout`
-   * is also mapped to `504` (rather than the `499` used for client disconnects).
+   * Because a fired timeout aborts with a `TimeoutError`, a caller-supplied
+   * `fetchOptions.signal` that is itself an `AbortSignal.timeout` is also
+   * mapped to `504` (rather than the `499` used for client disconnects) — note
+   * that such a signal stays armed during body streaming and can truncate it;
+   * prefer this option.
    */
   timeout?: number;
 
   /**
    * When `true`, add `x-forwarded-*` request headers derived from the incoming
-   * request so the upstream learns the real client and original request info:
+   * request so the upstream learns the client and original request info:
    *
    * - `x-forwarded-for`: the client IP (`event.req.ip`, when available).
    * - `x-forwarded-proto`: the incoming request protocol.
@@ -94,6 +103,15 @@ export interface ProxyOptions {
    *
    * Each header is only set when absent — a value already present on the
    * incoming request (or set via header options) is left untouched.
+   *
+   * **Security:** because present values win, a client-supplied
+   * `x-forwarded-for` is forwarded verbatim and the real client IP is never
+   * added. On an internet-facing server (no trusted proxy in front), strip
+   * incoming values first with `filterHeaders: ["x-forwarded-for"]` if the
+   * upstream trusts this header for allowlisting, rate limiting, or logging.
+   *
+   * Only applied by `proxyRequest` (which forwards the incoming request);
+   * the lower-level `proxy` ignores this option.
    *
    * @default false
    */
@@ -138,11 +156,15 @@ export async function proxyRequest(
   // Request Body
   // Forward the body based on presence, not a method allowlist, so bodies on
   // WebDAV-style (PROPFIND/REPORT/SEARCH) and custom methods are not dropped.
-  // GET/HEAD are excluded because fetch rejects a body on those methods.
+  // GET/HEAD are excluded — keyed off the OUTGOING method (a caller can
+  // override it via `fetchOptions.method`) because fetch rejects a body on
+  // those methods.
   const method = opts.fetchOptions?.method || event.req.method;
+  const methodUpper = method.toUpperCase();
+  const incomingBody = event.req.body;
   const requestBody =
-    event.req.body != null && event.req.method !== "GET" && event.req.method !== "HEAD"
-      ? event.req.body
+    incomingBody != null && methodUpper !== "GET" && methodUpper !== "HEAD"
+      ? incomingBody
       : undefined;
 
   // Headers
@@ -155,6 +177,18 @@ export async function proxyRequest(
     opts.fetchOptions?.headers,
     opts.headers,
   );
+
+  // When the forwarded body is not the incoming request's own stream, the
+  // incoming `content-length` no longer describes it — and fetch trusts a
+  // caller-supplied `content-length` verbatim, mis-framing the upstream
+  // request. Drop it and let fetch derive the framing from the actual body.
+  if ((opts.fetchOptions && "body" in opts.fetchOptions) || (incomingBody && !requestBody)) {
+    if (fetchHeaders instanceof Headers) {
+      fetchHeaders.delete("content-length");
+    } else if (!Array.isArray(fetchHeaders)) {
+      delete (fetchHeaders as Record<string, string>)["content-length"];
+    }
+  }
 
   // Derive `duplex` from the FINAL body (a caller may override it via
   // `opts.fetchOptions.body`), so a streamed override on a body-less incoming
@@ -192,7 +226,10 @@ export async function proxyRequest(
  * rewritten to the target (preserving it via `forwardHeaders: ["host"]` works on
  * Node.js but may be ignored on other runtimes), and unix sockets, TLS options,
  * or connection agents require a runtime-specific escape hatch (e.g. undici's
- * `dispatcher` in `fetchOptions` on Node.js).
+ * `dispatcher` in `fetchOptions` on Node.js). On browser and service-worker
+ * runtimes, `redirect: "manual"` produces an unrelayable opaque-redirect for
+ * external targets (a `502` is returned) — set
+ * `fetchOptions: { redirect: "follow" }` there.
  *
  * **Security:** Never pass unsanitized user input as the `target`. Callers are
  * responsible for validating and restricting the target URL (e.g. allowlisting
@@ -214,24 +251,43 @@ export async function proxy(
   if (opts.fetchOptions?.signal) {
     signals.push(opts.fetchOptions.signal);
   }
-  if (opts.timeout) {
-    signals.push(AbortSignal.timeout(opts.timeout));
+  // A cancelable timer (not `AbortSignal.timeout`) so the deadline only covers
+  // waiting for the response: it is cleared as soon as the upstream responds
+  // and can never abort a long-running body stream mid-flight.
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  if (opts.timeout! > 0 && Number.isFinite(opts.timeout)) {
+    const timeoutController = new AbortController();
+    timeoutId = setTimeout(
+      () => timeoutController.abort(new DOMException("Proxy request timed out", "TimeoutError")),
+      // setTimeout clamps anything above its int32 limit down to 1ms — treat
+      // larger deadlines as "practically no timeout" instead.
+      Math.min(Math.trunc(opts.timeout!), 2_147_483_647),
+    );
+    signals.push(timeoutController.signal);
   }
+  const signal = signals.length > 1 ? AbortSignal.any(signals) : signals[0]!;
   const fetchOptions: RequestInit = {
     headers: opts.headers as HeadersInit,
-    // Default to passing upstream 3xx responses through to the client instead of
-    // silently following them. Placed before the spread so an explicit
-    // `fetchOptions.redirect` from the caller still wins.
-    redirect: "manual",
     ...opts.fetchOptions,
-    signal: signals.length > 1 ? AbortSignal.any(signals) : signals[0],
+    // Default to passing upstream 3xx responses through to the client instead
+    // of silently following them. `?? "manual"` (instead of a default before
+    // the spread) so even an explicit `redirect: undefined` cannot silently
+    // restore fetch's follow behavior.
+    redirect: opts.fetchOptions?.redirect ?? "manual",
+    signal,
   };
 
   let response: Response | undefined;
   try {
+    // `H3.fetch()` does not observe the request signal, so race internal
+    // sub-requests against it explicitly — otherwise `timeout` and client
+    // disconnects would be silent no-ops for internal (`/`) targets.
     response =
       target[0] === "/"
-        ? await event.app!.fetch(createSubRequest(event, target, fetchOptions))
+        ? await abortable(
+            () => event.app!.fetch(createSubRequest(event, target, fetchOptions)),
+            signal,
+          )
         : await fetch(target, fetchOptions);
   } catch (error) {
     // A fired timeout signal aborts with a `TimeoutError`. Map it (including a
@@ -256,23 +312,45 @@ export async function proxy(
       }
     }
     throw new HTTPError({ status: 502, cause: error });
+  } finally {
+    if (timeoutId !== undefined) {
+      clearTimeout(timeoutId);
+    }
+  }
+
+  // Browser/service-worker fetch filters `redirect: "manual"` 3xx responses
+  // into an opaque-redirect (status 0, no headers) that cannot be relayed.
+  // Fail loudly instead of returning an empty response.
+  if (response.type === "opaqueredirect") {
+    throw new HTTPError({
+      status: 502,
+      message:
+        'Cannot relay an opaque redirect response on this runtime. Set `fetchOptions: { redirect: "follow" }` to follow upstream redirects instead.',
+    });
   }
 
   const headers = new Headers();
 
-  const cookies: string[] = [];
+  // Also strip response headers the upstream marked hop-by-hop via its
+  // `Connection` header (RFC 7230 §6.1), on top of the static denylist.
+  const connectionNominated = new Set(
+    (response.headers.get("connection") || "")
+      .toLowerCase()
+      .split(",")
+      .map((name) => name.trim())
+      .filter(Boolean),
+  );
 
   for (const [key, value] of response.headers.entries()) {
-    if (ignoredResponseHeaders.has(key)) {
-      continue;
-    }
-    if (key === "set-cookie") {
-      cookies.push(value);
+    if (ignoredResponseHeaders.has(key) || connectionNominated.has(key) || key === "set-cookie") {
       continue;
     }
     headers.append(key, value);
   }
 
+  // `getSetCookie()` is the only spec-guaranteed way to get each `set-cookie`
+  // value separately (cookie attributes may contain commas).
+  const cookies = response.headers.getSetCookie();
   if (cookies.length > 0) {
     const _cookies = cookies.map((cookie) => {
       if (opts.cookieDomainRewrite) {
