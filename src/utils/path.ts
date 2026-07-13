@@ -93,11 +93,17 @@ const ENCODED_DOT_RE_G = /%(?:25)*2e/gi;
  * percent-encoding (`%20`, non-ASCII, `%3A`, and any `%2e` not forming a whole
  * segment) is left intact, so the result stays in the same representation as an
  * un-decoded `event.url.pathname` and matches routes/rules consistently.
- * Interior empty segments are preserved (`/a//b` stays `/a//b`, per WHATWG URL
- * normalization) — only the leading slash is guaranteed single, so a consumer
- * doing exact prefix matching should normalize its allowlist the same way. To
- * collapse them instead (the reading a slash-merging downstream resolves), see
- * {@link ResolveDotSegmentsOptions.mergeSlashes}.
+ * A trailing `.`/`..` resolves to a directory and keeps its trailing slash
+ * (`/a/b/..` -> `/a/`, `/a/.` -> `/a/`), per RFC 3986 §5.2.4 and matching what a
+ * WHATWG/nginx downstream resolves — so a scope check sees the directory form,
+ * not its file-form sibling.
+ * Interior empty segments are preserved (`/a//b` stays `/a//b`) — like WHATWG,
+ * this never merges slashes, so empty segments survive rather than collapsing.
+ * The one exception is a *leading* run: it is always clamped to a single `/`
+ * (WHATWG would keep `//host`), so only the leading slash is guaranteed single
+ * and a consumer doing exact prefix matching should normalize its allowlist the
+ * same way. To collapse interior runs too (the reading a slash-merging
+ * downstream resolves), see {@link ResolveDotSegmentsOptions.mergeSlashes}.
  */
 export function resolveDotSegments(path: string, opts?: ResolveDotSegmentsOptions): string {
   // Normalize to a single leading slash (treating a leading `\` as a
@@ -137,6 +143,7 @@ export function resolveDotSegments(path: string, opts?: ResolveDotSegmentsOption
     const normalizedSegment = segment.includes("%")
       ? segment.replace(ENCODED_DOT_RE_G, ".")
       : segment;
+    const isDotSegment = normalizedSegment === "." || normalizedSegment === "..";
     if (normalizedSegment === "..") {
       // Never pop past the root (first empty segment from leading slash)
       if (resolved.length > 1) {
@@ -148,8 +155,16 @@ export function resolveDotSegments(path: string, opts?: ResolveDotSegmentsOption
       // separators a `/{2,}` -> `/` collapse would remove. Skipping them here,
       // rather than collapsing the string first, is equivalent and lets a `..`
       // that an empty segment would otherwise shield pop its real parent.
-    } else if (normalizedSegment !== ".") {
+    } else if (!isDotSegment) {
       resolved.push(segment);
+    }
+    // A trailing `.`/`..` resolves to a directory, so preserve the trailing
+    // slash by leaving an empty final segment (`/a/b/..` -> `/a/`, `/a/.` ->
+    // `/a/`). This matches RFC 3986 §5.2.4 and what a WHATWG/nginx downstream
+    // resolves, so a scope check does not see the file-form sibling of a path
+    // the downstream serves the directory index of.
+    if (isDotSegment && i === lastIndex) {
+      resolved.push("");
     }
   }
   const result = resolved.join("/") || "/";

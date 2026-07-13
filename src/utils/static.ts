@@ -106,7 +106,10 @@ export async function serveStatic(
   // reached instead of a 500. A `%`-free path (the common case) skips the
   // decode entirely, matching the fast-path guards at the event layer and in
   // `resolveDotSegments`.
-  const resolvedId = resolveDotSegments(withoutTrailingSlash(event.url.pathname));
+  // Strip the trailing slash AFTER resolving: a trailing `.`/`..` now resolves
+  // to a directory-form path (`/a/b/..` -> `/a/`), and the on-disk id must stay
+  // slash-free either way.
+  const resolvedId = withoutTrailingSlash(resolveDotSegments(event.url.pathname));
   let originalId = resolvedId;
   if (resolvedId.includes("%")) {
     try {

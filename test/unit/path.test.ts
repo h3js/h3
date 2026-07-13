@@ -107,11 +107,29 @@ describe("resolveDotSegments", () => {
 
   it("preserves interior empty segments by default", () => {
     expect(resolveDotSegments("/api/orders//list.json")).toBe("/api/orders//list.json");
-    // The empty segment shields the `..` from popping `a`
-    expect(resolveDotSegments("/a//..")).toBe("/a");
+    // The empty segment shields the `..` from popping `a` (it pops the empty
+    // segment instead), leaving the directory-form `/a/`.
+    expect(resolveDotSegments("/a//..")).toBe("/a/");
     expect(resolveDotSegments("/api/foo/%2e%2e/%2fadmin/secret", { decodeSlashes: true })).toBe(
       "/api//admin/secret",
     );
+  });
+
+  it("preserves the trailing slash of a trailing dot segment (RFC 3986 §5.2.4)", () => {
+    // A trailing `.`/`..` resolves to a directory: `/a/b/..` -> `/a/`, not `/a`,
+    // matching what a WHATWG `URL`/nginx downstream resolves.
+    expect(resolveDotSegments("/a/b/..")).toBe("/a/");
+    expect(resolveDotSegments("/a/.")).toBe("/a/");
+    expect(resolveDotSegments("/a/b/.")).toBe("/a/b/");
+    // Encoded and nested forms resolve the same way.
+    expect(resolveDotSegments("/a/b/%2e%2e")).toBe("/a/");
+    expect(resolveDotSegments("/a/b/%252e")).toBe("/a/b/");
+    // Popping down to the root still yields a single-slash root, not `//`.
+    expect(resolveDotSegments("/a/..")).toBe("/");
+    expect(resolveDotSegments("/..")).toBe("/");
+    expect(resolveDotSegments("/a/../..")).toBe("/");
+    // Merge mode preserves it too.
+    expect(resolveDotSegments("/a/b/..", { mergeSlashes: true })).toBe("/a/");
   });
 
   describe("mergeSlashes", () => {
