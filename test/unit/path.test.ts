@@ -104,4 +104,91 @@ describe("resolveDotSegments", () => {
     expect(resolveDotSegments("/api/orders/%252e%252e/admin")).toBe("/api/admin");
     expect(resolveDotSegments("/a/%25252e%25252e/b")).toBe("/b");
   });
+
+  it("preserves interior empty segments by default", () => {
+    expect(resolveDotSegments("/api/orders//list.json")).toBe("/api/orders//list.json");
+    // The empty segment shields the `..` from popping `a`
+    expect(resolveDotSegments("/a//..")).toBe("/a");
+    expect(resolveDotSegments("/api/foo/%2e%2e/%2fadmin/secret", { decodeSlashes: true })).toBe(
+      "/api//admin/secret",
+    );
+  });
+
+  describe("mergeSlashes", () => {
+    it("collapses runs of literal separators", () => {
+      expect(resolveDotSegments("/api/orders//list.json", { mergeSlashes: true })).toBe(
+        "/api/orders/list.json",
+      );
+      expect(resolveDotSegments("/a////b", { mergeSlashes: true })).toBe("/a/b");
+    });
+
+    it("resolves a `..` an empty segment would otherwise shield", () => {
+      expect(resolveDotSegments("/a//..", { mergeSlashes: true })).toBe("/");
+      expect(resolveDotSegments("/a/b//../c", { mergeSlashes: true })).toBe("/a/c");
+      expect(resolveDotSegments("/a//../..", { mergeSlashes: true })).toBe("/");
+    });
+
+    it("collapses runs formed by decoded separators", () => {
+      // The maximal-traversal reading: `..` traverses and reaches /api/admin,
+      // which is what a slash-merging downstream resolves.
+      expect(
+        resolveDotSegments("/api/foo/%2e%2e/%2fadmin/secret", {
+          decodeSlashes: true,
+          mergeSlashes: true,
+        }),
+      ).toBe("/api/admin/secret");
+      expect(
+        resolveDotSegments("/api/foo/%2e%2e/%2fadmin", { decodeSlashes: true, mergeSlashes: true }),
+      ).toBe("/api/admin");
+      expect(resolveDotSegments("/a/%2f%2fb", { decodeSlashes: true, mergeSlashes: true })).toBe(
+        "/a/b",
+      );
+      // ...at any `%25`-nesting depth, and for `%5c` too
+      expect(
+        resolveDotSegments("/a/%252f%255cb", { decodeSlashes: true, mergeSlashes: true }),
+      ).toBe("/a/b");
+      expect(
+        resolveDotSegments("/a/b/%2e%2e/%252f..%2fadmin", {
+          decodeSlashes: true,
+          mergeSlashes: true,
+        }),
+      ).toBe("/admin");
+    });
+
+    it("collapses runs formed by normalized backslashes", () => {
+      expect(resolveDotSegments("/a/\\/b", { mergeSlashes: true })).toBe("/a/b");
+      expect(resolveDotSegments("/a\\\\..", { mergeSlashes: true })).toBe("/");
+    });
+
+    it("leaves an encoded separator opaque without decodeSlashes", () => {
+      // `%2f` is not part of the active separator set, so it forms no run.
+      expect(resolveDotSegments("/a/%2f%2fb", { mergeSlashes: true })).toBe("/a/%2f%2fb");
+      expect(resolveDotSegments("/a/%2f..", { mergeSlashes: true })).toBe("/a/%2f..");
+    });
+
+    it("collapses only runs, preserving a single trailing slash", () => {
+      expect(resolveDotSegments("/a/", { mergeSlashes: true })).toBe("/a/");
+      expect(resolveDotSegments("/a//", { mergeSlashes: true })).toBe("/a/");
+      expect(resolveDotSegments("/a//b/../", { mergeSlashes: true })).toBe("/a/");
+      expect(resolveDotSegments("/", { mergeSlashes: true })).toBe("/");
+    });
+
+    it("still never escapes above the root or yields a protocol-relative path", () => {
+      expect(resolveDotSegments("/..//../etc/passwd", { mergeSlashes: true })).toBe("/etc/passwd");
+      expect(resolveDotSegments("//evil.com", { mergeSlashes: true })).toBe("/evil.com");
+      expect(
+        resolveDotSegments("/app/..%2f..%2f%2fevil.com/steal", {
+          decodeSlashes: true,
+          mergeSlashes: true,
+        }),
+      ).toBe("/evil.com/steal");
+    });
+
+    it("keeps a run-free path on the fast path", () => {
+      expect(resolveDotSegments("/assets/app.1a2b.js", { mergeSlashes: true })).toBe(
+        "/assets/app.1a2b.js",
+      );
+      expect(resolveDotSegments("/foo%20bar", { mergeSlashes: true })).toBe("/foo%20bar");
+    });
+  });
 });

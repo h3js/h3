@@ -31,6 +31,33 @@ export interface ResolveDotSegmentsOptions {
    * @default false
    */
   decodeSlashes?: boolean;
+
+  /**
+   * Collapse runs of consecutive path separators (interior empty `//` segments)
+   * instead of preserving them, producing the *maximal-traversal* canonical
+   * form — the path a slash-merging downstream (nginx `merge_slashes`, or any
+   * backend that decodes then normalizes) actually resolves. It operates on the
+   * separator set that is active after the normalizations above: a literal `/`,
+   * a `\` normalized to `/`, and — with {@link decodeSlashes} — a decoded
+   * `%2f`/`%5c` (so the same bounded `%25`-nesting boundary is inherited, and a
+   * hex-of-hex form like `%25%32%66` is no more collapsed here than it is
+   * decoded there).
+   *
+   * This is the reading in which a `..` next to an empty segment is no longer
+   * shielded by it: `/a//..` resolves to `/`, not `/a`. The two readings diverge
+   * exactly there, so a scope check that only looks at the empty-preserving form
+   * can pass a path that still escapes downstream. Enable this for a fail-closed
+   * scope/security check that must also hold against a slash-merging downstream
+   * — but note a `/`-splitting router (rou3) does not merge slashes, so this
+   * form is one of two readings such a check has to consider, not a replacement
+   * for the other. Never use the result for routing/dispatch.
+   *
+   * Only *runs* collapse: a single trailing slash is preserved (`/a/` stays
+   * `/a/`, `/a//` becomes `/a/`), as with nginx.
+   *
+   * @default false
+   */
+  mergeSlashes?: boolean;
 }
 
 // A dot segment — the only `.`-related input that changes the path — is a `.`
@@ -68,7 +95,9 @@ const ENCODED_DOT_RE_G = /%(?:25)*2e/gi;
  * un-decoded `event.url.pathname` and matches routes/rules consistently.
  * Interior empty segments are preserved (`/a//b` stays `/a//b`, per WHATWG URL
  * normalization) — only the leading slash is guaranteed single, so a consumer
- * doing exact prefix matching should normalize its allowlist the same way.
+ * doing exact prefix matching should normalize its allowlist the same way. To
+ * collapse them instead (the reading a slash-merging downstream resolves), see
+ * {@link ResolveDotSegmentsOptions.mergeSlashes}.
  */
 export function resolveDotSegments(path: string, opts?: ResolveDotSegmentsOptions): string {
   // Normalize to a single leading slash (treating a leading `\` as a
@@ -78,12 +107,18 @@ export function resolveDotSegments(path: string, opts?: ResolveDotSegmentsOption
     path = "/" + path.replace(/^[/\\]+/, "");
   }
   const decodeSlashes = opts?.decodeSlashes;
-  // A `\` always needs normalizing, and (with `decodeSlashes`) an encoded
-  // separator always needs decoding — both are cheap `includes`/`test` scans
-  // checked first so a dot-free path skips the dot-segment regex entirely.
+  const mergeSlashes = opts?.mergeSlashes;
+  // A `\` always needs normalizing, (with `decodeSlashes`) an encoded separator
+  // always needs decoding, and (with `mergeSlashes`) a literal separator run
+  // always needs collapsing — all cheap `includes`/`test` scans checked first so
+  // a dot-free path skips the dot-segment regex entirely. An encoded separator
+  // only forms a run once decoded, so `hasEncodedSep` already covers the runs
+  // `mergeSlashes` can additionally see; the leading normalization above has
+  // taken care of any leading run, so a remaining `//` is interior or trailing.
   const hasBackslash = path.includes("\\");
   const hasEncodedSep = decodeSlashes && ENCODED_SEP_RE.test(path);
-  if (!hasBackslash && !hasEncodedSep && !DOT_SEGMENT_RE.test(path)) {
+  const hasSepRun = mergeSlashes && path.includes("//");
+  if (!hasBackslash && !hasEncodedSep && !hasSepRun && !DOT_SEGMENT_RE.test(path)) {
     return path;
   }
   // Normalize backslashes to forward slashes to prevent traversal via `\`
@@ -92,8 +127,10 @@ export function resolveDotSegments(path: string, opts?: ResolveDotSegmentsOption
     normalized = normalized.replace(ENCODED_SEP_RE_G, "/");
   }
   const segments = normalized.split("/");
+  const lastIndex = segments.length - 1;
   const resolved: string[] = [];
-  for (const segment of segments) {
+  for (let i = 0; i <= lastIndex; i++) {
+    const segment = segments[i]!;
     // Decode percent-encoded dots at any %25-nesting depth (%2e, %252e, ...)
     // to catch multi-encoded traversal — skipped for the common `%`-free
     // segment, which cannot contain an encoded dot.
@@ -105,6 +142,12 @@ export function resolveDotSegments(path: string, opts?: ResolveDotSegmentsOption
       if (resolved.length > 1) {
         resolved.pop();
       }
+    } else if (mergeSlashes && normalizedSegment === "" && i > 0 && i < lastIndex) {
+      // Drop an empty segment that is neither the root (`i === 0`, always empty
+      // since `path` starts with `/`) nor the trailing one — exactly the
+      // separators a `/{2,}` -> `/` collapse would remove. Skipping them here,
+      // rather than collapsing the string first, is equivalent and lets a `..`
+      // that an empty segment would otherwise shield pop its real parent.
     } else if (normalizedSegment !== ".") {
       resolved.push(segment);
     }
