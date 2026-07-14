@@ -109,7 +109,9 @@ export {
   iterable,
   noContent,
   html,
+  raw,
 } from "./utils/response.ts";
+export type { RawHTML } from "./utils/response.ts";
 
 // Query (RFC 10008 HTTP QUERY method)
 

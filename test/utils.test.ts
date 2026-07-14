@@ -11,6 +11,7 @@ import {
   getRequestFingerprint,
   handleCacheHeaders,
   html,
+  raw,
   writeEarlyHints,
 } from "../src/index.ts";
 import { describeMatrix } from "./_setup.ts";
@@ -27,6 +28,30 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
       const res2 = await t.fetch("/test2");
       expect(res2.headers.get("content-type")).toBe("text/html; charset=utf-8");
       expect((await res2.text()).trim()).toBe("<h1>Hello</h1>");
+    });
+
+    it("escapes interpolated values in tagged template", async () => {
+      const name = `<script>alert("xss")</script>&'`;
+      t.app.get("/test", () => html`<h1>Hello, ${name}!</h1>`);
+      const res = await t.fetch("/test");
+      expect(res.headers.get("content-type")).toBe("text/html; charset=utf-8");
+      expect(await res.text()).toBe(
+        "<h1>Hello, &lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;&amp;&#39;!</h1>",
+      );
+    });
+
+    it("passes raw() values through unescaped", async () => {
+      const trusted = "<b>bold</b>";
+      const user = "<script>";
+      t.app.get("/test", () => html`<div>${raw(trusted)}${user}</div>`);
+      const res = await t.fetch("/test");
+      expect(await res.text()).toBe("<div><b>bold</b>&lt;script&gt;</div>");
+    });
+
+    it("does not escape plain string usage", async () => {
+      t.app.get("/test", () => html("<p>raw & <string></p>"));
+      const res = await t.fetch("/test");
+      expect(await res.text()).toBe("<p>raw & <string></p>");
     });
   });
 

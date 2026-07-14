@@ -44,11 +44,7 @@ export function redirect(
   status: number = 302,
   statusText?: string,
 ): HTTPResponse {
-  const htmlLoc = location.replace(
-    /[&"<>]/g,
-    (c) => ({ "&": "&amp;", '"': "&quot;", "<": "&lt;", ">": "&gt;" })[c]!,
-  );
-  const body = /* html */ `<html><head><meta http-equiv="refresh" content="0; url=${htmlLoc}" /></head></html>`;
+  const body = /* html */ `<html><head><meta http-equiv="refresh" content="0; url=${escapeHtml(location)}" /></head></html>`;
   return new HTTPResponse(body, {
     status,
     statusText: statusText || (status === 301 ? "Moved Permanently" : "Found"),
@@ -216,9 +212,23 @@ export function iterable<Value = unknown, Return = unknown>(
 /**
  * Respond with HTML content.
  *
+ * When used as a **tagged template**, interpolated values are automatically
+ * HTML-escaped (`& < > " '`) to help prevent XSS. Wrap a value with {@link raw}
+ * to opt out of escaping for trusted markup.
+ *
+ * When called with a **plain string**, the markup is used as-is (no escaping).
+ *
  * @example
+ * // Plain string (used as-is, not escaped):
  * app.get("/", () => html("<h1>Hello, World!</h1>"));
+ *
+ * @example
+ * // Tagged template (interpolations are escaped):
  * app.get("/", () => html`<h1>Hello, ${name}!</h1>`);
+ *
+ * @example
+ * // Opt out of escaping for trusted markup:
+ * app.get("/", () => html`<div>${raw(trustedMarkup)}</div>`);
  */
 export function html(strings: TemplateStringsArray, ...values: unknown[]): HTTPResponse;
 export function html(markup: string): HTTPResponse;
@@ -226,8 +236,52 @@ export function html(first: TemplateStringsArray | string, ...values: unknown[])
   const body =
     typeof first === "string"
       ? first
-      : first.reduce((out, str, i) => out + str + (values[i] ?? ""), "");
+      : first.reduce((out, str, i) => {
+          const value = values[i];
+          const rendered =
+            value == null
+              ? ""
+              : value instanceof RawHTMLValue
+                ? value.value
+                : escapeHtml(String(value));
+          return out + str + rendered;
+        }, "");
   return new HTTPResponse(body, {
     headers: { "content-type": "text/html; charset=utf-8" },
   });
+}
+
+/**
+ * Mark a string as trusted, pre-escaped HTML so it is interpolated into the
+ * {@link html} tagged template **without** being escaped.
+ *
+ * Only use this for markup you fully control — passing user input to `raw`
+ * re-introduces XSS risk.
+ *
+ * @example
+ * // `heading` is trusted markup; `userName` is escaped automatically.
+ * app.get("/", () => html`<div>${raw(heading)}<span>${userName}</span></div>`);
+ */
+export function raw(value: string): RawHTML {
+  return new RawHTMLValue(value);
+}
+
+/** Trusted raw HTML wrapper produced by {@link raw}. */
+export interface RawHTML {
+  readonly value: string;
+}
+
+class RawHTMLValue implements RawHTML {
+  readonly value: string;
+  constructor(value: string) {
+    this.value = value;
+  }
+}
+
+/** HTML-escape the special characters `& < > " '`. */
+function escapeHtml(str: string): string {
+  return str.replace(
+    /[&"'<>]/g,
+    (c) => ({ "&": "&amp;", '"': "&quot;", "'": "&#39;", "<": "&lt;", ">": "&gt;" })[c]!,
+  );
 }
