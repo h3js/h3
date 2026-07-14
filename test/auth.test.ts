@@ -253,6 +253,29 @@ describeMatrix("auth", (t, { it, expect }) => {
     expect(result.status).toBe(200);
   });
 
+  it("authenticates credentials with a non-ASCII (UTF-8) password", async () => {
+    const utf8Auth = basicAuth({ username: "tëst", password: "pä$$wörd🔒" });
+    t.app.get("/utf8", () => "UTF-8 ok!", { middleware: [utf8Auth] });
+
+    const result = await t.fetch("/utf8", {
+      method: "GET",
+      headers: {
+        Authorization: `Basic ${Buffer.from("tëst:pä$$wörd🔒", "utf8").toString("base64")}`,
+      },
+    });
+
+    expect(await result.text()).toBe("UTF-8 ok!");
+    expect(result.status).toBe(200);
+  });
+
+  it("advertises charset=UTF-8 in the WWW-Authenticate challenge", async () => {
+    t.app.get("/challenge", () => "Hello, world!", { middleware: [auth] });
+    const result = await t.fetch("/challenge", { method: "GET" });
+
+    expect(result.status).toBe(401);
+    expect(result.headers.get("www-authenticate")).toContain('charset="UTF-8"');
+  });
+
   it("throws error when neither password nor validate is provided", async () => {
     const invalidAuth = basicAuth({} as any);
     t.app.get("/no-auth-config", () => "Should not reach!", {

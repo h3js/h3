@@ -58,7 +58,10 @@ export async function requireBasicAuth(event: HTTPEvent, opts: BasicAuthOptions)
   }
   let authDecoded: string;
   try {
-    authDecoded = atob(b64auth);
+    // RFC 7617: credentials are base64-encoded and may use UTF-8 (charset="UTF-8").
+    authDecoded = new TextDecoder("utf-8", { fatal: false }).decode(
+      Uint8Array.from(atob(b64auth), (c) => c.charCodeAt(0)),
+    );
   } catch {
     throw authFailed(event, opts?.realm);
   }
@@ -109,7 +112,7 @@ function authFailed(event: HTTPEvent, realm: string = "") {
     status: 401,
     statusText: "Authentication required",
     headers: {
-      "www-authenticate": `Basic realm=${JSON.stringify(realm)}`,
+      "www-authenticate": `Basic realm=${JSON.stringify(realm)}, charset="UTF-8"`,
     },
   });
 }
