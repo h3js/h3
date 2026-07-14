@@ -22,6 +22,24 @@ export const ignoredHeaders: Set<string> = /* @__PURE__ */ new Set([
 ]);
 
 /**
+ * The subset of `ignoredHeaders` carrying true hop-by-hop framing/connection
+ * semantics (RFC 9110 §7.6.1). Unlike the "soft" drops (`host`,
+ * `accept-encoding`), forwarding these upstream can desync request framing or
+ * leak the inbound proxy's credentials — so `forwardHeaders` must never
+ * override them.
+ */
+export const framingHeaders: Set<string> = /* @__PURE__ */ new Set([
+  "connection",
+  "keep-alive",
+  "transfer-encoding",
+  "te",
+  "trailer",
+  "upgrade",
+  "proxy-authorization",
+  "proxy-connection",
+]);
+
+/**
  * Parse a `Connection` header value into a lowercased set of the field names it
  * nominates as hop-by-hop (RFC 9110 §7.6.1). Those fields must not be relayed
  * across the proxy in either direction.
