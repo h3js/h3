@@ -91,24 +91,29 @@ describe("requestWithBaseURL", () => {
 });
 
 describe("getRequestProtocol", () => {
-  it("returns https for plain x-forwarded-proto: https", () => {
-    const event = makeEvent({ "x-forwarded-proto": "https" });
-    expect(getRequestProtocol(event)).toBe("https");
-  });
-
-  it("returns http for plain x-forwarded-proto: http", () => {
-    const event = makeEvent({ "x-forwarded-proto": "http" });
+  it("ignores x-forwarded-proto by default (spoofed https)", () => {
+    const event = makeEvent({ "x-forwarded-proto": "https" }, "http://localhost/test");
     expect(getRequestProtocol(event)).toBe("http");
   });
 
-  it("returns first entry of comma-list x-forwarded-proto (https,http)", () => {
-    const event = makeEvent({ "x-forwarded-proto": "https,http" });
-    expect(getRequestProtocol(event)).toBe("https");
+  it("returns https for plain x-forwarded-proto: https when enabled", () => {
+    const event = makeEvent({ "x-forwarded-proto": "https" });
+    expect(getRequestProtocol(event, { xForwardedProto: true })).toBe("https");
   });
 
-  it("returns first entry of comma-list x-forwarded-proto with spaces (https, http)", () => {
+  it("returns http for plain x-forwarded-proto: http when enabled", () => {
+    const event = makeEvent({ "x-forwarded-proto": "http" });
+    expect(getRequestProtocol(event, { xForwardedProto: true })).toBe("http");
+  });
+
+  it("returns first entry of comma-list x-forwarded-proto (https,http) when enabled", () => {
+    const event = makeEvent({ "x-forwarded-proto": "https,http" });
+    expect(getRequestProtocol(event, { xForwardedProto: true })).toBe("https");
+  });
+
+  it("returns first entry of comma-list x-forwarded-proto with spaces (https, http) when enabled", () => {
     const event = makeEvent({ "x-forwarded-proto": "https, http" });
-    expect(getRequestProtocol(event)).toBe("https");
+    expect(getRequestProtocol(event, { xForwardedProto: true })).toBe("https");
   });
 
   it("ignores x-forwarded-proto when xForwardedProto is false", () => {
