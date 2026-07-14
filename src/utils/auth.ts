@@ -58,12 +58,17 @@ export async function requireBasicAuth(event: HTTPEvent, opts: BasicAuthOptions)
   }
   let authDecoded: string;
   try {
-    // RFC 7617: credentials are base64-encoded and may use UTF-8 (charset="UTF-8").
-    authDecoded = new TextDecoder("utf-8", { fatal: false }).decode(
-      Uint8Array.from(atob(b64auth), (c) => c.charCodeAt(0)),
-    );
+    authDecoded = atob(b64auth);
   } catch {
     throw authFailed(event, opts?.realm);
+  }
+  try {
+    // RFC 7617: modern clients send credentials as UTF-8 (charset="UTF-8").
+    authDecoded = new TextDecoder("utf-8", { fatal: true }).decode(
+      Uint8Array.from(authDecoded, (c) => c.charCodeAt(0)),
+    );
+  } catch {
+    // Not valid UTF-8: keep the Latin-1 interpretation for legacy clients.
   }
   const colonIndex = authDecoded.indexOf(":");
   if (colonIndex === -1) {

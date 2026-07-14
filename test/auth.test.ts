@@ -268,6 +268,22 @@ describeMatrix("auth", (t, { it, expect }) => {
     expect(result.status).toBe(200);
   });
 
+  it("authenticates legacy clients sending Latin-1 encoded credentials", async () => {
+    // Pre-RFC 7617 clients used Latin-1; 0xE4 ("ä") is invalid as UTF-8.
+    const latin1Auth = basicAuth({ username: "admin", password: "pä$$word" });
+    t.app.get("/latin1", () => "Latin-1 ok!", { middleware: [latin1Auth] });
+
+    const result = await t.fetch("/latin1", {
+      method: "GET",
+      headers: {
+        Authorization: `Basic ${Buffer.from("admin:pä$$word", "latin1").toString("base64")}`,
+      },
+    });
+
+    expect(await result.text()).toBe("Latin-1 ok!");
+    expect(result.status).toBe(200);
+  });
+
   it("advertises charset=UTF-8 in the WWW-Authenticate challenge", async () => {
     t.app.get("/challenge", () => "Hello, world!", { middleware: [auth] });
     const result = await t.fetch("/challenge", { method: "GET" });
