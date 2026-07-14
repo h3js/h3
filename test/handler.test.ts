@@ -214,6 +214,21 @@ describe("handler.ts", () => {
       expect(res.status).toBe(400);
     });
 
+    it("malformed JSON body", async () => {
+      const res = await handler.fetch(
+        toRequest("/?id=123", {
+          method: "POST",
+          headers: { "x-token": "abc" },
+          body: "{ not json ",
+        }),
+      );
+      expect(res.status).toBe(400);
+      expect(await res.json()).toMatchObject({
+        status: 400,
+        message: "Invalid JSON body",
+      });
+    });
+
     it("invalid query", async () => {
       const res = await handler.fetch(
         toRequest("/?id=", {
