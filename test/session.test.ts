@@ -37,6 +37,33 @@ describeMatrix("session", (t, { it, expect }) => {
     });
   });
 
+  it("sets SameSite=Lax by default", async () => {
+    const result = await t.fetch("/");
+    expect(result.headers.getSetCookie()[0]).toContain("SameSite=Lax");
+  });
+
+  it("allows overriding SameSite via config.cookie", async () => {
+    t.app.get("/strict", async (event) => {
+      const session = await useSession(event, {
+        ...sessionConfig,
+        cookie: { sameSite: "strict" },
+      });
+      return { session };
+    });
+    const strict = await t.fetch("/strict");
+    expect(strict.headers.getSetCookie()[0]).toContain("SameSite=Strict");
+
+    t.app.get("/none", async (event) => {
+      const session = await useSession(event, {
+        ...sessionConfig,
+        cookie: { sameSite: false },
+      });
+      return { session };
+    });
+    const none = await t.fetch("/none");
+    expect(none.headers.getSetCookie()[0]).not.toContain("SameSite");
+  });
+
   it("gets same session back", async () => {
     const result = await t.fetch("/", { headers: { Cookie: cookie } });
     expect(await result.json()).toMatchObject({

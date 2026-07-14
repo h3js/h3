@@ -12,4 +12,5 @@ export const DEFAULT_SESSION_COOKIE: SessionConfig["cookie"] = {
   path: "/",
   secure: true,
   httpOnly: true,
+  sameSite: "lax",
 };
