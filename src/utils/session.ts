@@ -42,7 +42,7 @@ export interface SessionConfig {
   maxAge?: number;
   /** default is h3 */
   name?: string;
-  /** Default is secure, httpOnly, / */
+  /** Default is secure, httpOnly, sameSite lax, / */
   cookie?: false | (CookieSerializeOptions & { chunkMaxLength?: number });
   /** Default is x-h3-session / x-{name}-session */
   sessionHeader?: false | string;
