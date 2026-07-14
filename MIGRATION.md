@@ -139,6 +139,9 @@ H3 v2 deprecated some legacy and aliased utilities.
 - `getRequestPath`: Migrate to `event.url.pathname`.
 - `getMethod`: Migrate to `event.req.method`.
 
+> [!IMPORTANT]
+> `getRequestProtocol` (and `getRequestURL`) no longer trust the `x-forwarded-proto` header by default. To honor it (only behind a trusted reverse proxy or CDN), opt in with `{ xForwardedProto: true }`. This matches the existing opt-in behavior of `getRequestHost` (`xForwardedHost`) and `getRequestIP` (`xForwardedFor`).
+
 > [!NOTE]
 > The following `H3Event` properties are deprecated in v2 and might be removed in a future version:
 >

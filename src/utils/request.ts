@@ -427,7 +427,9 @@ export function getRequestHost(event: HTTPEvent, opts: { xForwardedHost?: boolea
 /**
  * Get the request protocol.
  *
- * If `x-forwarded-proto` header is set to "https", it will return "https". If the header contains a comma-separated list of protocols, the first entry is used. You can disable this behavior by setting `xForwardedProto` to `false`.
+ * If `xForwardedProto` is `true`, it will use the `x-forwarded-proto` header if it exists. When the header contains a comma-separated list of protocols, the first entry is used.
+ *
+ * Note: This header is opt-in (default `false`) since it can be spoofed by clients. Only enable it when your application runs behind a trusted reverse proxy or CDN that sets this header. This default was changed to match `getRequestHost` (`xForwardedHost`) and `getRequestIP` (`xForwardedFor`).
  *
  * If protocol cannot be determined, it will default to "http".
  *
@@ -440,7 +442,7 @@ export function getRequestProtocol(
   event: HTTPEvent | H3Event,
   opts: { xForwardedProto?: boolean } = {},
 ): "http" | "https" | (string & {}) {
-  if (opts.xForwardedProto !== false) {
+  if (opts.xForwardedProto) {
     const _header = event.req.headers.get("x-forwarded-proto");
     const forwardedProto = (_header || "").split(",")[0].trim();
     if (forwardedProto === "https") {
@@ -459,7 +461,7 @@ export function getRequestProtocol(
  *
  * If `xForwardedHost` is `true`, it will use the `x-forwarded-host` header if it exists.
  *
- * If `xForwardedProto` is `false`, it will not use the `x-forwarded-proto` header.
+ * If `xForwardedProto` is `true`, it will use the `x-forwarded-proto` header if it exists.
  *
  * @example
  * app.get("/", (event) => {
