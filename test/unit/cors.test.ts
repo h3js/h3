@@ -94,6 +94,23 @@ describe("cors (unit)", () => {
         warnSpy.mockRestore();
       });
 
+      it('warns when credentials is used with an origin array containing `"null"`', () => {
+        const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+        // `"null"` in an array is a live hazard too: the array path does an
+        // exact string comparison, so an `Origin: null` request matches and
+        // is reflected with credentials.
+        resolveCorsOptions({
+          credentials: true,
+          origin: ["https://example.com", "null"],
+          exposeHeaders: ["X-Custom"],
+        });
+        expect(warnSpy).toHaveBeenCalledOnce();
+        expect(warnSpy.mock.calls[0][0]).toContain("null");
+
+        warnSpy.mockRestore();
+      });
+
       it("warns when credentials is used with default wildcard exposeHeaders", () => {
         const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 

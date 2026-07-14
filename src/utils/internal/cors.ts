@@ -44,9 +44,13 @@ export function resolveCorsOptions(options: CorsOptions = {}): ResolvedCorsOptio
     );
   }
 
-  if (resolved.credentials && resolved.origin === "null") {
+  if (
+    resolved.credentials &&
+    (resolved.origin === "null" ||
+      (Array.isArray(resolved.origin) && resolved.origin.includes("null")))
+  ) {
     warnOnce(
-      '[h3] CORS: `credentials: true` with `origin: "null"` is dangerous. Any sandboxed iframe, `data:`/`file:` document, or opaque origin sends `Origin: null`, so credentials would be shared across untrusted contexts.',
+      '[h3] CORS: `credentials: true` with a `"null"` origin is dangerous. Any sandboxed iframe, `data:`/`file:` document, or opaque origin sends `Origin: null`, so credentials would be shared across untrusted contexts.',
     );
   }
 
