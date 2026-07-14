@@ -20,6 +20,10 @@ export interface CorsOptions {
    * If an array of strings or regular expressions, it can be used with origin matching.
    * If a custom function, it's used to validate the origin. It takes the origin as an argument and returns `true` if allowed.
    *
+   * Avoid `"null"` together with `credentials: true`. Sandboxed iframes, `data:`/`file:` documents,
+   * and other opaque origins all send `Origin: null`, so allowing it with credentials would share
+   * them across untrusted contexts.
+   *
    * @see https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Origin
    * @default "*"
    */

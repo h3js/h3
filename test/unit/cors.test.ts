@@ -80,6 +80,20 @@ describe("cors (unit)", () => {
         warnSpy.mockRestore();
       });
 
+      it('warns when credentials is used with `"null"` origin', () => {
+        const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+        resolveCorsOptions({
+          credentials: true,
+          origin: "null",
+          exposeHeaders: ["X-Custom"],
+        });
+        expect(warnSpy).toHaveBeenCalledOnce();
+        expect(warnSpy.mock.calls[0][0]).toContain("null");
+
+        warnSpy.mockRestore();
+      });
+
       it("warns when credentials is used with default wildcard exposeHeaders", () => {
         const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 

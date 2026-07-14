@@ -44,6 +44,12 @@ export function resolveCorsOptions(options: CorsOptions = {}): ResolvedCorsOptio
     );
   }
 
+  if (resolved.credentials && resolved.origin === "null") {
+    warnOnce(
+      '[h3] CORS: `credentials: true` with `origin: "null"` is dangerous. Any sandboxed iframe, `data:`/`file:` document, or opaque origin sends `Origin: null`, so credentials would be shared across untrusted contexts.',
+    );
+  }
+
   if (resolved.credentials && resolved.exposeHeaders === "*") {
     warnOnce(
       "[h3] CORS: `credentials: true` with wildcard `exposeHeaders` has no effect. Browsers treat `*` literally on credentialed requests — list the headers explicitly.",
