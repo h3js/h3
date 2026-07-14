@@ -184,3 +184,29 @@ export function resolveDotSegments(path: string, opts?: ResolveDotSegmentsOption
   // protocol-relative path. (A no-op when there is already one leading slash.)
   return result.replace(/^\/+/, "/");
 }
+
+/**
+ * Whether `path` is already in the canonical form {@link resolveDotSegments}
+ * produces under the same options — i.e. resolving it is guaranteed to be a
+ * no-op. Exact in both directions: `isCanonicalPath(path, opts)` is `true` if
+ * and only if `resolveDotSegments(path, opts) === path`.
+ *
+ * This is the resolver's own fast-path guard, exported so a caller that
+ * canonicalizes on a hot path (per-request scope or rule matching) can skip
+ * the call — and any derived work — without duplicating knowledge of what the
+ * resolver decodes. Checking here and resolving elsewhere with different
+ * options voids the guarantee: pass the exact options the later call uses, or
+ * stricter ones (`decodeSlashes`/`mergeSlashes` enabled is strictly more
+ * sensitive, so a `true` result with both on implies `true` for every mode).
+ *
+ * Like the resolver, this never inspects a query/hash — callers pass a bare
+ * pathname.
+ */
+export function isCanonicalPath(path: string, opts?: ResolveDotSegmentsOptions): boolean {
+  return (
+    path[0] === "/" &&
+    path[1] !== "/" &&
+    path[1] !== "\\" &&
+    !TRIGGER_RES[(opts?.decodeSlashes ? 1 : 0) | (opts?.mergeSlashes ? 2 : 0)]!.test(path)
+  );
+}

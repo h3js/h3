@@ -83,6 +83,7 @@ describe("h3 package", () => {
         "handleCacheHeaders",
         "handleCors",
         "html",
+        "isCanonicalPath",
         "isCorsOriginAllowed",
         "isError",
         "isEvent",
