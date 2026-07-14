@@ -55,7 +55,7 @@ export async function requireBasicAuth(event: HTTPEvent, opts: BasicAuthOptions)
     throw authFailed(event, realm);
   }
   // RFC 9110: credentials = auth-scheme [ 1*SP token68 ]; allow one or more spaces.
-  const b64auth = /^basic\s+(.+)$/i.exec(authHeader)?.[1];
+  const b64auth = /^basic +(.+)$/i.exec(authHeader)?.[1];
   if (!b64auth) {
     throw authFailed(event, realm);
   }
