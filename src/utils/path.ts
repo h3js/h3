@@ -65,13 +65,30 @@ export interface ResolveDotSegmentsOptions {
 // `%2e` escape at any `%25`-nesting depth. Matching it boundary-aware (bounded
 // by `/` or the string edges) keeps a dotted filename (`app.1a2b.js`) or a
 // non-dot escape (`%20`) on the fast path instead of the split/normalize loop.
-const DOT_SEGMENT_RE = /(?:^|\/)(?:\.|%(?:25)*2e){1,2}(?:\/|$)/i;
+const DOT_SEGMENT_SRC = String.raw`(?:^|/)(?:\.|%(?:25)*2e){1,2}(?:/|$)`;
 
-// Encoded path separators (`%2f`/`%5c`) at any `%25`-nesting depth. Test form
-// for the fast-path guard; global form (derived from the same source, so the
-// pattern lives in one place) to decode every occurrence.
-const ENCODED_SEP_RE = /%(?:25)*(?:2f|5c)/i;
-const ENCODED_SEP_RE_G = /* @__PURE__ */ new RegExp(ENCODED_SEP_RE.source, "gi");
+// Encoded path separators (`%2f`/`%5c`) at any `%25`-nesting depth. Source
+// string shared with the per-mode trigger regexes (so the pattern lives in one
+// place); global form to decode every occurrence.
+const ENCODED_SEP_SRC = String.raw`%(?:25)*(?:2f|5c)`;
+const ENCODED_SEP_RE_G = /* @__PURE__ */ new RegExp(ENCODED_SEP_SRC, "gi");
+
+// One combined trigger regex per option mode, so the fast-path guard is a single
+// scan. Indexed by `(decodeSlashes ? 1 : 0) | (mergeSlashes ? 2 : 0)`. Each
+// alternative is the exact trigger of one slow-path transformation — `\`
+// normalization, dot-segment resolution, and per mode `%2f`/`%5c` decoding and
+// `//` collapsing — so "no match" guarantees resolving is a no-op. Decoding is
+// what turns an encoded separator into a run, so the `decodeSlashes` alternative
+// already covers the extra runs `mergeSlashes` would see.
+const TRIGGER_RES = /* @__PURE__ */ (() => {
+  const base = String.raw`\\|` + DOT_SEGMENT_SRC;
+  return [
+    new RegExp(base, "i"),
+    new RegExp(`${base}|${ENCODED_SEP_SRC}`, "i"),
+    new RegExp(`${base}|//`, "i"),
+    new RegExp(`${base}|${ENCODED_SEP_SRC}|//`, "i"),
+  ];
+})();
 
 // Percent-encoded dots at any `%25`-nesting depth, for per-segment decoding.
 const ENCODED_DOT_RE_G = /%(?:25)*2e/gi;
@@ -112,24 +129,17 @@ export function resolveDotSegments(path: string, opts?: ResolveDotSegmentsOption
   if (path[0] !== "/" || path[1] === "/" || path[1] === "\\") {
     path = "/" + path.replace(/^[/\\]+/, "");
   }
-  const decodeSlashes = opts?.decodeSlashes;
-  const mergeSlashes = opts?.mergeSlashes;
-  // A `\` always needs normalizing, (with `decodeSlashes`) an encoded separator
-  // always needs decoding, and (with `mergeSlashes`) a literal separator run
-  // always needs collapsing — all cheap `includes`/`test` scans checked first so
-  // a dot-free path skips the dot-segment regex entirely. An encoded separator
-  // only forms a run once decoded, so `hasEncodedSep` already covers the runs
-  // `mergeSlashes` can additionally see; the leading normalization above has
-  // taken care of any leading run, so a remaining `//` is interior or trailing.
-  const hasBackslash = path.includes("\\");
-  const hasEncodedSep = decodeSlashes && ENCODED_SEP_RE.test(path);
-  const hasSepRun = mergeSlashes && path.includes("//");
-  if (!hasBackslash && !hasEncodedSep && !hasSepRun && !DOT_SEGMENT_RE.test(path)) {
+  // Fast-path guard — the common, already-canonical path returns here. The
+  // leading run is normalized above, so any `//` the guard sees is interior or
+  // trailing, and its leading-slash checks are already satisfied.
+  if (isCanonicalPath(path, opts)) {
     return path;
   }
+  const decodeSlashes = opts?.decodeSlashes;
+  const mergeSlashes = opts?.mergeSlashes;
   // Normalize backslashes to forward slashes to prevent traversal via `\`
-  let normalized = hasBackslash ? path.replaceAll("\\", "/") : path;
-  if (hasEncodedSep) {
+  let normalized = path.includes("\\") ? path.replaceAll("\\", "/") : path;
+  if (decodeSlashes) {
     normalized = normalized.replace(ENCODED_SEP_RE_G, "/");
   }
   const segments = normalized.split("/");
@@ -172,4 +182,33 @@ export function resolveDotSegments(path: string, opts?: ResolveDotSegmentsOption
   // any leading run to a single slash so the result stays a single-rooted, non
   // protocol-relative path. (A no-op when there is already one leading slash.)
   return result.replace(/^\/+/, "/");
+}
+
+/**
+ * Whether `path` is already canonical under `opts` — i.e. {@link resolveDotSegments}
+ * would return it unchanged. Exact in both directions: `true` if and only if
+ * `resolveDotSegments(path, opts) === path`.
+ *
+ * This is the resolver's own fast-path guard, exported so a caller that
+ * canonicalizes on a hot path (per-request scope or rule matching) can skip the
+ * call — and any work derived from it — without keeping its own copy of what the
+ * resolver decodes. Such a copy goes stale silently, and a missed
+ * canonicalization in a scope check is a bypass, not a perf bug.
+ *
+ * Pass the same options as the later {@link resolveDotSegments} call, or stricter
+ * ones: `decodeSlashes`/`mergeSlashes` only add triggers, so `true` with both
+ * enabled implies `true` in every mode. Checking one mode and resolving in
+ * another voids the guarantee.
+ *
+ * Takes a bare pathname. Like the resolver, it has no notion of a query or hash
+ * and scans one as if it were path, so `/a?next=/../b` is reported non-canonical
+ * (and would resolve to `/b`).
+ */
+export function isCanonicalPath(path: string, opts?: ResolveDotSegmentsOptions): boolean {
+  return (
+    path[0] === "/" &&
+    path[1] !== "/" &&
+    path[1] !== "\\" &&
+    !TRIGGER_RES[(opts?.decodeSlashes ? 1 : 0) | (opts?.mergeSlashes ? 2 : 0)]!.test(path)
+  );
 }
