@@ -1,4 +1,4 @@
-import { beforeEach } from "vitest";
+import { beforeEach, vi } from "vitest";
 import {
   redirect,
   redirectBack,
@@ -19,7 +19,7 @@ import { describeMatrix } from "./_setup.ts";
 describeMatrix("utils", (t, { it, describe, expect }) => {
   describe("html", () => {
     it("can return html response", async () => {
-      t.app.get("/test", () => html("<h1>Hello</h1>"));
+      t.app.get("/test", () => html(raw("<h1>Hello</h1>")));
       const res1 = await t.fetch("/test");
       expect(res1.headers.get("content-type")).toBe("text/html; charset=utf-8");
       expect(await res1.text()).toBe("<h1>Hello</h1>");
@@ -48,10 +48,42 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
       expect(await res.text()).toBe("<div><b>bold</b>&lt;script&gt;</div>");
     });
 
-    it("does not escape plain string usage", async () => {
-      t.app.get("/test", () => html("<p>raw & <string></p>"));
+    it("does not treat duck-typed objects as raw values", async () => {
+      const spoofed = { value: "<script>alert(1)</script>" };
+      t.app.get("/test", () => html`<div>${spoofed}</div>`);
       const res = await t.fetch("/test");
-      expect(await res.text()).toBe("<p>raw & <string></p>");
+      expect(await res.text()).not.toContain("<script>");
+    });
+
+    it("escapes plain string usage and warns once", async () => {
+      (html as { _isWarned?: boolean })._isWarned = false;
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      try {
+        t.app.get("/test", () => html("<p>raw & <string></p>"));
+        const res = await t.fetch("/test");
+        expect(await res.text()).toBe("&lt;p&gt;raw &amp; &lt;string&gt;&lt;/p&gt;");
+        expect(warnSpy).toHaveBeenCalledTimes(1);
+        expect(warnSpy.mock.calls[0][0]).toContain("html``");
+
+        const res2 = await t.fetch("/test");
+        expect(await res2.text()).toBe("&lt;p&gt;raw &amp; &lt;string&gt;&lt;/p&gt;");
+        expect(warnSpy).toHaveBeenCalledTimes(1);
+      } finally {
+        warnSpy.mockRestore();
+      }
+    });
+
+    it("does not warn for plain strings without special characters", async () => {
+      (html as { _isWarned?: boolean })._isWarned = false;
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      try {
+        t.app.get("/test", () => html("Hello, World!"));
+        const res = await t.fetch("/test");
+        expect(await res.text()).toBe("Hello, World!");
+        expect(warnSpy).not.toHaveBeenCalled();
+      } finally {
+        warnSpy.mockRestore();
+      }
     });
   });
 
