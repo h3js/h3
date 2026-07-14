@@ -55,6 +55,14 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
       expect(await res.text()).not.toContain("<script>");
     });
 
+    it("accepts raw() values from another h3 instance (symbol brand)", async () => {
+      // Simulates raw() from a duplicated copy of h3 via the global symbol registry
+      const foreignRaw = { [Symbol.for("h3.rawHTML")]: true, value: "<b>bold</b>" };
+      t.app.get("/test", () => html`<div>${foreignRaw}</div>`);
+      const res = await t.fetch("/test");
+      expect(await res.text()).toBe("<div><b>bold</b></div>");
+    });
+
     it("escapes plain string usage and warns once", async () => {
       (html as { _isWarned?: boolean })._isWarned = false;
       const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});

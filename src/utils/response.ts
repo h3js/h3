@@ -241,7 +241,7 @@ export function iterable<Value = unknown, Return = unknown>(
 export function html(strings: TemplateStringsArray, ...values: unknown[]): HTTPResponse;
 export function html(markup: string | RawHTML): HTTPResponse;
 export function html(
-  first: TemplateStringsArray | string | RawHTMLValue,
+  first: TemplateStringsArray | string | RawHTML,
   ...values: unknown[]
 ): HTTPResponse {
   let body: string;
@@ -253,17 +253,13 @@ export function html(
         "[h3] `html()` received a plain string containing HTML characters and escaped it. Use the html`` tagged template for dynamic values, or wrap trusted markup with `raw()`.",
       );
     }
-  } else if (first instanceof RawHTMLValue) {
+  } else if (isRawHTML(first)) {
     body = first.value;
   } else {
     body = first.reduce((out, str, i) => {
       const value = values[i];
       const rendered =
-        value == null
-          ? ""
-          : value instanceof RawHTMLValue
-            ? value.value
-            : escapeHtml(String(value));
+        value == null ? "" : isRawHTML(value) ? value.value : escapeHtml(String(value));
       return out + str + rendered;
     }, "");
   }
@@ -288,7 +284,7 @@ export function html(
  * app.get("/", () => html(raw("<h1>Hello, World!</h1>")));
  */
 export function raw(value: string): RawHTML {
-  return new RawHTMLValue(value);
+  return { [kRawHTML]: true, value } as RawHTML;
 }
 
 /** Trusted raw HTML wrapper produced by {@link raw}. */
@@ -296,11 +292,14 @@ export interface RawHTML {
   readonly value: string;
 }
 
-class RawHTMLValue implements RawHTML {
-  readonly value: string;
-  constructor(value: string) {
-    this.value = value;
-  }
+const kRawHTML: unique symbol = /* @__PURE__ */ Symbol.for("h3.rawHTML");
+
+function isRawHTML(value: unknown): value is RawHTML {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    (value as { [kRawHTML]?: unknown })[kRawHTML] === true
+  );
 }
 
 /** HTML-escape the special characters `& < > " '`. */
