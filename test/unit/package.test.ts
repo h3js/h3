@@ -100,6 +100,7 @@ describe("h3 package", () => {
         "parseCookies",
         "proxy",
         "proxyRequest",
+        "raw",
         "readBody",
         "readFormData",
         "readFormDataBody",
