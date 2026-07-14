@@ -73,15 +73,13 @@ const DOT_SEGMENT_SRC = String.raw`(?:^|/)(?:\.|%(?:25)*2e){1,2}(?:/|$)`;
 const ENCODED_SEP_SRC = String.raw`%(?:25)*(?:2f|5c)`;
 const ENCODED_SEP_RE_G = /* @__PURE__ */ new RegExp(ENCODED_SEP_SRC, "gi");
 
-// One combined trigger regex per option mode so the fast-path guard is a
-// SINGLE scan of the path, indexed by `(decodeSlashes?1:0) | (mergeSlashes?2:0)`.
-// Each alternative is the exact trigger of one slow-path transformation — `\`
-// normalization, dot-segment resolution, and (per mode) `%2f`/`%5c` decoding
-// and `//` run collapsing — so "no match" guarantees resolving is a no-op. An
-// encoded separator only forms a run once decoded, so the `decodeSlashes`
-// alternative already covers the runs `mergeSlashes` can additionally see; the
-// leading-separator normalization happens before the guard, so a remaining
-// `//` is interior or trailing.
+// One combined trigger regex per option mode, so the fast-path guard is a single
+// scan. Indexed by `(decodeSlashes ? 1 : 0) | (mergeSlashes ? 2 : 0)`. Each
+// alternative is the exact trigger of one slow-path transformation — `\`
+// normalization, dot-segment resolution, and per mode `%2f`/`%5c` decoding and
+// `//` collapsing — so "no match" guarantees resolving is a no-op. Decoding is
+// what turns an encoded separator into a run, so the `decodeSlashes` alternative
+// already covers the extra runs `mergeSlashes` would see.
 const TRIGGER_RES = /* @__PURE__ */ (() => {
   const base = String.raw`\\|` + DOT_SEGMENT_SRC;
   return [
@@ -131,13 +129,14 @@ export function resolveDotSegments(path: string, opts?: ResolveDotSegmentsOption
   if (path[0] !== "/" || path[1] === "/" || path[1] === "\\") {
     path = "/" + path.replace(/^[/\\]+/, "");
   }
-  const decodeSlashes = opts?.decodeSlashes;
-  const mergeSlashes = opts?.mergeSlashes;
-  // Fast-path guard: one scan of the mode's combined trigger regex (see
-  // TRIGGER_RES) — the common, already-canonical path returns here.
-  if (!TRIGGER_RES[(decodeSlashes ? 1 : 0) | (mergeSlashes ? 2 : 0)]!.test(path)) {
+  // Fast-path guard — the common, already-canonical path returns here. The
+  // leading run is normalized above, so any `//` the guard sees is interior or
+  // trailing, and its leading-slash checks are already satisfied.
+  if (isCanonicalPath(path, opts)) {
     return path;
   }
+  const decodeSlashes = opts?.decodeSlashes;
+  const mergeSlashes = opts?.mergeSlashes;
   // Normalize backslashes to forward slashes to prevent traversal via `\`
   let normalized = path.includes("\\") ? path.replaceAll("\\", "/") : path;
   if (decodeSlashes) {
@@ -186,21 +185,24 @@ export function resolveDotSegments(path: string, opts?: ResolveDotSegmentsOption
 }
 
 /**
- * Whether `path` is already in the canonical form {@link resolveDotSegments}
- * produces under the same options — i.e. resolving it is guaranteed to be a
- * no-op. Exact in both directions: `isCanonicalPath(path, opts)` is `true` if
- * and only if `resolveDotSegments(path, opts) === path`.
+ * Whether `path` is already canonical under `opts` — i.e. {@link resolveDotSegments}
+ * would return it unchanged. Exact in both directions: `true` if and only if
+ * `resolveDotSegments(path, opts) === path`.
  *
  * This is the resolver's own fast-path guard, exported so a caller that
- * canonicalizes on a hot path (per-request scope or rule matching) can skip
- * the call — and any derived work — without duplicating knowledge of what the
- * resolver decodes. Checking here and resolving elsewhere with different
- * options voids the guarantee: pass the exact options the later call uses, or
- * stricter ones (`decodeSlashes`/`mergeSlashes` enabled is strictly more
- * sensitive, so a `true` result with both on implies `true` for every mode).
+ * canonicalizes on a hot path (per-request scope or rule matching) can skip the
+ * call — and any work derived from it — without keeping its own copy of what the
+ * resolver decodes. Such a copy goes stale silently, and a missed
+ * canonicalization in a scope check is a bypass, not a perf bug.
  *
- * Like the resolver, this never inspects a query/hash — callers pass a bare
- * pathname.
+ * Pass the same options as the later {@link resolveDotSegments} call, or stricter
+ * ones: `decodeSlashes`/`mergeSlashes` only add triggers, so `true` with both
+ * enabled implies `true` in every mode. Checking one mode and resolving in
+ * another voids the guarantee.
+ *
+ * Takes a bare pathname. Like the resolver, it has no notion of a query or hash
+ * and scans one as if it were path, so `/a?next=/../b` is reported non-canonical
+ * (and would resolve to `/b`).
  */
 export function isCanonicalPath(path: string, opts?: ResolveDotSegmentsOptions): boolean {
   return (
