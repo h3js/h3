@@ -29,6 +29,12 @@ export function noContent(status: number = 204): HTTPResponse {
  *
  * In the body, it sends a simple HTML page with a meta refresh tag to redirect the client in case the headers are ignored.
  *
+ * **Security:** If `location` derives from user input (query params, form fields,
+ * headers, etc.), validate it against an allow-list of permitted destinations
+ * before redirecting. Passing user-controlled values through unchecked creates an
+ * open redirect vulnerability. Prefer `redirectBack` for "return to previous page"
+ * flows, which only honors same-origin referers.
+ *
  * @example
  * app.get("/", () => {
  *   return redirect("https://example.com");

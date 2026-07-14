@@ -152,6 +152,14 @@ export interface ProxyOptions {
  * `bodyLimit()` middleware to prevent large request bodies from consuming
  * excessive resources when proxying untrusted input.
  *
+ * **Credential forwarding:** the incoming request's `Cookie` and `Authorization`
+ * headers are forwarded to the `target` verbatim. This is the correct behavior
+ * for a same-trust reverse proxy, but leaks the client's credentials to any
+ * upstream you do not fully trust. When proxying to a not-fully-trusted upstream,
+ * strip them with `filterHeaders: ["cookie", "authorization"]`. (This differs
+ * from `fetchWithEvent`, which never forwards the event's headers to an external
+ * URL.)
+ *
  * @example
  * app.all("/proxy", async (event) => {
  *   const body = await event.req.clone().json(); // read from the clone
@@ -245,6 +253,14 @@ export async function proxyRequest(
  * **Security:** Never pass unsanitized user input as the `target`. Callers are
  * responsible for validating and restricting the target URL (e.g. allowlisting
  * hosts, blocking internal paths, enforcing protocol).
+ *
+ * **Credential forwarding:** the caller-supplied request headers (including
+ * `Cookie` and `Authorization`) are forwarded to the `target` verbatim. This is
+ * the correct behavior for a same-trust reverse proxy, but leaks credentials to
+ * any upstream you do not fully trust. When proxying to a not-fully-trusted
+ * upstream, strip them with `filterHeaders: ["cookie", "authorization"]`. (This
+ * differs from `fetchWithEvent`, which never forwards the event's headers to an
+ * external URL.)
  */
 export async function proxy(
   event: H3Event,

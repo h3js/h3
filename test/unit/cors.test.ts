@@ -235,7 +235,10 @@ describe("cors (unit)", () => {
     it("can detect allowed origin (regular expression)", () => {
       const origin = "https://example.com";
       const options: CorsOptions = {
-        origin: [/example/],
+        // Regex origins are matched unanchored, so they MUST be anchored and
+        // escaped to avoid matching attacker-controlled origins like
+        // `https://example.com.evil.test` or `https://notexample.com`.
+        origin: [/^https:\/\/([a-z0-9-]+\.)?example\.com$/],
       };
 
       expect(isCorsOriginAllowed(origin, options)).toEqual(true);
@@ -337,7 +340,9 @@ describe("cors (unit)", () => {
         origin: ["http://example.com"],
       };
       const options2: CorsOptions = {
-        origin: [/example.com/],
+        // Anchored and escaped so it matches the exact origin only, not e.g.
+        // `http://example.com.evil.test`.
+        origin: [/^https?:\/\/example\.com$/],
       };
 
       expect(createOriginHeaders(eventMock, options1)).toEqual({

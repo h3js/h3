@@ -408,6 +408,12 @@ export function assertMethod(
  *
  * If no host header is found, it will return an empty string.
  *
+ * **Security:** The returned host reflects the client-supplied `Host` (or
+ * `X-Forwarded-Host`) header and can be spoofed. Do not trust it for security
+ * decisions (CSRF/origin checks, cache keys, generating absolute links sent to
+ * other users) unless the `Host` value is pinned or validated upstream (e.g. an
+ * allow-list of expected hosts, or a reverse proxy that overwrites it).
+ *
  * @example
  * app.get("/", (event) => {
  *   const host = getRequestHost(event); // "example.com"
@@ -462,6 +468,13 @@ export function getRequestProtocol(
  * If `xForwardedHost` is `true`, it will use the `x-forwarded-host` header if it exists.
  *
  * If `xForwardedProto` is `true`, it will use the `x-forwarded-proto` header if it exists.
+ *
+ * **Security:** The `.origin` and `.host` of the returned URL are derived from the
+ * client-supplied `Host` (or `X-Forwarded-Host`) header and can be spoofed. Do not
+ * trust them for security decisions (CSRF/origin checks, cache keys, generating
+ * absolute links sent to other users) unless the `Host` value is pinned or
+ * validated upstream (e.g. an allow-list of expected hosts, or a reverse proxy
+ * that overwrites it). The `.pathname` and `.search` are safe to use.
  *
  * @example
  * app.get("/", (event) => {
