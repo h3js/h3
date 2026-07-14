@@ -39,6 +39,18 @@ export function withoutBase(input: string = "", base: string = ""): string {
   return "/" + trimmed;
 }
 
+/**
+ * Strip `base` from `pathname` when it matches on a segment boundary, collapsing
+ * the leading-slash run so `/base//evil.com` can never strip to a protocol-relative
+ * `//evil.com` a downstream redirect could turn into an open redirect.
+ */
+export function stripBase(pathname: string, base: string): string {
+  if (pathname === base || pathname.startsWith(base + "/")) {
+    return "/" + pathname.slice(base.length).replace(/^\/+/, "");
+  }
+  return pathname;
+}
+
 export function getPathname(path: string = "/"): string {
   return path.startsWith("/") ? path.split("?")[0] : new URL(path, "http://localhost").pathname;
 }

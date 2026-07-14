@@ -4,6 +4,7 @@ import { HTTPError } from "./error.ts";
 import { toResponse, kNotFound } from "./response.ts";
 import { callMiddleware, normalizeMiddleware } from "./middleware.ts";
 import { requestWithBaseURL } from "./utils/request.ts";
+import { stripBase } from "./utils/internal/path.ts";
 
 import type { ServerRequest } from "srvx";
 import type { H3Config, H3CoreConfig, MatchedRoute, RouterContext } from "./types/h3.ts";
@@ -139,7 +140,10 @@ export const H3 = /* @__PURE__ */ (() => {
             ) {
               return next();
             }
-            event.url.pathname = event.url.pathname.slice(base.length) || "/";
+            // `stripBase` collapses the leading-slash run so `/base//evil.com`
+            // cannot strip to a protocol-relative `//evil.com` a downstream
+            // redirect could abuse (the boundary is already checked above).
+            event.url.pathname = stripBase(originalPathname, base);
             const restore = () => {
               event.url.pathname = originalPathname;
             };

@@ -1,5 +1,5 @@
 import { type ErrorDetails, HTTPError } from "../error.ts";
-import { decodePathname } from "./internal/path.ts";
+import { decodePathname, stripBase } from "./internal/path.ts";
 import { parseQuery } from "./internal/query.ts";
 import { validateData } from "./internal/validate.ts";
 import { getEventContext } from "./event.ts";
@@ -43,7 +43,7 @@ export function requestWithBaseURL(req: ServerRequest, base: string): ServerRequ
     // Malformed percent-encoding: fall back to the raw pathname instead of throwing.
     pathname = url.pathname;
   }
-  url.pathname = pathname.slice(base.length) || "/";
+  url.pathname = stripBase(pathname, base);
   return requestWithURL(req, url.href);
 }
 
