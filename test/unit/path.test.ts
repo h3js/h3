@@ -54,6 +54,24 @@ describe("resolveDotSegments", () => {
     expect(resolveDotSegments("/assets/app.1a2b.js")).toBe("/assets/app.1a2b.js");
   });
 
+  it("keeps dot-prefixed segment names untouched in every mode", () => {
+    // A segment that merely STARTS with dots is not a dot segment — the guard
+    // must stay boundary-aware in each per-mode trigger regex.
+    for (const opts of [
+      undefined,
+      { decodeSlashes: true },
+      { mergeSlashes: true },
+      { decodeSlashes: true, mergeSlashes: true },
+    ]) {
+      expect(resolveDotSegments("/.well-known/security.txt", opts)).toBe(
+        "/.well-known/security.txt",
+      );
+      expect(resolveDotSegments("/a/..b/c", opts)).toBe("/a/..b/c");
+      expect(resolveDotSegments("/a%2eb/c", opts)).toBe("/a%2eb/c");
+      expect(resolveDotSegments("/a/...", opts)).toBe("/a/...");
+    }
+  });
+
   it("keeps non-separator, non-dot encodings untouched", () => {
     expect(resolveDotSegments("/foo%20bar")).toBe("/foo%20bar");
     expect(resolveDotSegments("/caf%C3%A9/x")).toBe("/caf%C3%A9/x");

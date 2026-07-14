@@ -65,13 +65,32 @@ export interface ResolveDotSegmentsOptions {
 // `%2e` escape at any `%25`-nesting depth. Matching it boundary-aware (bounded
 // by `/` or the string edges) keeps a dotted filename (`app.1a2b.js`) or a
 // non-dot escape (`%20`) on the fast path instead of the split/normalize loop.
-const DOT_SEGMENT_RE = /(?:^|\/)(?:\.|%(?:25)*2e){1,2}(?:\/|$)/i;
+const DOT_SEGMENT_SRC = String.raw`(?:^|/)(?:\.|%(?:25)*2e){1,2}(?:/|$)`;
 
-// Encoded path separators (`%2f`/`%5c`) at any `%25`-nesting depth. Test form
-// for the fast-path guard; global form (derived from the same source, so the
-// pattern lives in one place) to decode every occurrence.
-const ENCODED_SEP_RE = /%(?:25)*(?:2f|5c)/i;
-const ENCODED_SEP_RE_G = /* @__PURE__ */ new RegExp(ENCODED_SEP_RE.source, "gi");
+// Encoded path separators (`%2f`/`%5c`) at any `%25`-nesting depth. Source
+// string shared with the per-mode trigger regexes (so the pattern lives in one
+// place); global form to decode every occurrence.
+const ENCODED_SEP_SRC = String.raw`%(?:25)*(?:2f|5c)`;
+const ENCODED_SEP_RE_G = /* @__PURE__ */ new RegExp(ENCODED_SEP_SRC, "gi");
+
+// One combined trigger regex per option mode so the fast-path guard is a
+// SINGLE scan of the path, indexed by `(decodeSlashes?1:0) | (mergeSlashes?2:0)`.
+// Each alternative is the exact trigger of one slow-path transformation — `\`
+// normalization, dot-segment resolution, and (per mode) `%2f`/`%5c` decoding
+// and `//` run collapsing — so "no match" guarantees resolving is a no-op. An
+// encoded separator only forms a run once decoded, so the `decodeSlashes`
+// alternative already covers the runs `mergeSlashes` can additionally see; the
+// leading-separator normalization happens before the guard, so a remaining
+// `//` is interior or trailing.
+const TRIGGER_RES = /* @__PURE__ */ (() => {
+  const base = String.raw`\\|` + DOT_SEGMENT_SRC;
+  return [
+    new RegExp(base, "i"),
+    new RegExp(`${base}|${ENCODED_SEP_SRC}`, "i"),
+    new RegExp(`${base}|//`, "i"),
+    new RegExp(`${base}|${ENCODED_SEP_SRC}|//`, "i"),
+  ];
+})();
 
 // Percent-encoded dots at any `%25`-nesting depth, for per-segment decoding.
 const ENCODED_DOT_RE_G = /%(?:25)*2e/gi;
@@ -114,22 +133,14 @@ export function resolveDotSegments(path: string, opts?: ResolveDotSegmentsOption
   }
   const decodeSlashes = opts?.decodeSlashes;
   const mergeSlashes = opts?.mergeSlashes;
-  // A `\` always needs normalizing, (with `decodeSlashes`) an encoded separator
-  // always needs decoding, and (with `mergeSlashes`) a literal separator run
-  // always needs collapsing — all cheap `includes`/`test` scans checked first so
-  // a dot-free path skips the dot-segment regex entirely. An encoded separator
-  // only forms a run once decoded, so `hasEncodedSep` already covers the runs
-  // `mergeSlashes` can additionally see; the leading normalization above has
-  // taken care of any leading run, so a remaining `//` is interior or trailing.
-  const hasBackslash = path.includes("\\");
-  const hasEncodedSep = decodeSlashes && ENCODED_SEP_RE.test(path);
-  const hasSepRun = mergeSlashes && path.includes("//");
-  if (!hasBackslash && !hasEncodedSep && !hasSepRun && !DOT_SEGMENT_RE.test(path)) {
+  // Fast-path guard: one scan of the mode's combined trigger regex (see
+  // TRIGGER_RES) — the common, already-canonical path returns here.
+  if (!TRIGGER_RES[(decodeSlashes ? 1 : 0) | (mergeSlashes ? 2 : 0)]!.test(path)) {
     return path;
   }
   // Normalize backslashes to forward slashes to prevent traversal via `\`
-  let normalized = hasBackslash ? path.replaceAll("\\", "/") : path;
-  if (hasEncodedSep) {
+  let normalized = path.includes("\\") ? path.replaceAll("\\", "/") : path;
+  if (decodeSlashes) {
     normalized = normalized.replace(ENCODED_SEP_RE_G, "/");
   }
   const segments = normalized.split("/");
