@@ -243,7 +243,9 @@ export function deleteChunkedCookie(
  * @see https://httpwg.org/specs/rfc6265.html#rfc.section.4.1.2
  */
 function _getDistinctCookieKey(name: string, options: { domain?: string; path?: string }) {
-  return [name, options.domain || "", options.path || "/"].join(";");
+  // Domain is case-insensitive and a leading "." is ignored (RFC 6265).
+  const domain = (options.domain || "").replace(/^\./, "").toLowerCase();
+  return [name, domain, options.path || "/"].join(";");
 }
 
 // Maximum number of chunks allowed for chunked cookies.

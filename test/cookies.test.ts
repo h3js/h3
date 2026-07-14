@@ -130,6 +130,17 @@ describeMatrix("cookies", (t, { it, expect, describe }) => {
       expect(await result.text()).toBe("200");
     });
 
+    it("deduplicates cookies with leading-dot / mixed-case domains", async () => {
+      t.app.get("/", (event) => {
+        setCookie(event, "foo", "old", { domain: ".Example.com" });
+        setCookie(event, "foo", "new", { domain: ".Example.com" });
+        return "200";
+      });
+      const result = await t.fetch("/");
+      expect(result.headers.getSetCookie()).toEqual(["foo=new; Domain=.Example.com; Path=/"]);
+      expect(await result.text()).toBe("200");
+    });
+
     it("can set multiple different cookies", async () => {
       t.app.get("/", (event) => {
         setCookie(event, "a", "1");
