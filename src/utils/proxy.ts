@@ -27,8 +27,8 @@ export interface ProxyOptions {
    * header the proxy would otherwise drop — e.g. `forwardHeaders: ["host"]`
    * forwards the client's `host` verbatim. `filterHeaders` still wins over it.
    *
-   * Only the "soft" drops (`host`, `accept-encoding`) can be overridden this
-   * way. It can **never** force-forward a true hop-by-hop framing header
+   * Only the "soft" drops (`host`, `accept-encoding`, `expect`) can be
+   * overridden this way. It can **never** force-forward a true hop-by-hop framing header
    * (`connection`, `keep-alive`, `transfer-encoding`, `te`, `trailer`,
    * `upgrade`, `proxy-authorization`, `proxy-connection`) or a field the
    * incoming `Connection` header nominates — forwarding those could desync
