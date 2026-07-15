@@ -130,6 +130,20 @@ describeMatrix("cookies", (t, { it, expect, describe }) => {
       expect(await result.text()).toBe("200");
     });
 
+    it("preserves set-cookie headers written directly to res.headers", async () => {
+      t.app.get("/", (event) => {
+        setCookie(event, "token", "old");
+        // A middleware / plugin writes a set-cookie header directly, bypassing setCookie
+        event.res.headers.append("set-cookie", "external=9; Path=/");
+        // Overwriting an h3-managed cookie must not drop the external one
+        setCookie(event, "token", "new");
+        return "200";
+      });
+      const result = await t.fetch("/");
+      expect(result.headers.getSetCookie()).toEqual(["external=9; Path=/", "token=new; Path=/"]);
+      expect(await result.text()).toBe("200");
+    });
+
     it("deduplicates cookies with leading-dot / mixed-case domains", async () => {
       t.app.get("/", (event) => {
         setCookie(event, "foo", "old", { domain: ".Example.com" });

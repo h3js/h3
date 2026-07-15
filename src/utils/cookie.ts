@@ -96,6 +96,13 @@ export function setCookie(
     return;
   }
 
+  // Fast path: no existing cookie shares the same name, simply append
+  const namePrefix = `${name}=`;
+  if (!currentCookies.some((cookie) => cookie.startsWith(namePrefix))) {
+    event.res.headers.append("set-cookie", newCookie);
+    return;
+  }
+
   // Merge and deduplicate unique set-cookie headers
   const newCookieKey = _getDistinctCookieKey(name, options || {});
   event.res.headers.delete("set-cookie");
@@ -143,7 +150,8 @@ export function deleteCookie(
  * ```
  */
 export function getChunkedCookie(event: HTTPEvent, name: string): string | undefined {
-  const mainCookie = getCookie(event, name);
+  const cookies = parseCookies(event);
+  const mainCookie = cookies[name];
   if (!mainCookie || !mainCookie.startsWith(CHUNKED_COOKIE)) {
     return mainCookie;
   }
@@ -155,7 +163,7 @@ export function getChunkedCookie(event: HTTPEvent, name: string): string | undef
 
   const chunks = [];
   for (let i = 1; i <= chunksCount; i++) {
-    const chunk = getCookie(event, chunkCookieName(name, i));
+    const chunk = cookies[chunkCookieName(name, i)];
     if (!chunk) {
       return undefined;
     }
