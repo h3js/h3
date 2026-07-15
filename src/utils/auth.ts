@@ -16,6 +16,11 @@ type _BasicAuthOptions = {
 
   /**
    * Custom validation function for basic auth.
+   *
+   * When provided, the built-in non-empty check is skipped and this function
+   * receives the decoded `username`/`password` as-is, including empty strings
+   * (RFC 7617 permits an empty user-id and/or password). It must return `false`
+   * to reject empty or otherwise invalid credentials.
    */
   validate: (username: string, password: string) => boolean | Promise<boolean>;
 
@@ -52,30 +57,30 @@ export async function requireBasicAuth(event: HTTPEvent, opts: BasicAuthOptions)
 
   const authHeader = event.req.headers.get("authorization");
   if (!authHeader) {
-    throw authFailed(event, realm);
+    throw await authFailed(event, realm);
   }
   // RFC 9110: credentials = auth-scheme [ 1*SP token68 ]; allow one or more spaces.
   const b64auth = /^basic +(.+)$/i.exec(authHeader)?.[1];
   if (!b64auth) {
-    throw authFailed(event, realm);
+    throw await authFailed(event, realm);
   }
   let authDecoded: string;
   try {
     authDecoded = atob(b64auth);
   } catch {
-    throw authFailed(event, realm);
+    throw await authFailed(event, realm);
   }
   const colonIndex = authDecoded.indexOf(":");
   if (colonIndex === -1) {
     // RFC 7617: credentials must be "user-id ":" password"; reject if missing.
-    throw authFailed(event, realm);
+    throw await authFailed(event, realm);
   }
   const username = authDecoded.slice(0, colonIndex);
   const password = authDecoded.slice(colonIndex + 1);
   // RFC 7617 allows empty user-id/password; only enforce non-empty when no
   // custom validate function is provided (i.e. plain username/password check).
   if (!opts.validate && (!username || !password)) {
-    throw authFailed(event, realm);
+    throw await authFailed(event, realm);
   }
 
   // Evaluate all comparisons unconditionally so failure timing does not
@@ -84,8 +89,7 @@ export async function requireBasicAuth(event: HTTPEvent, opts: BasicAuthOptions)
   const passwordOk = !opts.password || timingSafeEqual(password, opts.password);
   const validateOk = !opts.validate || (await opts.validate(username, password));
   if (!usernameOk || !passwordOk || !validateOk) {
-    await randomJitter();
-    throw authFailed(event, realm);
+    throw await authFailed(event, realm);
   }
 
   const context = getEventContext<H3EventContext>(event);
@@ -110,7 +114,10 @@ export function basicAuth(opts: BasicAuthOptions): Middleware {
   };
 }
 
-function authFailed(event: HTTPEvent, realm: string = "auth") {
+async function authFailed(event: HTTPEvent, realm: string) {
+  // Jitter every 401 path uniformly so response timing does not distinguish a
+  // malformed/absent header from a well-formed but wrong credential.
+  await randomJitter();
   return new HTTPError({
     status: 401,
     statusText: "Authentication required",
