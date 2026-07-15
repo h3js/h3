@@ -20,6 +20,16 @@ export interface CorsOptions {
    * If an array of strings or regular expressions, it can be used with origin matching.
    * If a custom function, it's used to validate the origin. It takes the origin as an argument and returns `true` if allowed.
    *
+   * **Security:** Regular-expression entries are tested against the full origin
+   * string **unanchored** (via `RegExp.prototype.test`). A pattern like
+   * `/example\.com/` therefore also matches `https://example.com.evil.test` and
+   * `https://notexample.com`. Always **anchor** (`^`…`$`) and **escape** literal
+   * dots in regex origins — e.g. `/^https:\/\/([a-z0-9-]+\.)?example\.com$/` to
+   * allow `example.com` and one optional subdomain label (use `(…\.)*` for
+   * arbitrary depth), or `/^https?:\/\/example\.com$/` for an exact host. Prefer
+   * plain string entries (matched by exact equality) when
+   * you don't need pattern matching.
+   *
    * Avoid `"null"` together with `credentials: true`. Sandboxed iframes, `data:`/`file:` documents,
    * and other opaque origins all send `Origin: null`, so allowing it with credentials would share
    * them across untrusted contexts.
