@@ -16,6 +16,11 @@ type _BasicAuthOptions = {
 
   /**
    * Custom validation function for basic auth.
+   *
+   * When provided, the built-in non-empty check is skipped and this function
+   * receives the decoded `username`/`password` as-is, including empty strings
+   * (RFC 7617 permits an empty user-id and/or password). It must return `false`
+   * to reject empty or otherwise invalid credentials.
    */
   validate: (username: string, password: string) => boolean | Promise<boolean>;
 
@@ -48,42 +53,55 @@ export async function requireBasicAuth(event: HTTPEvent, opts: BasicAuthOptions)
     });
   }
 
+  const realm = opts?.realm ?? "auth";
+
   const authHeader = event.req.headers.get("authorization");
   if (!authHeader) {
-    throw authFailed(event);
+    throw await authFailed(event, realm);
   }
-  const [authType, b64auth] = authHeader.split(" ");
-  if (!b64auth || authType.toLowerCase() !== "basic") {
-    throw authFailed(event, opts?.realm);
+  // RFC 9110: credentials = auth-scheme [ 1*SP token68 ]; allow one or more spaces.
+  const b64auth = /^basic +(.+)$/i.exec(authHeader)?.[1];
+  if (!b64auth) {
+    throw await authFailed(event, realm);
   }
   let authDecoded: string;
   try {
     authDecoded = atob(b64auth);
   } catch {
-    throw authFailed(event, opts?.realm);
+    throw await authFailed(event, realm);
+  }
+  try {
+    // RFC 7617: modern clients send credentials as UTF-8 (charset="UTF-8").
+    authDecoded = new TextDecoder("utf-8", { fatal: true }).decode(
+      Uint8Array.from(authDecoded, (c) => c.charCodeAt(0)),
+    );
+  } catch {
+    // Not valid UTF-8: keep the Latin-1 interpretation for legacy clients.
   }
   const colonIndex = authDecoded.indexOf(":");
   if (colonIndex === -1) {
     // RFC 7617: credentials must be "user-id ":" password"; reject if missing.
-    throw authFailed(event, opts?.realm);
+    throw await authFailed(event, realm);
   }
   const username = authDecoded.slice(0, colonIndex);
   const password = authDecoded.slice(colonIndex + 1);
-  if (!username || !password) {
-    throw authFailed(event, opts?.realm);
+  // RFC 7617 allows empty user-id/password; only enforce non-empty when no
+  // custom validate function is provided (i.e. plain username/password check).
+  if (!opts.validate && (!username || !password)) {
+    throw await authFailed(event, realm);
   }
 
-  if (
-    (opts.username && !timingSafeEqual(username, opts.username)) ||
-    (opts.password && !timingSafeEqual(password, opts.password)) ||
-    (opts.validate && !(await opts.validate(username, password)))
-  ) {
-    await randomJitter();
-    throw authFailed(event, opts?.realm);
+  // Evaluate all comparisons unconditionally so failure timing does not
+  // distinguish an unknown user from a wrong password.
+  const usernameOk = !opts.username || timingSafeEqual(username, opts.username);
+  const passwordOk = !opts.password || timingSafeEqual(password, opts.password);
+  const validateOk = !opts.validate || (await opts.validate(username, password));
+  if (!usernameOk || !passwordOk || !validateOk) {
+    throw await authFailed(event, realm);
   }
 
   const context = getEventContext<H3EventContext>(event);
-  context.basicAuth = { username, password, realm: opts.realm };
+  context.basicAuth = { username, password, realm };
 
   return true;
 }
@@ -104,12 +122,26 @@ export function basicAuth(opts: BasicAuthOptions): Middleware {
   };
 }
 
-function authFailed(event: HTTPEvent, realm: string = "") {
+async function authFailed(event: HTTPEvent, realm: string) {
+  // Jitter every 401 path uniformly so response timing does not distinguish a
+  // malformed/absent header from a well-formed but wrong credential.
+  await randomJitter();
   return new HTTPError({
     status: 401,
     statusText: "Authentication required",
     headers: {
-      "www-authenticate": `Basic realm=${JSON.stringify(realm)}`,
+      "www-authenticate": `Basic realm="${quoteRealm(realm)}", charset="UTF-8"`,
     },
   });
+}
+
+/**
+ * Sanitize a realm into an RFC 9110 §5.6.4 quoted-string body.
+ *
+ * Drops characters outside the qdtext/obs-text charset (control chars and
+ * non-Latin-1 code points that would throw when set as a header value) and
+ * escapes DQUOTE and backslash as quoted-pairs.
+ */
+function quoteRealm(realm: string): string {
+  return realm.replace(/[^\t\x20-\x7E\x80-\xFF]/g, "").replace(/["\\]/g, "\\$&");
 }
