@@ -253,6 +253,34 @@ describeMatrix("auth", (t, { it, expect }) => {
     expect(result.status).toBe(200);
   });
 
+  it("includes the configured realm in the first challenge (missing header)", async () => {
+    const realmAuth = basicAuth({ password: "123!", realm: "my-realm" });
+    t.app.get("/realm-missing", () => "ok", { middleware: [realmAuth] });
+    const result = await t.fetch("/realm-missing", { method: "GET" });
+    expect(result.status).toBe(401);
+    expect(result.headers.get("www-authenticate")).toBe('Basic realm="my-realm", charset="UTF-8"');
+  });
+
+  it("accepts multiple spaces between scheme and credentials", async () => {
+    t.app.get("/multi-space", () => "Hello, world!", { middleware: [auth] });
+    const result = await t.fetch("/multi-space", {
+      method: "GET",
+      headers: {
+        Authorization: `Basic   ${Buffer.from("test:123!").toString("base64")}`,
+      },
+    });
+    expect(await result.text()).toBe("Hello, world!");
+    expect(result.status).toBe(200);
+  });
+
+  it("does not throw for a non-Latin-1 realm", async () => {
+    const unicodeAuth = basicAuth({ password: "123!", realm: "領域" });
+    t.app.get("/unicode-realm", () => "ok", { middleware: [unicodeAuth] });
+    const result = await t.fetch("/unicode-realm", { method: "GET" });
+    expect(result.status).toBe(401);
+    expect(() => result.headers.get("www-authenticate")).not.toThrow();
+  });
+
   it("authenticates credentials with a non-ASCII (UTF-8) password", async () => {
     const utf8Auth = basicAuth({ username: "tëst", password: "pä$$wörd🔒" });
     t.app.get("/utf8", () => "UTF-8 ok!", { middleware: [utf8Auth] });
