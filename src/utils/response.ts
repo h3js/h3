@@ -298,7 +298,9 @@ export interface RawHTML {
   readonly value: string;
 }
 
-const kRawHTML: unique symbol = /* @__PURE__ */ Symbol.for("h3.rawHTML");
+// Module-private, unregistered symbol so the trust marker cannot be forged from
+// outside this module (e.g. via `Symbol.for("h3.rawHTML")` or a second h3 realm).
+const kRawHTML: unique symbol = /* @__PURE__ */ Symbol("h3.rawHTML");
 
 function isRawHTML(value: unknown): value is RawHTML {
   return (
@@ -308,10 +310,15 @@ function isRawHTML(value: unknown): value is RawHTML {
   );
 }
 
+const HTML_ESCAPES: Record<string, string> = {
+  "&": "&amp;",
+  '"': "&quot;",
+  "'": "&#39;",
+  "<": "&lt;",
+  ">": "&gt;",
+};
+
 /** HTML-escape the special characters `& < > " '`. */
 function escapeHtml(str: string): string {
-  return str.replace(
-    /[&"'<>]/g,
-    (c) => ({ "&": "&amp;", '"': "&quot;", "'": "&#39;", "<": "&lt;", ">": "&gt;" })[c]!,
-  );
+  return str.replace(/[&"'<>]/g, (c) => HTML_ESCAPES[c]!);
 }
