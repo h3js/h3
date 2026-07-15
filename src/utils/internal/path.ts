@@ -25,30 +25,26 @@ export function joinURL(base: string | undefined, path: string | undefined): str
   return base + path;
 }
 
-export function withoutBase(input: string = "", base: string = ""): string {
-  if (!base || base === "/") {
-    return input;
-  }
-  const _base = withoutTrailingSlash(base);
-  if (!input.startsWith(_base) || (input.length > _base.length && input[_base.length] !== "/")) {
-    return input;
-  }
-  // Collapse leading slashes to prevent protocol-relative URL injection
-  // e.g. withoutBase("/legacy//evil.com", "/legacy") must not return "//evil.com"
-  const trimmed = input.slice(_base.length).replace(/^\/+/, "");
-  return "/" + trimmed;
-}
-
 /**
  * Strip `base` from `pathname` when it matches on a segment boundary, collapsing
  * the leading-slash run so `/base//evil.com` can never strip to a protocol-relative
  * `//evil.com` a downstream redirect could turn into an open redirect.
+ *
+ * `base` must not have a trailing slash; use {@link withoutBase} to tolerate one.
  */
 export function stripBase(pathname: string, base: string): string {
   if (pathname === base || pathname.startsWith(base + "/")) {
     return "/" + pathname.slice(base.length).replace(/^\/+/, "");
   }
   return pathname;
+}
+
+/** Like {@link stripBase}, but tolerates a trailing slash in `base`. */
+export function withoutBase(input: string = "", base: string = ""): string {
+  if (!base || base === "/") {
+    return input;
+  }
+  return stripBase(input, withoutTrailingSlash(base));
 }
 
 export function getPathname(path: string = "/"): string {
