@@ -327,6 +327,59 @@ describeMatrix("proxy", (t, { it, expect, describe }) => {
         expect(result.headers["x-both"]).toBeUndefined();
       });
 
+      it("still force-forwards a soft-drop header (accept-encoding) via forwardHeaders", async () => {
+        t.app.all("/debug", (event) => {
+          return { headers: Object.fromEntries(event.req.headers.entries()) };
+        });
+        t.app.all("/", (event) =>
+          proxyRequest(event, "/debug", {
+            // A "soft" drop like `accept-encoding` may still be force-forwarded.
+            forwardHeaders: ["accept-encoding"],
+          }),
+        );
+
+        const result = await t
+          .fetch("/", { headers: { "accept-encoding": "zstd, br, gzip" } })
+          .then((r) => r.json());
+
+        expect(result.headers["accept-encoding"]).toBe("zstd, br, gzip");
+      });
+
+      // Node's transport layer manages framing headers, so they only survive
+      // the round-trip on the web target.
+      it.runIf(t.target === "web")(
+        "does not force-forward hop-by-hop framing headers via forwardHeaders",
+        async () => {
+          t.app.all("/debug", (event) => {
+            return { headers: Object.fromEntries(event.req.headers.entries()) };
+          });
+          t.app.all("/", (event) =>
+            proxyRequest(event, "/debug", {
+              // `forwardHeaders` must never override the true hop-by-hop framing
+              // set — doing so could desync request framing upstream.
+              forwardHeaders: ["transfer-encoding", "connection", "keep-alive"],
+            }),
+          );
+
+          const result = await t
+            .fetch("/", {
+              headers: {
+                "transfer-encoding": "chunked",
+                connection: "keep-alive",
+                "keep-alive": "timeout=5",
+                "x-keep": "kept",
+              },
+            })
+            .then((r) => r.json());
+
+          expect(result.headers["transfer-encoding"]).toBeUndefined();
+          expect(result.headers["connection"]).toBeUndefined();
+          expect(result.headers["keep-alive"]).toBeUndefined();
+          // A normal header is still forwarded.
+          expect(result.headers["x-keep"]).toBe("kept");
+        },
+      );
+
       it("strips hop-by-hop headers from the proxied response", async () => {
         t.app.all("/debug", (event) => {
           // Hop-by-hop response headers that must not leak to the client.
