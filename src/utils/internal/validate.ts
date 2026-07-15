@@ -113,6 +113,13 @@ export function validatedRequest<
         return function _validatedJson() {
           return req
             .json()
+            .catch(() => {
+              throw new HTTPError({
+                status: 400,
+                statusText: "Bad Request",
+                message: "Invalid JSON body",
+              });
+            })
             .then((data) => validate.body!["~standard"].validate(data))
             .then((result) => {
               if (result.issues) {
