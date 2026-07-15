@@ -130,6 +130,17 @@ describeMatrix("cookies", (t, { it, expect, describe }) => {
       expect(await result.text()).toBe("200");
     });
 
+    it("deduplicates cookies with leading-dot / mixed-case domains", async () => {
+      t.app.get("/", (event) => {
+        setCookie(event, "foo", "old", { domain: ".Example.com" });
+        setCookie(event, "foo", "new", { domain: ".Example.com" });
+        return "200";
+      });
+      const result = await t.fetch("/");
+      expect(result.headers.getSetCookie()).toEqual(["foo=new; Domain=.Example.com; Path=/"]);
+      expect(await result.text()).toBe("200");
+    });
+
     it("can set multiple different cookies", async () => {
       t.app.get("/", (event) => {
         setCookie(event, "a", "1");
@@ -472,6 +483,70 @@ describeMatrix("cookies", (t, { it, expect, describe }) => {
           "session=__chunked__2; Path=/",
           "session.1=AABB; Path=/",
           "session.2=CCDD; Path=/",
+        ]);
+        expect(await result.text()).toBe("200");
+      });
+
+      it("throws when value exceeds the maximum chunk count", async () => {
+        t.app.get("/", (event) => {
+          // 101 chunks of 1 char each exceeds the cap of 100 that the reader supports.
+          const bigValue = "x".repeat(101);
+          expect(() => setChunkedCookie(event, "session", bigValue, { chunkMaxLength: 1 })).toThrow(
+            /chunk/i,
+          );
+          // Nothing should have been written when the value is rejected.
+          expect(event.res.headers.getSetCookie()).toEqual([]);
+          return "200";
+        });
+        const result = await t.fetch("/");
+        expect(await result.text()).toBe("200");
+      });
+
+      it("allows a value at exactly the maximum chunk count and it stays readable", async () => {
+        t.app.get("/", (event) => {
+          const value = "x".repeat(100); // exactly 100 chunks
+          setChunkedCookie(event, "session", value, { chunkMaxLength: 1 });
+          // main cookie + 100 chunks
+          expect(event.res.headers.getSetCookie().length).toBe(101);
+          return "200";
+        });
+        const result = await t.fetch("/");
+        expect(await result.text()).toBe("200");
+
+        // Round-trip: the written value must be re-readable (count is within the reader cap).
+        const cookieHeader = result.headers
+          .getSetCookie()
+          .map((c) => c.split(";")[0])
+          .join("; ");
+        t.app.get("/read", (event) => getChunkedCookie(event, "session") ?? "MISSING");
+        const readResult = await t.fetch("/read", {
+          headers: { Cookie: cookieHeader },
+        });
+        expect(await readResult.text()).toBe("x".repeat(100));
+      });
+
+      it("removes all previous chunks when reducing to a single non-chunked value", async () => {
+        t.app.get("/", (event) => {
+          // New value fits in one cookie, so it is stored unchunked with no `session.N`.
+          setChunkedCookie(event, "session", "tiny", { chunkMaxLength: 10 });
+          return "200";
+        });
+        const result = await t.fetch("/", {
+          headers: {
+            Cookie: [
+              `session=${CHUNKED_COOKIE}3`,
+              "session.1=aaa",
+              "session.2=bbb",
+              "session.3=ccc",
+            ].join("; "),
+          },
+        });
+        // All three previous chunks (including `session.1`) must be deleted.
+        expect(result.headers.getSetCookie()).toEqual([
+          "session.1=; Max-Age=0; Path=/",
+          "session.2=; Max-Age=0; Path=/",
+          "session.3=; Max-Age=0; Path=/",
+          "session=tiny; Path=/",
         ]);
         expect(await result.text()).toBe("200");
       });

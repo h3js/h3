@@ -80,6 +80,37 @@ describe("cors (unit)", () => {
         warnSpy.mockRestore();
       });
 
+      it('warns when credentials is used with `"null"` origin', () => {
+        const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+        resolveCorsOptions({
+          credentials: true,
+          origin: "null",
+          exposeHeaders: ["X-Custom"],
+        });
+        expect(warnSpy).toHaveBeenCalledOnce();
+        expect(warnSpy.mock.calls[0][0]).toContain("null");
+
+        warnSpy.mockRestore();
+      });
+
+      it('warns when credentials is used with an origin array containing `"null"`', () => {
+        const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+        // `"null"` in an array is a live hazard too: the array path does an
+        // exact string comparison, so an `Origin: null` request matches and
+        // is reflected with credentials.
+        resolveCorsOptions({
+          credentials: true,
+          origin: ["https://example.com", "null"],
+          exposeHeaders: ["X-Custom"],
+        });
+        expect(warnSpy).toHaveBeenCalledOnce();
+        expect(warnSpy.mock.calls[0][0]).toContain("null");
+
+        warnSpy.mockRestore();
+      });
+
       it("warns when credentials is used with default wildcard exposeHeaders", () => {
         const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
@@ -729,6 +760,31 @@ describe("cors (unit)", () => {
         expect(vary).toContain("access-control-request-headers");
       }
     });
+
+    it("does not duplicate single-valued headers when applied twice", () => {
+      // Applying preflight CORS headers more than once must not produce invalid
+      // values like `*, *` for single-valued headers.
+      const eventMock = mockEvent("/", {
+        method: "OPTIONS",
+        headers: {
+          origin: "https://example.com",
+          "access-control-request-method": "GET",
+        },
+      });
+      const options: CorsOptions = {
+        origin: "*",
+        methods: "*",
+        credentials: false,
+        maxAge: "12345",
+      };
+
+      appendCorsPreflightHeaders(eventMock, options);
+      appendCorsPreflightHeaders(eventMock, options);
+
+      expect(eventMock.res.headers.get("access-control-allow-origin")).toEqual("*");
+      expect(eventMock.res.headers.get("access-control-allow-methods")).toEqual("*");
+      expect(eventMock.res.headers.get("access-control-max-age")).toEqual("12345");
+    });
   });
 
   describe("appendCorsHeaders", () => {
@@ -823,6 +879,28 @@ describe("cors (unit)", () => {
 
       expect(eventMock.res.headers.has("access-control-allow-origin")).toEqual(false);
       expect(eventMock.res.headers.get("vary")).toEqual("origin");
+    });
+
+    it("does not duplicate single-valued headers when applied twice", () => {
+      // Applying CORS more than once (e.g. middleware + handler) must not produce
+      // invalid values like `*, *` for single-valued headers.
+      const eventMock = mockEvent("/", {
+        method: "GET",
+        headers: {
+          origin: "https://example.com",
+        },
+      });
+      const options: CorsOptions = {
+        origin: "*",
+        exposeHeaders: "*",
+        credentials: false,
+      };
+
+      appendCorsHeaders(eventMock, options);
+      appendCorsHeaders(eventMock, options);
+
+      expect(eventMock.res.headers.get("access-control-allow-origin")).toEqual("*");
+      expect(eventMock.res.headers.get("access-control-expose-headers")).toEqual("*");
     });
   });
 

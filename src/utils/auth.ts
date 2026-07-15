@@ -70,6 +70,14 @@ export async function requireBasicAuth(event: HTTPEvent, opts: BasicAuthOptions)
   } catch {
     throw await authFailed(event, realm);
   }
+  try {
+    // RFC 7617: modern clients send credentials as UTF-8 (charset="UTF-8").
+    authDecoded = new TextDecoder("utf-8", { fatal: true }).decode(
+      Uint8Array.from(authDecoded, (c) => c.charCodeAt(0)),
+    );
+  } catch {
+    // Not valid UTF-8: keep the Latin-1 interpretation for legacy clients.
+  }
   const colonIndex = authDecoded.indexOf(":");
   if (colonIndex === -1) {
     // RFC 7617: credentials must be "user-id ":" password"; reject if missing.
@@ -122,7 +130,7 @@ async function authFailed(event: HTTPEvent, realm: string) {
     status: 401,
     statusText: "Authentication required",
     headers: {
-      "www-authenticate": `Basic realm="${quoteRealm(realm)}"`,
+      "www-authenticate": `Basic realm="${quoteRealm(realm)}", charset="UTF-8"`,
     },
   });
 }

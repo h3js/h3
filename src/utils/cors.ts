@@ -20,6 +20,10 @@ export interface CorsOptions {
    * If an array of strings or regular expressions, it can be used with origin matching.
    * If a custom function, it's used to validate the origin. It takes the origin as an argument and returns `true` if allowed.
    *
+   * Avoid `"null"` together with `credentials: true`. Sandboxed iframes, `data:`/`file:` documents,
+   * and other opaque origins all send `Origin: null`, so allowing it with credentials would share
+   * them across untrusted contexts.
+   *
    * @see https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Origin
    * @default "*"
    */
@@ -115,10 +119,7 @@ export function appendCorsPreflightHeaders(event: H3Event, options: CorsOptions)
   if (varyValues.length > 0) {
     headers.vary = varyValues.join(", ");
   }
-  for (const [key, value] of Object.entries(headers)) {
-    event.res.headers.append(key, value);
-    event.res.errHeaders.append(key, value);
-  }
+  setCorsHeaders(event, headers);
 }
 
 /**
@@ -130,9 +131,25 @@ export function appendCorsHeaders(event: H3Event, options: CorsOptions): void {
     ...createCredentialsHeaders(options),
     ...createExposeHeaders(options),
   };
+  setCorsHeaders(event, headers);
+}
+
+/**
+ * Apply CORS response headers.
+ *
+ * CORS headers are single-valued, so use `.set` to avoid invalid duplicated
+ * values (e.g. `*, *`) when CORS is applied more than once (middleware + handler).
+ * The `vary` header is legitimately multi-valued and is appended instead.
+ */
+function setCorsHeaders(event: H3Event, headers: Record<string, string>): void {
   for (const [key, value] of Object.entries(headers)) {
-    event.res.headers.append(key, value);
-    event.res.errHeaders.append(key, value);
+    if (key === "vary") {
+      event.res.headers.append(key, value);
+      event.res.errHeaders.append(key, value);
+    } else {
+      event.res.headers.set(key, value);
+      event.res.errHeaders.set(key, value);
+    }
   }
 }
 
