@@ -5,6 +5,7 @@ import {
   abortable,
   applyXForwardedHeaders,
   connectionTokens,
+  framingHeaders,
   ignoredHeaders,
   ignoredResponseHeaders,
   mergeHeaders,
@@ -18,13 +19,21 @@ import { HTTPResponse } from "../response.ts";
 export interface ProxyOptions {
   headers?: HeadersInit;
   /**
-   * Header names allowed to bypass the built-in hop-by-hop denylist. Matched
+   * Header names allowed to bypass the built-in denylist. Matched
    * case-insensitively.
    *
    * This is **not** an exclusive allowlist: all ordinary request headers are
    * still forwarded regardless. It only lists exceptions that force-forward a
    * header the proxy would otherwise drop — e.g. `forwardHeaders: ["host"]`
    * forwards the client's `host` verbatim. `filterHeaders` still wins over it.
+   *
+   * Only the "soft" drops (`host`, `accept-encoding`, `expect`) can be
+   * overridden this way. It can **never** force-forward a true hop-by-hop framing header
+   * (`connection`, `keep-alive`, `transfer-encoding`, `te`, `trailer`,
+   * `upgrade`, `proxy-authorization`, `proxy-connection`) or a field the
+   * incoming `Connection` header nominates — forwarding those could desync
+   * request framing or leak the inbound proxy's credentials upstream, so they
+   * are always dropped.
    */
   forwardHeaders?: string[];
   /**
@@ -469,9 +478,17 @@ export function getProxyRequestHeaders(
       continue;
     }
 
-    // An explicit `forwardHeaders` entry is a deliberate escape hatch, so it
-    // wins over both the static denylist and `Connection` nominations.
-    if (forwardHeaders?.includes(name)) {
+    // An explicit `forwardHeaders` entry is a deliberate escape hatch over the
+    // "soft" denylist drops (e.g. `host`, `accept-encoding`). It must never
+    // force-forward a true hop-by-hop framing header (`connection`,
+    // `transfer-encoding`, ...) or a field the incoming `Connection` header
+    // nominates — doing so could desync request framing or leak the inbound
+    // proxy's credentials upstream.
+    if (
+      forwardHeaders?.includes(name) &&
+      !framingHeaders.has(name) &&
+      !connectionNominated.has(name)
+    ) {
       headers[name] = value;
       continue;
     }

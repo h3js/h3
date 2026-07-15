@@ -5,6 +5,7 @@ import { validateData } from "./internal/validate.ts";
 import type { StandardSchemaV1, FailureResult, InferOutput } from "./internal/standard-schema.ts";
 import type { ValidateResult, OnValidateError } from "./internal/validate.ts";
 import type { ErrorDetails } from "../error.ts";
+import { HTTPError } from "../error.ts";
 
 const CHUNKED_COOKIE = "__chunked__";
 
@@ -183,14 +184,26 @@ export function setChunkedCookie(
   const chunkMaxLength = options?.chunkMaxLength || CHUNKS_MAX_LENGTH;
   const chunkCount = Math.ceil(value.length / chunkMaxLength);
 
+  // Reject values that would need more chunks than the reader (`getChunkedCookie`)
+  // supports. Beyond this the reader returns `undefined`, so the write would be
+  // silently unreadable (data loss) and would emit more Set-Cookie headers than
+  // browsers accept.
+  if (chunkCount > MAX_CHUNKED_COOKIE_COUNT) {
+    throw new HTTPError({
+      status: 500,
+      message: `Cannot set chunked cookie "${name}": value needs ${chunkCount} chunks, exceeding the maximum of ${MAX_CHUNKED_COOKIE_COUNT}.`,
+    });
+  }
+
   // delete any prior left over chunks if the cookie is updated
   const previousCookie = getCookie(event, name);
   if (previousCookie?.startsWith(CHUNKED_COOKIE)) {
     const previousChunkCount = getChunkedCookieCount(previousCookie);
-    if (previousChunkCount > chunkCount) {
-      for (let i = chunkCount; i <= previousChunkCount; i++) {
-        deleteCookie(event, chunkCookieName(name, i), options);
-      }
+    // Number of chunk cookies (`name.N`) written for the new value. Values that
+    // fit in a single cookie are stored unchunked, so no chunks are written.
+    const newChunkCount = chunkCount <= 1 ? 0 : chunkCount;
+    for (let i = newChunkCount + 1; i <= previousChunkCount; i++) {
+      deleteCookie(event, chunkCookieName(name, i), options);
     }
   }
 
@@ -243,7 +256,9 @@ export function deleteChunkedCookie(
  * @see https://httpwg.org/specs/rfc6265.html#rfc.section.4.1.2
  */
 function _getDistinctCookieKey(name: string, options: { domain?: string; path?: string }) {
-  return [name, options.domain || "", options.path || "/"].join(";");
+  // Domain is case-insensitive and a leading "." is ignored (RFC 6265).
+  const domain = (options.domain || "").replace(/^\./, "").toLowerCase();
+  return [name, domain, options.path || "/"].join(";");
 }
 
 // Maximum number of chunks allowed for chunked cookies.
