@@ -46,6 +46,13 @@ describeMatrix("mount", (t, { it, expect, describe }) => {
       });
       expect(await t.fetch("/test/123").then((r) => r.text())).toBe("/123");
     });
+
+    it("collapses leading slashes after stripping base", async () => {
+      t.app.mount("/api", (req) => new Response(new URL(req.url).pathname));
+      // A protocol-relative pathname must not survive base stripping, otherwise a
+      // downstream redirect to it becomes a `//host` open redirect.
+      expect(await t.fetch("/api//evil.com").then((r) => r.text())).toBe("/evil.com");
+    });
   });
 
   describe("mount H3", () => {
@@ -84,6 +91,23 @@ describeMatrix("mount", (t, { it, expect, describe }) => {
       const interceptRes = await t.fetch("/test/intercept");
       expect(interceptRes.headers.get("x-test")).toBe("1");
       expect(await interceptRes.text()).toBe("intercepted");
+    });
+
+    it("collapses leading slashes for child middleware after stripping base", async () => {
+      let seenPathname = "";
+      const subApp = new H3();
+      subApp.use((event) => {
+        seenPathname = event.url.pathname;
+        return event.url.pathname;
+      });
+      subApp.get("/**", () => "unused");
+
+      t.app.mount("/api", subApp);
+
+      const res = await t.fetch("/api//evil.com");
+      // Child middleware must not see a protocol-relative pathname.
+      expect(seenPathname).toBe("/evil.com");
+      expect(await res.text()).toBe("/evil.com");
     });
   });
 

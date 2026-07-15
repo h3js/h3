@@ -88,6 +88,20 @@ describe("requestWithBaseURL", () => {
     const proxied = requestWithBaseURL(original, "/base");
     expect(proxied instanceof Request).toBe(true);
   });
+
+  it("collapses leading slashes after stripping base", () => {
+    // Otherwise `/base//evil.com` strips to `//evil.com`, a protocol-relative
+    // pathname a downstream redirect could turn into a `//host` open redirect.
+    const req = new Request("http://example.com/base//evil.com");
+    const proxied = requestWithBaseURL(req, "/base");
+    expect(new URL(proxied.url).pathname).toBe("/evil.com");
+  });
+
+  it("leaves pathname untouched when base does not match", () => {
+    const req = new Request("http://example.com/other/path");
+    const proxied = requestWithBaseURL(req, "/base");
+    expect(new URL(proxied.url).pathname).toBe("/other/path");
+  });
 });
 
 describe("getRequestProtocol", () => {
