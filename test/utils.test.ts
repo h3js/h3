@@ -55,12 +55,13 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
       expect(await res.text()).not.toContain("<script>");
     });
 
-    it("accepts raw() values from another h3 instance (symbol brand)", async () => {
-      // Simulates raw() from a duplicated copy of h3 via the global symbol registry
-      const foreignRaw = { [Symbol.for("h3.rawHTML")]: true, value: "<b>bold</b>" };
-      t.app.get("/test", () => html`<div>${foreignRaw}</div>`);
+    it("does not accept forged raw() markers via the global symbol registry", async () => {
+      // The trust marker is a module-private, unregistered symbol, so an object
+      // carrying `Symbol.for("h3.rawHTML")` cannot forge trust and is escaped.
+      const forged = { [Symbol.for("h3.rawHTML")]: true, value: "<b>bold</b>" };
+      t.app.get("/test", () => html`<div>${forged}</div>`);
       const res = await t.fetch("/test");
-      expect(await res.text()).toBe("<div><b>bold</b></div>");
+      expect(await res.text()).toBe("<div>[object Object]</div>");
     });
 
     it("escapes plain string usage and warns once", async () => {
