@@ -25,8 +25,9 @@ export interface CorsOptions {
    * `/example\.com/` therefore also matches `https://example.com.evil.test` and
    * `https://notexample.com`. Always **anchor** (`^`…`$`) and **escape** literal
    * dots in regex origins — e.g. `/^https:\/\/([a-z0-9-]+\.)?example\.com$/` to
-   * allow `example.com` and its subdomains, or `/^https?:\/\/example\.com$/` for
-   * an exact host. Prefer plain string entries (matched by exact equality) when
+   * allow `example.com` and one optional subdomain label (use `(…\.)*` for
+   * arbitrary depth), or `/^https?:\/\/example\.com$/` for an exact host. Prefer
+   * plain string entries (matched by exact equality) when
    * you don't need pattern matching.
    *
    * @see https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Origin

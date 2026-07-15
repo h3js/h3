@@ -233,7 +233,6 @@ describe("cors (unit)", () => {
     });
 
     it("can detect allowed origin (regular expression)", () => {
-      const origin = "https://example.com";
       const options: CorsOptions = {
         // Regex origins are matched unanchored, so they MUST be anchored and
         // escaped to avoid matching attacker-controlled origins like
@@ -241,7 +240,18 @@ describe("cors (unit)", () => {
         origin: [/^https:\/\/([a-z0-9-]+\.)?example\.com$/],
       };
 
-      expect(isCorsOriginAllowed(origin, options)).toEqual(true);
+      expect(isCorsOriginAllowed("https://example.com", options)).toEqual(true);
+      expect(isCorsOriginAllowed("https://sub.example.com", options)).toEqual(true);
+    });
+
+    it("rejects origins that a properly anchored regex must not match", () => {
+      const options: CorsOptions = {
+        origin: [/^https:\/\/([a-z0-9-]+\.)?example\.com$/],
+      };
+
+      // A regression to an unanchored regex would allow these.
+      expect(isCorsOriginAllowed("https://example.com.evil.test", options)).toEqual(false);
+      expect(isCorsOriginAllowed("https://notexample.com", options)).toEqual(false);
     });
 
     it("can detect allowed origin (function)", () => {
@@ -294,6 +304,35 @@ describe("cors (unit)", () => {
       });
       expect(createOriginHeaders(noOriginEventMock, originWildcardOptions)).toEqual({
         "access-control-allow-origin": "*",
+      });
+    });
+
+    it("does not emit allow-origin for regex-boundary attacker origins", () => {
+      const options: CorsOptions = {
+        origin: [/^https:\/\/([a-z0-9-]+\.)?example\.com$/],
+      };
+      const allowedEventMock = mockEvent("/", {
+        method: "OPTIONS",
+        headers: { origin: "https://example.com" },
+      });
+      const evilSuffixEventMock = mockEvent("/", {
+        method: "OPTIONS",
+        headers: { origin: "https://example.com.evil.test" },
+      });
+      const notExampleEventMock = mockEvent("/", {
+        method: "OPTIONS",
+        headers: { origin: "https://notexample.com" },
+      });
+
+      expect(createOriginHeaders(allowedEventMock, options)).toEqual({
+        "access-control-allow-origin": "https://example.com",
+        vary: "origin",
+      });
+      expect(createOriginHeaders(evilSuffixEventMock, options)).toEqual({
+        vary: "origin",
+      });
+      expect(createOriginHeaders(notExampleEventMock, options)).toEqual({
+        vary: "origin",
       });
     });
 

@@ -474,7 +474,9 @@ export function getRequestProtocol(
  * trust them for security decisions (CSRF/origin checks, cache keys, generating
  * absolute links sent to other users) unless the `Host` value is pinned or
  * validated upstream (e.g. an allow-list of expected hosts, or a reverse proxy
- * that overwrites it). The `.pathname` and `.search` are safe to use.
+ * that overwrites it). The `.pathname` and `.search` are not derived from the
+ * spoofable host, but remain untrusted client input — validate or encode them for
+ * their eventual sink (e.g. filesystem lookups, HTML output, downstream queries).
  *
  * @example
  * app.get("/", (event) => {

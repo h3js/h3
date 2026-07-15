@@ -19,19 +19,21 @@ export interface ServeStaticOptions {
   /**
    * This function should resolve asset meta.
    *
-   * **Security:** The `id` is passed with `%2f` and `%5c` (encoded `/` and `\`)
-   * still percent-encoded — path traversal safety depends on this backend **not**
-   * decoding them (a decode would re-introduce separators and defeat the
-   * traversal normalization done by `serveStatic`). See {@link serveStatic}.
+   * **Security:** The `id` keeps encoded separators percent-encoded: `%2f`
+   * (encoded `/`) always survives, and a double-encoded backslash arrives as a
+   * literal `%5c` (a single-encoded `%5c` is decoded to `\` and normalized away
+   * by `serveStatic`). Path traversal safety depends on this backend **not**
+   * decoding them — a decode would re-introduce separators and defeat the
+   * traversal normalization done by `serveStatic`. See {@link serveStatic}.
    */
   getMeta: (id: string) => StaticAssetMeta | undefined | Promise<StaticAssetMeta | undefined>;
 
   /**
    * This function should resolve asset content.
    *
-   * **Security:** As with `getMeta`, the `id` keeps `%2f`/`%5c` encoded and this
-   * backend must not decode them before resolving the asset. See
-   * {@link serveStatic}.
+   * **Security:** As with `getMeta`, the `id` keeps encoded separators (`%2f`,
+   * and a double-encoded `%5c`) percent-encoded and this backend must not decode
+   * them before resolving the asset. See {@link serveStatic}.
    */
   getContents: (id: string) => BodyInit | null | undefined | Promise<BodyInit | null | undefined>;
 
@@ -72,8 +74,10 @@ export interface ServeStaticOptions {
  * Dynamically serve static assets based on the request path.
  *
  * **Security — path traversal:** `serveStatic` resolves `.`/`..` segments and
- * normalizes the request path, but deliberately keeps `%2f` and `%5c` (encoded
- * `/` and `\`) **percent-encoded** in the `id` it passes to `getMeta`/`getContents`.
+ * normalizes the request path, but deliberately keeps encoded separators
+ * **percent-encoded** in the `id` it passes to `getMeta`/`getContents`: `%2f`
+ * (encoded `/`) always survives, and a double-encoded backslash arrives as a
+ * literal `%5c` (a single-encoded `%5c` is decoded to `\` and normalized away).
  * Traversal safety therefore depends on those backends **not** decoding the `id`:
  * a backend that percent-decodes it (e.g. an extra `decodeURIComponent`, or a
  * lookup layer that decodes) re-introduces separators and **re-opens the
