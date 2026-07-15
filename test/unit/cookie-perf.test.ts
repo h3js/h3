@@ -13,6 +13,7 @@ vi.mock("cookie-es", async (importOriginal) => {
 });
 
 const { getChunkedCookie, setChunkedCookie } = await import("../../src/utils/cookie.ts");
+const { H3Event } = await import("../../src/event.ts");
 
 describe("cookie performance", () => {
   beforeEach(() => {
@@ -21,30 +22,27 @@ describe("cookie performance", () => {
   });
 
   it("parses the request cookie header once when reading chunked cookies", () => {
-    const event = {
-      req: {
-        headers: new Headers({
+    const event = new H3Event(
+      new Request("http://localhost/", {
+        headers: {
           cookie: [
             "session=__chunked__3",
             "session.1=alpha",
             "session.2=beta",
             "session.3=gamma",
           ].join("; "),
-        }),
-      },
-    };
+        },
+      }),
+    );
 
-    expect(getChunkedCookie(event as any, "session")).toBe("alphabetagamma");
+    expect(getChunkedCookie(event, "session")).toBe("alphabetagamma");
     expect(parseCookieSpy).toHaveBeenCalledTimes(1);
   });
 
   it("does not reparse existing set-cookie headers when appending unique chunks", () => {
-    const event = {
-      req: { headers: new Headers() },
-      res: { headers: new Headers() },
-    };
+    const event = new H3Event(new Request("http://localhost/"));
 
-    setChunkedCookie(event as any, "session", "abcdefghij", {
+    setChunkedCookie(event, "session", "abcdefghij", {
       chunkMaxLength: 3,
     });
 
