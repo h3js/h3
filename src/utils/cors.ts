@@ -119,10 +119,7 @@ export function appendCorsPreflightHeaders(event: H3Event, options: CorsOptions)
   if (varyValues.length > 0) {
     headers.vary = varyValues.join(", ");
   }
-  for (const [key, value] of Object.entries(headers)) {
-    event.res.headers.append(key, value);
-    event.res.errHeaders.append(key, value);
-  }
+  setCorsHeaders(event, headers);
 }
 
 /**
@@ -134,9 +131,25 @@ export function appendCorsHeaders(event: H3Event, options: CorsOptions): void {
     ...createCredentialsHeaders(options),
     ...createExposeHeaders(options),
   };
+  setCorsHeaders(event, headers);
+}
+
+/**
+ * Apply CORS response headers.
+ *
+ * CORS headers are single-valued, so use `.set` to avoid invalid duplicated
+ * values (e.g. `*, *`) when CORS is applied more than once (middleware + handler).
+ * The `vary` header is legitimately multi-valued and is appended instead.
+ */
+function setCorsHeaders(event: H3Event, headers: Record<string, string>): void {
   for (const [key, value] of Object.entries(headers)) {
-    event.res.headers.append(key, value);
-    event.res.errHeaders.append(key, value);
+    if (key === "vary") {
+      event.res.headers.append(key, value);
+      event.res.errHeaders.append(key, value);
+    } else {
+      event.res.headers.set(key, value);
+      event.res.errHeaders.set(key, value);
+    }
   }
 }
 
