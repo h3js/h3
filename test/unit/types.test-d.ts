@@ -1,4 +1,4 @@
-import type { H3Event, WebSocketResponse } from "../../src/index.ts";
+import type { H3Event, RouteRules, WebSocketResponse } from "../../src/index.ts";
 import { describe, it, expectTypeOf } from "vitest";
 import {
   defineHandler,
@@ -192,6 +192,48 @@ describe("types", () => {
       // And the resolved value still exposes `crossws` with no cast.
       const awaited = await res;
       expectTypeOf(awaited).toHaveProperty("crossws");
+    });
+  });
+});
+
+// Route rules are declared empty by h3 and filled in by modules
+// (`h3-rules`, Nitro, ...) through declaration merging.
+declare module "../../src/index.ts" {
+  interface RouteRules {
+    swr?: number | boolean;
+  }
+}
+
+describe("routeRules", () => {
+  it("augmented keys merge into the interface used by the event context", () => {
+    defineHandler((event) => {
+      // The augmentation reaches `RouteRules` through h3's re-export, so the
+      // key keeps its declared type rather than widening to `any`/`unknown`.
+      expectTypeOf(event.context.routeRules?.swr).toEqualTypeOf<number | boolean | undefined>();
+    });
+  });
+
+  it("stays closed for keys nobody declared", () => {
+    defineHandler((event) => {
+      // @ts-expect-error unknown rule keys are a compile error until augmented
+      event.context.routeRules?.notDeclaredAnywhere;
+    });
+  });
+
+  it("exposes matched rules as readonly", () => {
+    defineHandler((event) => {
+      // Matchers are typically memoized, so a matched object can be shared
+      // between requests. Rules are readonly even though augmenters declare
+      // their keys as mutable.
+      // @ts-expect-error matched rules must not be mutated in place
+      event.context.routeRules.swr = 60;
+    });
+  });
+
+  it("allows replacing the whole object", () => {
+    defineHandler((event) => {
+      // How rule modules attach matched rules (see Nitro's generated middleware).
+      event.context.routeRules = {} as RouteRules;
     });
   });
 });

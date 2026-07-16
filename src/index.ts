@@ -80,6 +80,7 @@ export {
 // Routing
 
 export { type RouteDefinition, defineRoute, removeRoute } from "./utils/route.ts";
+export type { RouteRules } from "./types/route-rules.ts";
 
 // Request
 
