@@ -45,6 +45,26 @@ export class H3Event<
   /**
    * Access to the parsed request URL.
    *
+   * Unlike `event.req.url`, which keeps the original wire encoding, `event.url.pathname` is
+   * percent-decoded **once**, so route matching and every pathname-based
+   * middleware compare the same normalized value (`/%61dmin` cannot slip past an
+   * `/admin` guard). Decoding is a single `decodeURI` pass and the result is
+   * re-serialized by the URL parser, so:
+   *
+   * - Unreserved escapes decode: `/%41` → `/A`, `/a%2eb` → `/a.b` (and `%2e%2e`
+   *   segments then collapse, `/a/%2e%2e/b` → `/b`).
+   * - Structural escapes stay encoded: `%2F`, `%3F`, `%23`, `%25`. A `:param`
+   *   can therefore never hold a raw `/` the router did not match on.
+   * - Escapes the URL serializer re-adds stay encoded: `%20`, non-ASCII (`%C3%A9`).
+   *
+   * Never decode `pathname` a second time: it can reintroduce a `/` or `..` that
+   * routing and middleware never saw (path traversal). To read a route param in
+   * decoded form use `getRouterParams(event, { decode: true })`, which keeps
+   * encoded separators encoded.
+   *
+   * Malformed encoding (`/foo%`, `/%ZZ`) is rejected with a 400 before any
+   * handler runs, unless the `allowMalformedURL` app option is enabled.
+   *
    * [MDN Reference](https://developer.mozilla.org/en-US/docs/Web/API/URL)
    */
   url: URL;
