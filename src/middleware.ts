@@ -65,7 +65,6 @@ function createMatcher(opts: MiddlewareOptions & { route?: string }) {
  *
  * The chain is built once per middleware list (see {@link composeMiddleware}) and the
  * terminal handler is passed per-call so one composed chain can serve every route.
- * @internal
  */
 export type ComposedMiddleware = (
   event: H3Event,
@@ -78,7 +77,6 @@ export type ComposedMiddleware = (
  * Unlike {@link callMiddleware}, per-layer dispatch cost is paid once at build time
  * instead of on every request. Later mutations of the input array are not reflected —
  * rebuild when the list changes.
- * @internal
  */
 export function composeMiddleware(middleware: Middleware[]): ComposedMiddleware {
   let chain: ComposedMiddleware = (event, handler) => handler(event);
