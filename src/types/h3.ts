@@ -130,8 +130,10 @@ export declare class H3Core {
   "~findRoute"(_event: H3Event): MatchedRoute<H3Route> | void;
 
   /**
-   * Returns the middleware chain for an event. Can be overridden by subclasses
-   * to provide dynamic per-event middleware (disables middleware precomposition).
+   * Returns the middleware chain for an event. Can be overridden (subclass method or
+   * instance assignment) to provide dynamic per-event middleware, which disables
+   * middleware precomposition. Override before handling the first request — the
+   * dispatch strategy is cached and only re-evaluated after `use()` or `mount()`.
    * @internal
    */
   "~getMiddleware"(event: H3Event, route: MatchedRoute<H3Route> | undefined): Middleware[];
