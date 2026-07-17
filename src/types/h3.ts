@@ -6,6 +6,7 @@ import type { FetchHandler, ServerRequest } from "srvx";
 // import type { MatchedRoute, RouterContext } from "rou3";
 import type { H3Event } from "../event.ts";
 import type { H3Plugin } from "../plugin.ts";
+import type { ComposedMiddleware } from "../middleware.ts";
 
 // Inlined from rou3 for type portability
 export interface RouterContext {
@@ -93,6 +94,12 @@ export declare class H3Core {
 
   /** @internal */
   "~middleware": Middleware[];
+
+  /**
+   * Cached composition of `~middleware` (invalidated by `use()` and `mount()`).
+   * @internal
+   */
+  "~composed"?: ComposedMiddleware;
 
   /** @internal */
   "~routes": H3Route[];

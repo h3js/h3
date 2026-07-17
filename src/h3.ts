@@ -46,9 +46,8 @@ export class H3Core implements H3CoreType {
   "~middleware": Middleware[];
   "~routes": H3Route[] = [];
 
-  // Cached composition of `~middleware` (rebuilt when the array length changes)
+  // Cached composition of `~middleware` (invalidated by `use()` and `mount()`)
   "~composed"?: ComposedMiddleware;
-  "~composedLength"?: number;
 
   constructor(config: H3CoreConfig = {}) {
     this["~middleware"] = [];
@@ -89,11 +88,7 @@ export class H3Core implements H3CoreType {
     if (middleware.length === 0) {
       return routeHandler(event);
     }
-    if (this["~composedLength"] !== middleware.length) {
-      this["~composedLength"] = middleware.length;
-      this["~composed"] = composeMiddleware(middleware);
-    }
-    return this["~composed"]!(event, routeHandler);
+    return (this["~composed"] ??= composeMiddleware(middleware))(event, routeHandler);
   }
 
   "~request"(request: ServerRequest, context?: H3EventContext): Response | Promise<Response> {
@@ -166,9 +161,6 @@ export const H3 = /* @__PURE__ */ (() => {
     mount(base: string, input: FetchHandler | FetchableObject | H3Type) {
       if ("handler" in input) {
         if (input["~middleware"].length > 0) {
-          // Cached composition of the mounted app's middleware (rebuilt if it grows)
-          let composed: ComposedMiddleware;
-          let composedLength: number | undefined;
           this["~middleware"].push((event, next) => {
             const originalPathname = event.url.pathname;
             if (
@@ -185,11 +177,8 @@ export const H3 = /* @__PURE__ */ (() => {
               event.url.pathname = originalPathname;
             };
             try {
-              const inputMiddleware = input["~middleware"];
-              if (composedLength !== inputMiddleware.length) {
-                composedLength = inputMiddleware.length;
-                composed = composeMiddleware(inputMiddleware);
-              }
+              // Shares the mounted app's own cache (invalidated by its `use()`)
+              const composed = (input["~composed"] ??= composeMiddleware(input["~middleware"]));
               const result = composed(event, () => {
                 restore();
                 return next();
@@ -205,6 +194,7 @@ export const H3 = /* @__PURE__ */ (() => {
               throw err;
             }
           });
+          this["~composed"] = undefined;
         }
         for (const r of input["~routes"]) {
           this["~addRoute"]({
@@ -274,6 +264,7 @@ export const H3 = /* @__PURE__ */ (() => {
         return this.mount(route || "", fn as unknown as H3Type);
       }
       this["~middleware"].push(normalizeMiddleware(fn as Middleware, { ...opts, route }));
+      this["~composed"] = undefined;
       return this;
     }
   }

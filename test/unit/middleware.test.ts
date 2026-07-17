@@ -66,6 +66,25 @@ describe("toMiddleware", () => {
   });
 });
 
+describe("composed middleware invalidation", () => {
+  test("use() after first request invalidates the composed chain", async () => {
+    const app = new H3().get("/t", () => "ok");
+    app.use((_, next) => next());
+    expect(await (await app.request("/t")).text()).toBe("ok");
+    app.use(() => "intercepted");
+    expect(await (await app.request("/t")).text()).toBe("intercepted");
+  });
+
+  test("use() on a mounted app after first request invalidates its chain", async () => {
+    const child = new H3().get("/t", () => "ok");
+    child.use((_, next) => next());
+    const app = new H3().mount("/sub", child);
+    expect(await (await app.request("/sub/t")).text()).toBe("ok");
+    child.use(() => "intercepted");
+    expect(await (await app.request("/sub/t")).text()).toBe("intercepted");
+  });
+});
+
 describe("~getMiddleware compat", () => {
   test("instance-level override provides per-event middleware (nitro pattern)", async () => {
     const app = new H3().get("/test", (event) => `handler:${event.context.order}`);
