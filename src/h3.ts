@@ -2,7 +2,14 @@ import { createRouter, addRoute, findRoute } from "rou3";
 import { H3Event, kMalformedURL } from "./event.ts";
 import { HTTPError } from "./error.ts";
 import { toResponse, kNotFound } from "./response.ts";
-import { callMiddleware, normalizeMiddleware } from "./middleware.ts";
+import {
+  callMiddleware,
+  composeHandler,
+  composeMiddleware,
+  normalizeMiddleware,
+} from "./middleware.ts";
+
+import type { ComposedMiddleware } from "./middleware.ts";
 import { requestWithBaseURL } from "./utils/request.ts";
 import { stripBase } from "./utils/internal/path.ts";
 
@@ -39,6 +46,10 @@ export class H3Core implements H3CoreType {
   "~middleware": Middleware[];
   "~routes": H3Route[] = [];
 
+  // Cached composition of `~middleware` (rebuilt when the array length changes)
+  "~composed"?: ComposedMiddleware;
+  "~composedLength"?: number;
+
   constructor(config: H3CoreConfig = {}) {
     this["~middleware"] = [];
     this.config = config;
@@ -56,11 +67,33 @@ export class H3Core implements H3CoreType {
       event.context.params = route.params;
       event.context.matchedRoute = route.data;
     }
-    const routeHandler = route?.data.handler || NoHandler;
-    const middleware = this["~getMiddleware"](event, route as unknown as undefined);
-    return middleware.length > 0
-      ? callMiddleware(event, middleware, routeHandler)
-      : routeHandler(event);
+    if (this["~getMiddleware"] !== H3Core.prototype["~getMiddleware"]) {
+      // Compat: a custom `~getMiddleware` (subclass or instance override, e.g. nitro)
+      // can return per-event middleware, which cannot be precomposed.
+      return callMiddleware(
+        event,
+        this["~getMiddleware"](event, route as unknown as undefined),
+        route?.data.handler || NoHandler,
+      );
+    }
+    let routeHandler: EventHandler = NoHandler;
+    if (route) {
+      const data = route.data;
+      // Route middleware and handler are fixed at registration: compose them once.
+      // The composed pair travels with the route object when copied (mount).
+      routeHandler = data.middleware?.length
+        ? (data["~composed"] ??= composeHandler(data.middleware, data.handler))
+        : data.handler;
+    }
+    const middleware = this["~middleware"];
+    if (middleware.length === 0) {
+      return routeHandler(event);
+    }
+    if (this["~composedLength"] !== middleware.length) {
+      this["~composedLength"] = middleware.length;
+      this["~composed"] = composeMiddleware(middleware);
+    }
+    return this["~composed"]!(event, routeHandler);
   }
 
   "~request"(request: ServerRequest, context?: H3EventContext): Response | Promise<Response> {
@@ -98,6 +131,7 @@ export class H3Core implements H3CoreType {
     this["~routes"].push(_route);
   }
 
+  // Overriding `~getMiddleware` opts out of the precomposed fast path (see `handler`)
   "~getMiddleware"(_event: H3Event, route: MatchedRoute<H3Route> | undefined): Middleware[] {
     const routeMiddleware = route?.data.middleware;
     const globalMiddleware = this["~middleware"];
@@ -132,6 +166,9 @@ export const H3 = /* @__PURE__ */ (() => {
     mount(base: string, input: FetchHandler | FetchableObject | H3Type) {
       if ("handler" in input) {
         if (input["~middleware"].length > 0) {
+          // Cached composition of the mounted app's middleware (rebuilt if it grows)
+          let composed: ComposedMiddleware;
+          let composedLength: number | undefined;
           this["~middleware"].push((event, next) => {
             const originalPathname = event.url.pathname;
             if (
@@ -148,7 +185,12 @@ export const H3 = /* @__PURE__ */ (() => {
               event.url.pathname = originalPathname;
             };
             try {
-              const result = callMiddleware(event, input["~middleware"], () => {
+              const inputMiddleware = input["~middleware"];
+              if (composedLength !== inputMiddleware.length) {
+                composedLength = inputMiddleware.length;
+                composed = composeMiddleware(inputMiddleware);
+              }
+              const result = composed(event, () => {
                 restore();
                 return next();
               });

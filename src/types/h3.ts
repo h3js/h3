@@ -65,6 +65,12 @@ export interface H3Route {
   middleware?: Middleware[];
   meta?: H3RouteMeta;
   handler: EventHandler;
+
+  /**
+   * Cached composition of `middleware` + `handler` (built on first match).
+   * @internal
+   */
+  "~composed"?: EventHandler;
 }
 
 // --- H3 App ---
@@ -116,7 +122,11 @@ export declare class H3Core {
   /** @internal */
   "~findRoute"(_event: H3Event): MatchedRoute<H3Route> | void;
 
-  /** @internal */
+  /**
+   * Returns the middleware chain for an event. Can be overridden by subclasses
+   * to provide dynamic per-event middleware (disables middleware precomposition).
+   * @internal
+   */
   "~getMiddleware"(event: H3Event, route: MatchedRoute<H3Route> | undefined): Middleware[];
 
   /** @internal */

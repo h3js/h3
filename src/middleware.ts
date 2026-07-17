@@ -60,17 +60,66 @@ function createMatcher(opts: MiddlewareOptions & { route?: string }) {
   };
 }
 
+/**
+ * Composed middleware chain: calls each middleware in order, then the final `handler`.
+ *
+ * The chain is built once per middleware list (see {@link composeMiddleware}) and the
+ * terminal handler is passed per-call so one composed chain can serve every route.
+ * @internal
+ */
+export type ComposedMiddleware = (
+  event: H3Event,
+  handler: EventHandler,
+) => unknown | Promise<unknown>;
+
+/**
+ * Precompose a middleware list into a single callable chain.
+ *
+ * Unlike {@link callMiddleware}, per-layer dispatch cost is paid once at build time
+ * instead of on every request. Later mutations of the input array are not reflected —
+ * rebuild when the list changes.
+ * @internal
+ */
+export function composeMiddleware(middleware: Middleware[]): ComposedMiddleware {
+  let chain: ComposedMiddleware = (event, handler) => handler(event);
+  for (let i = middleware.length - 1; i >= 0; i--) {
+    const fn = middleware[i];
+    const inner = chain;
+    chain = (event, handler) => callLayer(fn, event, handler, inner);
+  }
+  return chain;
+}
+
+/**
+ * Precompose a middleware list with a fixed terminal handler.
+ * @internal
+ */
+export function composeHandler(middleware: Middleware[], handler: EventHandler): EventHandler {
+  const chain = composeMiddleware(middleware);
+  return function _composedHandler(event) {
+    return chain(event, handler);
+  };
+}
+
 export function callMiddleware(
   event: H3Event,
   middleware: Middleware[],
   handler: EventHandler,
   index: number = 0,
 ): unknown | Promise<unknown> {
-  if (index === middleware.length) {
-    return handler(event);
-  }
-  const fn = middleware[index];
+  return index === middleware.length
+    ? handler(event)
+    : callLayer(middleware[index], event, handler, (_event, _handler) =>
+        callMiddleware(_event, middleware, _handler, index + 1),
+      );
+}
 
+function callLayer(
+  fn: Middleware,
+  event: H3Event,
+  handler: EventHandler,
+  inner: ComposedMiddleware,
+): unknown | Promise<unknown> {
   let nextCalled: undefined | boolean;
   let nextResult: unknown;
 
@@ -79,7 +128,7 @@ export function callMiddleware(
       return nextResult;
     }
     nextCalled = true;
-    nextResult = callMiddleware(event, middleware, handler, index + 1);
+    nextResult = inner(event, handler);
     return nextResult;
   };
 
