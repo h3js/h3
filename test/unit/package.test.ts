@@ -25,6 +25,7 @@ describe("h3 package", () => {
         "callMiddleware",
         "clearResponseHeaders",
         "clearSession",
+        "composeMiddleware",
         "createApp",
         "createError",
         "createEventStream",

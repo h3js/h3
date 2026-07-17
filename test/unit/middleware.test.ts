@@ -1,6 +1,8 @@
 import { describe, expect, test, vi } from "vitest";
 import { toMiddleware } from "../../src/middleware.ts";
-import { mockEvent } from "../../src/index.ts";
+import { H3, mockEvent } from "../../src/index.ts";
+
+import type { Middleware } from "../../src/types/handler.ts";
 
 describe("toMiddleware", () => {
   test("fetchable", async () => {
@@ -61,5 +63,51 @@ describe("toMiddleware", () => {
     expect(middleware.name).toBe("noopMiddleware");
     await middleware(mockEvent("/"), next);
     expect(next).toHaveBeenCalled();
+  });
+});
+
+describe("composed middleware invalidation", () => {
+  test("use() after first request invalidates the composed chain", async () => {
+    const app = new H3().get("/t", () => "ok");
+    app.use((_, next) => next());
+    expect(await (await app.request("/t")).text()).toBe("ok");
+    app.use(() => "intercepted");
+    expect(await (await app.request("/t")).text()).toBe("intercepted");
+  });
+
+  test("use() on a mounted app after first request invalidates its chain", async () => {
+    const child = new H3().get("/t", () => "ok");
+    child.use((_, next) => next());
+    const app = new H3().mount("/sub", child);
+    expect(await (await app.request("/sub/t")).text()).toBe("ok");
+    child.use(() => "intercepted");
+    expect(await (await app.request("/sub/t")).text()).toBe("intercepted");
+  });
+});
+
+describe("~getMiddleware compat", () => {
+  test("instance-level override provides per-event middleware (nitro pattern)", async () => {
+    const app = new H3().get("/test", (event) => `handler:${event.context.order}`);
+    const push = (name: string): Middleware => {
+      return (event, next) => {
+        event.context.order = `${event.context.order || ""}+${name}`;
+        return next();
+      };
+    };
+    app.use(push("global"));
+    // Nitro assigns an instance-level override returning a per-event array:
+    // https://github.com/nitrojs/nitro/blob/main/src/build/virtual/app.ts
+    app["~getMiddleware"] = (event, route) => {
+      const middleware = [...app["~middleware"]];
+      if (event.url.pathname === "/test" && route) {
+        middleware.push(push("extra"));
+      }
+      return middleware;
+    };
+    // Repeated requests: override must run per event (no stale precomposition)
+    for (let i = 0; i < 2; i++) {
+      const res = await app.request("/test");
+      expect(await res.text()).toBe("handler:+global+extra");
+    }
   });
 });

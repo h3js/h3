@@ -6,6 +6,7 @@ import type { FetchHandler, ServerRequest } from "srvx";
 // import type { MatchedRoute, RouterContext } from "rou3";
 import type { H3Event } from "../event.ts";
 import type { H3Plugin } from "../plugin.ts";
+import type { ComposedMiddleware } from "../middleware.ts";
 
 // Inlined from rou3 for type portability
 export interface RouterContext {
@@ -65,6 +66,12 @@ export interface H3Route {
   middleware?: Middleware[];
   meta?: H3RouteMeta;
   handler: EventHandler;
+
+  /**
+   * Cached composition of `middleware` + `handler` (built on first match).
+   * @internal
+   */
+  "~composed"?: EventHandler;
 }
 
 // --- H3 App ---
@@ -87,6 +94,12 @@ export declare class H3Core {
 
   /** @internal */
   "~middleware": Middleware[];
+
+  /**
+   * Cached composition of `~middleware` (invalidated by `use()` and `mount()`).
+   * @internal
+   */
+  "~composed"?: ComposedMiddleware;
 
   /** @internal */
   "~routes": H3Route[];
@@ -116,7 +129,13 @@ export declare class H3Core {
   /** @internal */
   "~findRoute"(_event: H3Event): MatchedRoute<H3Route> | void;
 
-  /** @internal */
+  /**
+   * Returns the middleware chain for an event. Can be overridden (subclass method or
+   * instance assignment) to provide dynamic per-event middleware, which disables
+   * middleware precomposition. Override before handling the first request — the
+   * dispatch strategy is cached and only re-evaluated after `use()` or `mount()`.
+   * @internal
+   */
   "~getMiddleware"(event: H3Event, route: MatchedRoute<H3Route> | undefined): Middleware[];
 
   /** @internal */

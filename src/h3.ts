@@ -2,7 +2,14 @@ import { createRouter, addRoute, findRoute } from "rou3";
 import { H3Event, kMalformedURL } from "./event.ts";
 import { HTTPError } from "./error.ts";
 import { toResponse, kNotFound } from "./response.ts";
-import { callMiddleware, normalizeMiddleware } from "./middleware.ts";
+import {
+  callMiddleware,
+  composeHandler,
+  composeMiddleware,
+  normalizeMiddleware,
+} from "./middleware.ts";
+
+import type { ComposedMiddleware } from "./middleware.ts";
 import { requestWithBaseURL } from "./utils/request.ts";
 import { stripBase } from "./utils/internal/path.ts";
 
@@ -39,6 +46,10 @@ export class H3Core implements H3CoreType {
   "~middleware": Middleware[];
   "~routes": H3Route[] = [];
 
+  // Cached dispatch and `~middleware` composition (invalidated by `use()` and `mount()`)
+  "~dispatch"?: (event: H3Event, route: MatchedRoute<H3Route> | void) => unknown | Promise<unknown>;
+  "~composed"?: ComposedMiddleware;
+
   constructor(config: H3CoreConfig = {}) {
     this["~middleware"] = [];
     this.config = config;
@@ -56,11 +67,7 @@ export class H3Core implements H3CoreType {
       event.context.params = route.params;
       event.context.matchedRoute = route.data;
     }
-    const routeHandler = route?.data.handler || NoHandler;
-    const middleware = this["~getMiddleware"](event, route as unknown as undefined);
-    return middleware.length > 0
-      ? callMiddleware(event, middleware, routeHandler)
-      : routeHandler(event);
+    return (this["~dispatch"] ??= createDispatcher(this))(event, route);
   }
 
   "~request"(request: ServerRequest, context?: H3EventContext): Response | Promise<Response> {
@@ -98,11 +105,48 @@ export class H3Core implements H3CoreType {
     this["~routes"].push(_route);
   }
 
+  // Overriding `~getMiddleware` opts out of the precomposed fast path (see `createDispatcher`)
   "~getMiddleware"(_event: H3Event, route: MatchedRoute<H3Route> | undefined): Middleware[] {
     const routeMiddleware = route?.data.middleware;
     const globalMiddleware = this["~middleware"];
     return routeMiddleware ? [...globalMiddleware, ...routeMiddleware] : globalMiddleware;
   }
+}
+
+/**
+ * Builds the cached per-app dispatch function. The custom `~getMiddleware` check runs
+ * only here — once per composition (first request, or after `use()`/`mount()`
+ * invalidation) — never per request.
+ */
+function createDispatcher(app: H3Core): NonNullable<H3Core["~dispatch"]> {
+  if (app["~getMiddleware"] !== H3Core.prototype["~getMiddleware"]) {
+    // Compat: a custom `~getMiddleware` (subclass or instance override, e.g. nitro)
+    // can return per-event middleware, which cannot be precomposed.
+    return (event, route) =>
+      callMiddleware(
+        event,
+        app["~getMiddleware"](event, route as unknown as undefined),
+        route?.data.handler || NoHandler,
+      );
+  }
+  const middleware = app["~middleware"];
+  if (middleware.length === 0) {
+    return (event, route) => routeHandler(route)(event);
+  }
+  const composed = (app["~composed"] ??= composeMiddleware(middleware));
+  return (event, route) => composed(event, routeHandler(route));
+}
+
+function routeHandler(route: MatchedRoute<H3Route> | void): EventHandler {
+  const data = route?.data;
+  if (!data) {
+    return NoHandler;
+  }
+  // Route middleware and handler are fixed at registration: compose them once.
+  // The composed pair travels with the route object when copied (mount).
+  return data.middleware?.length
+    ? (data["~composed"] ??= composeHandler(data.middleware, data.handler))
+    : data.handler;
 }
 
 export const H3 = /* @__PURE__ */ (() => {
@@ -148,7 +192,9 @@ export const H3 = /* @__PURE__ */ (() => {
               event.url.pathname = originalPathname;
             };
             try {
-              const result = callMiddleware(event, input["~middleware"], () => {
+              // Shares the mounted app's own cache (invalidated by its `use()`)
+              const composed = (input["~composed"] ??= composeMiddleware(input["~middleware"]));
+              const result = composed(event, () => {
                 restore();
                 return next();
               });
@@ -163,6 +209,7 @@ export const H3 = /* @__PURE__ */ (() => {
               throw err;
             }
           });
+          this["~dispatch"] = this["~composed"] = undefined;
         }
         for (const r of input["~routes"]) {
           this["~addRoute"]({
@@ -232,6 +279,7 @@ export const H3 = /* @__PURE__ */ (() => {
         return this.mount(route || "", fn as unknown as H3Type);
       }
       this["~middleware"].push(normalizeMiddleware(fn as Middleware, { ...opts, route }));
+      this["~dispatch"] = this["~composed"] = undefined;
       return this;
     }
   }

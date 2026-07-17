@@ -1,6 +1,6 @@
 import type { ServerRequest } from "srvx";
 import { H3Event } from "./event.ts";
-import { callMiddleware } from "./middleware.ts";
+import { composeHandler } from "./middleware.ts";
 import { toResponse } from "./response.ts";
 
 import type {
@@ -44,11 +44,7 @@ export function defineHandler(input: EventHandler | EventHandlerObject): EventHa
 
   return Object.assign(
     handlerWithFetch(
-      input.middleware?.length
-        ? function _handlerMiddleware(event) {
-            return callMiddleware(event, input.middleware!, handler);
-          }
-        : handler,
+      input.middleware?.length ? composeHandler(input.middleware, handler) : handler,
     ),
     input,
   );
