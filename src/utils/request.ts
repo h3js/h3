@@ -196,9 +196,13 @@ export function getRouterParams(
 }
 
 // Percent-encoded path separators (`%2f` → `/`, `%5c` → `\`) at any `%25`-nesting
-// depth (`%2f`, `%252f`, ...). The pathname decode in `event.ts` (decodeURI)
-// deliberately preserves these, so route matching and any pathname-based
-// middleware only ever saw the matched param as one opaque, still-encoded
+// depth (`%2f`, `%252f`, ...). Whatever reaches a param already survived the pathname
+// decode in `event.ts` (a single `decodeURI` that preserves `%25`) still encoded:
+// `decodeURI` keeps `%2f` as a reserved char, and `%25`-nested forms (`%252f`,
+// `%255c`, ...) only lose one `%25` level. A bare `%5c` never reaches a param at all —
+// it decodes to `\`, which the URL parser normalizes into a real `/` the router splits
+// on — but it stays in the pattern as a cheap guard. Either way, route matching and any
+// pathname-based middleware only ever saw the matched param as one opaque, still-encoded
 // segment (a `:id` capture can never hold a raw separator).
 const ENCODED_SEP_RE_G = /%(?:25)*(?:2f|5c)/gi;
 
