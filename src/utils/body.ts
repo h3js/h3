@@ -101,7 +101,7 @@ export async function readBody<
 export async function readValidatedBody<Event extends HTTPEvent, S extends StandardSchemaV1>(
   event: Event,
   validate: S,
-  options?: { onError?: (result: FailureResult) => ErrorDetails },
+  options?: ReadBodyOptions & { onError?: (result: FailureResult) => ErrorDetails },
 ): Promise<InferOutput<S>>;
 export async function readValidatedBody<
   Event extends HTTPEvent,
@@ -110,7 +110,7 @@ export async function readValidatedBody<
 >(
   event: Event,
   validate: (data: InputT) => ValidateResult<OutputT> | Promise<ValidateResult<OutputT>>,
-  options?: {
+  options?: ReadBodyOptions & {
     onError?: () => ErrorDetails;
   },
 ): Promise<OutputT>;
@@ -167,11 +167,11 @@ export async function readValidatedBody<
 export async function readValidatedBody(
   event: HTTPEvent,
   validate: any,
-  options?: {
+  options?: ReadBodyOptions & {
     onError?: OnValidateError;
   },
 ): Promise<any> {
-  const _body = await readBody(event);
+  const _body = await readBody(event, options);
   return validateData(_body, validate, options);
 }
 
