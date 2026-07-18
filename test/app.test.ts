@@ -4,6 +4,8 @@ import { fromNodeHandler } from "../src/adapters.ts";
 import { withBase } from "../src/utils/base.ts";
 import { HTTPError } from "../src/error.ts";
 import { onResponse } from "../src/utils/middleware.ts";
+import { setCookie } from "../src/utils/cookie.ts";
+import { handleCors } from "../src/utils/cors.ts";
 import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("app", (t, { it, expect }) => {
@@ -395,5 +397,42 @@ describeMatrix("app", (t, { it, expect }) => {
     const res = await t.fetch("/");
     expect(res.headers.get("x-from-response")).toBe("1");
     expect(res.headers.get("x-from-event")).toBe("1");
+  });
+
+  it("keeps prepared headers for a redirect Response", async () => {
+    t.app.use((event) => {
+      setCookie(event, "sid", "1");
+      return new Response(null, { status: 302, headers: { location: "/login" } });
+    });
+    const res = await t.fetch("/", { redirect: "manual" });
+    expect(res.status).toBe(302);
+    expect(res.headers.get("set-cookie")).toBe("sid=1; Path=/");
+  });
+
+  it("drops prepared headers but keeps errHeaders for an error Response", async () => {
+    t.app.use((event) => {
+      event.res.headers.set("cache-control", "max-age=3600");
+      event.res.errHeaders.set("access-control-allow-origin", "*");
+      return new Response("nope", { status: 401 });
+    });
+    const res = await t.fetch("/");
+    expect(res.status).toBe(401);
+    expect(res.headers.get("cache-control")).toBe(null);
+    expect(res.headers.get("access-control-allow-origin")).toBe("*");
+  });
+
+  it("returned and thrown errors agree on errHeaders", async () => {
+    t.app.use((event) => {
+      handleCors(event, { origin: "*" });
+    });
+    t.app.get("/returned", () => new Response("no", { status: 401 }));
+    t.app.get("/thrown", () => {
+      throw new HTTPError({ status: 401 });
+    });
+    for (const path of ["/returned", "/thrown"]) {
+      const res = await t.fetch(path, { headers: { origin: "http://example.com" } });
+      expect(res.status, path).toBe(401);
+      expect(res.headers.get("access-control-allow-origin"), path).toBe("*");
+    }
   });
 });
