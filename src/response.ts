@@ -29,18 +29,18 @@ export function toResponse(
   const { onResponse } = config;
   if (onResponse) {
     return Promise.resolve(onResponse(response as Response, event)).then(() =>
-      armEventDispose(event, response as Response),
+      observeEventDispose(event, response as Response),
     );
   }
-  return armEventDispose(event, response as Response);
+  return observeEventDispose(event, response as Response);
 }
 
 // End-of-event observation (`onDispose` util). The first registration installs
-// the arming logic on the event — core only pays this symbol check, and the
+// the observer setup on the event — core only pays this symbol check, and the
 // machinery tree-shakes out of apps that never import `onDispose`.
-function armEventDispose(event: H3Event, response: Response): Response {
+function observeEventDispose(event: H3Event, response: Response): Response {
   const state = (event as any)[kEventDispose] as DisposeState | undefined;
-  return state ? state.arm(response) : response;
+  return state ? state.observe(response) : response;
 }
 
 export class HTTPResponse {

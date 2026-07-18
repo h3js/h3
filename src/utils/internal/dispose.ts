@@ -9,14 +9,15 @@ export type DisposeCallback = (reason?: unknown) => unknown;
 /**
  * The value stored on the event at `kEventDispose`. Installed by the first
  * `onDispose` registration, so core (`toResponse`) only pays a symbol check
- * and an `arm` call — all machinery stays in this module and tree-shakes out
- * of apps that never import `onDispose`.
+ * and an `observe` call — all machinery stays in this module and tree-shakes
+ * out of apps that never import `onDispose`.
  */
 export interface DisposeState {
   callbacks: DisposeCallback[];
-  /** Arm end-of-event observation for the prepared response (called by `toResponse`). */
-  arm: (response: Response) => Response;
-  armed?: boolean;
+  /** Start observing the prepared response for end-of-event (called by `toResponse`). */
+  observe: (response: Response) => Response;
+  /** An observer is already attached to a response. */
+  observing?: boolean;
   disposed?: boolean;
   reason?: unknown;
 }
@@ -44,7 +45,7 @@ export function onDispose(event: H3Event, cb: DisposeCallback): void {
   if (!state) {
     const _state: DisposeState = {
       callbacks: [],
-      arm: (response) => armDispose(response, event, _state),
+      observe: (response) => observeResponse(response, event, _state),
     };
     state = (event as any)[kEventDispose] = _state;
   }
@@ -56,8 +57,8 @@ export function onDispose(event: H3Event, cb: DisposeCallback): void {
 }
 
 /**
- * Arm end-of-event observation for the prepared response. Called once from
- * `toResponse` (via `state.arm`) after global `onResponse`.
+ * Start observing the prepared response for end-of-event. Called once from
+ * `toResponse` (via `state.observe`) after global `onResponse`.
  *
  * - Node: `res` `"close"` fires after the last byte lands (or on premature
  *   disconnect) — accurate for streaming and non-streaming bodies alike, so
@@ -68,11 +69,11 @@ export function onDispose(event: H3Event, cb: DisposeCallback): void {
  *   immediately — once the `Response` is handed to the runtime, delivery is
  *   not observable on web.
  */
-function armDispose(response: Response, event: H3Event, state: DisposeState): Response {
-  if (state.armed || state.disposed) {
+function observeResponse(response: Response, event: H3Event, state: DisposeState): Response {
+  if (state.observing || state.disposed) {
     return response;
   }
-  state.armed = true;
+  state.observing = true;
 
   const nodeRes = event.runtime?.node?.res;
   if (nodeRes) {
