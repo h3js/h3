@@ -24,14 +24,7 @@ export { definePlugin } from "./plugin.ts";
 
 export type { H3EventContext } from "./types/context.ts";
 export { H3Event, type HTTPEvent } from "./event.ts";
-export {
-  isEvent,
-  isHTTPEvent,
-  mockEvent,
-  getEventContext,
-  onDispose,
-  type DisposeCallback,
-} from "./utils/event.ts";
+export { isEvent, isHTTPEvent, mockEvent, getEventContext } from "./utils/event.ts";
 
 // Handler and Middleware
 
@@ -122,6 +115,8 @@ export {
   redirectBack,
   iterable,
   noContent,
+  onDispose,
+  type DisposeCallback,
   html,
   raw,
 } from "./utils/response.ts";
