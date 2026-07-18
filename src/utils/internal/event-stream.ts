@@ -35,11 +35,7 @@ export class EventStream {
         this._disposed = true;
       }
       for (const cb of this._closeCallbacks.splice(0)) {
-        try {
-          cb();
-        } catch {
-          // Ignore
-        }
+        _invokeCloseCallback(cb);
       }
     });
     if (opts.autoclose !== false) {
@@ -178,13 +174,7 @@ export class EventStream {
    */
   onClosed(cb: () => any): void {
     if (this._writerIsClosed) {
-      queueMicrotask(() => {
-        try {
-          cb();
-        } catch {
-          // Ignore
-        }
-      });
+      queueMicrotask(() => _invokeCloseCallback(cb));
       return;
     }
     this._closeCallbacks.push(cb);
@@ -195,6 +185,19 @@ export class EventStream {
     this._event.res.status = 200;
     this._handled = true;
     return this._transformStream.readable;
+  }
+}
+
+// Close callbacks are user code: never let a sync throw or a rejected async
+// callback escape (the documented `onClosed` example is async).
+function _invokeCloseCallback(cb: () => any): void {
+  try {
+    const res = cb();
+    if (res instanceof Promise) {
+      res.catch(_noop);
+    }
+  } catch {
+    // Ignore
   }
 }
 

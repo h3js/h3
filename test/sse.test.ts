@@ -86,6 +86,31 @@ describeMatrix("sse", (t, { it, expect }) => {
     expect(closed).toBe(true);
   });
 
+  it("does not leak rejections from async onClosed callbacks", async () => {
+    let secondRan = false;
+    const done = new Promise<void>((resolve) => {
+      t.app.get("/sse-throwing-onClosed", (event) => {
+        const eventStream = createEventStream(event);
+        eventStream.onClosed(async () => {
+          throw new Error("cleanup failed");
+        });
+        eventStream.onClosed(() => {
+          secondRan = true;
+          resolve();
+        });
+        setTimeout(() => eventStream.close());
+        return eventStream.send();
+      });
+    });
+
+    const res = await t.fetch("/sse-throwing-onClosed");
+    await res.text();
+    await done;
+    // A rejected async callback must not take down the process,
+    // nor prevent later callbacks from running.
+    expect(secondRan).toBe(true);
+  });
+
   it("ignores pushes after close", async () => {
     t.app.get("/sse-after-close", async (event) => {
       const eventStream = createEventStream(event);
