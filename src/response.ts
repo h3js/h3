@@ -1,6 +1,7 @@
 import { FastResponse } from "srvx";
 import { HTTPError } from "./error.ts";
 import { isJSONSerializable } from "./utils/internal/object.ts";
+import { kEventDispose, type DisposeState } from "./utils/internal/dispose.ts";
 
 import type { H3Config } from "./types/h3.ts";
 import { kEventRes, kEventResHeaders, kEventResErrHeaders, type H3Event } from "./event.ts";
@@ -26,9 +27,21 @@ export function toResponse(
   }
 
   const { onResponse } = config;
-  return onResponse
-    ? Promise.resolve(onResponse(response as Response, event)).then(() => response)
-    : response;
+  if (onResponse) {
+    return Promise.resolve(onResponse(response as Response, event)).then(
+      () =>
+        ((event as any)[kEventDispose] as DisposeState | undefined)?.observe(
+          response as Response,
+          val,
+        ) ?? (response as Response),
+    );
+  }
+  return (
+    ((event as any)[kEventDispose] as DisposeState | undefined)?.observe(
+      response as Response,
+      val,
+    ) ?? (response as Response)
+  );
 }
 
 export class HTTPResponse {
