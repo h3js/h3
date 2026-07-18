@@ -55,6 +55,16 @@ describe("sse (unit)", () => {
     expect(result).toEqual(`id: 1data: INJECTED\ndata: legit\n\n`);
   });
 
+  it("strips null characters from id and event fields", () => {
+    const result = formatEventStreamMessage({
+      id: "1\u0000",
+      event: "msg\u0000",
+      data: "legit",
+    });
+    // Per the SSE spec, clients ignore an id containing U+0000
+    expect(result).toEqual(`id: 1\nevent: msg\ndata: legit\n\n`);
+  });
+
   it("splits multi-line data into separate data fields", () => {
     const result = formatEventStreamMessage({
       data: "line1\nline2\nline3",
@@ -314,6 +324,36 @@ describe("sse (unit)", () => {
       writeSpy.mockClear();
       await stream.push([{ data: "msg3" }]);
       expect(writeSpy).not.toHaveBeenCalled();
+    });
+
+    it("flush does not drop data buffered while its write is in flight", async () => {
+      const event = mockEvent("/");
+      const stream = new EventStream(event);
+
+      const writes: string[] = [];
+      let resolveWrite!: () => void;
+      (stream as any)._writer.write = vi.fn((chunk: Uint8Array) => {
+        writes.push(new TextDecoder().decode(chunk));
+        return new Promise<void>((r) => {
+          resolveWrite = r;
+        });
+      });
+
+      stream.pause();
+      await stream.push("first");
+      const resumed = stream.resume(); // flush starts write("first"), still pending
+      stream.pause();
+      await stream.push("second"); // buffered while the flush write is in flight
+      resolveWrite();
+      await resumed;
+
+      const flushed = stream.flush();
+      resolveWrite();
+      await flushed;
+
+      const sent = writes.join("");
+      expect(sent).toContain("data: second");
+      expect(sent.match(/data: first/g)).toHaveLength(1);
     });
 
     it("marks writer as closed on flush write failure", async () => {

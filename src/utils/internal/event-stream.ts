@@ -25,7 +25,6 @@ export class EventStream {
   private _paused = false;
   private _unsentData: undefined | string;
   private _disposed = false;
-  private _handled = false;
   private readonly _closeCallbacks: Array<() => any> = [];
   private _closeNotified = false;
   private _detachAutoclose: () => void = _noop;
@@ -190,11 +189,14 @@ export class EventStream {
     if (this._isClosed) {
       return;
     }
-    if (this._unsentData?.length) {
-      await this._writer.write(this._encoder.encode(this._unsentData)).catch(() => {
+    // Clear the buffer before awaiting: data buffered by a concurrent
+    // `pause()`+`push()` while this write is in flight must not be dropped.
+    const data = this._unsentData;
+    this._unsentData = undefined;
+    if (data?.length) {
+      await this._writer.write(this._encoder.encode(data)).catch(() => {
         this._writerIsClosed = true;
       });
-      this._unsentData = undefined;
     }
   }
 
@@ -231,16 +233,12 @@ export class EventStream {
 
   async send(): Promise<BodyInit> {
     setEventStreamHeaders(this._event);
-    this._event.res.status = 200;
-    this._handled = true;
+    this._event.res.status ??= 200;
     return this._transformStream.readable;
   }
 }
 
 export function isEventStream(input: unknown): input is EventStream {
-  if (typeof input !== "object" || input === null) {
-    return false;
-  }
   return input instanceof EventStream;
 }
 
@@ -273,7 +271,8 @@ export function formatEventStreamMessage(message: EventStreamMessage): string {
 }
 
 function _sanitizeSingleLine(value: string): string {
-  return value.replace(/[\n\r]/g, "");
+  // eslint-disable-next-line no-control-regex
+  return value.replace(/[\n\r\u0000]/g, "");
 }
 
 export function formatEventStreamMessages(messages: EventStreamMessage[]): string {
