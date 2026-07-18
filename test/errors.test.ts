@@ -196,15 +196,34 @@ describeMatrix("errors", (t, { it, expect, describe }) => {
       const body = await res.text();
       expect(body).not.toContain("db-password");
       expect(body).not.toContain("internal detail");
-      expect(JSON.parse(body)).toMatchObject({
-        status: 403,
-        message: "HTTPError",
-        unhandled: true,
+      expect(JSON.parse(body)).toMatchObject({ status: 403, message: "HTTPError 403" });
+
+      expect(t.errors[0].cause).toMatchObject({ secret: "db-password" });
+    });
+
+    // `throw { status }` is the object form of the `throw 404` shorthand from #1372, so it is
+    // treated as deliberate too: same status, and not reported as an unhandled error.
+    it("throw { status } matches throw <number>", async () => {
+      consoleMock.mockReset();
+      t.app.get("/number", () => {
+        throw 404;
+      });
+      t.app.get("/object", () => {
+        throw { status: 404 };
       });
 
-      expect(t.errors[0].unhandled).toBe(true);
-      expect(t.errors[0].cause).toMatchObject({ secret: "db-password" });
-      t.errors = [];
+      const fromNumber = await t.fetch("/number");
+      const fromObject = await t.fetch("/object");
+
+      // `stack` differs by throw site, the rest of the rendered error must match
+      const body = async (res: Response) => {
+        const { stack, ...rest } = await res.json();
+        return rest;
+      };
+      expect(fromObject.status).toBe(fromNumber.status);
+      expect(await body(fromObject)).toEqual(await body(fromNumber));
+      expect(t.errors.some((error) => error.unhandled)).toBe(false);
+      expect(console.error).not.toBeCalled();
     });
 
     it("honors deprecated statusCode on the thrown value", async () => {
@@ -213,7 +232,6 @@ describeMatrix("errors", (t, { it, expect, describe }) => {
       });
       const res = await t.fetch("/");
       expect(res.status).toBe(429);
-      t.errors = [];
     });
 
     it("invalid status falls back to 500", async () => {
@@ -235,7 +253,6 @@ describeMatrix("errors", (t, { it, expect, describe }) => {
       const res = await t.fetch("/");
       expect(res.status).toBe(400);
       expect(res.statusText).not.toBe("Leaky Status Text");
-      t.errors = [];
     });
 
     it("throw async object does not leak into the response body", async () => {
