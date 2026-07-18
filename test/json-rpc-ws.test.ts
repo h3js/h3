@@ -178,16 +178,19 @@ describe("defineJsonRpcWebSocketHandler", () => {
       });
     });
 
-    it("should return Parse error for non-object body", async () => {
-      const { sent } = await sendMessage('"just a string"');
+    it.each(['"just a string"', "123", "true", "null"])(
+      "should return Invalid Request for non-object body: %s",
+      async (body) => {
+        const { sent } = await sendMessage(body);
 
-      expect(sent).toHaveLength(1);
-      expect(JSON.parse(sent[0])).toEqual({
-        jsonrpc: "2.0",
-        id: null,
-        error: { code: -32_700, message: "Parse error" },
-      });
-    });
+        expect(sent).toHaveLength(1);
+        expect(JSON.parse(sent[0])).toEqual({
+          jsonrpc: "2.0",
+          id: null,
+          error: { code: -32_600, message: "Invalid Request" },
+        });
+      },
+    );
 
     it("should return Invalid Request for wrong jsonrpc version", async () => {
       const { sent } = await sendMessage({

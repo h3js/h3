@@ -112,6 +112,24 @@ describeMatrix("validate", (t, { it, describe, expect }) => {
     });
 
     describe("zod validator", () => {
+      it("Valid multipart form data", async () => {
+        t.app.post("/form-data", (event) =>
+          readValidatedBody(event, zodValidate, { type: "formData" }),
+        );
+
+        const formData = new FormData();
+        formData.set("field", "value");
+        const res = await t.fetch("/form-data", {
+          method: "POST",
+          body: formData,
+        });
+
+        expect(await res.json()).toEqual({
+          field: "value",
+          default: "default",
+        });
+      });
+
       it("Valid", async () => {
         const res = await t.fetch("/zod", {
           method: "POST",

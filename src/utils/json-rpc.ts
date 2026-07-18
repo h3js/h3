@@ -205,8 +205,10 @@ async function processJsonRpcBody<C extends H3Event | WebSocketPeer>(
   context: C,
 ): Promise<JsonRpcResponse | JsonRpcResponse[] | undefined> {
   // Body must be a non-null object or array.
+  // Note: parsing already succeeded here, so a primitive body is not a Parse
+  // error (§5.1 reserves -32700 for invalid JSON) but an Invalid Request.
   if (!body || typeof body !== "object") {
-    return createJsonRpcError(null, PARSE_ERROR, "Parse error");
+    return createJsonRpcError(null, INVALID_REQUEST, "Invalid Request");
   }
 
   const requests = Array.isArray(body) ? body : [body];
