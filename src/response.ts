@@ -28,16 +28,20 @@ export function toResponse(
 
   const { onResponse } = config;
   if (onResponse) {
-    return Promise.resolve(onResponse(response as Response, event)).then(() =>
-      observeEventDispose(event, response as Response, val),
+    return Promise.resolve(onResponse(response as Response, event)).then(
+      () =>
+        ((event as any)[kEventDispose] as DisposeState | undefined)?.observe(
+          response as Response,
+          val,
+        ) ?? (response as Response),
     );
   }
-  return observeEventDispose(event, response as Response, val);
-}
-
-function observeEventDispose(event: H3Event, response: Response, val: unknown): Response {
-  const state = (event as any)[kEventDispose] as DisposeState | undefined;
-  return state ? state.observe(response, val) : response;
+  return (
+    ((event as any)[kEventDispose] as DisposeState | undefined)?.observe(
+      response as Response,
+      val,
+    ) ?? (response as Response)
+  );
 }
 
 export class HTTPResponse {
