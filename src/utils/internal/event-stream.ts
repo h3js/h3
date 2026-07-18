@@ -159,6 +159,10 @@ export class EventStream {
       return;
     }
     if (!this._isClosed) {
+      // Data buffered while paused is still owed to the client. `flush()`
+      // short-circuits once closed, so this is the last chance to send it.
+      this._paused = false;
+      await this.flush();
       try {
         await this._writer.close();
       } catch {

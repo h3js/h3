@@ -127,4 +127,22 @@ describeMatrix("sse", (t, { it, expect }) => {
     expect(res.status).toBe(200);
     expect(await res.text()).toBe("data: before close\n\n");
   });
+
+  it("flushes data buffered while paused on close", async () => {
+    t.app.get("/sse-paused-close", (event) => {
+      const eventStream = createEventStream(event);
+      setTimeout(async () => {
+        await eventStream.push("sent");
+        eventStream.pause();
+        await eventStream.push("buffered");
+        // Closing while paused must not drop the queued message.
+        await eventStream.close();
+      });
+      return eventStream.send();
+    });
+
+    const res = await t.fetch("/sse-paused-close");
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe("data: sent\n\ndata: buffered\n\n");
+  });
 });
