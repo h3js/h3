@@ -29,7 +29,10 @@ export class EventStream {
       this._writerIsClosed = true;
     });
     if (opts.autoclose !== false) {
-      this._event.runtime?.node?.res?.once("close", () => this.close());
+      // End-of-event covers every runtime: normal end, client disconnect, and
+      // a stream that is created but never `send()`-ed (the response completed
+      // without it) all converge here.
+      this._event.onDispose(() => this.close());
     }
   }
 
