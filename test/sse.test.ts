@@ -74,4 +74,40 @@ describeMatrix("sse", (t, { it, expect }) => {
     expect(res.status).toBe(200);
     expect(await res.text()).toBe("data: before close\n\n");
   });
+
+  it("runs onClosed cleanup when the client disconnects", async () => {
+    let cleanedUp = false;
+    let ticksAtDisconnect = 0;
+    let ticks = 0;
+
+    t.app.get("/sse-disconnect", (event) => {
+      const eventStream = createEventStream(event);
+      const timer = setInterval(() => {
+        ticks++;
+        eventStream.push("tick");
+      }, 5);
+      // The cleanup idiom documented on `createEventStream`.
+      eventStream.onClosed(() => {
+        cleanedUp = true;
+        clearInterval(timer);
+      });
+      return eventStream.send();
+    });
+
+    const ctrl = new AbortController();
+    const res = await t.fetch("/sse-disconnect", { signal: ctrl.signal });
+    // Read one chunk, then hang up mid-stream.
+    const reader = res.body!.getReader();
+    await reader.read();
+    await reader.cancel();
+    ctrl.abort();
+
+    await new Promise((r) => setTimeout(r, 50));
+    expect(cleanedUp).toBe(true);
+
+    // The interval must be stopped, not merely have its writes dropped.
+    ticksAtDisconnect = ticks;
+    await new Promise((r) => setTimeout(r, 50));
+    expect(ticks).toBe(ticksAtDisconnect);
+  });
 });

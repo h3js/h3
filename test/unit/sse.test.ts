@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
+import { getEventListeners } from "node:events";
 import {
   EventStream,
   formatEventStreamComment,
@@ -134,6 +135,110 @@ describe("sse (unit)", () => {
       await reader.cancel(new Error("resource closed"));
 
       // Give microtasks time to settle
+      await new Promise((r) => setTimeout(r, 10));
+
+      process.off("unhandledRejection", unhandled);
+      expect(unhandled).not.toHaveBeenCalled();
+    });
+
+    it("fires onClosed when the readable side is canceled", async () => {
+      const event = mockEvent("/");
+      const stream = new EventStream(event);
+
+      const onClosed = vi.fn();
+      stream.onClosed(onClosed);
+
+      const readable = (await stream.send()) as ReadableStream<Uint8Array>;
+      await readable.getReader().cancel(new Error("client gone"));
+      await new Promise((r) => setTimeout(r, 10));
+
+      expect(onClosed).toHaveBeenCalledTimes(1);
+    });
+
+    it("fires onClosed exactly once across cancel and explicit close", async () => {
+      const event = mockEvent("/");
+      const stream = new EventStream(event);
+
+      const onClosed = vi.fn();
+      stream.onClosed(onClosed);
+
+      const readable = (await stream.send()) as ReadableStream<Uint8Array>;
+      await readable.getReader().cancel(new Error("client gone"));
+      await stream.close();
+      await stream.close();
+      await new Promise((r) => setTimeout(r, 10));
+
+      expect(onClosed).toHaveBeenCalledTimes(1);
+    });
+
+    it("closes the stream when the request signal aborts", async () => {
+      const ctrl = new AbortController();
+      const event = mockEvent("/", { signal: ctrl.signal });
+      const stream = new EventStream(event);
+
+      const onClosed = vi.fn();
+      stream.onClosed(onClosed);
+
+      ctrl.abort();
+      await new Promise((r) => setTimeout(r, 10));
+
+      expect(onClosed).toHaveBeenCalledTimes(1);
+      // Writes after an autoclose are dropped rather than throwing.
+      await stream.push("after");
+    });
+
+    it("does not autoclose on signal abort when autoclose is disabled", async () => {
+      const ctrl = new AbortController();
+      const event = mockEvent("/", { signal: ctrl.signal });
+      const stream = new EventStream(event, { autoclose: false });
+
+      const onClosed = vi.fn();
+      stream.onClosed(onClosed);
+
+      ctrl.abort();
+      await new Promise((r) => setTimeout(r, 10));
+
+      expect(onClosed).not.toHaveBeenCalled();
+    });
+
+    it("closes immediately when the request signal is already aborted", async () => {
+      const event = mockEvent("/", { signal: AbortSignal.abort() });
+      const stream = new EventStream(event);
+
+      const onClosed = vi.fn();
+      stream.onClosed(onClosed);
+      await new Promise((r) => setTimeout(r, 10));
+
+      expect(onClosed).toHaveBeenCalledTimes(1);
+    });
+
+    it("removes the abort listener once closed", async () => {
+      const ctrl = new AbortController();
+      const event = mockEvent("/", { signal: ctrl.signal });
+      // Note: `req.signal` is the Request's own signal following `ctrl`, not
+      // `ctrl.signal` itself — that is what the stream subscribes to.
+      const signal = event.req.signal;
+      const baseline = getEventListeners(signal, "abort").length;
+
+      const stream = new EventStream(event);
+      expect(getEventListeners(signal, "abort").length).toBe(baseline + 1);
+
+      await stream.close();
+      expect(getEventListeners(signal, "abort").length).toBe(baseline);
+    });
+
+    it("does not emit unhandled rejection when an async onClosed callback rejects", async () => {
+      const event = mockEvent("/");
+      const stream = new EventStream(event);
+
+      const unhandled = vi.fn();
+      process.on("unhandledRejection", unhandled);
+
+      stream.onClosed(async () => {
+        throw new Error("async callback error");
+      });
+
+      await stream.close();
       await new Promise((r) => setTimeout(r, 10));
 
       process.off("unhandledRejection", unhandled);

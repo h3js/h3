@@ -3,6 +3,15 @@ import type { EventStreamMessage, EventStreamOptions } from "../event-stream.ts"
 
 const _noop = () => {};
 
+/** Run a user callback, swallowing sync throws and async rejections alike. */
+function _invoke(cb: () => any): void {
+  try {
+    Promise.resolve(cb()).catch(_noop);
+  } catch {
+    // Ignore
+  }
+}
+
 /**
  * A helper class for [server sent events](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events#event_stream_format)
  */
@@ -17,6 +26,9 @@ export class EventStream {
   private _unsentData: undefined | string;
   private _disposed = false;
   private _handled = false;
+  private readonly _closeCallbacks: Array<() => any> = [];
+  private _closeNotified = false;
+  private _detachAutoclose: () => void = _noop;
 
   private get _isClosed(): boolean {
     return this._writerIsClosed || this._disposed;
@@ -25,11 +37,56 @@ export class EventStream {
   constructor(event: H3Event, opts: EventStreamOptions = {}) {
     this._event = event;
     this._writer = this._transformStream.writable.getWriter();
+    // `closed` settles on both paths: `close()` resolves it, while a consumer
+    // cancelling the readable side (client disconnect) rejects it. Both mean
+    // the stream is over, so `finally` is what listeners must hang off.
     this._writer.closed.catch(_noop).finally(() => {
       this._writerIsClosed = true;
+      this._notifyClosed();
     });
     if (opts.autoclose !== false) {
-      this._event.runtime?.node?.res?.once("close", () => this.close());
+      this._watchDisconnect();
+    }
+  }
+
+  /**
+   * Close the stream once the client goes away.
+   *
+   * The Node adapter surfaces a disconnect as a `"close"` event on the raw
+   * response, while every other runtime (Bun, Deno, workerd, generic web)
+   * surfaces it as the request's `AbortSignal`. Both are wired, since
+   * `close()` is idempotent and only the applicable one fires.
+   */
+  private _watchDisconnect(): void {
+    const onDisconnect = () => {
+      this.close();
+    };
+    const nodeRes = this._event.runtime?.node?.res;
+    const signal = this._event.req.signal;
+    if (signal?.aborted) {
+      onDisconnect();
+      return;
+    }
+    nodeRes?.once("close", onDisconnect);
+    signal?.addEventListener("abort", onDisconnect, { once: true });
+    this._detachAutoclose = () => {
+      nodeRes?.off("close", onDisconnect);
+      signal?.removeEventListener("abort", onDisconnect);
+    };
+  }
+
+  /**
+   * Run `onClosed` callbacks exactly once and drop the disconnect listeners.
+   */
+  private _notifyClosed(): void {
+    if (this._closeNotified) {
+      return;
+    }
+    this._closeNotified = true;
+    this._detachAutoclose();
+    this._detachAutoclose = _noop;
+    for (const cb of this._closeCallbacks.splice(0)) {
+      _invoke(cb);
     }
   }
 
@@ -156,14 +213,20 @@ export class EventStream {
       }
     }
     this._disposed = true;
+    this._notifyClosed();
   }
 
   /**
-   * Triggers callback when the writable stream is closed.
-   * It is also triggered after calling the `close()` method.
+   * Triggers callback when the stream is closed, whether by calling `close()`
+   * or by the client disconnecting. Guaranteed to run at most once.
    */
   onClosed(cb: () => any): void {
-    this._writer.closed.then(cb).catch(_noop);
+    if (this._closeNotified) {
+      // Preserve async delivery for callbacks registered after close.
+      queueMicrotask(() => _invoke(cb));
+      return;
+    }
+    this._closeCallbacks.push(cb);
   }
 
   async send(): Promise<BodyInit> {

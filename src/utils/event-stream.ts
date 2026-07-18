@@ -3,7 +3,10 @@ import { EventStream } from "./internal/event-stream.ts";
 
 export interface EventStreamOptions {
   /**
-   * Automatically close the writable stream when the request is closed
+   * Automatically close the writable stream when the client disconnects.
+   *
+   * Detected via the request's `AbortSignal` on all runtimes, plus the raw
+   * response `"close"` event when running on Node.
    *
    * Default is `true`
    */
