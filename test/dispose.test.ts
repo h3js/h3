@@ -115,6 +115,28 @@ describeMatrix("event.onDispose", (ctx, { it, expect }) => {
     }
   });
 
+  it.skipIf(ctx.target === "web")(
+    "fires when the client disconnects while the handler is still running",
+    async () => {
+      // Node emits `res` "close" as soon as the socket dies — before
+      // `toResponse` runs — so observation must not rely on the listener alone.
+      // (On web the response is still produced and observed normally.)
+      let disposed = false;
+      ctx.app.get("/test", async (event) => {
+        await new Promise((r) => setTimeout(r, 300)); // client aborts during this
+        onDispose(event, () => {
+          disposed = true;
+        });
+        return "hello";
+      });
+      const controller = new AbortController();
+      const resPromise = ctx.fetch("/test", { signal: controller.signal });
+      setTimeout(() => controller.abort(), 50);
+      await expect(resPromise).rejects.toThrow();
+      await waitFor(() => disposed);
+    },
+  );
+
   it("fires after the global onResponse hook", async () => {
     const calls: string[] = [];
     ctx.hooks.onResponse.mockImplementation(() => {

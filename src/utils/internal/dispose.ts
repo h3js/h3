@@ -77,6 +77,12 @@ function observeResponse(response: Response, event: H3Event, state: DisposeState
 
   const nodeRes = event.runtime?.node?.res;
   if (nodeRes) {
+    // The client may have disconnected while the handler was still running —
+    // "close" was already emitted and a listener would never fire.
+    if (nodeRes.closed || nodeRes.destroyed) {
+      fireDispose(event, state, nodeRes.errored ?? abortError());
+      return response;
+    }
     nodeRes.once("close", () => {
       fireDispose(
         event,
