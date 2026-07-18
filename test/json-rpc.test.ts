@@ -385,6 +385,21 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
       });
     });
 
+    it("should return Invalid Request for valid-JSON primitive bodies", async () => {
+      t.app.post("/json-rpc", eventHandler);
+      for (const body of ["123", '"str"', "true", "null"]) {
+        const result = await t.fetch("/json-rpc", { method: "POST", body });
+        expect(await result.json(), body).toEqual({
+          jsonrpc: "2.0",
+          id: null,
+          error: {
+            code: -32_600,
+            message: "Invalid Request",
+          },
+        });
+      }
+    });
+
     it("should safely handle a constructor method with constructor params", async () => {
       t.app.post("/json-rpc", eventHandler);
       const result = await t.fetch("/json-rpc", {
