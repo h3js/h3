@@ -35,9 +35,12 @@ export function toResponse(
  * Normalize a thrown or rejected value before rendering it as a response.
  *
  * Errors and the internal sentinels are passed through, numbers are coerced to a status code.
- * Any other value (object, string, `undefined`) is wrapped into an unhandled 500 error, keeping
- * the original value as `cause` only, so it can never be rendered as a successful response body
- * nor forge the status, status text or headers of the response.
+ * Any other value (object, string, `undefined`) is wrapped into an unhandled error so it can
+ * never be rendered as a successful response body.
+ *
+ * An explicit `status` (or the deprecated `statusCode`) on the thrown value is honored, validated
+ * by `sanitizeStatusCode` and falling back to 500. Nothing else is inherited: `message`, `data`,
+ * `statusText` and `headers` are dropped, and the value is kept as `cause` for logs only.
  */
 export function toError(value: unknown): unknown {
   if (value instanceof Error || value === kHandled || value === kNotFound) {
@@ -46,11 +49,12 @@ export function toError(value: unknown): unknown {
   if (typeof value === "number") {
     return new HTTPError({ status: value });
   }
-  const error = new HTTPError({ status: 500, unhandled: true });
-  // Assigned after construction rather than passed as `cause`. Unlike the `Error` branch of
-  // `prepareResponse`, the thrown value is not trusted here: the constructor falls back to the
-  // cause's own `status`, `statusText` and `headers`, which would let an arbitrary thrown value
-  // shape the response (and would nest the value under `cause.cause`).
+  const thrown = value as { status?: number; statusCode?: number } | undefined;
+  const error = new HTTPError({ status: thrown?.status ?? thrown?.statusCode, unhandled: true });
+  // Status is read explicitly above rather than letting the constructor pick it up from `cause`.
+  // Unlike the `Error` branch of `prepareResponse`, the thrown value is not trusted here: the
+  // constructor also falls back to the cause's `statusText` and `headers`, which would let an
+  // arbitrary thrown value shape the response (and would nest the value under `cause.cause`).
   (error as { cause: unknown }).cause = value;
   return error;
 }
