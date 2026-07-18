@@ -12,6 +12,8 @@ export class EventStream {
   private readonly _writer: WritableStreamDefaultWriter;
   private readonly _encoder: TextEncoder = new TextEncoder();
 
+  private readonly _closeCallbacks: (() => any)[] = [];
+
   private _writerIsClosed = false;
   private _paused = false;
   private _unsentData: undefined | string;
@@ -25,8 +27,20 @@ export class EventStream {
   constructor(event: H3Event, opts: EventStreamOptions = {}) {
     this._event = event;
     this._writer = this._transformStream.writable.getWriter();
+    // `closed` rejects when the readable side is cancelled (client disconnect)
+    // and resolves on a graceful `close()`. Both mean the stream is over.
     this._writer.closed.catch(_noop).finally(() => {
       this._writerIsClosed = true;
+      if (opts.autoclose !== false) {
+        this._disposed = true;
+      }
+      for (const cb of this._closeCallbacks.splice(0)) {
+        try {
+          cb();
+        } catch {
+          // Ignore
+        }
+      }
     });
     if (opts.autoclose !== false) {
       this._event.runtime?.node?.res?.once("close", () => this.close());
@@ -159,11 +173,21 @@ export class EventStream {
   }
 
   /**
-   * Triggers callback when the writable stream is closed.
-   * It is also triggered after calling the `close()` method.
+   * Triggers callback when the stream is closed, either by calling the
+   * `close()` method or when the client disconnects.
    */
   onClosed(cb: () => any): void {
-    this._writer.closed.then(cb).catch(_noop);
+    if (this._writerIsClosed) {
+      queueMicrotask(() => {
+        try {
+          cb();
+        } catch {
+          // Ignore
+        }
+      });
+      return;
+    }
+    this._closeCallbacks.push(cb);
   }
 
   async send(): Promise<BodyInit> {

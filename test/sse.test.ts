@@ -58,6 +58,34 @@ describeMatrix("sse", (t, { it, expect }) => {
     expect(messages).toEqual(expected);
   });
 
+  it("calls onClosed when the client disconnects", async () => {
+    let closed = false;
+    const onClosed = new Promise<void>((resolve) => {
+      t.app.get("/sse-disconnect", (event) => {
+        const eventStream = createEventStream(event);
+        const interval = setInterval(() => eventStream.push("tick"), 5);
+        eventStream.onClosed(() => {
+          closed = true;
+          clearInterval(interval);
+          resolve();
+        });
+        return eventStream.send();
+      });
+    });
+
+    const res = await t.fetch("/sse-disconnect");
+    const reader = res.body!.getReader();
+    await reader.read();
+    expect(closed).toBe(false);
+    await reader.cancel();
+
+    await Promise.race([
+      onClosed,
+      new Promise((_, reject) => setTimeout(() => reject(new Error("onClosed never fired")), 2000)),
+    ]);
+    expect(closed).toBe(true);
+  });
+
   it("ignores pushes after close", async () => {
     t.app.get("/sse-after-close", async (event) => {
       const eventStream = createEventStream(event);
