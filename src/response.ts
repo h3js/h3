@@ -35,10 +35,6 @@ export function toResponse(
   return observeEventDispose(event, response as Response, val);
 }
 
-// End-of-event observation (`onDispose` util). The first registration installs
-// the observer setup on the event — core only pays this symbol check, and the
-// machinery tree-shakes out of apps that never import `onDispose`. The raw
-// handler value is passed along so buffered bodies can skip stream wrapping.
 function observeEventDispose(event: H3Event, response: Response, val: unknown): Response {
   const state = (event as any)[kEventDispose] as DisposeState | undefined;
   return state ? state.observe(response, val) : response;
