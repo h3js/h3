@@ -29,18 +29,19 @@ export function toResponse(
   const { onResponse } = config;
   if (onResponse) {
     return Promise.resolve(onResponse(response as Response, event)).then(() =>
-      observeEventDispose(event, response as Response),
+      observeEventDispose(event, response as Response, val),
     );
   }
-  return observeEventDispose(event, response as Response);
+  return observeEventDispose(event, response as Response, val);
 }
 
 // End-of-event observation (`onDispose` util). The first registration installs
 // the observer setup on the event — core only pays this symbol check, and the
-// machinery tree-shakes out of apps that never import `onDispose`.
-function observeEventDispose(event: H3Event, response: Response): Response {
+// machinery tree-shakes out of apps that never import `onDispose`. The raw
+// handler value is passed along so buffered bodies can skip stream wrapping.
+function observeEventDispose(event: H3Event, response: Response, val: unknown): Response {
   const state = (event as any)[kEventDispose] as DisposeState | undefined;
-  return state ? state.observe(response) : response;
+  return state ? state.observe(response, val) : response;
 }
 
 export class HTTPResponse {

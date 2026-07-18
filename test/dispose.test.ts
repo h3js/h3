@@ -200,6 +200,47 @@ describeMatrix("event.onDispose", (ctx, { it, expect }) => {
     expect(lateReason).toBeUndefined();
   });
 
+  it.skipIf(ctx.target === "node")(
+    "does not wrap buffered bodies (web fast path preserved)",
+    async () => {
+      let hookResponse: Response | undefined;
+      ctx.hooks.onResponse.mockImplementation((res: Response) => {
+        hookResponse = res;
+      });
+      let disposed = false;
+      ctx.app.get("/test", (event) => {
+        onDispose(event, () => {
+          disposed = true;
+        });
+        return "hello";
+      });
+      const res = await ctx.fetch("/test");
+      // The exact response produced by h3 is returned — no identity-stream rewrap
+      expect(res).toBe(hookResponse);
+      await waitFor(() => disposed);
+      expect(await res.text()).toBe("hello");
+    },
+  );
+
+  it.skipIf(ctx.target === "node")("observes streaming bodies by wrapping", async () => {
+    let hookResponse: Response | undefined;
+    ctx.hooks.onResponse.mockImplementation((res: Response) => {
+      hookResponse = res;
+    });
+    ctx.app.get("/test", (event) => {
+      onDispose(event, () => {});
+      return new ReadableStream({
+        start(controller) {
+          controller.enqueue(encoder.encode("body"));
+          controller.close();
+        },
+      });
+    });
+    const res = await ctx.fetch("/test");
+    expect(res).not.toBe(hookResponse);
+    expect(await res.text()).toBe("body");
+  });
+
   it("does not alter responses without registered callbacks", async () => {
     ctx.app.get("/test", (event) => {
       event.res.headers.set("x-test", "1");

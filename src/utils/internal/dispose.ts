@@ -15,7 +15,7 @@ export type DisposeCallback = (reason?: unknown) => unknown;
 export interface DisposeState {
   callbacks: DisposeCallback[];
   /** Start observing the prepared response for end-of-event (called by `toResponse`). */
-  observe: (response: Response) => Response;
+  observe: (response: Response, val?: unknown) => Response;
   /** An observer is already attached to a response. */
   observing?: boolean;
   disposed?: boolean;
@@ -45,7 +45,7 @@ export function onDispose(event: H3Event, cb: DisposeCallback): void {
   if (!state) {
     const _state: DisposeState = {
       callbacks: [],
-      observe: (response) => observeResponse(response, event, _state),
+      observe: (response, val) => observeResponse(response, val, event, _state),
     };
     state = (event as any)[kEventDispose] = _state;
   }
@@ -65,11 +65,18 @@ export function onDispose(event: H3Event, cb: DisposeCallback): void {
  *   the body is never wrapped.
  * - Other runtimes: a streaming body is piped through an identity
  *   `TransformStream`; the `pipeTo` promise settles on normal end, consumer
- *   cancellation, and source error alike. Bodyless responses dispose
- *   immediately — once the `Response` is handed to the runtime, delivery is
- *   not observable on web.
+ *   cancellation, and source error alike. Buffered bodies (string, bytes,
+ *   JSON, ...) and bodyless responses dispose immediately without wrapping —
+ *   the body is already fully in memory and once the `Response` is handed to
+ *   the runtime, delivery is not observable on web. This keeps the runtime's
+ *   native-source send path (and implicit content-length) intact for them.
  */
-function observeResponse(response: Response, event: H3Event, state: DisposeState): Response {
+function observeResponse(
+  response: Response,
+  val: unknown,
+  event: H3Event,
+  state: DisposeState,
+): Response {
   if (state.observing || state.disposed) {
     return response;
   }
@@ -93,11 +100,11 @@ function observeResponse(response: Response, event: H3Event, state: DisposeState
     return response;
   }
 
-  const body = response.body;
-  if (!body) {
+  if (!isStreamBody(val) || !response.body) {
     fireDispose(event, state, undefined);
     return response;
   }
+  const body = response.body;
 
   const { readable, writable } = new TransformStream();
   body.pipeTo(writable).then(
@@ -145,6 +152,20 @@ function invokeDisposeCallbacks(
     // unless handed to the platform.
     event.waitUntil(Promise.all(pending));
   }
+}
+
+// Whether the handler value produces a body that actually streams (a live
+// producer or an opaque `Response` whose source can't be inspected) and is
+// therefore worth observing by wrapping. Anything else is fully buffered:
+// wrapping it would only replace the runtime's native-source body with a JS
+// stream while adding no end-of-event fidelity on web runtimes.
+function isStreamBody(val: unknown): boolean {
+  return (
+    val instanceof ReadableStream ||
+    val instanceof Blob ||
+    val instanceof Response ||
+    (val as { body?: unknown })?.body instanceof ReadableStream // HTTPResponse-like
+  );
 }
 
 function abortError(): DOMException {
