@@ -1,6 +1,7 @@
 import { FastResponse } from "srvx";
 import { HTTPError } from "./error.ts";
 import { isJSONSerializable } from "./utils/internal/object.ts";
+import { kEventDispose, type DisposeState } from "./utils/internal/dispose.ts";
 
 import type { H3Config } from "./types/h3.ts";
 import { kEventRes, kEventResHeaders, kEventResErrHeaders, type H3Event } from "./event.ts";
@@ -26,9 +27,21 @@ export function toResponse(
   }
 
   const { onResponse } = config;
-  return onResponse
-    ? Promise.resolve(onResponse(response as Response, event)).then(() => response)
-    : response;
+  if (onResponse) {
+    return Promise.resolve(onResponse(response as Response, event)).then(
+      () =>
+        ((event as any)[kEventDispose] as DisposeState | undefined)?.observe(
+          response as Response,
+          val,
+        ) ?? (response as Response),
+    );
+  }
+  return (
+    ((event as any)[kEventDispose] as DisposeState | undefined)?.observe(
+      response as Response,
+      val,
+    ) ?? (response as Response)
+  );
 }
 
 export class HTTPResponse {
@@ -95,10 +108,13 @@ function prepareResponse(
   // Only set if event.res.headers is accessed
   const preparedRes:
     | undefined
-    | { status?: number; statusText?: string; [kEventResHeaders]?: Headers } = (event as any)[
-    kEventRes
-  ];
-  const preparedHeaders = preparedRes?.[kEventResHeaders];
+    | {
+        status?: number;
+        statusText?: string;
+        [kEventResHeaders]?: Headers;
+        [kEventResErrHeaders]?: Headers;
+      } = (event as any)[kEventRes];
+  let preparedHeaders = preparedRes?.[kEventResHeaders];
   (event as any)[kEventRes] = undefined; // Clear prepared response to avoid duplication
 
   if (!(val instanceof Response)) {
@@ -114,8 +130,15 @@ function prepareResponse(
     });
   }
 
-  // Avoid merging if no prepared headers are provided or we are rendering an Error
-  if (!preparedHeaders || nested || !val.ok) {
+  // Success and redirect responses receive all prepared headers.
+  // Error responses (4xx/5xx) only receive headers explicitly staged as `event.res.errHeaders`
+  // to avoid leaking success-only headers (caching, content negotiation, ...) into errors.
+  if (val.status >= 400) {
+    preparedHeaders = preparedRes?.[kEventResErrHeaders];
+  }
+
+  // Avoid merging if there is nothing to merge or a custom error render is returned from `onError`
+  if (!preparedHeaders || nested) {
     // Strip the body for HEAD requests (runtimes usually do this, but keep self-consistent)
     if (event.req.method === "HEAD" && val.body !== null) {
       return new FastResponse(null, {

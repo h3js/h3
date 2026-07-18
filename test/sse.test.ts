@@ -145,4 +145,42 @@ describeMatrix("sse", (t, { it, expect }) => {
     expect(res.status).toBe(200);
     expect(await res.text()).toBe("data: sent\n\ndata: buffered\n\n");
   });
+
+  it("closes a stream that is created but never sent", async () => {
+    let closed = false;
+    t.app.get("/sse-unsent", (event) => {
+      const eventStream = createEventStream(event);
+      eventStream.onClosed(() => {
+        closed = true;
+      });
+      return "regular response";
+    });
+    const res = await t.fetch("/sse-unsent");
+    expect(await res.text()).toBe("regular response");
+    await waitFor(() => closed);
+  });
+
+  it("autocloses the stream on client disconnect", async () => {
+    let stream: ReturnType<typeof createEventStream>;
+    t.app.get("/sse-autoclose-disconnect", (event) => {
+      stream = createEventStream(event);
+      stream.push("hello");
+      return stream.send();
+    });
+    const res = await t.fetch("/sse-autoclose-disconnect");
+    const reader = res.body!.getReader();
+    await reader.read();
+    await reader.cancel();
+    await waitFor(() => (stream as any)._disposed === true);
+  });
 });
+
+async function waitFor(condition: () => boolean, timeout = 1000): Promise<void> {
+  const start = Date.now();
+  while (!condition()) {
+    if (Date.now() - start > timeout) {
+      throw new Error("waitFor: condition not met in time");
+    }
+    await new Promise((r) => setTimeout(r, 5));
+  }
+}

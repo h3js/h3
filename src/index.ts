@@ -115,6 +115,8 @@ export {
   redirectBack,
   iterable,
   noContent,
+  onDispose,
+  type DisposeCallback,
   html,
   raw,
 } from "./utils/response.ts";
