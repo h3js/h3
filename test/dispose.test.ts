@@ -88,6 +88,33 @@ describeMatrix("event.onDispose", (ctx, { it, expect }) => {
     }
   });
 
+  it("maps an argless client cancellation to an AbortError reason", async () => {
+    let reason: unknown = "pending";
+    ctx.app.get("/test", (event) => {
+      onDispose(event, (r) => {
+        reason = r;
+      });
+      return new ReadableStream({
+        start(controller) {
+          controller.enqueue(encoder.encode("head"));
+          // Keep the stream open — only a client disconnect can end it
+        },
+      });
+    });
+    const res = await ctx.fetch("/test");
+    const reader = res.body!.getReader();
+    await reader.read();
+    await reader.cancel(); // no argument — must still not look like normal completion
+    await waitFor(() => reason !== "pending");
+    if (ctx.target === "web") {
+      expect(reason).toBeInstanceOf(DOMException);
+      expect((reason as DOMException).name).toBe("AbortError");
+    } else {
+      // Node observes `res` "close" instead; reason may be `res.errored`
+      expect(reason).toBeInstanceOf(Error);
+    }
+  });
+
   it("fires after the global onResponse hook", async () => {
     const calls: string[] = [];
     ctx.hooks.onResponse.mockImplementation(() => {

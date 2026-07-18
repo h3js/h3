@@ -81,10 +81,7 @@ function observeResponse(response: Response, event: H3Event, state: DisposeState
       fireDispose(
         event,
         state,
-        nodeRes.errored ??
-          (nodeRes.writableFinished
-            ? undefined
-            : new DOMException("Connection closed prematurely.", "AbortError")),
+        nodeRes.errored ?? (nodeRes.writableFinished ? undefined : abortError()),
       );
     });
     return response;
@@ -99,7 +96,9 @@ function observeResponse(response: Response, event: H3Event, state: DisposeState
   const { readable, writable } = new TransformStream();
   body.pipeTo(writable).then(
     () => fireDispose(event, state, undefined),
-    (reason) => fireDispose(event, state, reason),
+    // An argless `reader.cancel()` rejects with `undefined` — normalize it so
+    // an abort is never mistaken for normal completion (`undefined` reason).
+    (reason) => fireDispose(event, state, reason === undefined ? abortError() : reason),
   );
   return new FastResponse(readable, {
     status: response.status,
@@ -140,6 +139,10 @@ function invokeDisposeCallbacks(
     // unless handed to the platform.
     event.waitUntil(Promise.all(pending));
   }
+}
+
+function abortError(): DOMException {
+  return new DOMException("Connection closed prematurely.", "AbortError");
 }
 
 function reportDisposeError(event: H3Event, error: unknown): void {
