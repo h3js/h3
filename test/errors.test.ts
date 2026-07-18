@@ -1,4 +1,5 @@
 import { vi } from "vitest";
+import { runInNewContext } from "node:vm";
 import { H3, HTTPError } from "../src/index.ts";
 import { describeMatrix } from "./_setup.ts";
 
@@ -241,6 +242,20 @@ describeMatrix("errors", (t, { it, expect, describe }) => {
       const res = await t.fetch("/");
       expect(res.status).toBe(500);
       expect(res.headers.get("x-forged")).toBe(null);
+      t.errors = [];
+    });
+
+    // `toError` must use the same `instanceof Error` check as `prepareResponse`. A broader check
+    // (e.g. `Error.isError`) would pass this through, only for `prepareResponse` to reject it and
+    // render it as a successful body again.
+    it("cross-realm error is not rendered as a body", async () => {
+      const foreign = runInNewContext(`new Error("cross-realm secret")`);
+      t.app.use(() => {
+        throw foreign;
+      });
+      const res = await t.fetch("/");
+      expect(res.status).toBe(500);
+      expect(await res.text()).not.toContain("cross-realm secret");
       t.errors = [];
     });
 

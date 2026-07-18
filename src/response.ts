@@ -47,6 +47,9 @@ export function toError(value: unknown): unknown {
     return new HTTPError({ status: value });
   }
   const error = new HTTPError({ status: 500, unhandled: true });
+  // Assigned after construction, not passed as `cause`: the constructor sets `cause` to the whole
+  // details object (nesting the value under `cause.cause`) and falls back to the cause's own
+  // `statusText` and `headers`, letting an arbitrary thrown value shape the response.
   (error as { cause: unknown }).cause = value;
   return error;
 }
