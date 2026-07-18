@@ -16,7 +16,7 @@ export function toResponse(
   if (typeof (val as PromiseLike<unknown>)?.then === "function") {
     return (val as Promise<unknown>).then(
       (resolvedVal) => toResponse(resolvedVal, event, config),
-      (r) => toResponse(typeof r === "number" ? new HTTPError({ status: r }) : r, event, config),
+      (r) => toResponse(toError(r), event, config),
     ) as Promise<Response>;
   }
 
@@ -29,6 +29,26 @@ export function toResponse(
   return onResponse
     ? Promise.resolve(onResponse(response as Response, event)).then(() => response)
     : response;
+}
+
+/**
+ * Normalize a thrown or rejected value before rendering it as a response.
+ *
+ * Errors and the internal sentinels are passed through, numbers are coerced to a status code.
+ * Any other value (object, string, `undefined`) is wrapped into an unhandled 500 error, keeping
+ * the original value as `cause` only, so it can never be rendered as a successful response body
+ * nor forge the status, status text or headers of the response.
+ */
+export function toError(value: unknown): unknown {
+  if (value instanceof Error || value === kHandled || value === kNotFound) {
+    return value;
+  }
+  if (typeof value === "number") {
+    return new HTTPError({ status: value });
+  }
+  const error = new HTTPError({ status: 500, unhandled: true });
+  (error as { cause: unknown }).cause = value;
+  return error;
 }
 
 export class HTTPResponse {

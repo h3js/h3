@@ -1,8 +1,8 @@
 import { vi } from "vitest";
-import { HTTPError } from "../src/index.ts";
+import { H3, HTTPError } from "../src/index.ts";
 import { describeMatrix } from "./_setup.ts";
 
-describeMatrix("errors", (t, { it, expect }) => {
+describeMatrix("errors", (t, { it, expect, describe }) => {
   const consoleMock = ((globalThis.console.error as any) = vi.fn());
 
   it("throw HTTPError", async () => {
@@ -182,5 +182,81 @@ describeMatrix("errors", (t, { it, expect }) => {
     const res = await t.fetch("/");
     expect(res.status).toBe(200);
     expect(await res.json()).toBe(404);
+  });
+
+  describe("non-Error throws", () => {
+    it("throw object does not leak into the response body", async () => {
+      t.app.use(() => {
+        throw { secret: "db-password", status: 403 };
+      });
+      const res = await t.fetch("/");
+      expect(res.status).toBe(500);
+      const body = await res.text();
+      expect(body).not.toContain("db-password");
+      expect(JSON.parse(body)).toMatchObject({
+        status: 500,
+        message: "HTTPError",
+        unhandled: true,
+      });
+
+      expect(t.errors[0].unhandled).toBe(true);
+      expect(t.errors[0].cause).toMatchObject({ secret: "db-password" });
+      t.errors = [];
+    });
+
+    it("throw async object does not leak into the response body", async () => {
+      t.app.use(async () => {
+        throw { secret: "db-password" };
+      });
+      const res = await t.fetch("/");
+      expect(res.status).toBe(500);
+      expect(await res.text()).not.toContain("db-password");
+      t.errors = [];
+    });
+
+    it("throw string", async () => {
+      t.app.use(() => {
+        throw "not-an-error";
+      });
+      const res = await t.fetch("/");
+      expect(res.status).toBe(500);
+      expect(await res.text()).not.toContain("not-an-error");
+      t.errors = [];
+    });
+
+    it("throw undefined", async () => {
+      t.app.use(() => {
+        throw undefined;
+      });
+      const res = await t.fetch("/");
+      expect(res.status).toBe(500);
+      expect(await res.json()).toMatchObject({ status: 500, unhandled: true });
+      t.errors = [];
+    });
+
+    it("thrown object cannot forge response headers", async () => {
+      t.app.use(() => {
+        throw { headers: { "x-forged": "1" } };
+      });
+      const res = await t.fetch("/");
+      expect(res.status).toBe(500);
+      expect(res.headers.get("x-forged")).toBe(null);
+      t.errors = [];
+    });
+
+    it("onError receives the wrapped error", async () => {
+      const onError = vi.fn();
+      const app = new H3({ onError, silent: true });
+      app.use(() => {
+        throw { secret: "db-password" };
+      });
+      const res = await app.request("/");
+      expect(res.status).toBe(500);
+      expect(onError).toHaveBeenCalledTimes(1);
+      const error = onError.mock.calls[0][0];
+      expect(HTTPError.isError(error)).toBe(true);
+      expect(error.unhandled).toBe(true);
+      expect(error.cause).toMatchObject({ secret: "db-password" });
+    });
   });
 });
