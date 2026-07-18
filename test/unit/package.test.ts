@@ -95,6 +95,7 @@ describe("h3 package", () => {
         "lazyEventHandler",
         "mockEvent",
         "noContent",
+        "onDispose",
         "onError",
         "onRequest",
         "onResponse",

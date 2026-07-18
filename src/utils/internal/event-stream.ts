@@ -1,5 +1,6 @@
 import type { H3Event } from "../../event.ts";
 import type { EventStreamMessage, EventStreamOptions } from "../event-stream.ts";
+import { onDispose } from "./dispose.ts";
 
 const _noop = () => {};
 
@@ -32,7 +33,7 @@ export class EventStream {
       // End-of-event covers every runtime: normal end, client disconnect, and
       // a stream that is created but never `send()`-ed (the response completed
       // without it) all converge here.
-      this._event.onDispose(() => this.close());
+      onDispose(this._event, () => this.close());
     }
   }
 

@@ -1,5 +1,5 @@
 import { vi } from "vitest";
-import type { H3Event } from "../src/index.ts";
+import { onDispose, type H3Event } from "../src/index.ts";
 import { describeMatrix } from "./_setup.ts";
 
 const encoder = new TextEncoder();
@@ -18,7 +18,7 @@ describeMatrix("event.onDispose", (ctx, { it, expect }) => {
   it("fires after a non-streaming response", async () => {
     let disposed: unknown = "pending";
     ctx.app.get("/test", (event) => {
-      event.onDispose((reason) => {
+      onDispose(event, (reason) => {
         disposed = reason;
       });
       return "hello";
@@ -36,7 +36,7 @@ describeMatrix("event.onDispose", (ctx, { it, expect }) => {
       releaseTail = r;
     });
     ctx.app.get("/test", (event) => {
-      event.onDispose(() => {
+      onDispose(event, () => {
         disposed = true;
       });
       return new ReadableStream({
@@ -64,7 +64,7 @@ describeMatrix("event.onDispose", (ctx, { it, expect }) => {
   it("fires with a reason when the client disconnects mid-stream", async () => {
     let reason: unknown = "pending";
     ctx.app.get("/test", (event) => {
-      event.onDispose((r) => {
+      onDispose(event, (r) => {
         reason = r;
       });
       return new ReadableStream({
@@ -94,7 +94,7 @@ describeMatrix("event.onDispose", (ctx, { it, expect }) => {
       calls.push("onResponse");
     });
     ctx.app.get("/test", (event) => {
-      event.onDispose(() => {
+      onDispose(event, () => {
         calls.push("dispose");
       });
       return "ok";
@@ -109,15 +109,15 @@ describeMatrix("event.onDispose", (ctx, { it, expect }) => {
     try {
       const calls: string[] = [];
       ctx.app.get("/test", (event) => {
-        event.onDispose(() => {
+        onDispose(event, () => {
           calls.push("a");
           throw new Error("sync boom");
         });
-        event.onDispose(async () => {
+        onDispose(event, async () => {
           calls.push("b");
           throw new Error("async boom");
         });
-        event.onDispose(() => {
+        onDispose(event, () => {
           calls.push("c");
         });
         return "ok";
@@ -137,7 +137,7 @@ describeMatrix("event.onDispose", (ctx, { it, expect }) => {
     let disposed = false;
     ctx.app.get("/test", (event) => {
       capturedEvent = event;
-      event.onDispose(() => {
+      onDispose(event, () => {
         disposed = true;
       });
       return "ok";
@@ -145,7 +145,7 @@ describeMatrix("event.onDispose", (ctx, { it, expect }) => {
     await (await ctx.fetch("/test")).text();
     await waitFor(() => disposed);
     let lateReason: unknown = "pending";
-    capturedEvent!.onDispose((reason) => {
+    onDispose(capturedEvent!, (reason) => {
       lateReason = reason;
     });
     expect(lateReason).toBeUndefined();
@@ -163,7 +163,7 @@ describeMatrix("event.onDispose", (ctx, { it, expect }) => {
 
   it("preserves status and headers on observed streaming responses", async () => {
     ctx.app.get("/test", (event) => {
-      event.onDispose(() => {});
+      onDispose(event, () => {});
       event.res.status = 201;
       event.res.headers.set("x-test", "1");
       return new ReadableStream({

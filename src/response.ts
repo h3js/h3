@@ -1,7 +1,7 @@
 import { FastResponse } from "srvx";
 import { HTTPError } from "./error.ts";
 import { isJSONSerializable } from "./utils/internal/object.ts";
-import { armDispose, kEventDispose } from "./utils/internal/dispose.ts";
+import { kEventDispose, type DisposeState } from "./utils/internal/dispose.ts";
 
 import type { H3Config } from "./types/h3.ts";
 import { kEventRes, kEventResHeaders, kEventResErrHeaders, type H3Event } from "./event.ts";
@@ -29,14 +29,18 @@ export function toResponse(
   const { onResponse } = config;
   if (onResponse) {
     return Promise.resolve(onResponse(response as Response, event)).then(() =>
-      (event as any)[kEventDispose]
-        ? armDispose(response as Response, event)
-        : (response as Response),
+      armEventDispose(event, response as Response),
     );
   }
-  return (event as any)[kEventDispose]
-    ? armDispose(response as Response, event)
-    : (response as Response);
+  return armEventDispose(event, response as Response);
+}
+
+// End-of-event observation (`onDispose` util). The first registration installs
+// the arming logic on the event — core only pays this symbol check, and the
+// machinery tree-shakes out of apps that never import `onDispose`.
+function armEventDispose(event: H3Event, response: Response): Response {
+  const state = (event as any)[kEventDispose] as DisposeState | undefined;
+  return state ? state.arm(response) : response;
 }
 
 export class HTTPResponse {

@@ -3,7 +3,6 @@ import type { H3EventContext } from "./types/context.ts";
 
 import { EmptyObject } from "./utils/internal/obj.ts";
 import { decodePathname } from "./utils/internal/path.ts";
-import { registerDispose, type DisposeCallback } from "./utils/internal/dispose.ts";
 import { FastURL } from "srvx";
 import type { EventHandlerRequest, TypedServerRequest } from "./types/handler.ts";
 import type { H3Core } from "./h3.ts";
@@ -126,28 +125,6 @@ export class H3Event<
    */
   waitUntil(promise: Promise<any>): void {
     this.req.waitUntil?.(promise);
-  }
-
-  /**
-   * Register a callback that runs once the event is fully over: the response
-   * body finished streaming, the client disconnected, or the body errored.
-   *
-   * The callback receives `undefined` on normal completion, or the
-   * cancel/abort reason otherwise. Callbacks run in registration order after
-   * the global `onResponse` hook; sync throws and async rejections are
-   * absorbed (reported via `console.error` unless the app is configured with
-   * `silent`), and pending async callbacks are passed to `waitUntil`.
-   *
-   * Registering after disposal invokes the callback immediately. Registration
-   * is only guaranteed to observe the end of the event when made during
-   * request handling (handler, middleware, or `onResponse`).
-   *
-   * Note: this signals *"h3 is done with this event"*, not *"the client
-   * received the response"* — for non-streaming bodies on non-Node runtimes
-   * it fires when the response is handed to the runtime.
-   */
-  onDispose(cb: DisposeCallback): void {
-    registerDispose(this, cb);
   }
 
   toString(): string {

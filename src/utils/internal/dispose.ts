@@ -6,21 +6,48 @@ export const kEventDispose: unique symbol = /* @__PURE__ */ Symbol.for("h3.inter
 
 export type DisposeCallback = (reason?: unknown) => unknown;
 
-interface DisposeState {
+/**
+ * The value stored on the event at `kEventDispose`. Installed by the first
+ * `onDispose` registration, so core (`toResponse`) only pays a symbol check
+ * and an `arm` call — all machinery stays in this module and tree-shakes out
+ * of apps that never import `onDispose`.
+ */
+export interface DisposeState {
   callbacks: DisposeCallback[];
+  /** Arm end-of-event observation for the prepared response (called by `toResponse`). */
+  arm: (response: Response) => Response;
   armed?: boolean;
   disposed?: boolean;
   reason?: unknown;
 }
 
 /**
- * Queue a dispose callback on the event (used by `event.onDispose`).
+ * Register a callback that runs once the event is fully over: the response
+ * body finished streaming, the client disconnected, or the body errored.
  *
- * Registering after disposal invokes the callback immediately with the
- * recorded reason.
+ * The callback receives `undefined` on normal completion, or the
+ * cancel/abort reason otherwise. Callbacks run in registration order after
+ * the global `onResponse` hook; sync throws and async rejections are
+ * absorbed (reported via `console.error` unless the app is configured with
+ * `silent`), and pending async callbacks are passed to `waitUntil`.
+ *
+ * Registering after disposal invokes the callback immediately. Registration
+ * is only guaranteed to observe the end of the event when made during
+ * request handling (handler, middleware, or `onResponse`).
+ *
+ * Note: this signals *"h3 is done with this event"*, not *"the client
+ * received the response"* — for non-streaming bodies on non-Node runtimes
+ * it fires when the response is handed to the runtime.
  */
-export function registerDispose(event: H3Event, cb: DisposeCallback): void {
-  const state: DisposeState = ((event as any)[kEventDispose] ??= { callbacks: [] });
+export function onDispose(event: H3Event, cb: DisposeCallback): void {
+  let state = (event as any)[kEventDispose] as DisposeState | undefined;
+  if (!state) {
+    const _state: DisposeState = {
+      callbacks: [],
+      arm: (response) => armDispose(response, event, _state),
+    };
+    state = (event as any)[kEventDispose] = _state;
+  }
   if (state.disposed) {
     invokeDisposeCallbacks(event, [cb], state.reason);
   } else {
@@ -30,7 +57,7 @@ export function registerDispose(event: H3Event, cb: DisposeCallback): void {
 
 /**
  * Arm end-of-event observation for the prepared response. Called once from
- * `toResponse` after global `onResponse`, only when a callback is registered.
+ * `toResponse` (via `state.arm`) after global `onResponse`.
  *
  * - Node: `res` `"close"` fires after the last byte lands (or on premature
  *   disconnect) — accurate for streaming and non-streaming bodies alike, so
@@ -41,9 +68,8 @@ export function registerDispose(event: H3Event, cb: DisposeCallback): void {
  *   immediately — once the `Response` is handed to the runtime, delivery is
  *   not observable on web.
  */
-export function armDispose(response: Response, event: H3Event): Response {
-  const state = (event as any)[kEventDispose] as DisposeState | undefined;
-  if (!state || state.armed || state.disposed) {
+function armDispose(response: Response, event: H3Event, state: DisposeState): Response {
+  if (state.armed || state.disposed) {
     return response;
   }
   state.armed = true;
