@@ -7,6 +7,11 @@ import {
 } from "../../src/utils/internal/event-stream.ts";
 import { mockEvent } from "../../src/index.ts";
 
+/** Drain a readable stream to a string. */
+async function _readAll(readable: ReadableStream<Uint8Array>): Promise<string> {
+  return new Response(readable).text();
+}
+
 describe("sse (unit)", () => {
   it("properly formats sse comments", () => {
     const result = formatEventStreamComment("hello world");
@@ -209,6 +214,21 @@ describe("sse (unit)", () => {
       writeSpy.mockClear();
       await stream.push([{ data: "msg3" }]);
       expect(writeSpy).not.toHaveBeenCalled();
+    });
+
+    it("flushes data buffered while paused on close", async () => {
+      const event = mockEvent("/");
+      const stream = new EventStream(event);
+      const readable = (await stream.send()) as ReadableStream<Uint8Array>;
+      // Drain concurrently: `close()` waits for the queue, so reading only
+      // afterwards would deadlock on backpressure.
+      const read = _readAll(readable);
+
+      stream.pause();
+      await stream.push("buffered");
+      await stream.close();
+
+      expect(await read).toBe("data: buffered\n\n");
     });
 
     it("marks writer as closed on flush write failure", async () => {

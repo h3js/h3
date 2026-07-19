@@ -13,6 +13,8 @@ export class EventStream {
   private readonly _writer: WritableStreamDefaultWriter;
   private readonly _encoder: TextEncoder = new TextEncoder();
 
+  private readonly _closeCallbacks: (() => any)[] = [];
+
   private _writerIsClosed = false;
   private _paused = false;
   private _unsentData: undefined | string;
@@ -26,8 +28,16 @@ export class EventStream {
   constructor(event: H3Event, opts: EventStreamOptions = {}) {
     this._event = event;
     this._writer = this._transformStream.writable.getWriter();
+    // `closed` rejects when the readable side is cancelled (client disconnect)
+    // and resolves on a graceful `close()`. Both mean the stream is over.
     this._writer.closed.catch(_noop).finally(() => {
       this._writerIsClosed = true;
+      if (opts.autoclose !== false) {
+        this._disposed = true;
+      }
+      for (const cb of this._closeCallbacks.splice(0)) {
+        _invokeCloseCallback(cb);
+      }
     });
     if (opts.autoclose !== false) {
       // End-of-event covers every runtime: normal end, client disconnect, and
@@ -153,6 +163,10 @@ export class EventStream {
       return;
     }
     if (!this._isClosed) {
+      // Data buffered while paused is still owed to the client. `flush()`
+      // short-circuits once closed, so this is the last chance to send it.
+      this._paused = false;
+      await this.flush();
       try {
         await this._writer.close();
       } catch {
@@ -163,11 +177,15 @@ export class EventStream {
   }
 
   /**
-   * Triggers callback when the writable stream is closed.
-   * It is also triggered after calling the `close()` method.
+   * Triggers callback when the stream is closed, either by calling the
+   * `close()` method or when the client disconnects.
    */
   onClosed(cb: () => any): void {
-    this._writer.closed.then(cb).catch(_noop);
+    if (this._writerIsClosed) {
+      queueMicrotask(() => _invokeCloseCallback(cb));
+      return;
+    }
+    this._closeCallbacks.push(cb);
   }
 
   async send(): Promise<BodyInit> {
@@ -175,6 +193,19 @@ export class EventStream {
     this._event.res.status = 200;
     this._handled = true;
     return this._transformStream.readable;
+  }
+}
+
+// Close callbacks are user code: never let a sync throw or a rejected async
+// callback escape (the documented `onClosed` example is async).
+function _invokeCloseCallback(cb: () => any): void {
+  try {
+    const res = cb();
+    if (res instanceof Promise) {
+      res.catch(_noop);
+    }
+  } catch {
+    // Ignore
   }
 }
 
