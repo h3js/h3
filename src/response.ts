@@ -137,29 +137,31 @@ function prepareResponse(
     preparedHeaders = preparedRes?.[kEventResErrHeaders];
   }
 
-  // Avoid merging if there is nothing to merge or a custom error render is returned from `onError`
-  if (!preparedHeaders || nested) {
-    // Strip the body for HEAD requests (runtimes usually do this, but keep self-consistent)
-    if (event.req.method === "HEAD" && val.body !== null) {
-      return new FastResponse(null, {
+  // Merge prepared headers unless there is nothing to merge or a custom error
+  // render is returned from `onError`.
+  if (preparedHeaders && !nested) {
+    try {
+      mergeHeaders(val.headers, preparedHeaders, val.headers);
+    } catch {
+      // Headers are immutable
+      return new FastResponse(nullBody(event.req.method, val.status) ? null : val.body, {
+        status: val.status,
+        statusText: val.statusText,
+        headers: mergeHeaders(val.headers, preparedHeaders),
+      }) as Response;
+    }
+  }
+
+  // Strip the body for HEAD requests (runtimes usually do this, but keep
+  // self-consistent for web-mode / service-worker consumers). Covers the
+  // in-place merge path above, which previously returned the body intact.
+  return event.req.method === "HEAD" && val.body !== null
+    ? (new FastResponse(null, {
         status: val.status,
         statusText: val.statusText,
         headers: val.headers,
-      }) as Response;
-    }
-    return val; // Fast path: no headers to merge
-  }
-  try {
-    mergeHeaders(val.headers, preparedHeaders, val.headers);
-    return val;
-  } catch {
-    // Headers are immutable
-    return new FastResponse(nullBody(event.req.method, val.status) ? null : val.body, {
-      status: val.status,
-      statusText: val.statusText,
-      headers: mergeHeaders(val.headers, preparedHeaders),
-    }) as Response;
-  }
+      }) as Response)
+    : val;
 }
 
 function mergeHeaders(base: HeadersInit, overrides: Headers, target = new Headers(base)): Headers {

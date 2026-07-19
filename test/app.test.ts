@@ -380,6 +380,19 @@ describeMatrix("app", (t, { it, expect }) => {
     expect(res.headers.get("x-from-response")).toBe("1");
   });
 
+  it("strips the body for a HEAD request while merging prepared headers into a mutable Response", async () => {
+    t.app.use((event) => {
+      event.res.headers.set("x-from-event", "1");
+      return new Response("hello", {
+        headers: { "x-from-response": "1" },
+      });
+    });
+    const res = await t.fetch("/", { method: "HEAD" });
+    expect(res.headers.get("x-from-event")).toBe("1");
+    expect(res.headers.get("x-from-response")).toBe("1");
+    expect(await res.text()).toBe("");
+  });
+
   it("set headers via event.res + Response (immutable)", async () => {
     t.app.use((event) => {
       event.res.headers.set("x-from-event", "1");
