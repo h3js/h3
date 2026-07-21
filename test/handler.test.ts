@@ -374,6 +374,47 @@ describe("handler.ts", () => {
         });
       });
     });
+
+    // Regression: async header validation must short-circuit query validation.
+    // A racing `Promise.all` would run the query schema even when headers
+    // already failed, and let its error win nondeterministically.
+    describe("async validation ordering", () => {
+      const querySpy = vi.fn(async (id: string) => id.length >= 3);
+      const orderingHandler = defineValidatedHandler({
+        validate: {
+          body: z.object({ name: z.string() }),
+          headers: z.object({
+            "x-token": z.string().refine(async (token) => token.length >= 3, "Token too short"),
+          }),
+          query: z.object({
+            id: z.string().refine(querySpy, "Id too short"),
+          }),
+        },
+        handler: async () => "ok",
+      });
+
+      it("runs query validation once headers pass", async () => {
+        querySpy.mockClear();
+        const res = await orderingHandler.fetch(
+          toRequest("/?id=123", { headers: { "x-token": "abc" } }),
+        );
+        expect(res.status).toBe(200);
+        expect(querySpy).toHaveBeenCalled();
+      });
+
+      it("skips query validation and reports the headers error when headers fail", async () => {
+        querySpy.mockClear();
+        const res = await orderingHandler.fetch(
+          // query would also be invalid, yet the headers error must surface
+          toRequest("/?id=1", { headers: { "x-token": "ab" } }),
+        );
+        expect(res.status).toBe(400);
+        expect(await res.json()).toMatchObject({
+          data: { issues: [{ path: ["x-token"], message: "Token too short" }] },
+        });
+        expect(querySpy).not.toHaveBeenCalled();
+      });
+    });
   });
 });
 
