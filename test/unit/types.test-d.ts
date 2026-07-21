@@ -9,7 +9,12 @@ import {
   defineValidatedHandler,
   defineWebSocketHandler,
 } from "../../src/index.ts";
-import { defineEventHandler } from "../../src/_deprecated.ts";
+import {
+  appendHeaders,
+  appendResponseHeaders,
+  defineEventHandler,
+  sendRedirect,
+} from "../../src/_deprecated.ts";
 import { z } from "zod";
 
 describe("types", () => {
@@ -235,5 +240,19 @@ describe("routeRules", () => {
       // How rule modules attach matched rules (see Nitro's generated middleware).
       event.context.routeRules = {} as RouteRules;
     });
+  });
+});
+
+describe("deprecated v1 signatures", () => {
+  // The v1 signature took a headers record; the implementation still iterates one
+  // with `Object.entries`, so the declared `string` makes the export uncallable.
+  it("appendResponseHeaders takes a headers record", () => {
+    expectTypeOf(appendResponseHeaders).toBeCallableWith({} as H3Event, { "x-foo": "bar" });
+    expectTypeOf(appendHeaders).toBeCallableWith({} as H3Event, { "x-foo": "bar" });
+  });
+
+  // v1 defaulted to 302 and the delegated `redirect()` still does, so the status is optional.
+  it("sendRedirect leaves the status code optional", () => {
+    expectTypeOf(sendRedirect).toBeCallableWith({} as H3Event, "/target");
   });
 });
