@@ -56,7 +56,7 @@ export function defineHandler(input: EventHandler | EventHandlerObject): EventHa
   );
 }
 
-type StringHeaders<T> = {
+type StringsOnly<T> = {
   [K in keyof T]: Extract<T[K], string>;
 };
 
@@ -82,8 +82,8 @@ export function defineValidatedHandler<
     handler: EventHandler<
       {
         body: InferOutput<RequestBody>;
-        query: StringHeaders<InferOutput<RequestQuery>>;
-        routerParams: StringHeaders<InferOutput<RequestParams>>;
+        query: StringsOnly<InferOutput<RequestQuery>>;
+        routerParams: StringsOnly<InferOutput<RequestParams>>;
       },
       Res
     >;
