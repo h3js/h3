@@ -21,7 +21,15 @@ export function toResponse(
     ) as Promise<Response>;
   }
 
-  const response = prepareResponse(val, event, config);
+  let response: Response | Promise<Response>;
+  try {
+    response = prepareResponse(val, event, config);
+  } catch (error) {
+    // A synchronous throw while preparing the response (e.g. `JSON.stringify` on a
+    // circular value) must not escape as a raw exception/rejection: route it through
+    // the same error pipeline as a thrown/rejected handler value (onError, logging).
+    return toResponse(toError(error), event, config);
+  }
   if (typeof (response as PromiseLike<Response>)?.then === "function") {
     return toResponse(response, event, config);
   }

@@ -291,4 +291,37 @@ describeMatrix("errors", (t, { it, expect, describe }) => {
       expect(error.cause).toMatchObject({ secret: "db-password" });
     });
   });
+
+  // Regression for #1477: a synchronous throw while preparing the response (circular
+  // `JSON.stringify`) must be routed through the same 500 pipeline as any other error,
+  // not escape `fetch()` as a raw exception/rejection.
+  describe("response preparation throws", () => {
+    it("circular return value is rendered as a 500 instead of escaping fetch()", async () => {
+      t.app.use(() => {
+        const circular: any = {};
+        circular.self = circular;
+        return circular;
+      });
+
+      const res = await t.fetch("/");
+      expect(res.status).toBe(500);
+      expect(await res.json()).toMatchObject({ status: 500, unhandled: true });
+      t.errors = [];
+    });
+
+    it("thrown HTTPError with circular data is rendered as a 500 instead of escaping fetch() (no onError)", async () => {
+      // With no `onError` configured, `errorResponse()`'s `JSON.stringify` runs
+      // synchronously in the same pass as the throw (the async/onError branch is not
+      // taken), so this exercises the raw synchronous-escape path directly.
+      t.app.config.onError = undefined;
+      t.app.use(() => {
+        const data: any = {};
+        data.self = data;
+        throw new HTTPError({ status: 400, data });
+      });
+
+      const res = await t.fetch("/");
+      expect(res.status).toBe(500);
+    });
+  });
 });
