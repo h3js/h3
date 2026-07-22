@@ -1,9 +1,9 @@
-import { H3, serve, createEventStream } from "h3";
+import { H3, serve, EventStream } from "h3";
 
 export const app = new H3();
 
 app.get("/", (event) => {
-  const eventStream = createEventStream(event);
+  const eventStream = new EventStream(event);
 
   // Send a message every second
   const interval = setInterval(async () => {
