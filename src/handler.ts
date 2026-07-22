@@ -56,11 +56,31 @@ export function defineHandler(input: EventHandler | EventHandlerObject): EventHa
   );
 }
 
+// Route params and query values are always strings at runtime, so the inferred
+// handler types are narrowed to their string members. A schema that *coerces* a
+// field to a non-string (e.g. `z.coerce.number()`) therefore infers `never` for
+// that field here — the runtime value is coerced but the type cannot represent
+// it yet. Typing coerced params/query is tracked as a follow-up (#1437).
 type StringsOnly<T> = {
   [K in keyof T]: Extract<T[K], string>;
 };
 
 /**
+ * Define an event handler with Standard-Schema validation for `body`, `headers`,
+ * `query`, and route `params`.
+ *
+ * Validation runs sequentially — `params` → `headers` → `query` — and
+ * short-circuits: a failing step throws before later steps run. Body validation
+ * stays lazy and only runs when the handler reads `event.req.json()`.
+ *
+ * Validated `params` are written back to `event.context.params` (the schema
+ * output *replaces* the raw router params, so keys a strict schema strips are
+ * dropped). This side effect is visible to any downstream middleware, response
+ * hooks, or later `getRouterParams(event)` calls.
+ *
+ * Set `validate.decodeParams: true` to `decodeURIComponent`-decode the matched
+ * route params (via {@link getRouterParams}'s `decode`) *before* validation.
+ *
  * @experimental defineValidatedHandler is an experimental feature and API may change.
  */
 export function defineValidatedHandler<
