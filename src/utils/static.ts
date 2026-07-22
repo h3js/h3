@@ -194,19 +194,118 @@ export async function serveStatic(
     event.res.headers.set("content-encoding", meta.encoding);
   }
 
-  if (meta.size !== undefined && meta.size > 0 && !event.res.headers.get("content-length")) {
-    event.res.headers.set("content-length", meta.size + "");
+  // Range requests need a known, whole-asset size to validate/compute against.
+  let range: { start: number; end: number } | undefined;
+  const size = meta.size !== undefined && meta.size > 0 ? meta.size : undefined;
+  if (size !== undefined) {
+    event.res.headers.set("accept-ranges", "bytes");
+    const rangeHeader = event.req.headers.get("range");
+    if (rangeHeader) {
+      const parsed = parseRange(rangeHeader, size);
+      if (parsed === "unsatisfiable") {
+        return new HTTPResponse(null, {
+          status: 416,
+          headers: { "content-range": `bytes */${size}`, "content-length": "0" },
+        });
+      }
+      range = parsed;
+    }
+  }
+
+  if (range) {
+    event.res.headers.set("content-range", `bytes ${range.start}-${range.end}/${size}`);
+    event.res.headers.set("content-length", range.end - range.start + 1 + "");
+  } else if (size !== undefined && !event.res.headers.get("content-length")) {
+    event.res.headers.set("content-length", size + "");
   }
 
   if (event.req.method === "HEAD") {
-    return new HTTPResponse(null, { status: 200 });
+    return new HTTPResponse(null, { status: range ? 206 : 200 });
   }
 
   const contents = await options.getContents(id);
+  if (range) {
+    const sliced = sliceBody(contents, range.start, range.end);
+    if (sliced !== undefined) {
+      return new HTTPResponse(sliced, { status: 206 });
+    }
+    // Content isn't sliceable (e.g. a stream): fall back to a full response.
+    event.res.headers.delete("content-range");
+    event.res.headers.set("content-length", size + "");
+  }
   return new HTTPResponse(contents || null, { status: 200 });
 }
 
 // --- Internal Utils ---
+
+/**
+ * Parse a `range` request header against a known resource size.
+ *
+ * Only a single `bytes=<start>-<end>` range is supported (per the spec, a
+ * multi-range request is one that a server may satisfy by ignoring the header
+ * and returning the full entity instead) — malformed or multi-range headers
+ * return `undefined` so the caller serves the full response. A range that is
+ * out of bounds (start beyond the resource size, or an empty suffix range)
+ * returns `"unsatisfiable"` so the caller can respond with `416`.
+ */
+function parseRange(
+  header: string,
+  size: number,
+): { start: number; end: number } | "unsatisfiable" | undefined {
+  const match = /^bytes=(\d+)?-(\d+)?$/.exec(header.trim());
+  if (!match) {
+    return undefined; // Malformed or multi-range: ignore, serve full response
+  }
+  const [, startStr, endStr] = match;
+  if (startStr === undefined && endStr === undefined) {
+    return undefined;
+  }
+
+  let start: number;
+  let end: number;
+  if (startStr === undefined) {
+    // Suffix range: last `endStr` bytes
+    const suffixLength = Number(endStr);
+    if (suffixLength === 0) {
+      return "unsatisfiable";
+    }
+    start = Math.max(0, size - suffixLength);
+    end = size - 1;
+  } else {
+    start = Number(startStr);
+    end = endStr === undefined ? size - 1 : Number(endStr);
+  }
+
+  if (start > end || start >= size) {
+    return "unsatisfiable";
+  }
+  return { start, end: Math.min(end, size - 1) };
+}
+
+/**
+ * Slice a `BodyInit` to the given inclusive byte range. Returns `undefined`
+ * when the content type can't be sliced without fully buffering it (e.g. a
+ * `ReadableStream`), letting the caller fall back to a full response.
+ */
+function sliceBody(
+  contents: BodyInit | null | undefined,
+  start: number,
+  end: number,
+): BodyInit | undefined {
+  if (typeof contents === "string") {
+    return new TextEncoder().encode(contents).slice(start, end + 1);
+  }
+  if (contents instanceof Blob) {
+    return contents.slice(start, end + 1);
+  }
+  if (contents instanceof ArrayBuffer) {
+    return contents.slice(start, end + 1);
+  }
+  if (contents instanceof Uint8Array) {
+    return contents.slice(start, end + 1);
+  }
+  return undefined;
+}
 
 function parseAcceptEncoding(header?: string, encodingMap?: Record<string, string>): string[] {
   if (!encodingMap || !header) {

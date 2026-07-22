@@ -401,6 +401,179 @@ describeMatrix("serve static MIME types", (t, { it, expect }) => {
   });
 });
 
+describeMatrix("serve static range requests", (t, { it, expect }) => {
+  const content = "0123456789"; // 10 bytes
+
+  beforeEach(() => {
+    const options: ServeStaticOptions = {
+      getContents: vi.fn(() => content),
+      getMeta: vi.fn(() => ({ type: "text/plain", size: content.length })),
+    };
+    t.app.all("/**", (event) => serveStatic(event, options));
+  });
+
+  it("advertises accept-ranges when size is known, even without a Range header", async () => {
+    const res = await t.fetch("/file.txt");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("accept-ranges")).toBe("bytes");
+    expect(await res.text()).toBe(content);
+  });
+
+  it("serves a partial response for a start-end range (GET)", async () => {
+    const res = await t.fetch("/file.txt", { headers: { range: "bytes=2-5" } });
+    expect(res.status).toBe(206);
+    expect(res.headers.get("content-range")).toBe("bytes 2-5/10");
+    expect(res.headers.get("content-length")).toBe("4");
+    expect(await res.text()).toBe("2345");
+  });
+
+  it("serves headers only (no body) for a valid range on HEAD", async () => {
+    const res = await t.fetch("/file.txt", {
+      method: "HEAD",
+      headers: { range: "bytes=2-5" },
+    });
+    expect(res.status).toBe(206);
+    expect(res.headers.get("content-range")).toBe("bytes 2-5/10");
+    expect(res.headers.get("content-length")).toBe("4");
+    expect(await res.text()).toBe("");
+  });
+
+  it("serves an open-ended range (bytes=N-)", async () => {
+    const res = await t.fetch("/file.txt", { headers: { range: "bytes=7-" } });
+    expect(res.status).toBe(206);
+    expect(res.headers.get("content-range")).toBe("bytes 7-9/10");
+    expect(await res.text()).toBe("789");
+  });
+
+  it("serves a suffix range (bytes=-N)", async () => {
+    const res = await t.fetch("/file.txt", { headers: { range: "bytes=-3" } });
+    expect(res.status).toBe(206);
+    expect(res.headers.get("content-range")).toBe("bytes 7-9/10");
+    expect(await res.text()).toBe("789");
+  });
+
+  it("clamps a suffix range larger than the resource to the full body", async () => {
+    const res = await t.fetch("/file.txt", { headers: { range: "bytes=-1000" } });
+    expect(res.status).toBe(206);
+    expect(res.headers.get("content-range")).toBe("bytes 0-9/10");
+    expect(await res.text()).toBe(content);
+  });
+
+  it("clamps an end beyond the resource size", async () => {
+    const res = await t.fetch("/file.txt", { headers: { range: "bytes=5-1000" } });
+    expect(res.status).toBe(206);
+    expect(res.headers.get("content-range")).toBe("bytes 5-9/10");
+    expect(await res.text()).toBe("56789");
+  });
+
+  it("returns 416 when the start is beyond the resource size", async () => {
+    const res = await t.fetch("/file.txt", { headers: { range: "bytes=100-200" } });
+    expect(res.status).toBe(416);
+    expect(res.headers.get("content-range")).toBe("bytes */10");
+    expect(res.headers.get("content-length")).toBe("0");
+  });
+
+  it("returns 416 for a zero-length suffix range (bytes=-0)", async () => {
+    const res = await t.fetch("/file.txt", { headers: { range: "bytes=-0" } });
+    expect(res.status).toBe(416);
+    expect(res.headers.get("content-range")).toBe("bytes */10");
+  });
+
+  it("returns 416 when start is after end", async () => {
+    const res = await t.fetch("/file.txt", { headers: { range: "bytes=5-2" } });
+    expect(res.status).toBe(416);
+  });
+
+  it("ignores a malformed range header and serves the full response", async () => {
+    const res = await t.fetch("/file.txt", { headers: { range: "not-a-range" } });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-range")).toBeNull();
+    expect(await res.text()).toBe(content);
+  });
+
+  it("ignores a multi-range header and serves the full response", async () => {
+    const res = await t.fetch("/file.txt", { headers: { range: "bytes=0-1,3-4" } });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-range")).toBeNull();
+    expect(await res.text()).toBe(content);
+  });
+
+  it("does not advertise accept-ranges or honor Range when size is unknown", async () => {
+    const options: ServeStaticOptions = {
+      getContents: vi.fn(() => content),
+      getMeta: vi.fn(() => ({ type: "text/plain" })),
+    };
+    t.app.all("/nosize/**", (event) => serveStatic(event, options));
+
+    const res = await t.fetch("/nosize/file.txt", { headers: { range: "bytes=2-5" } });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("accept-ranges")).toBeNull();
+    expect(res.headers.get("content-range")).toBeNull();
+    expect(await res.text()).toBe(content);
+  });
+
+  it("slices a Uint8Array response for a range", async () => {
+    const options: ServeStaticOptions = {
+      getContents: vi.fn(() => new TextEncoder().encode(content)),
+      getMeta: vi.fn(() => ({ type: "text/plain", size: content.length })),
+    };
+    t.app.all("/u8/**", (event) => serveStatic(event, options));
+
+    const res = await t.fetch("/u8/file.txt", { headers: { range: "bytes=2-5" } });
+    expect(res.status).toBe(206);
+    expect(res.headers.get("content-range")).toBe("bytes 2-5/10");
+    expect(await res.text()).toBe("2345");
+  });
+
+  it("slices an ArrayBuffer response for a range", async () => {
+    const options: ServeStaticOptions = {
+      getContents: vi.fn(() => new TextEncoder().encode(content).buffer),
+      getMeta: vi.fn(() => ({ type: "text/plain", size: content.length })),
+    };
+    t.app.all("/ab/**", (event) => serveStatic(event, options));
+
+    const res = await t.fetch("/ab/file.txt", { headers: { range: "bytes=2-5" } });
+    expect(res.status).toBe(206);
+    expect(res.headers.get("content-range")).toBe("bytes 2-5/10");
+    expect(await res.text()).toBe("2345");
+  });
+
+  it("slices a Blob response for a range", async () => {
+    const options: ServeStaticOptions = {
+      getContents: vi.fn(() => new Blob([content])),
+      getMeta: vi.fn(() => ({ type: "text/plain", size: content.length })),
+    };
+    t.app.all("/blob/**", (event) => serveStatic(event, options));
+
+    const res = await t.fetch("/blob/file.txt", { headers: { range: "bytes=2-5" } });
+    expect(res.status).toBe(206);
+    expect(res.headers.get("content-range")).toBe("bytes 2-5/10");
+    expect(await res.text()).toBe("2345");
+  });
+
+  it("falls back to a full response when content isn't sliceable (e.g. a stream)", async () => {
+    const options: ServeStaticOptions = {
+      getContents: vi.fn(
+        () =>
+          new ReadableStream({
+            start(controller) {
+              controller.enqueue(new TextEncoder().encode(content));
+              controller.close();
+            },
+          }),
+      ),
+      getMeta: vi.fn(() => ({ type: "text/plain", size: content.length })),
+    };
+    t.app.all("/stream/**", (event) => serveStatic(event, options));
+
+    const res = await t.fetch("/stream/file.txt", { headers: { range: "bytes=2-5" } });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-range")).toBeNull();
+    expect(res.headers.get("content-length")).toBe("10");
+    expect(await res.text()).toBe(content);
+  });
+});
+
 describe("serve static (malformed url)", () => {
   it("falls through on a malformed `%` instead of throwing", async () => {
     // With `allowMalformedURL`, a raw malformed `%` (e.g. `/foo%`) reaches
