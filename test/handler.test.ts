@@ -301,6 +301,79 @@ describe("handler.ts", () => {
         expect(res.status).toBe(500);
       });
     });
+
+    describe("async validation", () => {
+      const asyncHandler = defineValidatedHandler({
+        validate: {
+          body: z.object({
+            name: z.string().refine(async (name) => name !== "banned", "Name is banned"),
+          }),
+          headers: z.object({
+            "x-token": z.string().refine(async (token) => token.length >= 3, "Token too short"),
+          }),
+          query: z.object({
+            id: z.string().refine(async (id) => id.length >= 3, "Id too short"),
+          }),
+        },
+        handler: async (event) => {
+          return { body: await event.req.json() };
+        },
+      });
+
+      it("valid request", async () => {
+        const res = await asyncHandler.fetch(
+          toRequest("/?id=123", {
+            method: "POST",
+            headers: { "x-token": "abc" },
+            body: JSON.stringify({ name: "tommy" }),
+          }),
+        );
+        expect(res.status).toBe(200);
+        expect(await res.json()).toMatchObject({ body: { name: "tommy" } });
+      });
+
+      it("invalid headers", async () => {
+        const res = await asyncHandler.fetch(
+          toRequest("/?id=123", {
+            method: "POST",
+            headers: { "x-token": "ab" },
+            body: JSON.stringify({ name: "tommy" }),
+          }),
+        );
+        expect(res.status).toBe(400);
+        expect(await res.json()).toMatchObject({
+          data: { issues: [{ path: ["x-token"], message: "Token too short" }] },
+        });
+      });
+
+      it("invalid query", async () => {
+        const res = await asyncHandler.fetch(
+          toRequest("/?id=1", {
+            method: "POST",
+            headers: { "x-token": "abc" },
+            body: JSON.stringify({ name: "tommy" }),
+          }),
+        );
+        expect(res.status).toBe(400);
+        expect(await res.json()).toMatchObject({
+          data: { issues: [{ path: ["id"], message: "Id too short" }] },
+        });
+      });
+
+      it("invalid body", async () => {
+        const res = await asyncHandler.fetch(
+          toRequest("/?id=123", {
+            method: "POST",
+            headers: { "x-token": "abc" },
+            body: JSON.stringify({ name: "banned" }),
+          }),
+        );
+        expect(res.status).toBe(400);
+        expect(await res.json()).toMatchObject({
+          data: { issues: [{ path: ["name"], message: "Name is banned" }] },
+        });
+      });
+    });
   });
 });
 

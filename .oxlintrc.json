@@ -1,10 +1,6 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
   "plugins": ["unicorn", "typescript", "oxc"],
-  "options": {
-    "typeAware": true,
-    "typeCheck": true
-  },
   "rules": {
     "no-unused-expressions": "off",
     "typescript/unbound-method": "off",

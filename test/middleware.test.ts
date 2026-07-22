@@ -194,4 +194,22 @@ describeMatrix("middleware", (t, { it, expect }) => {
     expect(res.status).toBe(200);
     expect(res.headers.getSetCookie()).toMatchObject(["session=abc123; Path=/; HttpOnly"]);
   });
+
+  // Regression for #1477: the Uint8Array branch used to set `content-length` on
+  // `event.res.headers` after it had already been cleared, losing the header and
+  // re-populating `event.res`, which a second `toResponse()` pass (e.g. this
+  // `onResponse()` middleware, #1259) would then merge as stale/duplicated headers.
+  it("keeps content-length for a Uint8Array response without duplicating headers (#1477)", async () => {
+    t.app.use(onResponse(() => {}));
+
+    t.app.use((event) => {
+      event.res.headers.append("Set-Cookie", "session=abc123; Path=/; HttpOnly");
+      return new Uint8Array([1, 2, 3]);
+    });
+
+    const res = await t.fetch("/");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-length")).toBe("3");
+    expect(res.headers.getSetCookie()).toMatchObject(["session=abc123; Path=/; HttpOnly"]);
+  });
 });

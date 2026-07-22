@@ -21,10 +21,11 @@ export function sanitizeStatusCode(statusCode?: string | number, defaultStatusCo
   if (typeof statusCode === "string") {
     statusCode = +statusCode;
   }
-  // `+statusCode` yields `NaN` for non-numeric strings, and `NaN` passes the
-  // range check below (every comparison with `NaN` is `false`). Guard against
-  // it so an invalid code can never leak through and break `Response`.
-  if (Number.isNaN(statusCode) || statusCode < 100 || statusCode > 599) {
+  // `Number.isInteger` rejects everything a bare range check would let through: `NaN` (from
+  // `+statusCode` on a non-numeric string), floats, and non-numeric values such as objects or
+  // arrays, whose comparisons are all `false`. Without it an invalid code leaks through and
+  // breaks `Response`.
+  if (!Number.isInteger(statusCode) || statusCode < 100 || statusCode > 599) {
     return defaultStatusCode;
   }
   return statusCode;

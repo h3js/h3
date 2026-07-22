@@ -59,7 +59,7 @@ src/
 ├── event.ts              # H3Event
 ├── handler.ts            # defineHandler, defineValidatedHandler, etc.
 ├── middleware.ts          # Middleware system
-├── response.ts           # toResponse, HTTPResponse, kNotFound, kHandled
+├── response.ts           # toResponse, HTTPResponse
 ├── error.ts              # HTTPError
 ├── adapters.ts           # Web/Node handler adapters
 ├── tracing.ts            # Tracing plugin (separate entry point)
@@ -92,7 +92,7 @@ src/
 │       └── validate.ts
 ├── _entries/             # Platform-specific entry points
 │   ├── generic.ts        # Web Worker / Browser
-│   ├── node.ts           # Node.js (adds serve())
+│   ├── node.ts           # Node.js (adds toNodeHandler)
 │   ├── bun.ts            # Bun
 │   ├── deno.ts           # Deno
 │   ├── cloudflare.ts     # Cloudflare Workers
@@ -208,7 +208,7 @@ pnpm test                                # full: lint + typecheck + coverage
 
 ```
 h3           → auto-resolved by runtime (deno/bun/workerd/node/default)
-h3/node      → Node.js with serve()
+h3/node      → Node.js runtime (adds toNodeHandler)
 h3/bun       → Bun runtime
 h3/deno      → Deno runtime
 h3/cloudflare → Cloudflare Workers

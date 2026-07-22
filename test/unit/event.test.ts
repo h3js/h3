@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { FastURL } from "srvx";
 import { H3Event } from "../../src/event.ts";
+import { getRequestIP } from "../../src/utils/request.ts";
 import { decodePathname } from "../../src/utils/internal/path.ts";
 
 describe("H3Event URL normalization", () => {
@@ -39,6 +40,37 @@ describe("H3Event URL normalization", () => {
     const second = new H3Event(req);
     expect(second.url.pathname).toBe("/a%2541-A");
     expect(((req as any)._url as URL).pathname).toBe("/a%2541-%41");
+  });
+});
+
+describe("H3Event context reference", () => {
+  it("shares one reference with req.context when neither is provided", () => {
+    const req = new Request("http://localhost/");
+    const event = new H3Event(req as any);
+    expect(event.context).toBe(event.req.context);
+  });
+
+  it("shares one reference with req.context when an explicit context is passed", () => {
+    const req = new Request("http://localhost/");
+    const context = {} as any;
+    const event = new H3Event(req as any, context);
+    expect(event.context).toBe(context);
+    expect(event.req.context).toBe(context);
+  });
+
+  it("reuses a pre-populated req.context", () => {
+    const req = new Request("http://localhost/") as any;
+    req.context = { clientAddress: "1.1.1.1" };
+    const event = new H3Event(req);
+    expect(event.context).toBe(req.context);
+    expect(event.context.clientAddress).toBe("1.1.1.1");
+  });
+
+  it("getRequestIP observes clientAddress written to event.context", () => {
+    const req = new Request("http://localhost/");
+    const event = new H3Event(req as any);
+    event.context.clientAddress = "9.9.9.9";
+    expect(getRequestIP(event)).toBe("9.9.9.9");
   });
 });
 

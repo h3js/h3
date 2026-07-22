@@ -10,7 +10,6 @@ export interface StaticAssetMeta {
   type?: string;
   etag?: string;
   mtime?: number | string | Date;
-  path?: string;
   size?: number;
   encoding?: string;
 }
@@ -114,30 +113,8 @@ export async function serveStatic(
     throw new HTTPError({ status: 405 });
   }
 
-  // Resolve `.`/`..` traversal FIRST, then decode, so the on-disk id matches
-  // what `sirv`/`serve-static` serve (a filesystem-backed `getContents` no
-  // longer needs self-decoding logic — e.g. `/50%25.png` finds `50%.png`).
-  //
-  // `event.url.pathname` is already decoded once by the event layer
-  // (`decodePathname`, a single `decodeURI` that preserves `%25`), and
-  // `resolveDotSegments` neutralizes every traversal escape (literal `../`,
-  // `..\`, and `%2e`-encoded dot segments at any `%25`-nesting depth). Only
-  // then do we `decodeURI` to peel one `%25` level (`%25` → `%`) for the
-  // lookup. This never reintroduces a separator: `decodeURI` preserves `%2f`
-  // (reserved), and a single-encoded `%5c` can't reach here — the event layer
-  // already decoded it to `\` and `resolveDotSegments` normalized that away, so
-  // only a double-encoded `%255c` survives and `decodeURI` collapses it to a
-  // literal `%5c`, not a raw `\`.
-  //
-  // The final decode is guarded: with `allowMalformedURL`, a raw malformed `%`
-  // (e.g. `/foo%`, `/%ZZ`) reaches here and `decodeURI` throws — fall back to
-  // the traversal-resolved (still-safe) value so `fallthrough`/404 handling is
-  // reached instead of a 500. A `%`-free path (the common case) skips the
-  // decode entirely, matching the fast-path guards at the event layer and in
-  // `resolveDotSegments`.
-  // Strip the trailing slash AFTER resolving: a trailing `.`/`..` now resolves
-  // to a directory-form path (`/a/b/..` -> `/a/`), and the on-disk id must stay
-  // slash-free either way.
+  // Resolve traversal first, then peel one `%25` level for the on-disk lookup
+  // (guarded: malformed `%` falls back to the safe traversal-resolved value).
   const resolvedId = withoutTrailingSlash(resolveDotSegments(event.url.pathname));
   let originalId = resolvedId;
   if (resolvedId.includes("%")) {
@@ -181,10 +158,8 @@ export async function serveStatic(
   let mtimeDate: Date | undefined;
   if (meta.mtime) {
     mtimeDate = new Date(meta.mtime);
-    // HTTP dates have whole-second precision, but `mtime` may carry sub-second
-    // milliseconds. The `last-modified` header is emitted truncated to seconds,
-    // so the comparison must also ignore milliseconds — otherwise a client that
-    // echoes our own `last-modified` value in `if-modified-since` never matches.
+    // Truncate to whole seconds to match HTTP date precision, so a client
+    // echoing our `last-modified` in `if-modified-since` still matches.
     mtimeDate.setMilliseconds(0);
 
     if (!event.res.headers.get("last-modified")) {

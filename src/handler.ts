@@ -1,7 +1,7 @@
 import type { ServerRequest } from "srvx";
 import { H3Event } from "./event.ts";
 import { composeHandler } from "./middleware.ts";
-import { toResponse } from "./response.ts";
+import { toError, toResponse } from "./response.ts";
 
 import type {
   EventHandler,
@@ -84,9 +84,9 @@ export function defineValidatedHandler<
   }
   return defineHandler({
     ...def,
-    handler: function _validatedHandler(event) {
-      (event as any) /* readonly */.req = validatedRequest(event.req, def.validate!);
-      (event as any) /* readonly */.url = validatedURL(event.url, def.validate!);
+    handler: async function _validatedHandler(event) {
+      (event as any) /* readonly */.req = await validatedRequest(event.req, def.validate!);
+      (event as any) /* readonly */.url = await validatedURL(event.url, def.validate!);
       return def.handler(event as any);
     },
   }) as any;
@@ -113,7 +113,7 @@ function handlerWithFetch<
       try {
         return Promise.resolve(toResponse(handler(event), event));
       } catch (error: any) {
-        return Promise.resolve(toResponse(error, event));
+        return Promise.resolve(toResponse(toError(error), event));
       }
     },
   });

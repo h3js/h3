@@ -1,8 +1,9 @@
 import { vi } from "vitest";
-import { HTTPError } from "../src/index.ts";
+import { runInNewContext } from "node:vm";
+import { H3, HTTPError } from "../src/index.ts";
 import { describeMatrix } from "./_setup.ts";
 
-describeMatrix("errors", (t, { it, expect }) => {
+describeMatrix("errors", (t, { it, expect, describe }) => {
   const consoleMock = ((globalThis.console.error as any) = vi.fn());
 
   it("throw HTTPError", async () => {
@@ -182,5 +183,164 @@ describeMatrix("errors", (t, { it, expect }) => {
     const res = await t.fetch("/");
     expect(res.status).toBe(200);
     expect(await res.json()).toBe(404);
+  });
+
+  describe("non-Error throws", () => {
+    it("throw object does not leak into the response body", async () => {
+      t.app.use(() => {
+        throw { secret: "db-password", message: "internal detail", status: 403 };
+      });
+      const res = await t.fetch("/");
+      // A non-Error object is always an unhandled 500; nothing on it shapes the response
+      expect(res.status).toBe(500);
+      const body = await res.text();
+      expect(body).not.toContain("db-password");
+      expect(body).not.toContain("internal detail");
+      expect(JSON.parse(body)).toMatchObject({ status: 500, unhandled: true });
+
+      expect(t.errors[0].unhandled).toBe(true);
+      expect(t.errors[0].cause).toMatchObject({ secret: "db-password" });
+      t.errors = [];
+    });
+
+    // A non-Error object is never trusted to shape the response, not even via a `status` shorthand
+    // (unlike `throw 404`). `status` / `statusCode` / `statusText` / `headers` are all dropped.
+    it("status on a thrown object is never honored", async () => {
+      const shapes = [
+        { status: 403 },
+        { statusCode: 429 },
+        { status: 400, statusText: "Leaky Status Text" },
+      ];
+      for (const [i, shape] of shapes.entries()) {
+        t.app.get(`/shape-${i}`, () => {
+          throw shape;
+        });
+        const res = await t.fetch(`/shape-${i}`);
+        expect(res.status).toBe(500);
+        expect(res.statusText).not.toBe("Leaky Status Text");
+      }
+      t.errors = [];
+    });
+
+    it("throw async object does not leak into the response body", async () => {
+      t.app.use(async () => {
+        throw { secret: "db-password" };
+      });
+      const res = await t.fetch("/");
+      expect(res.status).toBe(500);
+      expect(await res.text()).not.toContain("db-password");
+      t.errors = [];
+    });
+
+    it("throw string", async () => {
+      t.app.use(() => {
+        throw "not-an-error";
+      });
+      const res = await t.fetch("/");
+      expect(res.status).toBe(500);
+      expect(await res.text()).not.toContain("not-an-error");
+      t.errors = [];
+    });
+
+    it("throw undefined", async () => {
+      t.app.use(() => {
+        throw undefined;
+      });
+      const res = await t.fetch("/");
+      expect(res.status).toBe(500);
+      expect(await res.json()).toMatchObject({ status: 500, unhandled: true });
+      t.errors = [];
+    });
+
+    it("thrown object cannot forge response headers", async () => {
+      t.app.use(() => {
+        throw { headers: { "x-forged": "1" } };
+      });
+      const res = await t.fetch("/");
+      expect(res.status).toBe(500);
+      expect(res.headers.get("x-forged")).toBe(null);
+      t.errors = [];
+    });
+
+    // `toError` must use the same `instanceof Error` check as `prepareResponse`. A broader check
+    // (e.g. `Error.isError`) would pass this through, only for `prepareResponse` to reject it and
+    // render it as a successful body again.
+    it("cross-realm error is not rendered as a body", async () => {
+      const foreign = runInNewContext(`new Error("cross-realm secret")`);
+      t.app.use(() => {
+        throw foreign;
+      });
+      const res = await t.fetch("/");
+      expect(res.status).toBe(500);
+      expect(await res.text()).not.toContain("cross-realm secret");
+      t.errors = [];
+    });
+
+    it("onError receives the wrapped error", async () => {
+      const onError = vi.fn();
+      const app = new H3({ onError, silent: true });
+      app.use(() => {
+        throw { secret: "db-password" };
+      });
+      const res = await app.request("/");
+      expect(res.status).toBe(500);
+      expect(onError).toHaveBeenCalledTimes(1);
+      const error = onError.mock.calls[0][0];
+      expect(HTTPError.isError(error)).toBe(true);
+      expect(error.unhandled).toBe(true);
+      expect(error.cause).toMatchObject({ secret: "db-password" });
+    });
+  });
+
+  // Regression for #1477: a synchronous throw while preparing the response (circular
+  // `JSON.stringify`) must be routed through the same 500 pipeline as any other error,
+  // not escape `fetch()` as a raw exception/rejection.
+  describe("response preparation throws", () => {
+    it("circular return value is rendered as a 500 instead of escaping fetch()", async () => {
+      t.app.use(() => {
+        const circular: any = {};
+        circular.self = circular;
+        return circular;
+      });
+
+      const res = await t.fetch("/");
+      expect(res.status).toBe(500);
+      expect(await res.json()).toMatchObject({ status: 500, unhandled: true });
+      t.errors = [];
+    });
+
+    it("thrown HTTPError with circular data is rendered as a 500 instead of escaping fetch() (no onError)", async () => {
+      // With no `onError` configured, `errorResponse()`'s `JSON.stringify` runs
+      // synchronously in the same pass as the throw (the async/onError branch is not
+      // taken), so this exercises the raw synchronous-escape path directly.
+      t.app.config.onError = undefined;
+      t.app.use(() => {
+        const data: any = {};
+        data.self = data;
+        throw new HTTPError({ status: 400, data });
+      });
+
+      const res = await t.fetch("/");
+      expect(res.status).toBe(500);
+    });
+  });
+
+  // Regression for #1503 (CodeRabbit): a synchronously-throwing `onError` hook must not
+  // recurse infinitely. `Promise.resolve(onError(error, event))` evaluates the call before
+  // wrapping it in a promise, so a sync throw there escaped `prepareResponse()` synchronously.
+  // That was caught by `toResponse()`'s try/catch (added for #1477) and re-entered
+  // `toResponse` with `nested` reset to `false` — calling the same throwing `onError` again,
+  // forever (stack overflow instead of a normalized 500).
+  it("a synchronously-throwing onError does not recurse infinitely", async () => {
+    t.app.config.onError = () => {
+      throw new Error("onError boom");
+    };
+    t.app.use(() => {
+      throw new Error("handler boom");
+    });
+
+    const res = await t.fetch("/");
+    expect(res.status).toBe(500);
+    expect(await res.json()).toMatchObject({ status: 500, unhandled: true });
   });
 });

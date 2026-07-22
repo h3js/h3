@@ -75,7 +75,7 @@ export async function validateData<T>(
 // prettier-ignore
 const reqBodyKeys = /* @__PURE__ */ new Set(["body", "text", "formData", "arrayBuffer"]);
 
-export function validatedRequest<
+export async function validatedRequest<
   RequestBody extends StandardSchemaV1,
   RequestHeaders extends StandardSchemaV1,
 >(
@@ -85,10 +85,10 @@ export function validatedRequest<
     headers?: RequestHeaders;
     onError?: OnValidateError;
   },
-): ServerRequest {
+): Promise<ServerRequest> {
   // Validate Headers
   if (validate.headers) {
-    const validatedheaders = syncValidate(
+    const validatedheaders = await validateSource(
       "headers",
       Object.fromEntries(req.headers.entries()),
       validate.headers as StandardSchemaV1<Record<string, string>>,
@@ -113,7 +113,12 @@ export function validatedRequest<
         return function _validatedJson() {
           return req
             .json()
-            .catch(() => {
+            .catch((error: unknown) => {
+              // Keep a real `HTTPError` (e.g. the `413` from an aborted
+              // body-limit stream) instead of masking it as `400`.
+              if (HTTPError.isError(error)) {
+                throw error;
+              }
               throw new HTTPError({
                 status: 400,
                 statusText: "Bad Request",
@@ -144,18 +149,18 @@ export function validatedRequest<
   });
 }
 
-export function validatedURL(
+export async function validatedURL(
   url: URL,
   validate: {
     query?: StandardSchemaV1;
     onError?: OnValidateError;
   },
-): URL {
+): Promise<URL> {
   if (!validate.query) {
     return url;
   }
 
-  const validatedQuery = syncValidate(
+  const validatedQuery = await validateSource(
     "query",
     Object.fromEntries(url.searchParams.entries()),
     validate.query as StandardSchemaV1<Record<string, string>>,
@@ -169,16 +174,13 @@ export function validatedURL(
   return url;
 }
 
-function syncValidate<Source extends "headers" | "query", T = unknown>(
+async function validateSource<Source extends "headers" | "query", T = unknown>(
   source: Source,
   data: unknown,
   fn: StandardSchemaV1<T>,
   onError?: OnValidateError,
-): T {
-  const result = fn["~standard"].validate(data);
-  if (result instanceof Promise) {
-    throw new TypeError(`Asynchronous validation is not supported for ${source}`);
-  }
+): Promise<T> {
+  const result = await fn["~standard"].validate(data);
   if (result.issues) {
     throw createValidationError(
       onError?.({ _source: source, ...result }) || {

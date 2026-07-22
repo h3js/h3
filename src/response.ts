@@ -17,24 +17,38 @@ export function toResponse(
   if (typeof (val as PromiseLike<unknown>)?.then === "function") {
     return (val as Promise<unknown>).then(
       (resolvedVal) => toResponse(resolvedVal, event, config),
-      (r) => toResponse(typeof r === "number" ? new HTTPError({ status: r }) : r, event, config),
+      (r) => toResponse(toError(r), event, config),
     ) as Promise<Response>;
   }
 
-  const response = prepareResponse(val, event, config);
+  let response: Response | Promise<Response>;
+  try {
+    response = prepareResponse(val, event, config);
+  } catch (error) {
+    return toResponse(toError(error), event, config);
+  }
   if (typeof (response as PromiseLike<Response>)?.then === "function") {
     return toResponse(response, event, config);
   }
 
   const { onResponse } = config;
   if (onResponse) {
-    return Promise.resolve(onResponse(response as Response, event)).then(
-      () =>
-        ((event as any)[kEventDispose] as DisposeState | undefined)?.observe(
-          response as Response,
-          val,
-        ) ?? (response as Response),
-    );
+    // onResponse is a terminal side-effect hook (returns void). A throw/rejection here must not
+    // escape the lifecycle (onError already ran); absorb and log it (consistent with dispose
+    // callbacks), then still return the already-built response. The hook is invoked inside `.then`
+    // so a synchronous throw is caught too (not just a rejected promise).
+    return Promise.resolve()
+      .then(() => onResponse(response as Response, event))
+      .catch((error) => {
+        if (!config.silent) console.error(error);
+      })
+      .then(
+        () =>
+          ((event as any)[kEventDispose] as DisposeState | undefined)?.observe(
+            response as Response,
+            val,
+          ) ?? (response as Response),
+      );
   }
   return (
     ((event as any)[kEventDispose] as DisposeState | undefined)?.observe(
@@ -42,6 +56,29 @@ export function toResponse(
       val,
     ) ?? (response as Response)
   );
+}
+
+/**
+ * Normalize a thrown or rejected value before rendering it as a response.
+ *
+ * Errors and the internal sentinels are passed through, and numbers are coerced to a status code
+ * (`throw 404`). Anything else — an object, a string, `undefined` — is wrapped into an unhandled
+ * 500, so it is logged instead of being rendered as a successful response body.
+ *
+ * Nothing is taken from the thrown value: `status`, `message`, `data`, `statusText` and `headers`
+ * are all dropped, and the value is kept as `cause`, which is never serialized. A non-Error object
+ * is never trusted to shape the response, not even via a `status` shorthand.
+ */
+export function toError(value: unknown): unknown {
+  if (value === kNotFound || value === kHandled || value instanceof Error) {
+    return value;
+  }
+  if (typeof value === "number") {
+    return new HTTPError({ status: value });
+  }
+  const error = new HTTPError({ status: 500, unhandled: true });
+  (error as { cause: unknown }).cause = value;
+  return error;
 }
 
 export class HTTPResponse {
@@ -99,7 +136,8 @@ function prepareResponse(
     const { onError } = config;
     const errHeaders: Headers | undefined = (event as any)[kEventRes]?.[kEventResErrHeaders];
     return onError && !nested
-      ? Promise.resolve(onError(error, event))
+      ? Promise.resolve()
+          .then(() => onError(error, event))
           .catch((error) => error)
           .then((newVal) => prepareResponse(newVal ?? val, event, config, true))
       : errorResponse(error, config.debug, errHeaders);
@@ -216,8 +254,12 @@ function prepareResponseBody(
 
   // Buffer (should be before JSON)
   if (val instanceof Uint8Array) {
-    event.res.headers.set("content-length", val.byteLength.toString());
-    return { body: val as BufferSource };
+    // Set on the returned headers, not `event.res` (already cleared by the caller):
+    // writing to `event.res.headers` here would recreate it post-clear and be discarded.
+    return {
+      body: val as BufferSource,
+      headers: new Headers({ "content-length": val.byteLength.toString() }),
+    };
   }
 
   // Partial Response
