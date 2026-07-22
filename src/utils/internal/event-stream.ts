@@ -1,15 +1,20 @@
 import type { H3Event } from "../../event.ts";
 import type { EventStreamMessage, EventStreamOptions } from "../event-stream.ts";
+import { HTTPResponse } from "../../response.ts";
 import { onDispose } from "./dispose.ts";
 
 const _noop = () => {};
 
 /**
  * A helper class for [server sent events](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events#event_stream_format)
+ *
+ * Extends {@link HTTPResponse} so it can be returned directly from a handler
+ * (`return eventStream`) — `toResponse` already renders any `HTTPResponse` as
+ * the response, streaming the readable side with the SSE headers below.
  */
-export class EventStream {
+export class EventStream extends HTTPResponse {
   private readonly _event: H3Event;
-  private readonly _transformStream = new TransformStream();
+  private readonly _transformStream: TransformStream;
   private readonly _writer: WritableStreamDefaultWriter;
   private readonly _encoder: TextEncoder = new TextEncoder();
 
@@ -19,15 +24,20 @@ export class EventStream {
   private _paused = false;
   private _unsentData: undefined | string;
   private _disposed = false;
-  private _handled = false;
 
   private get _isClosed(): boolean {
     return this._writerIsClosed || this._disposed;
   }
 
   constructor(event: H3Event, _opts: EventStreamOptions = {}) {
+    // The transform stream must exist before `super()` so the readable side can
+    // be handed to HTTPResponse as the body; a field initializer would run after
+    // super() and replace it with a different stream, orphaning that body.
+    const transformStream = new TransformStream();
+    super(transformStream.readable, { status: 200, headers: eventStreamHeaders(event) });
     this._event = event;
-    this._writer = this._transformStream.writable.getWriter();
+    this._transformStream = transformStream;
+    this._writer = transformStream.writable.getWriter();
     // `closed` rejects when the readable side is cancelled (client disconnect)
     // and resolves on a graceful `close()`. Both mean the stream is over.
     this._writer.closed.catch(_noop).finally(() => {
@@ -184,10 +194,16 @@ export class EventStream {
     this._closeCallbacks.push(cb);
   }
 
+  /**
+   * Return the readable side of the stream, staging the SSE headers on the event.
+   *
+   * @deprecated Return the stream itself instead (`return eventStream`) — it
+   * carries the same headers via {@link HTTPResponse}. Kept for compatibility
+   * with the `return eventStream.send()` pattern.
+   */
   async send(): Promise<BodyInit> {
     setEventStreamHeaders(this._event);
     this._event.res.status = 200;
-    this._handled = true;
     return this._transformStream.readable;
   }
 }
@@ -252,16 +268,21 @@ export function formatEventStreamMessages(messages: EventStreamMessage[]): strin
   return result;
 }
 
-export function setEventStreamHeaders(event: H3Event): void {
-  event.res.headers.set("content-type", "text/event-stream");
-  event.res.headers.set(
-    "cache-control",
-    "private, no-cache, no-store, no-transform, must-revalidate, max-age=0",
-  );
-  // prevent nginx from buffering the response
-  event.res.headers.set("x-accel-buffering", "no");
-
+export function eventStreamHeaders(event: H3Event): Record<string, string> {
+  const headers: Record<string, string> = {
+    "content-type": "text/event-stream",
+    "cache-control": "private, no-cache, no-store, no-transform, must-revalidate, max-age=0",
+    // prevent nginx from buffering the response
+    "x-accel-buffering": "no",
+  };
   if (event.req.headers.get("connection") === "keep-alive") {
-    event.res.headers.set("connection", "keep-alive");
+    headers["connection"] = "keep-alive";
+  }
+  return headers;
+}
+
+export function setEventStreamHeaders(event: H3Event): void {
+  for (const [name, value] of Object.entries(eventStreamHeaders(event))) {
+    event.res.headers.set(name, value);
   }
 }

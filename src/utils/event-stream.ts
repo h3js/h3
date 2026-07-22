@@ -43,7 +43,7 @@ export interface EventStreamMessage {
  *     await eventStream.close();
  *   });
  *
- *   return eventStream.send();
+ *   return eventStream;
  * });
  * ```
  */

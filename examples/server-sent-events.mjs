@@ -16,7 +16,7 @@ app.get("/", (event) => {
     clearInterval(interval);
   });
 
-  return eventStream.send();
+  return eventStream;
 });
 
 serve(app);
