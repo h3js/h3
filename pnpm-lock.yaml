@@ -12,8 +12,8 @@ importers:
         specifier: ^0.9.1
         version: 0.9.1
       srvx:
-        specifier: ^0.12.1
-        version: 0.12.1
+        specifier: ^0.12.3
+        version: 0.12.3
     devDependencies:
       '@happy-dom/global-registrator':
         specifier: ^20.11.0
@@ -56,7 +56,7 @@ importers:
         version: 3.1.1
       crossws:
         specifier: ^0.4.10
-        version: 0.4.10(srvx@0.12.1)
+        version: 0.4.10(srvx@0.12.3)
       elysia:
         specifier: ^1.4.29
         version: 1.4.29(@sinclair/typebox@0.34.52)(exact-mirror@1.2.2)(file-type@22.0.1(supports-color@7.2.0))(openapi-types@12.1.3)(typescript@7.0.2)
@@ -77,7 +77,7 @@ importers:
         version: 'link:'
       h3-nightly:
         specifier: latest
-        version: 2.0.0-20260722-095913-dff245a(crossws@0.4.10(srvx@0.12.1))
+        version: 2.0.0-20260722-142733-4a32c1b(crossws@0.4.10(srvx@0.12.3))
       happy-dom:
         specifier: ^20.11.0
         version: 20.11.0
@@ -131,13 +131,13 @@ importers:
     dependencies:
       h3:
         specifier: latest
-        version: 2.0.1-rc.25(crossws@0.4.10(srvx@0.12.1))
+        version: 2.0.1-rc.25(crossws@0.4.10(srvx@0.12.3))
 
   playground:
     dependencies:
       h3:
         specifier: ^2.0.1-rc.13
-        version: 2.0.1-rc.25(crossws@0.4.10(srvx@0.12.1))
+        version: 2.0.1-rc.25(crossws@0.4.10(srvx@0.12.3))
 
 packages:
 
@@ -1778,8 +1778,8 @@ packages:
     resolution: {integrity: sha512-ZUKRh6/kUFoAiTAtTYPZJ3hw9wNxx+BIBOijnlG9PnrJsCcSjs1wyyD6vJpaYtgnzDrKYRSqf3OO6Rfa93xsRg==}
     engines: {node: '>= 0.4'}
 
-  h3-nightly@2.0.0-20260722-095913-dff245a:
-    resolution: {integrity: sha512-u1Ny8tcxK/pr0Bb4wIp+dwrgT9kasYeBHSuUooSwnDzKlClrBEhwHbF3RFGiahTxNNYndZ+wQ36yP7iLHBSyiw==}
+  h3-nightly@2.0.0-20260722-142733-4a32c1b:
+    resolution: {integrity: sha512-3d60GRJalcIhp2uHycjxeCLt5ChfWtvc29TsqolzNaGI7kJRisiHnSgs9syxOfDIpFOAv2VSNeB8j7/+dmMPXw==}
     engines: {node: '>=20.11.1'}
     hasBin: true
     peerDependencies:
@@ -2273,6 +2273,11 @@ packages:
 
   srvx@0.12.1:
     resolution: {integrity: sha512-3+8b3A/32m5fmUncipelbvubkXfg5m6eaOGAKMbOA5ZaNFcCWjGEcrzsLW3Cwgik1e2L9ImSuQiJ5AQthH27ag==}
+    engines: {node: '>=20.16.0'}
+    hasBin: true
+
+  srvx@0.12.3:
+    resolution: {integrity: sha512-C2hCXJK1Bn6Na6lQFWbu9Ywum4pAWwHnUEPr2UDpZHWJz1Qy5vH4Nln+rmVnYsds89BCxE4dsxlW1aYl5EEM5w==}
     engines: {node: '>=20.16.0'}
     hasBin: true
 
@@ -3451,9 +3456,9 @@ snapshots:
 
   cookie@1.1.1: {}
 
-  crossws@0.4.10(srvx@0.12.1):
+  crossws@0.4.10(srvx@0.12.3):
     optionalDependencies:
-      srvx: 0.12.1
+      srvx: 0.12.3
 
   csstype@3.2.3: {}
 
@@ -3687,19 +3692,19 @@ snapshots:
 
   gopd@1.2.0: {}
 
-  h3-nightly@2.0.0-20260722-095913-dff245a(crossws@0.4.10(srvx@0.12.1)):
+  h3-nightly@2.0.0-20260722-142733-4a32c1b(crossws@0.4.10(srvx@0.12.3)):
     dependencies:
       rou3: 0.9.1
-      srvx: 0.11.22
+      srvx: 0.12.1
     optionalDependencies:
-      crossws: 0.4.10(srvx@0.12.1)
+      crossws: 0.4.10(srvx@0.12.3)
 
-  h3@2.0.1-rc.25(crossws@0.4.10(srvx@0.12.1)):
+  h3@2.0.1-rc.25(crossws@0.4.10(srvx@0.12.3)):
     dependencies:
       rou3: 0.9.1
       srvx: 0.11.22
     optionalDependencies:
-      crossws: 0.4.10(srvx@0.12.1)
+      crossws: 0.4.10(srvx@0.12.3)
 
   happy-dom@20.11.0:
     dependencies:
@@ -4238,6 +4243,8 @@ snapshots:
   srvx@0.11.22: {}
 
   srvx@0.12.1: {}
+
+  srvx@0.12.3: {}
 
   stackback@0.0.2: {}
 

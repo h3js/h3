@@ -23,8 +23,12 @@ describe("body limit (unit)", () => {
 
   const expectTooLarge = async (promise: Promise<unknown>) => {
     const error = await rejectionOf(promise);
-    expect(error).toBeInstanceOf(HTTPError);
-    expect((error as HTTPError).status).toBe(413);
+    // A deferred (mid-stream) overflow surfaces as srvx's canonical body-limit
+    // error (`ERR_BODY_TOO_LARGE`, `413`); h3 maps it to a `413` response at the
+    // read/response boundary. The synchronous fail-fast paths below still throw
+    // an h3 `HTTPError`.
+    expect((error as { code?: string })?.code).toBe("ERR_BODY_TOO_LARGE");
+    expect((error as { status?: number })?.status).toBe(413);
   };
 
   describe("assertBodySize", () => {

@@ -18,8 +18,10 @@ describe("benchmark", () => {
     if (process.env.DEBUG) {
       console.log(`Bundle size (H3): ${bundle.bytes} (gzip: ${bundle.gzipSize})`);
     }
+    // Guardrails include the `ERR_BODY_TOO_LARGE` -> handled-413 check in the
+    // `toResponse` error path (body-limit streaming enforcement).
     expect(bundle.bytes).toBeLessThanOrEqual(18_400); // <18.4kb
-    expect(bundle.gzipSize).toBeLessThanOrEqual(6_950); // <6.95kb
+    expect(bundle.gzipSize).toBeLessThanOrEqual(7_000); // <7kb
   });
 
   it("bundle size (H3Core)", async () => {
@@ -34,8 +36,8 @@ describe("benchmark", () => {
     if (process.env.DEBUG) {
       console.log(`Bundle size (H3Core): ${bundle.bytes} (gzip: ${bundle.gzipSize})`);
     }
-    expect(bundle.bytes).toBeLessThanOrEqual(7600); // <7.6kb
-    expect(bundle.gzipSize).toBeLessThanOrEqual(3000); // <3kb
+    expect(bundle.bytes).toBeLessThanOrEqual(7650); // <7.65kb
+    expect(bundle.gzipSize).toBeLessThanOrEqual(3050); // <3.05kb
   });
 
   it("bundle size (defineHandler)", async () => {
@@ -50,8 +52,8 @@ describe("benchmark", () => {
     if (process.env.DEBUG) {
       console.log(`Bundle size (defineHandler): ${bundle.bytes} (gzip: ${bundle.gzipSize})`);
     }
-    expect(bundle.bytes).toBeLessThanOrEqual(6700); // <6.7kb
-    expect(bundle.gzipSize).toBeLessThanOrEqual(2700); // <2.7kb
+    expect(bundle.bytes).toBeLessThanOrEqual(6750); // <6.75kb
+    expect(bundle.gzipSize).toBeLessThanOrEqual(2750); // <2.75kb
   });
 });
 
