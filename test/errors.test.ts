@@ -191,68 +191,35 @@ describeMatrix("errors", (t, { it, expect, describe }) => {
         throw { secret: "db-password", message: "internal detail", status: 403 };
       });
       const res = await t.fetch("/");
-      // Explicit status is honored, everything else on the thrown value is dropped
-      expect(res.status).toBe(403);
+      // A non-Error object is always an unhandled 500; nothing on it shapes the response
+      expect(res.status).toBe(500);
       const body = await res.text();
       expect(body).not.toContain("db-password");
       expect(body).not.toContain("internal detail");
-      expect(JSON.parse(body)).toMatchObject({ status: 403, message: "HTTPError 403" });
+      expect(JSON.parse(body)).toMatchObject({ status: 500, unhandled: true });
 
+      expect(t.errors[0].unhandled).toBe(true);
       expect(t.errors[0].cause).toMatchObject({ secret: "db-password" });
-    });
-
-    // `throw { status }` is the object form of the `throw 404` shorthand from #1372, so it is
-    // treated as deliberate too: same status, and not reported as an unhandled error.
-    it("throw { status } matches throw <number>", async () => {
-      consoleMock.mockReset();
-      t.app.get("/number", () => {
-        throw 404;
-      });
-      t.app.get("/object", () => {
-        throw { status: 404 };
-      });
-
-      const fromNumber = await t.fetch("/number");
-      const fromObject = await t.fetch("/object");
-
-      // `stack` differs by throw site, the rest of the rendered error must match
-      const body = async (res: Response) => {
-        const { stack: _stack, ...rest } = await res.json();
-        return rest;
-      };
-      expect(fromObject.status).toBe(fromNumber.status);
-      expect(await body(fromObject)).toEqual(await body(fromNumber));
-      expect(t.errors.some((error) => error.unhandled)).toBe(false);
-      expect(console.error).not.toBeCalled();
-    });
-
-    it("honors deprecated statusCode on the thrown value", async () => {
-      t.app.use(() => {
-        throw { statusCode: 429 };
-      });
-      const res = await t.fetch("/");
-      expect(res.status).toBe(429);
-    });
-
-    it("invalid status falls back to 500", async () => {
-      const invalid = [999, -1, 0, "abc", Number.NaN, null, { nested: true }];
-      for (const [i, status] of invalid.entries()) {
-        t.app.get(`/invalid-${i}`, () => {
-          throw { status };
-        });
-        const res = await t.fetch(`/invalid-${i}`);
-        expect(`${status} → ${res.status}`).toBe(`${status} → 500`);
-      }
       t.errors = [];
     });
 
-    it("thrown object cannot forge statusText", async () => {
-      t.app.use(() => {
-        throw { status: 400, statusText: "Leaky Status Text" };
-      });
-      const res = await t.fetch("/");
-      expect(res.status).toBe(400);
-      expect(res.statusText).not.toBe("Leaky Status Text");
+    // A non-Error object is never trusted to shape the response, not even via a `status` shorthand
+    // (unlike `throw 404`). `status` / `statusCode` / `statusText` / `headers` are all dropped.
+    it("status on a thrown object is never honored", async () => {
+      const shapes = [
+        { status: 403 },
+        { statusCode: 429 },
+        { status: 400, statusText: "Leaky Status Text" },
+      ];
+      for (const [i, shape] of shapes.entries()) {
+        t.app.get(`/shape-${i}`, () => {
+          throw shape;
+        });
+        const res = await t.fetch(`/shape-${i}`);
+        expect(res.status).toBe(500);
+        expect(res.statusText).not.toBe("Leaky Status Text");
+      }
+      t.errors = [];
     });
 
     it("throw async object does not leak into the response body", async () => {

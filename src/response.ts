@@ -1,7 +1,6 @@
 import { FastResponse } from "srvx";
 import { HTTPError } from "./error.ts";
 import { isJSONSerializable } from "./utils/internal/object.ts";
-import { sanitizeStatusCode } from "./utils/sanitize.ts";
 
 import type { H3Config } from "./types/h3.ts";
 import { kEventRes, kEventResHeaders, kEventResErrHeaders, type H3Event } from "./event.ts";
@@ -36,14 +35,12 @@ export function toResponse(
  * Normalize a thrown or rejected value before rendering it as a response.
  *
  * Errors and the internal sentinels are passed through, and numbers are coerced to a status code
- * (`throw 404`). An object carrying a valid `status` (or the deprecated `statusCode`) is treated
- * as the same deliberate shorthand, so `throw { status: 404 }` matches `throw 404`.
+ * (`throw 404`). Anything else — an object, a string, `undefined` — is wrapped into an unhandled
+ * 500, so it is logged instead of being rendered as a successful response body.
  *
- * Anything else — no status, an invalid one, or a non-object such as a string — is wrapped into an
- * unhandled 500, so it is logged instead of being rendered as a successful response body.
- *
- * Only the status is ever taken from the thrown value: `message`, `data`, `statusText` and
- * `headers` are dropped, and the value is kept as `cause`, which is never serialized.
+ * Nothing is taken from the thrown value: `status`, `message`, `data`, `statusText` and `headers`
+ * are all dropped, and the value is kept as `cause`, which is never serialized. A non-Error object
+ * is never trusted to shape the response, not even via a `status` shorthand.
  */
 export function toError(value: unknown): unknown {
   if (value instanceof Error || value === kHandled || value === kNotFound) {
@@ -52,13 +49,7 @@ export function toError(value: unknown): unknown {
   if (typeof value === "number") {
     return new HTTPError({ status: value });
   }
-  const thrown = value as { status?: number; statusCode?: number } | undefined;
-  // Read explicitly instead of letting the constructor pick the status up from `cause`. Unlike the
-  // `Error` branch of `prepareResponse`, the thrown value is not trusted here: the constructor also
-  // falls back to the cause's `statusText` and `headers`, which would let an arbitrary thrown value
-  // shape the response (and would nest the value under `cause.cause`).
-  const status = sanitizeStatusCode(thrown?.status ?? thrown?.statusCode, 0);
-  const error = new HTTPError(status ? { status } : { status: 500, unhandled: true });
+  const error = new HTTPError({ status: 500, unhandled: true });
   (error as { cause: unknown }).cause = value;
   return error;
 }
