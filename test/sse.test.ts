@@ -40,6 +40,28 @@ describeMatrix("sse", (t, { it, expect }) => {
     expect(messages.length).toBe(3);
   });
 
+  it("streams events when returning the stream directly", async () => {
+    t.app.get("/sse-direct", (event) => {
+      const eventStream = createEventStream(event);
+      let counter = 0;
+      const clear = setInterval(() => {
+        if (counter++ === 3) {
+          clearInterval(clear);
+          eventStream.close();
+          return;
+        }
+        eventStream.push("hello world");
+      });
+      return eventStream;
+    });
+
+    const res = await t.fetch("/sse-direct");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toBe("text/event-stream");
+    const messages = (await res.text()).split("\n\n").filter(Boolean);
+    expect(messages.length).toBe(3);
+  });
+
   it("streams events", async () => {
     const res = await t.fetch("/sse?includeMeta=true");
     expect(res.status).toBe(200);
