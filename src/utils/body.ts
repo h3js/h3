@@ -239,9 +239,10 @@ export function assertBodySize(event: HTTPEvent, limit: number): void {
   });
 }
 
-const bodyTooLargeError = (limit: number) =>
-  new HTTPError({
+function bodyTooLargeError(limit: number): HTTPError {
+  return new HTTPError({
     status: 413,
     statusText: "Request Entity Too Large",
     message: `Request body size exceeds the limit of ${limit} bytes`,
   });
+}
