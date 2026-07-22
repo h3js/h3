@@ -449,6 +449,34 @@ describe("handler.ts", () => {
         });
       });
 
+      // The schema output replaces `context.params` entirely: params it strips
+      // are intentionally dropped so non-validated data never leaks through.
+      it("drops router params stripped by the schema", async () => {
+        const partialHandler = defineValidatedHandler({
+          validate: {
+            params: z.object({ id: z.string().min(3) }),
+          },
+          handler: (event) => getRouterParams(event),
+        });
+        const app = mount("/users/:id/posts/:postId", partialHandler);
+        const res = await app.request("/users/123/posts/456");
+        expect(res.status).toBe(200);
+        expect(await res.json()).toEqual({ id: "123" });
+      });
+
+      it("keeps extra router params with a loose schema", async () => {
+        const looseHandler = defineValidatedHandler({
+          validate: {
+            params: z.looseObject({ id: z.string().min(3) }),
+          },
+          handler: (event) => getRouterParams(event),
+        });
+        const app = mount("/users/:id/posts/:postId", looseHandler);
+        const res = await app.request("/users/123/posts/456");
+        expect(res.status).toBe(200);
+        expect(await res.json()).toEqual({ id: "123", postId: "456" });
+      });
+
       describe("decode", () => {
         const decodeHandler = defineValidatedHandler({
           validate: {

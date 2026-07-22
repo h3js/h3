@@ -210,6 +210,7 @@ export function validatedParams(
     validate.onError,
   );
 
+  // Replace (not merge): schema output is the source of truth.
   const applyParams = (params: Record<string, string>): Record<string, string> => {
     event.context.params = params;
     return params;
