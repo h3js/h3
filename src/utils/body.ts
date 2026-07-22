@@ -1,6 +1,6 @@
 import { type ErrorDetails, HTTPError } from "../error.ts";
 import { type OnValidateError, validateData } from "./internal/validate.ts";
-import { parseURLEncodedBody, parseFormData, limitBody } from "./internal/body.ts";
+import { parseURLEncodedBody, parseFormData, limitRequestBody } from "./internal/body.ts";
 
 import type { ServerRequest } from "srvx";
 import type { HTTPEvent } from "../event.ts";
@@ -185,7 +185,7 @@ export async function readValidatedBody(
  * Asserts that the request body size is within the specified limit.
  *
  * The limit is enforced **as the body is read**, not by pre-buffering: the
- * request body stream is wrapped in a byte counter (via {@link limitBodyStream})
+ * request body stream is wrapped in a byte counter (via {@link limitRequestBody})
  * that aborts with a `413` Request Entity Too Large error the moment the running
  * total exceeds `limit`. This preserves the byte-accurate guarantee (a
  * lying-small `Content-Length` is still caught mid-stream) without holding the
@@ -233,22 +233,7 @@ export function assertBodySize(event: HTTPEvent, limit: number): void {
     }
   }
 
-  // Wrap the body in a byte-counting stream that enforces the limit as it flows
-  // (aborting with a `413` `HTTPError` once exceeded).
-  const limited = new Request(req.url, {
-    method: req.method,
-    headers: req.headers,
-    body: limitBody(req.body, limit),
-    // @ts-expect-error `duplex` is required for a streaming request body.
-    duplex: "half",
-    signal: req.signal,
-  }) as ServerRequest;
-  // Rebuilding the `Request` drops srvx's runtime augmentation; carry it over so
-  // `event.runtime`, `getRequestIP`, `waitUntil`, etc. keep working (mirrors
-  // `createSubRequest` in `proxy.ts`).
-  limited.runtime = req.runtime;
-  limited.waitUntil = req.waitUntil;
-  limited.ip = req.ip;
-  limited.context = req.context;
-  (event as { req: ServerRequest }).req = limited;
+  // Swap in a proxy that enforces the limit as the body is read, while passing
+  // headers, url, and srvx's runtime augmentation straight through to `req`.
+  (event as { req: ServerRequest }).req = limitRequestBody(req, limit);
 }
