@@ -5,6 +5,7 @@ describe("h3 package", () => {
     const exportNames = Object.keys(await import("../../src/_entries/generic.ts")).sort();
     expect(exportNames).toMatchInlineSnapshot(`
       [
+        "EventStream",
         "H3",
         "H3Core",
         "H3Error",
