@@ -246,8 +246,12 @@ function prepareResponseBody(
 
   // Buffer (should be before JSON)
   if (val instanceof Uint8Array) {
-    event.res.headers.set("content-length", val.byteLength.toString());
-    return { body: val as BufferSource };
+    // Set on the returned headers, not `event.res` (already cleared by the caller):
+    // writing to `event.res.headers` here would recreate it post-clear and be discarded.
+    return {
+      body: val as BufferSource,
+      headers: new Headers({ "content-length": val.byteLength.toString() }),
+    };
   }
 
   // Partial Response

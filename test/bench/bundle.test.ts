@@ -50,7 +50,7 @@ describe("benchmark", () => {
     if (process.env.DEBUG) {
       console.log(`Bundle size (defineHandler): ${bundle.bytes} (gzip: ${bundle.gzipSize})`);
     }
-    expect(bundle.bytes).toBeLessThanOrEqual(6700); // <6.7kb
+    expect(bundle.bytes).toBeLessThanOrEqual(6710); // <6.71kb
     expect(bundle.gzipSize).toBeLessThanOrEqual(2700); // <2.7kb
   });
 });
