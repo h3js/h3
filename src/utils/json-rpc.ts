@@ -3,7 +3,7 @@ import type { Hooks as WebSocketHooks, Peer as WebSocketPeer } from "crossws";
 import type { H3Event } from "../event.ts";
 import { defineHandler } from "../handler.ts";
 import { defineWebSocketHandler } from "./ws.ts";
-import { HTTPError, isBodyLimitError } from "../error.ts";
+import { HTTPError } from "../error.ts";
 import { HTTPResponse } from "../response.ts";
 
 /**
@@ -102,10 +102,9 @@ export function defineJsonRpcHandler<RequestT extends EventHandlerRequest = Even
     try {
       body = await event.req.json();
     } catch (error) {
-      // Keep a real error (an `HTTPError`, or the `413` `ERR_BODY_TOO_LARGE` from
-      // an aborted body-limit stream) instead of masking it as a JSON-RPC parse
-      // error.
-      if (HTTPError.isError(error) || isBodyLimitError(error)) {
+      // Keep a real `HTTPError` (e.g. the `413` from an aborted body-limit
+      // stream) instead of masking it as a JSON-RPC parse error.
+      if (HTTPError.isError(error)) {
         throw error;
       }
       return createJsonRpcError(null, PARSE_ERROR, "Parse error");

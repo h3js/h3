@@ -230,18 +230,3 @@ export class HTTPError<DataT = unknown> extends Error implements ErrorBody<DataT
     };
   }
 }
-
-/**
- * Whether `error` is srvx's canonical request-body-size overflow — the `413`
- * client error thrown by `srvx/body-limit` (`code: "ERR_BODY_TOO_LARGE"`) once a
- * body exceeds its limit.
- *
- * Body readers (`readBody`, validated handlers, JSON-RPC) use this to re-throw
- * the overflow instead of masking it as a `400` parse error. `toResponse` needs
- * the same check to render a handled `413` rather than an unhandled `500`, but
- * inlines it so this helper stays out of the core bundle (it lives only in the
- * tree-shakeable body-reader utils).
- */
-export function isBodyLimitError(error: unknown): boolean {
-  return (error as { code?: unknown } | null | undefined)?.code === "ERR_BODY_TOO_LARGE";
-}

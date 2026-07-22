@@ -1,4 +1,4 @@
-import { type ErrorDetails, HTTPError, isBodyLimitError } from "../error.ts";
+import { type ErrorDetails, HTTPError } from "../error.ts";
 import { type OnValidateError, validateData } from "./internal/validate.ts";
 import { parseURLEncodedBody, parseFormData } from "./internal/body.ts";
 import { limitRequestBody } from "srvx/body-limit";
@@ -61,10 +61,9 @@ export async function readBody<
     try {
       form = await event.req.formData();
     } catch (error) {
-      // Keep a real error (an `HTTPError`, or the `413` `ERR_BODY_TOO_LARGE` from
-      // an aborted body-limit stream) instead of masking it as a generic
-      // `400 Invalid form data body`.
-      if (HTTPError.isError(error) || isBodyLimitError(error)) {
+      // Keep a real `HTTPError` (e.g. the `413` from an aborted body-limit
+      // stream) instead of masking it as a generic `400 Invalid form data body`.
+      if (HTTPError.isError(error)) {
         throw error;
       }
       throw new HTTPError({
@@ -188,12 +187,10 @@ export async function readValidatedBody(
  *
  * The limit is enforced **as the body is read**, not by pre-buffering: the
  * request is wrapped by srvx's `limitRequestBody`, which counts bytes as they
- * flow and aborts with a `413` (`ERR_BODY_TOO_LARGE`) the moment the running
- * total exceeds `limit`. This preserves the byte-accurate guarantee (a
- * lying-small `Content-Length` is still caught mid-stream) without holding the
- * body in memory or blocking streaming handlers. h3's body readers map that
- * overflow to a `413` response; a handler reading `event.req` directly sees the
- * `ERR_BODY_TOO_LARGE` error itself.
+ * flow and aborts with a `413` {@link HTTPError} the moment the running total
+ * exceeds `limit` (the error is injected via `createError`). This preserves the
+ * byte-accurate guarantee (a lying-small `Content-Length` is still caught
+ * mid-stream) without holding the body in memory or blocking streaming handlers.
  *
  * An honest `Content-Length` that already exceeds the limit is rejected up-front
  * with a `413`, and a request carrying both `Content-Length` and
@@ -229,15 +226,22 @@ export function assertBodySize(event: HTTPEvent, limit: number): void {
     // Fail-fast: reject an honest oversized `Content-Length` before the handler
     // runs, without touching the body stream.
     if (+contentLength > limit) {
-      throw new HTTPError({
-        status: 413,
-        statusText: "Request Entity Too Large",
-        message: `Request body size exceeds the limit of ${limit} bytes`,
-      });
+      throw bodyTooLargeError(limit);
     }
   }
 
-  // Swap in srvx's size-limiting proxy: it enforces the limit as the body is
-  // read while passing headers, url, and runtime augmentation through to `req`.
-  (event as { req: ServerRequest }).req = limitRequestBody(req, limit);
+  // Swap in srvx's size-limiting proxy: it enforces the limit as the body is read
+  // (throwing our own `HTTPError` via `createError`, so body readers and the error
+  // pipeline treat it as a handled `413` with no extra mapping) while passing
+  // headers, url, and runtime augmentation through to `req`.
+  (event as { req: ServerRequest }).req = limitRequestBody(req, limit, {
+    createError: () => bodyTooLargeError(limit),
+  });
 }
+
+const bodyTooLargeError = (limit: number) =>
+  new HTTPError({
+    status: 413,
+    statusText: "Request Entity Too Large",
+    message: `Request body size exceeds the limit of ${limit} bytes`,
+  });

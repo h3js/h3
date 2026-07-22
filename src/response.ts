@@ -118,10 +118,7 @@ function prepareResponse(
   if (val && val instanceof Error) {
     const isHTTPError = HTTPError.isError(val);
     const error = isHTTPError ? (val as HTTPError) : new HTTPError(val);
-    // srvx's body-limit overflow (`ERR_BODY_TOO_LARGE`) carries `status: 413`;
-    // `new HTTPError` picks it up, so it renders as a handled `413` client error
-    // rather than being flagged unhandled and logged as a server crash.
-    if (!isHTTPError && (val as { code?: unknown }).code !== "ERR_BODY_TOO_LARGE") {
+    if (!isHTTPError) {
       // @ts-expect-error unhandled is readonly for public interface
       error.unhandled = true;
       if (val?.stack) {
