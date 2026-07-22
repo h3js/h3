@@ -21,7 +21,12 @@ export function toResponse(
     ) as Promise<Response>;
   }
 
-  const response = prepareResponse(val, event, config);
+  let response: Response | Promise<Response>;
+  try {
+    response = prepareResponse(val, event, config);
+  } catch (error) {
+    return toResponse(toError(error), event, config);
+  }
   if (typeof (response as PromiseLike<Response>)?.then === "function") {
     return toResponse(response, event, config);
   }
@@ -131,7 +136,8 @@ function prepareResponse(
     const { onError } = config;
     const errHeaders: Headers | undefined = (event as any)[kEventRes]?.[kEventResErrHeaders];
     return onError && !nested
-      ? Promise.resolve(onError(error, event))
+      ? Promise.resolve()
+          .then(() => onError(error, event))
           .catch((error) => error)
           .then((newVal) => prepareResponse(newVal ?? val, event, config, true))
       : errorResponse(error, config.debug, errHeaders);
