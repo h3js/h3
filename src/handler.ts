@@ -16,7 +16,13 @@ import type {
 import type { StandardSchemaV1, InferOutput } from "./utils/internal/standard-schema.ts";
 import type { TypedRequest } from "fetchdts";
 import { NoHandler, type H3Core } from "./h3.ts";
-import { validatedRequest, validatedURL, type OnValidateError } from "./utils/internal/validate.ts";
+import {
+  validatedRequest,
+  validatedURL,
+  validatedParams,
+  type OnValidateError,
+} from "./utils/internal/validate.ts";
+import { chain } from "./utils/internal/promise.ts";
 
 // --- event handler ---
 
@@ -61,6 +67,7 @@ export function defineValidatedHandler<
   RequestBody extends StandardSchemaV1,
   RequestHeaders extends StandardSchemaV1,
   RequestQuery extends StandardSchemaV1,
+  RequestParams extends StandardSchemaV1,
   Res extends EventHandlerResponse = EventHandlerResponse,
 >(
   def: Omit<EventHandlerObject, "handler"> & {
@@ -68,12 +75,15 @@ export function defineValidatedHandler<
       body?: RequestBody;
       headers?: RequestHeaders;
       query?: RequestQuery;
+      params?: RequestParams;
+      decodeParams?: boolean;
       onError?: OnValidateError;
     };
     handler: EventHandler<
       {
         body: InferOutput<RequestBody>;
         query: StringHeaders<InferOutput<RequestQuery>>;
+        routerParams: StringHeaders<InferOutput<RequestParams>>;
       },
       Res
     >;
@@ -85,27 +95,18 @@ export function defineValidatedHandler<
   return defineHandler({
     ...def,
     handler: function _validatedHandler(event) {
-      const withURL = () => {
-        const url = validatedURL(event.url, def.validate!);
-        if (url instanceof Promise) {
-          return url.then((u) => {
-            (event as any) /* readonly */.url = u;
+      const v = def.validate!;
+      // `chain` keeps a fully-sync path from yielding a microtask.
+      // params → headers → query in sequential order
+      return chain(validatedParams(event, v), () =>
+        chain(validatedRequest(event.req, v), (req) => {
+          (event as any) /* readonly */.req = req;
+          return chain(validatedURL(event.url, v), (url) => {
+            (event as any) /* readonly */.url = url;
             return def.handler(event as any);
           });
-        }
-        (event as any) /* readonly */.url = url;
-        return def.handler(event as any);
-      };
-
-      const req = validatedRequest(event.req, def.validate!);
-      if (req instanceof Promise) {
-        return req.then((r) => {
-          (event as any) /* readonly */.req = r;
-          return withURL();
-        });
-      }
-      (event as any) /* readonly */.req = req;
-      return withURL();
+        }),
+      );
     },
   }) as any;
 }

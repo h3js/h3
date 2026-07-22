@@ -1,6 +1,9 @@
 import { type ErrorDetails, HTTPError } from "../../error.ts";
+import { chain } from "./promise.ts";
+import { getRouterParams } from "../request.ts";
 
 import type { ServerRequest } from "srvx";
+import type { H3Event } from "../../event.ts";
 import type {
   StandardSchemaV1,
   FailureResult,
@@ -105,7 +108,7 @@ export function validatedRequest<
       }
       return bodyProxy(req, validate);
     };
-    return validated instanceof Promise ? validated.then(applyHeaders) : applyHeaders(validated);
+    return chain(validated, applyHeaders);
   }
 
   return bodyProxy(req, validate);
@@ -185,10 +188,37 @@ export function validatedURL(
     return url;
   };
 
-  return validated instanceof Promise ? validated.then(applyQuery) : applyQuery(validated);
+  return chain(validated, applyQuery);
 }
 
-function validateSource<Source extends "headers" | "query", T = unknown>(
+export function validatedParams(
+  event: H3Event,
+  validate: {
+    params?: StandardSchemaV1;
+    decodeParams?: boolean;
+    onError?: OnValidateError;
+  },
+): Record<string, string> | undefined | Promise<Record<string, string>> {
+  if (!validate.params) {
+    return event.context.params;
+  }
+
+  const validated = validateSource(
+    "params",
+    getRouterParams(event, { decode: validate.decodeParams }),
+    validate.params as StandardSchemaV1<Record<string, string>>,
+    validate.onError,
+  );
+
+  const applyParams = (params: Record<string, string>): Record<string, string> => {
+    event.context.params = params;
+    return params;
+  };
+
+  return chain(validated, applyParams);
+}
+
+function validateSource<Source extends "headers" | "query" | "params", T = unknown>(
   source: Source,
   data: unknown,
   fn: StandardSchemaV1<T>,
@@ -206,8 +236,7 @@ function validateSource<Source extends "headers" | "query", T = unknown>(
     return result.value;
   };
 
-  const result = fn["~standard"].validate(data);
-  return result instanceof Promise ? result.then(finish) : finish(result);
+  return chain(fn["~standard"].validate(data), finish);
 }
 
 function createValidationError(cause: Error | HTTPError | ErrorDetails | FailureResult) {

@@ -179,10 +179,11 @@ export function getValidatedQuery(
  *   const params = getRouterParams(event); // { key: "value" }
  * });
  */
-export function getRouterParams(
-  event: HTTPEvent,
-  opts: { decode?: boolean } = {},
-): NonNullable<H3Event["context"]["params"]> {
+export function getRouterParams<
+  T,
+  Event extends H3Event | HTTPEvent = HTTPEvent,
+  _T = Exclude<InferEventInput<"routerParams", Event, T>, undefined>,
+>(event: Event, opts: { decode?: boolean } = {}): _T {
   // Fallback object needs to be returned in case router is not used (#149)
   const context = getEventContext<H3EventContext>(event);
   let params = (context.params || {}) as NonNullable<H3Event["context"]["params"]>;
@@ -192,7 +193,7 @@ export function getRouterParams(
       params[key] = decodeRouterParam(params[key]);
     }
   }
-  return params;
+  return params as _T;
 }
 
 // Percent-encoded path separators (`%2f` → `/`, `%5c` → `\`) at any `%25`-nesting

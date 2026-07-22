@@ -5,6 +5,8 @@ import {
   dynamicEventHandler,
   defineLazyEventHandler,
   defineValidatedHandler,
+  getRouterParams,
+  H3,
 } from "../src/index.ts";
 import type { ValidateIssues } from "../src/utils/internal/validate.ts";
 
@@ -413,6 +415,102 @@ describe("handler.ts", () => {
           data: { issues: [{ path: ["x-token"], message: "Token too short" }] },
         });
         expect(querySpy).not.toHaveBeenCalled();
+      });
+    });
+
+    describe("params validation", () => {
+      // `defineValidatedHandler`'s TypedRequest return type isn't assignable to `app.get` (pre-exisitng)
+      const mount = (route: string, handler: unknown) => new H3().get(route, handler as any);
+
+      const paramsHandler = defineValidatedHandler({
+        validate: {
+          params: z.object({
+            id: z.string().min(3),
+            role: z.string().default("user"),
+          }),
+        },
+        handler: (event) => getRouterParams(event),
+      });
+
+      it("valid params, validated output written back to context", async () => {
+        const app = mount("/users/:id", paramsHandler);
+        const res = await app.request("/users/123");
+        expect(res.status).toBe(200);
+        // the `role` default proves the validated output lands in context.params
+        expect(await res.json()).toMatchObject({ id: "123", role: "user" });
+      });
+
+      it("invalid params", async () => {
+        const app = mount("/users/:id", paramsHandler);
+        const res = await app.request("/users/1");
+        expect(res.status).toBe(400);
+        expect(await res.json()).toMatchObject({
+          data: { issues: [{ path: ["id"] }] },
+        });
+      });
+
+      describe("decode", () => {
+        const decodeHandler = defineValidatedHandler({
+          validate: {
+            params: z.object({ name: z.literal("foo@bar") }),
+            decodeParams: true,
+          },
+          handler: (event) => getRouterParams(event),
+        });
+        const noDecodeHandler = defineValidatedHandler({
+          validate: { params: z.object({ name: z.literal("foo@bar") }) },
+          handler: (event) => getRouterParams(event),
+        });
+
+        it("decodes params before validation when decode:true", async () => {
+          const app = mount("/files/:name", decodeHandler);
+          const res = await app.request("/files/foo%40bar");
+          expect(res.status).toBe(200);
+          expect(await res.json()).toMatchObject({ name: "foo@bar" });
+        });
+
+        it("leaves params encoded by default", async () => {
+          const app = mount("/files/:name", noDecodeHandler);
+          const res = await app.request("/files/foo%40bar");
+          expect(res.status).toBe(400);
+        });
+      });
+
+      describe("async", () => {
+        const headerSpy = vi.fn(async (token: string) => token.length >= 3);
+        const asyncParamsHandler = defineValidatedHandler({
+          validate: {
+            params: z.object({
+              id: z.string().refine(async (id) => id.length >= 3, "Id too short"),
+            }),
+            headers: z.object({
+              "x-token": z.string().refine(headerSpy, "Token too short"),
+            }),
+          },
+          handler: async () => "ok",
+        });
+
+        it("validates async params", async () => {
+          headerSpy.mockClear();
+          const app = mount("/users/:id", asyncParamsHandler);
+          const res = await app.request("/users/1", { headers: { "x-token": "abc" } });
+          expect(res.status).toBe(400);
+          expect(await res.json()).toMatchObject({
+            data: { issues: [{ path: ["id"], message: "Id too short" }] },
+          });
+        });
+
+        it("short-circuits header validation when params fail", async () => {
+          headerSpy.mockClear();
+          const app = mount("/users/:id", asyncParamsHandler);
+          // header would also be invalid, yet params validation runs first
+          const res = await app.request("/users/1", { headers: { "x-token": "ab" } });
+          expect(res.status).toBe(400);
+          expect(await res.json()).toMatchObject({
+            data: { issues: [{ path: ["id"], message: "Id too short" }] },
+          });
+          expect(headerSpy).not.toHaveBeenCalled();
+        });
       });
     });
   });
