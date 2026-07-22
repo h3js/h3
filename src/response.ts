@@ -139,7 +139,8 @@ function prepareResponse(
     const { onError } = config;
     const errHeaders: Headers | undefined = (event as any)[kEventRes]?.[kEventResErrHeaders];
     return onError && !nested
-      ? Promise.resolve(onError(error, event))
+      ? Promise.resolve()
+          .then(() => onError(error, event))
           .catch((error) => error)
           .then((newVal) => prepareResponse(newVal ?? val, event, config, true))
       : errorResponse(error, config.debug, errHeaders);

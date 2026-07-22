@@ -324,4 +324,23 @@ describeMatrix("errors", (t, { it, expect, describe }) => {
       expect(res.status).toBe(500);
     });
   });
+
+  // Regression for #1503 (CodeRabbit): a synchronously-throwing `onError` hook must not
+  // recurse infinitely. `Promise.resolve(onError(error, event))` evaluates the call before
+  // wrapping it in a promise, so a sync throw there escaped `prepareResponse()` synchronously.
+  // That was caught by `toResponse()`'s try/catch (added for #1477) and re-entered
+  // `toResponse` with `nested` reset to `false` — calling the same throwing `onError` again,
+  // forever (stack overflow instead of a normalized 500).
+  it("a synchronously-throwing onError does not recurse infinitely", async () => {
+    t.app.config.onError = () => {
+      throw new Error("onError boom");
+    };
+    t.app.use(() => {
+      throw new Error("handler boom");
+    });
+
+    const res = await t.fetch("/");
+    expect(res.status).toBe(500);
+    expect(await res.json()).toMatchObject({ status: 500, unhandled: true });
+  });
 });

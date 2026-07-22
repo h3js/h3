@@ -18,7 +18,7 @@ describe("benchmark", () => {
     if (process.env.DEBUG) {
       console.log(`Bundle size (H3): ${bundle.bytes} (gzip: ${bundle.gzipSize})`);
     }
-    expect(bundle.bytes).toBeLessThanOrEqual(18_400); // <18.4kb
+    expect(bundle.bytes).toBeLessThanOrEqual(18_420); // <18.42kb
     expect(bundle.gzipSize).toBeLessThanOrEqual(6_950); // <6.95kb
   });
 
