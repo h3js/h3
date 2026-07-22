@@ -43,7 +43,7 @@ export function toResponse(
  * is never trusted to shape the response, not even via a `status` shorthand.
  */
 export function toError(value: unknown): unknown {
-  if (value instanceof Error || value === kHandled || value === kNotFound) {
+  if (value === kNotFound || value === kHandled || value instanceof Error) {
     return value;
   }
   if (typeof value === "number") {
