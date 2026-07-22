@@ -217,7 +217,7 @@ describeMatrix("errors", (t, { it, expect, describe }) => {
 
       // `stack` differs by throw site, the rest of the rendered error must match
       const body = async (res: Response) => {
-        const { stack, ...rest } = await res.json();
+        const { stack: _stack, ...rest } = await res.json();
         return rest;
       };
       expect(fromObject.status).toBe(fromNumber.status);
