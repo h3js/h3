@@ -113,7 +113,12 @@ export async function validatedRequest<
         return function _validatedJson() {
           return req
             .json()
-            .catch(() => {
+            .catch((error: unknown) => {
+              // Keep a real `HTTPError` (e.g. the `413` from an aborted
+              // body-limit stream) instead of masking it as `400`.
+              if (HTTPError.isError(error)) {
+                throw error;
+              }
               throw new HTTPError({
                 status: 400,
                 statusText: "Bad Request",
