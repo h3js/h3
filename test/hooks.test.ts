@@ -98,4 +98,31 @@ describeMatrix("hooks", (t, { it, expect }) => {
 
     expect(t.hooks.onResponse).toHaveBeenCalledTimes(1);
   });
+
+  it("calls onRequest, onError and onResponse when a circular value is returned", async () => {
+    t.app.use(() => {
+      const circular: any = {};
+      circular.self = circular;
+      return circular;
+    });
+
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const res = await t.fetch("/foo");
+
+    const errors = t.errors;
+    t.errors = [];
+
+    // The synchronous `JSON.stringify` throw is routed through the error pipeline
+    // instead of escaping `fetch()` as a raw exception/rejection.
+    expect(res.status).toBe(500);
+
+    expect(errors.length).toBe(1);
+    expect(errors[0].status).toBe(500);
+    expect(errors[0].cause).toBeInstanceOf(TypeError);
+
+    expect(t.hooks.onRequest).toHaveBeenCalledTimes(1);
+    expect(t.hooks.onError).toHaveBeenCalledTimes(1);
+    expect(t.hooks.onError.mock.calls[0]![0]!.cause).toBeInstanceOf(TypeError);
+    expect(t.hooks.onResponse).toHaveBeenCalledTimes(1);
+  });
 });

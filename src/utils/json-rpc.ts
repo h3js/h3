@@ -101,7 +101,12 @@ export function defineJsonRpcHandler<RequestT extends EventHandlerRequest = Even
     let body: unknown;
     try {
       body = await event.req.json();
-    } catch {
+    } catch (error) {
+      // Keep a real `HTTPError` (e.g. the `413` from an aborted body-limit
+      // stream) instead of masking it as a JSON-RPC parse error.
+      if (HTTPError.isError(error)) {
+        throw error;
+      }
       return createJsonRpcError(null, PARSE_ERROR, "Parse error");
     }
     const result = await processJsonRpcBody(body, methodMap, event);

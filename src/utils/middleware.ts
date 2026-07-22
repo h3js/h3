@@ -58,17 +58,20 @@ export function onError(hook: (error: HTTPError, event: H3Event) => unknown): Mi
 }
 
 /**
- * Define a middleware that checks whether request body size is within specified limit.
+ * Define a middleware that limits the request body size to the specified limit.
  *
- * If body size exceeds the limit, throws a `413` Request Entity Too Large response error.
- * If you need custom handling for this case, use `assertBodySize` instead.
+ * The limit is enforced as the body is read (see {@link assertBodySize}), so an
+ * oversized body surfaces as a `413` Request Entity Too Large error when the
+ * handler consumes it (an honest oversized `Content-Length` is still rejected
+ * up-front). A body the handler never reads is not counted. If you need custom
+ * handling, use `assertBodySize` directly.
  *
  * @param limit Body size limit in bytes
  * @see {assertBodySize}
  */
 export function bodyLimit(limit: number): Middleware {
-  return async (event, next) => {
-    await assertBodySize(event, limit);
+  return (event, next) => {
+    assertBodySize(event, limit);
     return next();
   };
 }
