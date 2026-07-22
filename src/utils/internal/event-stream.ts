@@ -25,26 +25,22 @@ export class EventStream {
     return this._writerIsClosed || this._disposed;
   }
 
-  constructor(event: H3Event, opts: EventStreamOptions = {}) {
+  constructor(event: H3Event, _opts: EventStreamOptions = {}) {
     this._event = event;
     this._writer = this._transformStream.writable.getWriter();
     // `closed` rejects when the readable side is cancelled (client disconnect)
     // and resolves on a graceful `close()`. Both mean the stream is over.
     this._writer.closed.catch(_noop).finally(() => {
       this._writerIsClosed = true;
-      if (opts.autoclose !== false) {
-        this._disposed = true;
-      }
+      this._disposed = true;
       for (const cb of this._closeCallbacks.splice(0)) {
         _invokeCloseCallback(cb);
       }
     });
-    if (opts.autoclose !== false) {
-      // End-of-event covers every runtime: normal end, client disconnect, and
-      // a stream that is created but never `send()`-ed (the response completed
-      // without it) all converge here.
-      onDispose(this._event, () => this.close());
-    }
+    // End-of-event covers every runtime: normal end, client disconnect, and
+    // a stream that is created but never `send()`-ed (the response completed
+    // without it) all converge here.
+    onDispose(this._event, () => this.close());
   }
 
   /**
