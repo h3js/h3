@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
+import { EventStream } from "../../src/utils/event-stream.ts";
 import {
-  EventStream,
   formatEventStreamComment,
   formatEventStreamMessage,
   formatEventStreamMessages,

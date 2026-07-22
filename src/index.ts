@@ -162,7 +162,7 @@ export {
 export {
   type EventStreamMessage,
   type EventStreamOptions,
-  createEventStream,
+  EventStream,
 } from "./utils/event-stream.ts";
 
 // Timing

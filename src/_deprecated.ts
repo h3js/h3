@@ -14,6 +14,7 @@ import type { H3Config } from "./types/h3.ts";
 import type { IterationSource, IteratorSerializer } from "./utils/internal/iterable.ts";
 import { HTTPError, type ErrorDetails } from "./error.ts";
 import type { HTTPResponse } from "./response.ts";
+import { EventStream, type EventStreamOptions } from "./utils/event-stream.ts";
 
 // --- Error ---
 
@@ -145,6 +146,11 @@ export const sendProxy: (
   target: string,
   opts?: ProxyOptions,
 ) => Promise<HTTPResponse> = proxy;
+
+/** @deprecated Please use `new EventStream(event)` */
+export function createEventStream(event: H3Event, opts?: EventStreamOptions): EventStream {
+  return new EventStream(event, opts);
+}
 
 /** @deprecated Please use `return iterable(event, value)` */
 export const sendIterable: <Value = unknown, Return = unknown>(
