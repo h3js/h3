@@ -182,11 +182,16 @@ export function getValidatedQuery(
 export function getRouterParams<
   T,
   Event extends H3Event | HTTPEvent = HTTPEvent,
-  _T = Exclude<InferEventInput<"routerParams", Event, T>, undefined>,
+  // Explicit `T` wins (mirroring `getQuery`), otherwise infer from the event's context type
+  _T = void extends T
+    ? Event extends { context: { params?: infer P } }
+      ? NonNullable<P>
+      : Record<string, string>
+    : T,
 >(event: Event, opts: { decode?: boolean } = {}): _T {
   // Fallback object needs to be returned in case router is not used (#149)
   const context = getEventContext<H3EventContext>(event);
-  let params = (context.params || {}) as NonNullable<H3Event["context"]["params"]>;
+  let params = (context.params || {}) as Record<string, string>;
   if (opts.decode) {
     params = { ...params };
     for (const key in params) {
@@ -335,13 +340,13 @@ export function getValidatedRouterParams(
  *   const param = getRouterParam(event, "key");
  * });
  */
-export function getRouterParam(
-  event: HTTPEvent,
-  name: string,
-  opts: { decode?: boolean } = {},
-): string | undefined {
+export function getRouterParam<
+  Event extends H3Event | HTTPEvent = HTTPEvent,
+  _P = Event extends { context: { params?: infer P } } ? NonNullable<P> : Record<string, string>,
+  Name extends keyof _P & string = keyof _P & string,
+>(event: Event, name: Name, opts: { decode?: boolean } = {}): _P[Name] | undefined {
   const params = getRouterParams(event, opts);
-  return params[name];
+  return (params as _P)[name];
 }
 
 /**

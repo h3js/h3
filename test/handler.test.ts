@@ -6,6 +6,7 @@ import {
   defineLazyEventHandler,
   defineValidatedHandler,
   getRouterParams,
+  getRouterParam,
   H3,
 } from "../src/index.ts";
 import type { ValidateIssues } from "../src/utils/internal/validate.ts";
@@ -475,6 +476,26 @@ describe("handler.ts", () => {
         const res = await app.request("/users/123/posts/456");
         expect(res.status).toBe(200);
         expect(await res.json()).toEqual({ id: "123", postId: "456" });
+      });
+
+      it("coerces params at runtime; every getter returns the coerced value", async () => {
+        const coerceHandler = defineValidatedHandler({
+          validate: { params: z.object({ id: z.coerce.number() }) },
+          handler: (event) => ({
+            viaParams: typeof getRouterParams(event).id,
+            viaParam: typeof getRouterParam(event, "id"),
+            viaContext: typeof event.context.params?.id,
+            value: getRouterParams(event).id,
+          }),
+        });
+        const res = await mount("/n/:id", coerceHandler).request("/n/42");
+        expect(res.status).toBe(200);
+        expect(await res.json()).toEqual({
+          viaParams: "number",
+          viaParam: "number",
+          viaContext: "number",
+          value: 42,
+        });
       });
 
       describe("decode", () => {

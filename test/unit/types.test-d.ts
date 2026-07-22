@@ -1,9 +1,16 @@
-import type { H3Event, RouteRules, WebSocketResponse } from "../../src/index.ts";
+import type {
+  H3Event,
+  H3EventContext,
+  EventHandlerRequest,
+  RouteRules,
+  WebSocketResponse,
+} from "../../src/index.ts";
 import { describe, it, expectTypeOf } from "vitest";
 import {
   defineHandler,
   getQuery,
   getRouterParams,
+  getRouterParam,
   readBody,
   readValidatedBody,
   getValidatedQuery,
@@ -78,6 +85,7 @@ describe("types", () => {
           }),
           params: z.object({
             userId: z.string(),
+            n: z.coerce.number(),
           }),
         },
         async handler(event) {
@@ -85,10 +93,21 @@ describe("types", () => {
           expectTypeOf(query.search).not.toBeAny();
           expectTypeOf(query.search).toEqualTypeOf<string | undefined>();
 
-          // params are string-typed, mirroring query (coercion deferred)
+          // params carry the FULL coerced schema output (core-typed, not StringsOnly)
           const params = getRouterParams(event);
           expectTypeOf(params).not.toBeAny();
-          expectTypeOf(params).toEqualTypeOf<{ userId: string }>();
+          expectTypeOf(params).toEqualTypeOf<{ userId: string; n: number }>();
+
+          // direct context access is coerced AND required: validation guarantees
+          // `context.params` is set before the handler runs, so no `?.` needed
+          expectTypeOf(event.context.params).toEqualTypeOf<{ userId: string; n: number }>();
+
+          // non-overridden context fields keep their base types
+          expectTypeOf(event.context.clientAddress).toEqualTypeOf<string | undefined>();
+
+          // singular helper is coerced and key-checked
+          expectTypeOf(getRouterParam(event, "n")).toEqualTypeOf<number | undefined>();
+          expectTypeOf(getRouterParam(event, "userId")).toEqualTypeOf<string | undefined>();
 
           // TODO:
           // type PossibleParams = Parameters<typeof event.url.searchParams.get>[0]
@@ -100,6 +119,39 @@ describe("types", () => {
           const body = await readBody(event);
           expectTypeOf(body).not.toBeAny();
           expectTypeOf(body).toEqualTypeOf<{ id: string } | undefined>();
+        },
+      });
+    });
+
+    it("non-validated handler keeps Record<string, string> defaults", () => {
+      defineHandler((event) => {
+        expectTypeOf(getRouterParams(event)).toEqualTypeOf<Record<string, string>>();
+        expectTypeOf(getRouterParam(event, "x")).toEqualTypeOf<string | undefined>();
+        // explicit generic override wins, mirroring getQuery
+        expectTypeOf(getRouterParams<{ custom: string }>(event)).toEqualTypeOf<{
+          custom: string;
+        }>();
+      });
+    });
+
+    it("H3Event's second generic types the whole context (no `declare module` needed)", () => {
+      type MyContext = H3EventContext & { user: { id: number } };
+      const event = {} as H3Event<EventHandlerRequest, MyContext>;
+      expectTypeOf(event.context.user).toEqualTypeOf<{ id: number }>();
+      // built-in context fields still typed as before
+      expectTypeOf(event.context.params).toEqualTypeOf<Record<string, string> | undefined>();
+    });
+
+    it("`declare module` augmentation reaches plain and validated contexts", () => {
+      defineHandler((event) => {
+        expectTypeOf(event.context.augmentedUser).toEqualTypeOf<{ id: number } | undefined>();
+      });
+      defineValidatedHandler({
+        validate: { params: z.object({ id: z.string() }) },
+        // TypedH3EventContext is a mapped view — augmented fields must pass through
+        handler: (event) => {
+          expectTypeOf(event.context.augmentedUser).toEqualTypeOf<{ id: number } | undefined>();
+          expectTypeOf(event.context.params).toEqualTypeOf<{ id: string }>();
         },
       });
     });
@@ -215,6 +267,10 @@ describe("types", () => {
 declare module "../../src/index.ts" {
   interface RouteRules {
     swr?: number | boolean;
+  }
+  // Ecosystem invariant (nitro/nuxt-style): H3EventContext must stay augmentable.
+  interface H3EventContext {
+    augmentedUser?: { id: number };
   }
 }
 

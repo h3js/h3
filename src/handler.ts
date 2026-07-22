@@ -14,6 +14,7 @@ import type {
   HTTPHandler,
 } from "./types/handler.ts";
 import type { StandardSchemaV1, InferOutput } from "./utils/internal/standard-schema.ts";
+import type { TypedH3EventContext } from "./types/context.ts";
 import type { TypedRequest } from "fetchdts";
 import { NoHandler, type H3Core } from "./h3.ts";
 import {
@@ -67,7 +68,9 @@ export function defineValidatedHandler<
   RequestBody extends StandardSchemaV1,
   RequestHeaders extends StandardSchemaV1,
   RequestQuery extends StandardSchemaV1,
-  RequestParams extends StandardSchemaV1,
+  // `undefined` default marks "no params schema" so the context override below
+  // only applies (and makes `params` required) when one is actually declared.
+  RequestParams extends StandardSchemaV1 | undefined = undefined,
   Res extends EventHandlerResponse = EventHandlerResponse,
 >(
   def: Omit<EventHandlerObject, "handler"> & {
@@ -83,14 +86,17 @@ export function defineValidatedHandler<
       {
         body: InferOutput<RequestBody>;
         query: StringsOnly<InferOutput<RequestQuery>>;
-        routerParams: StringsOnly<InferOutput<RequestParams>>;
       },
-      Res
+      Res,
+      TypedH3EventContext<
+        RequestParams extends StandardSchemaV1 ? { params: InferOutput<RequestParams> } : {}
+      >
     >;
   },
 ): EventHandlerWithFetch<TypedRequest<InferOutput<RequestBody>, InferOutput<RequestHeaders>>, Res> {
   if (!def.validate) {
-    return defineHandler(def) as any;
+    // context-typed handler narrows the event param (contravariant) — safe at runtime
+    return defineHandler(def as any) as any;
   }
   return defineHandler({
     ...def,
