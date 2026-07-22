@@ -92,6 +92,8 @@ describe("h3 package", () => {
         "isMethod",
         "isPreflightRequest",
         "iterable",
+        "kHandled",
+        "kNotFound",
         "lazyEventHandler",
         "mockEvent",
         "noContent",

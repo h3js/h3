@@ -63,7 +63,7 @@ export {
 
 // Response
 
-export { toResponse, HTTPResponse } from "./response.ts";
+export { toResponse, HTTPResponse, kNotFound, kHandled } from "./response.ts";
 
 // Error
 
