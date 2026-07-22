@@ -2,7 +2,7 @@ import { limitBodyStream } from "srvx/body-limit";
 
 import { type ErrorDetails, HTTPError } from "../error.ts";
 import { type OnValidateError, validateData } from "./internal/validate.ts";
-import { parseURLEncodedBody, parseFormData } from "./internal/body.ts";
+import { parseURLEncodedBody, parseFormData, isBodyLimitError } from "./internal/body.ts";
 
 import type { ServerRequest } from "srvx";
 import type { HTTPEvent } from "../event.ts";
@@ -253,9 +253,4 @@ export function assertBodySize(event: HTTPEvent, limit: number): void {
   limited.ip = req.ip;
   limited.context = req.context;
   (event as { req: ServerRequest }).req = limited;
-}
-
-/** Whether an error was thrown by the srvx body-size limiter. */
-function isBodyLimitError(error: unknown): boolean {
-  return (error as { code?: string } | undefined)?.code === "ERR_BODY_TOO_LARGE";
 }

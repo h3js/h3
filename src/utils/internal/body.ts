@@ -25,3 +25,14 @@ function collectEntries(entries: IterableIterator<[string, unknown]>): unknown {
   }
   return parsed as unknown;
 }
+
+/**
+ * Whether an error was thrown by the srvx body-size limiter (`limitBodyStream`).
+ *
+ * Body reads that wrap parse failures into a friendlier error (e.g. `readBody`,
+ * validated handlers, JSON-RPC) use this to re-throw an overflow untouched so it
+ * maps to a `413` instead of being masked as a `400`/parse error.
+ */
+export function isBodyLimitError(error: unknown): boolean {
+  return (error as { code?: string } | undefined)?.code === "ERR_BODY_TOO_LARGE";
+}

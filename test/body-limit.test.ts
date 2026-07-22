@@ -1,4 +1,11 @@
-import { assertBodySize, bodyLimit, readBody } from "../src/index.ts";
+import { z } from "zod/v4";
+import {
+  assertBodySize,
+  bodyLimit,
+  defineJsonRpcHandler,
+  defineValidatedHandler,
+  readBody,
+} from "../src/index.ts";
 import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("body limit", (t, { it, expect }) => {
@@ -22,6 +29,38 @@ describeMatrix("body limit", (t, { it, expect }) => {
     const res = await t.fetch("/", {
       method: "POST",
       body: streamOf(["chunk-one", "chunk-two", "chunk-three"]),
+      // @ts-expect-error duplex is required for a streaming body
+      duplex: "half",
+    });
+    expect(res.status).toBe(413);
+  });
+
+  it("maps an oversized body in a validated handler to 413 (not 400)", async () => {
+    const handler = defineValidatedHandler({
+      validate: { body: z.object({ value: z.string() }) },
+      handler: async (event) => event.req.json(),
+    });
+    // The typed handler narrows the event; registering it on a base route is a
+    // known variance gap, unrelated to what this test exercises.
+    t.app.post("/validated", handler as unknown as () => unknown, {
+      middleware: [bodyLimit(4)],
+    });
+    const res = await t.fetch("/validated", {
+      method: "POST",
+      body: streamOf(['{"value":"', "way more than four bytes", '"}']),
+      // @ts-expect-error duplex is required for a streaming body
+      duplex: "half",
+    });
+    expect(res.status).toBe(413);
+  });
+
+  it("maps an oversized body in a JSON-RPC handler to 413 (not a parse error)", async () => {
+    t.app.post("/rpc", defineJsonRpcHandler({ methods: { echo: (params: unknown) => params } }), {
+      middleware: [bodyLimit(4)],
+    });
+    const res = await t.fetch("/rpc", {
+      method: "POST",
+      body: streamOf(['{"jsonrpc":"2.0","id":1,', '"method":"echo","params":[1,2,3]}']),
       // @ts-expect-error duplex is required for a streaming body
       duplex: "half",
     });
