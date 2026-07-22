@@ -190,7 +190,10 @@ export function getRouterParams<
   if (opts.decode) {
     params = { ...params };
     for (const key in params) {
-      params[key] = decodeRouterParam(params[key]);
+      // Validated params hold schema output, which may be non-string (coerced)
+      if (typeof params[key] === "string") {
+        params[key] = decodeRouterParam(params[key]);
+      }
     }
   }
   return params as _T;

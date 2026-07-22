@@ -502,6 +502,19 @@ describe("handler.ts", () => {
           const res = await app.request("/files/foo%40bar");
           expect(res.status).toBe(400);
         });
+
+        // Regression: after a coercing schema, `context.params` may hold
+        // non-strings — caller-side decode must skip them, not crash.
+        it("decode:true after coercion skips non-string values", async () => {
+          const coerceHandler = defineValidatedHandler({
+            validate: { params: z.object({ id: z.coerce.number() }) },
+            handler: (event) => getRouterParams(event, { decode: true }),
+          });
+          const app = mount("/n/:id", coerceHandler);
+          const res = await app.request("/n/42");
+          expect(res.status).toBe(200);
+          expect(await res.json()).toEqual({ id: 42 });
+        });
       });
 
       describe("async", () => {
