@@ -80,7 +80,11 @@ export class H3Event<
   static __is_event__ = true;
 
   constructor(req: ServerRequest, context?: H3EventContext, app?: H3Core) {
-    this.context = context || req.context || new EmptyObject();
+    // Keep `event.context` and `req.context` as the same reference so utilities
+    // reading `event.req.context` (e.g. getRequestIP) observe writes to
+    // `event.context`. Without the write-back, an explicit `context` or an
+    // unset `req.context` leaves the two objects diverged.
+    this.context = req.context = context || req.context || new EmptyObject();
     this.req = req;
     this.app = app;
     // Parsed URL can be provided by srvx (node) and other runtimes
