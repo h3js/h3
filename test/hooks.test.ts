@@ -53,6 +53,26 @@ describeMatrix("hooks", (t, { it, expect }) => {
     expect(t.hooks.onResponse).toHaveBeenCalledTimes(1);
   });
 
+  it("absorbs a throwing onResponse hook without failing the request", async () => {
+    t.app.use(() => "Hello World!");
+    const hookError = new Error("onResponse boom");
+    t.hooks.onResponse.mockImplementationOnce(() => {
+      throw hookError;
+    });
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const res = await t.fetch("/foo");
+
+    // Request still succeeds with the already-built response
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe("Hello World!");
+
+    // Error is absorbed and logged, not routed back into onError
+    expect(t.hooks.onError).toHaveBeenCalledTimes(0);
+    expect(consoleError).toHaveBeenCalledWith(hookError);
+    consoleError.mockRestore();
+  });
+
   it("calls onRequest and onResponse when an unhandled error occurs", async () => {
     t.app.use((event) => {
       // @ts-expect-error
