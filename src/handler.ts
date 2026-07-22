@@ -84,9 +84,9 @@ export function defineValidatedHandler<
   }
   return defineHandler({
     ...def,
-    handler: function _validatedHandler(event) {
-      (event as any) /* readonly */.req = validatedRequest(event.req, def.validate!);
-      (event as any) /* readonly */.url = validatedURL(event.url, def.validate!);
+    handler: async function _validatedHandler(event) {
+      (event as any) /* readonly */.req = await validatedRequest(event.req, def.validate!);
+      (event as any) /* readonly */.url = await validatedURL(event.url, def.validate!);
       return def.handler(event as any);
     },
   }) as any;

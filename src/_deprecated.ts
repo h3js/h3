@@ -130,7 +130,7 @@ export const sendNoContent: (event: H3Event, code?: number) => HTTPResponse = (_
   noContent(code);
 
 /** @deprecated Please use `return redirect(event, code)` */
-export const sendRedirect: (event: H3Event, location: string, code: number) => HTTPResponse = (
+export const sendRedirect: (event: H3Event, location: string, code?: number) => HTTPResponse = (
   _,
   loc,
   code,
@@ -242,14 +242,15 @@ export function removeResponseHeader(event: H3Event, name: string): void {
 }
 
 /** @deprecated Please use `event.res.headers.append(name, value)` */
-export function appendResponseHeaders(event: H3Event, headers: string): void {
+export function appendResponseHeaders(event: H3Event, headers: Record<string, string>): void {
   for (const [name, value] of Object.entries(headers)) {
     appendResponseHeader(event, name, value!);
   }
 }
 
 /** @deprecated Please use `event.res.headers.append(name, value)` */
-export const appendHeaders: (event: H3Event, headers: string) => void = appendResponseHeaders;
+export const appendHeaders: (event: H3Event, headers: Record<string, string>) => void =
+  appendResponseHeaders;
 
 /** @deprecated Please use `event.res.headers.delete` */
 export function clearResponseHeaders(event: H3Event, headerNames?: string[]): void {
