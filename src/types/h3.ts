@@ -88,12 +88,24 @@ export type MiddlewareOptions = {
 
 export declare class H3Core {
   /**
+   * Brand used to detect H3 instances (see `toEventHandler`).
+   * @internal
+   */
+  static "~h3": boolean;
+
+  /**
    * H3 instance config.
    */
   readonly config: H3Config;
 
   /** @internal */
   "~middleware": Middleware[];
+
+  /**
+   * Cached dispatch function (invalidated by `use()` and `mount()`).
+   * @internal
+   */
+  "~dispatch"?: (event: H3Event, route: MatchedRoute<H3Route> | void) => unknown | Promise<unknown>;
 
   /**
    * Cached composition of `~middleware` (invalidated by `use()` and `mount()`).
