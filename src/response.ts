@@ -108,12 +108,8 @@ function prepareResponse(
 
   if (val && val instanceof Error) {
     const isHTTPError = HTTPError.isError(val);
-    // A body-size overflow (from `bodyLimit`/`assertBodySize`) surfaces here when
-    // the handler reads an oversized streamed body. `HTTPError` already derives
-    // the `413` from the error's `statusCode`; it is an expected client outcome,
-    // not an app bug, so keep it handled rather than marking it unhandled.
     const error = isHTTPError ? (val as HTTPError) : new HTTPError(val);
-    if (!isHTTPError && (val as { code?: string }).code !== "ERR_BODY_TOO_LARGE") {
+    if (!isHTTPError) {
       // @ts-expect-error unhandled is readonly for public interface
       error.unhandled = true;
       if (val?.stack) {

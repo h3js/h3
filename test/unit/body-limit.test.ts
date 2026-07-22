@@ -12,6 +12,21 @@ describe("body limit (unit)", () => {
 
   const readBody = (event: ReturnType<typeof mockEvent>) => event.req.text();
 
+  // Capture a promise's rejection value (the body can only be read once).
+  const rejectionOf = (promise: Promise<unknown>) =>
+    promise.then(
+      () => {
+        throw new Error("expected the body read to reject");
+      },
+      (error) => error,
+    );
+
+  const expectTooLarge = async (promise: Promise<unknown>) => {
+    const error = await rejectionOf(promise);
+    expect(error).toBeInstanceOf(HTTPError);
+    expect((error as HTTPError).status).toBe(413);
+  };
+
   describe("assertBodySize", () => {
     it("no-ops when the request has no body", () => {
       const event = mockEvent("/", { method: "GET" });
@@ -55,7 +70,7 @@ describe("body limit (unit)", () => {
 
       const over = mockEvent("/", { method: "QUERY", body: BODY });
       expect(() => assertBodySize(over, BODY.length - 2)).not.toThrow();
-      await expect(readBody(over)).rejects.toMatchObject({ code: "ERR_BODY_TOO_LARGE" });
+      await expectTooLarge(readBody(over));
     });
 
     it("enforces the limit mid-stream for chunked bodies (no content-length)", async () => {
@@ -69,10 +84,7 @@ describe("body limit (unit)", () => {
 
       const over = mockEvent("/", { method: "POST", body: streamBytesFrom(PARTS) });
       expect(() => assertBodySize(over, 10)).not.toThrow();
-      await expect(readBody(over)).rejects.toMatchObject({
-        code: "ERR_BODY_TOO_LARGE",
-        statusCode: 413,
-      });
+      await expectTooLarge(readBody(over));
     });
 
     it("enforces the limit for bodies with a transfer-encoding header", async () => {
@@ -84,7 +96,7 @@ describe("body limit (unit)", () => {
       });
 
       expect(() => assertBodySize(over, 10)).not.toThrow();
-      await expect(readBody(over)).rejects.toMatchObject({ code: "ERR_BODY_TOO_LARGE" });
+      await expectTooLarge(readBody(over));
     });
 
     it("catches a lying-small content-length once the real bytes flow", async () => {
@@ -98,10 +110,7 @@ describe("body limit (unit)", () => {
       // 10 <= limit, so the fail-fast path is skipped; the real size is verified
       // as the body is read.
       expect(() => assertBodySize(event, 100)).not.toThrow();
-      await expect(readBody(event)).rejects.toMatchObject({
-        code: "ERR_BODY_TOO_LARGE",
-        statusCode: 413,
-      });
+      await expectTooLarge(readBody(event));
     });
 
     it("rejects content-length + transfer-encoding (smuggling) with 400", () => {

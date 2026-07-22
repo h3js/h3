@@ -1,3 +1,6 @@
+import { limitBodyStream } from "srvx/body-limit";
+
+import { HTTPError } from "../../error.ts";
 import { EmptyObject } from "./obj.ts";
 import { hasProp } from "./object.ts";
 
@@ -27,12 +30,41 @@ function collectEntries(entries: IterableIterator<[string, unknown]>): unknown {
 }
 
 /**
- * Whether an error was thrown by the srvx body-size limiter (`limitBodyStream`).
+ * Wraps a request body stream so it enforces `limit` bytes as it is read.
  *
- * Body reads that wrap parse failures into a friendlier error (e.g. `readBody`,
- * validated handlers, JSON-RPC) use this to re-throw an overflow untouched so it
- * maps to a `413` instead of being masked as a `400`/parse error.
+ * Uses srvx's pull-based {@link limitBodyStream} for the counting (preserving
+ * backpressure, no pre-buffering) but converts its `ERR_BODY_TOO_LARGE` abort
+ * into a proper `413` {@link HTTPError}. This is the single place that knows the
+ * srvx error shape: every consumer of the body only ever sees an `HTTPError`,
+ * so body readers that wrap failures (e.g. `readBody`, validated handlers,
+ * JSON-RPC) just re-throw a pre-existing `HTTPError` instead of masking it.
  */
-export function isBodyLimitError(error: unknown): boolean {
-  return (error as { code?: string } | undefined)?.code === "ERR_BODY_TOO_LARGE";
+export function limitBody(
+  body: ReadableStream<Uint8Array>,
+  limit: number,
+): ReadableStream<Uint8Array> {
+  const reader = limitBodyStream(body, limit).getReader();
+  return new ReadableStream({
+    async pull(controller) {
+      try {
+        const { done, value } = await reader.read();
+        if (done) {
+          controller.close();
+        } else {
+          controller.enqueue(value);
+        }
+      } catch (error) {
+        controller.error(
+          (error as { code?: string } | undefined)?.code === "ERR_BODY_TOO_LARGE"
+            ? new HTTPError({
+                status: 413,
+                statusText: "Request Entity Too Large",
+                message: `Request body size exceeds the limit of ${limit} bytes`,
+              })
+            : error,
+        );
+      }
+    },
+    cancel: (reason) => reader.cancel(reason),
+  });
 }

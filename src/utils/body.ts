@@ -1,8 +1,6 @@
-import { limitBodyStream } from "srvx/body-limit";
-
 import { type ErrorDetails, HTTPError } from "../error.ts";
 import { type OnValidateError, validateData } from "./internal/validate.ts";
-import { parseURLEncodedBody, parseFormData, isBodyLimitError } from "./internal/body.ts";
+import { parseURLEncodedBody, parseFormData, limitBody } from "./internal/body.ts";
 
 import type { ServerRequest } from "srvx";
 import type { HTTPEvent } from "../event.ts";
@@ -62,10 +60,9 @@ export async function readBody<
     try {
       form = await event.req.formData();
     } catch (error) {
-      // A body-size overflow surfaces here when the limited stream aborts
-      // mid-read; propagate it as-is so it maps to `413` rather than a generic
-      // `400 Invalid form data body`. See `assertBodySize`.
-      if (isBodyLimitError(error)) {
+      // Keep a real `HTTPError` (e.g. the `413` from an aborted body-limit
+      // stream) instead of masking it as a generic `400 Invalid form data body`.
+      if (HTTPError.isError(error)) {
         throw error;
       }
       throw new HTTPError({
@@ -236,11 +233,12 @@ export function assertBodySize(event: HTTPEvent, limit: number): void {
     }
   }
 
-  // Wrap the body in a byte-counting stream that enforces the limit as it flows.
+  // Wrap the body in a byte-counting stream that enforces the limit as it flows
+  // (aborting with a `413` `HTTPError` once exceeded).
   const limited = new Request(req.url, {
     method: req.method,
     headers: req.headers,
-    body: limitBodyStream(req.body, limit),
+    body: limitBody(req.body, limit),
     // @ts-expect-error `duplex` is required for a streaming request body.
     duplex: "half",
     signal: req.signal,

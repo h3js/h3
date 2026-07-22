@@ -1,5 +1,4 @@
 import { type ErrorDetails, HTTPError } from "../../error.ts";
-import { isBodyLimitError } from "./body.ts";
 
 import type { ServerRequest } from "srvx";
 import type { StandardSchemaV1, FailureResult, InferOutput, Issue } from "./standard-schema.ts";
@@ -115,9 +114,9 @@ export async function validatedRequest<
           return req
             .json()
             .catch((error: unknown) => {
-              // A body-size overflow aborts the stream mid-read; propagate it
-              // as-is so it maps to `413` rather than `400`. See `assertBodySize`.
-              if (isBodyLimitError(error)) {
+              // Keep a real `HTTPError` (e.g. the `413` from an aborted
+              // body-limit stream) instead of masking it as `400`.
+              if (HTTPError.isError(error)) {
                 throw error;
               }
               throw new HTTPError({

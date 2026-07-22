@@ -5,7 +5,6 @@ import { defineHandler } from "../handler.ts";
 import { defineWebSocketHandler } from "./ws.ts";
 import { HTTPError } from "../error.ts";
 import { HTTPResponse } from "../response.ts";
-import { isBodyLimitError } from "./internal/body.ts";
 
 /**
  * JSON-RPC 2.0 Interfaces based on the specification.
@@ -103,9 +102,9 @@ export function defineJsonRpcHandler<RequestT extends EventHandlerRequest = Even
     try {
       body = await event.req.json();
     } catch (error) {
-      // A body-size overflow (from `bodyLimit`/`assertBodySize`) must surface as
-      // a `413`, not be masked as a JSON-RPC parse error.
-      if (isBodyLimitError(error)) {
+      // Keep a real `HTTPError` (e.g. the `413` from an aborted body-limit
+      // stream) instead of masking it as a JSON-RPC parse error.
+      if (HTTPError.isError(error)) {
         throw error;
       }
       return createJsonRpcError(null, PARSE_ERROR, "Parse error");
