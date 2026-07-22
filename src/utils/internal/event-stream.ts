@@ -197,8 +197,8 @@ export class EventStream extends HTTPResponse {
   /**
    * Return the readable side of the stream, staging the SSE headers on the event.
    *
-   * Prefer returning the stream itself (`return eventStream`) — it carries the
-   * same headers via {@link HTTPResponse}. This method is kept for compatibility
+   * @deprecated Return the stream itself instead (`return eventStream`) — it
+   * carries the same headers via {@link HTTPResponse}. Kept for compatibility
    * with the `return eventStream.send()` pattern.
    */
   async send(): Promise<BodyInit> {
