@@ -10,7 +10,6 @@ export interface StaticAssetMeta {
   type?: string;
   etag?: string;
   mtime?: number | string | Date;
-  path?: string;
   size?: number;
   encoding?: string;
 }
