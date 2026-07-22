@@ -35,4 +35,7 @@ export interface H3EventContext extends ServerRequestContext {
 
   /* Server-Timing entries collected via setServerTiming / withServerTiming */
   timing?: Array<{ name: string } & Record<string, unknown>>;
+
+  /* Request id assigned by the requestId middleware */
+  requestId?: string;
 }

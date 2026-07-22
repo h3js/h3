@@ -113,6 +113,7 @@ describe("h3 package", () => {
         "redirectBack",
         "removeResponseHeader",
         "removeRoute",
+        "requestId",
         "requestWithBaseURL",
         "requestWithURL",
         "requireBasicAuth",

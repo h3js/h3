@@ -227,6 +227,10 @@ export { type BasicAuthOptions, requireBasicAuth, basicAuth } from "./utils/auth
 
 export { type RequestFingerprintOptions, getRequestFingerprint } from "./utils/fingerprint.ts";
 
+// Request ID
+
+export { type RequestIdOptions, requestId } from "./utils/request-id.ts";
+
 // WebSocket
 
 export {
