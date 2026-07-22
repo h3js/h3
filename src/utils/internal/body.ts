@@ -1,5 +1,3 @@
-import { limitBodyStream } from "srvx/body-limit";
-
 import { HTTPError } from "../../error.ts";
 import { EmptyObject } from "./obj.ts";
 import { hasProp } from "./object.ts";
@@ -32,38 +30,38 @@ function collectEntries(entries: IterableIterator<[string, unknown]>): unknown {
 /**
  * Wraps a request body stream so it enforces `limit` bytes as it is read.
  *
- * Uses srvx's pull-based {@link limitBodyStream} for the counting (preserving
- * backpressure, no pre-buffering) but converts its `ERR_BODY_TOO_LARGE` abort
- * into a proper `413` {@link HTTPError}. This is the single place that knows the
- * srvx error shape: every consumer of the body only ever sees an `HTTPError`,
- * so body readers that wrap failures (e.g. `readBody`, validated handlers,
- * JSON-RPC) just re-throw a pre-existing `HTTPError` instead of masking it.
+ * Pull-based (preserves backpressure, never reads ahead of the consumer): it
+ * counts bytes as they flow and, the moment the running total exceeds `limit`,
+ * aborts with a `413` {@link HTTPError} and cancels the upstream so the source
+ * can stop producing. Consumers therefore only ever see an `HTTPError`, so body
+ * readers that wrap failures (e.g. `readBody`, validated handlers, JSON-RPC)
+ * can re-throw a pre-existing `HTTPError` instead of masking it.
  */
 export function limitBody(
   body: ReadableStream<Uint8Array>,
   limit: number,
 ): ReadableStream<Uint8Array> {
-  const reader = limitBodyStream(body, limit).getReader();
+  const reader = body.getReader();
+  let size = 0;
   return new ReadableStream({
     async pull(controller) {
-      try {
-        const { done, value } = await reader.read();
-        if (done) {
-          controller.close();
-        } else {
-          controller.enqueue(value);
-        }
-      } catch (error) {
-        controller.error(
-          (error as { code?: string } | undefined)?.code === "ERR_BODY_TOO_LARGE"
-            ? new HTTPError({
-                status: 413,
-                statusText: "Request Entity Too Large",
-                message: `Request body size exceeds the limit of ${limit} bytes`,
-              })
-            : error,
-        );
+      const { done, value } = await reader.read();
+      if (done) {
+        controller.close();
+        return;
       }
+      size += value.byteLength;
+      if (size > limit) {
+        const error = new HTTPError({
+          status: 413,
+          statusText: "Request Entity Too Large",
+          message: `Request body size exceeds the limit of ${limit} bytes`,
+        });
+        reader.cancel(error).catch(() => {});
+        controller.error(error);
+        return;
+      }
+      controller.enqueue(value);
     },
     cancel: (reason) => reader.cancel(reason),
   });
