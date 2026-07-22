@@ -17,7 +17,7 @@ export function toResponse(
   if (typeof (val as PromiseLike<unknown>)?.then === "function") {
     return (val as Promise<unknown>).then(
       (resolvedVal) => toResponse(resolvedVal, event, config),
-      (r) => toResponse(typeof r === "number" ? new HTTPError({ status: r }) : r, event, config),
+      (r) => toResponse(toError(r), event, config),
     ) as Promise<Response>;
   }
 
@@ -42,6 +42,29 @@ export function toResponse(
       val,
     ) ?? (response as Response)
   );
+}
+
+/**
+ * Normalize a thrown or rejected value before rendering it as a response.
+ *
+ * Errors and the internal sentinels are passed through, and numbers are coerced to a status code
+ * (`throw 404`). Anything else — an object, a string, `undefined` — is wrapped into an unhandled
+ * 500, so it is logged instead of being rendered as a successful response body.
+ *
+ * Nothing is taken from the thrown value: `status`, `message`, `data`, `statusText` and `headers`
+ * are all dropped, and the value is kept as `cause`, which is never serialized. A non-Error object
+ * is never trusted to shape the response, not even via a `status` shorthand.
+ */
+export function toError(value: unknown): unknown {
+  if (value === kNotFound || value === kHandled || value instanceof Error) {
+    return value;
+  }
+  if (typeof value === "number") {
+    return new HTTPError({ status: value });
+  }
+  const error = new HTTPError({ status: 500, unhandled: true });
+  (error as { cause: unknown }).cause = value;
+  return error;
 }
 
 export class HTTPResponse {
