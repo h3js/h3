@@ -1,6 +1,10 @@
 import { HTTPError } from "../error.ts";
+import { defineHandler } from "../handler.ts";
+import { serializeAcceptQuery, baseMediaType, mediaTypeMatches } from "./internal/media-type.ts";
+import { resolveGetQuery, setQueryContentLocation } from "./internal/query-get.ts";
 
 import type { H3Event, HTTPEvent } from "../event.ts";
+import type { EventHandlerObject, EventHandlerWithFetch } from "../types/handler.ts";
 
 /**
  * Advertise the query formats a resource accepts by setting the `Accept-Query`
@@ -26,10 +30,9 @@ export function appendAcceptQuery(event: H3Event, mediaTypes: string | string[])
   if (list.length === 0) {
     return;
   }
-  const value = list.map(serializeMediaType).join(", ");
   // Append so multiple callers (e.g. middleware + handler) accumulate formats
   // into a single comma-separated Structured Fields List instead of clobbering.
-  event.res.headers.append("accept-query", value);
+  event.res.headers.append("accept-query", serializeAcceptQuery(list));
 }
 
 /**
@@ -69,7 +72,7 @@ export function requireContentType(event: HTTPEvent, acceptedTypes: string | str
     });
   }
 
-  const mediaType = header.split(";")[0].trim().toLowerCase();
+  const mediaType = baseMediaType(header);
   const slash = mediaType.indexOf("/");
   if (slash <= 0 || slash === mediaType.length - 1) {
     throw new HTTPError({
@@ -83,9 +86,7 @@ export function requireContentType(event: HTTPEvent, acceptedTypes: string | str
   // Strip parameters from accepted entries too so a parameterized accepted type
   // (e.g. "application/json; charset=utf-8") still matches the parameter-less
   // request media type computed above.
-  if (
-    accepted.some((type) => mediaTypeMatches(mediaType, type.split(";")[0].trim().toLowerCase()))
-  ) {
+  if (accepted.some((type) => mediaTypeMatches(mediaType, baseMediaType(type)))) {
     return mediaType;
   }
 
@@ -96,86 +97,166 @@ export function requireContentType(event: HTTPEvent, acceptedTypes: string | str
   });
 }
 
-// --- internal helpers ---
+/**
+ * Options for `defineQueryHandler`'s GET equivalence.
+ */
+export interface QueryHandlerGetOptions {
+  /**
+   * URL search param carrying the query on GET/HEAD requests (default: `"q"`).
+   */
+  param?: string;
 
-// sf-token: ( ALPHA / "*" ) *( tchar / ":" / "/" ) — https://www.rfc-editor.org/rfc/rfc8941#section-3.3.4
-const SF_TOKEN_RE = /^[A-Za-z*][\w!#$%&'*+.^`|~:/-]*$/;
-// sf-key: ( lcalpha / "*" ) *( lcalpha / DIGIT / "_" / "-" / "." / "*" )
-const SF_KEY_RE = /^[a-z*][a-z0-9_.*-]*$/;
-
-/** Serialize a `type/subtype;param=value` media type into a Structured Fields item. */
-function serializeMediaType(mediaType: string): string {
-  const parts = splitOutsideQuotes(mediaType, ";");
-  const base = parts[0].trim();
-  if (!SF_TOKEN_RE.test(base)) {
-    throw new TypeError(`Invalid media type: ${JSON.stringify(mediaType)}`);
-  }
-  let result = base;
-  for (let i = 1; i < parts.length; i++) {
-    const param = parts[i].trim();
-    if (!param) {
-      continue;
-    }
-    const eq = param.indexOf("=");
-    const key = (eq === -1 ? param : param.slice(0, eq)).trim().toLowerCase();
-    if (!SF_KEY_RE.test(key)) {
-      throw new TypeError(`Invalid media type parameter: ${JSON.stringify(param)}`);
-    }
-    // Bare parameters serialize to the boolean `true` (an implicit `;key`).
-    result +=
-      eq === -1 ? `;${key}` : `;${key}="${escapeQuotes(unquote(param.slice(eq + 1).trim()))}"`;
-  }
-  return result;
+  /**
+   * URL search param selecting the query format on GET/HEAD requests
+   * (default: `"f"`). It may be omitted by clients when exactly one concrete
+   * (non-wildcard) format is accepted.
+   */
+  formatParam?: string;
 }
 
-function mediaTypeMatches(mediaType: string, accepted: string): boolean {
-  if (accepted === "*/*" || accepted === "*") {
-    return true;
-  }
-  if (accepted === mediaType) {
-    return true;
-  }
-  if (accepted.endsWith("/*")) {
-    return mediaType.startsWith(accepted.slice(0, -1));
-  }
-  return false;
-}
+type QueryHandlerBase = Omit<EventHandlerObject, "handler" | "fetch"> & {
+  formats: string[];
+};
 
-/** Split on `sep` while ignoring separators inside double-quoted strings. */
-function splitOutsideQuotes(input: string, sep: string): string[] {
-  const parts: string[] = [];
-  let current = "";
-  let inQuotes = false;
-  for (let i = 0; i < input.length; i++) {
-    const ch = input[i];
-    if (inQuotes) {
-      current += ch;
-      if (ch === "\\" && i + 1 < input.length) {
-        current += input[++i];
-      } else if (ch === '"') {
-        inQuotes = false;
+export function defineQueryHandler(
+  def: QueryHandlerBase & {
+    get?: undefined;
+    body: false;
+    handler: (event: H3Event, context: { format: string }) => unknown | Promise<unknown>;
+  },
+): EventHandlerWithFetch;
+
+export function defineQueryHandler(
+  def: QueryHandlerBase & {
+    get?: true | string | QueryHandlerGetOptions;
+    body?: true;
+    handler: (
+      event: H3Event,
+      context: { format: string; query: string },
+    ) => unknown | Promise<unknown>;
+  },
+): EventHandlerWithFetch;
+
+/**
+ * Define an HTTP `QUERY` method handler (RFC 10008) with the accepted query
+ * `formats` enforced and advertised.
+ *
+ * The `formats` array lists the accepted query media types (wildcards like
+ * `application/*` are supported). On every response — including error
+ * responses — they are advertised via the `Accept-Query` header. The handler
+ * receives the matched request media type as `format` (lower-cased, without
+ * parameters) and the query text as `query`, read from the request body.
+ *
+ * Requests are rejected with `405` (non-`QUERY` method), `400` (missing
+ * `Content-Type`), `422` (malformed `Content-Type`), or `415` (unsupported
+ * query format).
+ *
+ * Set `body: false` to opt out of reading the request body: the handler then
+ * receives only `{ format }` and reads the body itself (e.g. as a stream or
+ * with a custom parser).
+ *
+ * With the `get` option, the same handler also serves an equivalent,
+ * HTTP-cacheable GET (RFC 10008 §2.3): the query is read from the `?q=` URL
+ * search param and the format from `?f=` (both names configurable), the handler
+ * receives the resolved `query` on both paths, and successful QUERY responses
+ * advertise the equivalent GET via `Content-Location` — preserving existing
+ * search params, and skipped when the URL would exceed 2048 chars. The handler
+ * gates the method itself (`405` for anything else), so a single `app.all`
+ * route serves QUERY, GET, and HEAD. GET-path rejections are `400`. Pass
+ * `get: true` for the default param names, a string to set the query param, or
+ * an object to set both.
+ *
+ * @example
+ * app.query("/books", defineQueryHandler({
+ *   formats: ["application/sql", "application/jsonpath"],
+ *   handler: (event, { format, query }) => runQuery(format, query),
+ * }));
+ *
+ * @example
+ * const searchBooks = defineQueryHandler({
+ *   formats: ["application/sql", "application/jsonpath"],
+ *   get: true,
+ *   handler: (event, { format, query }) => runQuery(format, query),
+ * });
+ * app.all("/books", searchBooks);
+ * // QUERY /books     -> 200 + Content-Location: /books?q=<query>&f=<format>
+ * // GET /books?q=... -> same result, ordinary HTTP caching applies
+ *
+ * @param def Handler options: the accepted `formats`, the `handler`, optional `get` equivalence, optional `body: false` opt-out, plus optional `middleware` and `meta`.
+ */
+export function defineQueryHandler(
+  def: QueryHandlerBase & {
+    get?: true | string | QueryHandlerGetOptions;
+    body?: boolean;
+    handler: (event: H3Event, context: any) => unknown | Promise<unknown>;
+  },
+): EventHandlerWithFetch {
+  if (def.formats.length === 0) {
+    throw new TypeError("defineQueryHandler requires at least one format");
+  }
+
+  // Serialize once at definition time: validates the media types eagerly and
+  // avoids re-serializing on every request.
+  const acceptQuery = serializeAcceptQuery(def.formats);
+
+  const getOpts =
+    typeof def.get === "object"
+      ? def.get
+      : typeof def.get === "string"
+        ? { param: def.get }
+        : undefined;
+  const get = def.get
+    ? { param: getOpts?.param ?? "q", formatParam: getOpts?.formatParam ?? "f" }
+    : undefined;
+
+  // With a single concrete (non-wildcard) accepted format, GET requests may
+  // omit the format param and `Content-Location` doesn't need to carry it.
+  const defaultFormat =
+    def.formats.length === 1 && !def.formats[0].includes("*")
+      ? baseMediaType(def.formats[0])
+      : undefined;
+
+  // Read the query body as text by default, exposing it as `context.query`.
+  // `get` always reads it (needed for the `query` context and `Content-Location`);
+  // `body: false` opts out so the handler reads the body itself.
+  const readBody = !!get || def.body !== false;
+
+  return defineHandler({
+    ...def,
+    handler: function _queryHandler(event) {
+      // Advertise the accepted formats on every response, including error
+      // responses (405/415/...), so clients can discover the supported query
+      // formats per RFC 10008.
+      event.res.headers.append("accept-query", acceptQuery);
+      event.res.errHeaders.append("accept-query", acceptQuery);
+
+      const method = event.req.method;
+      if (method !== "QUERY" && !(get && (method === "GET" || method === "HEAD"))) {
+        throw new HTTPError({
+          status: 405,
+          statusText: "Method Not Allowed",
+          headers: { allow: get ? "GET, HEAD, QUERY" : "QUERY" },
+        });
       }
-    } else if (ch === '"') {
-      inQuotes = true;
-      current += ch;
-    } else if (ch === sep) {
-      parts.push(current);
-      current = "";
-    } else {
-      current += ch;
-    }
-  }
-  parts.push(current);
-  return parts;
-}
 
-function escapeQuotes(value: string): string {
-  return value.replace(/[\\"]/g, "\\$&");
-}
+      if (method !== "QUERY") {
+        // GET/HEAD equivalent of a QUERY request (RFC 10008 §2.3).
+        return def.handler(event, resolveGetQuery(event, get!, def.formats, defaultFormat));
+      }
 
-function unquote(value: string): string {
-  if (value.length >= 2 && value[0] === '"' && value.endsWith('"')) {
-    return value.slice(1, -1).replace(/\\(.)/g, "$1");
-  }
-  return value;
+      // Throws 400 (missing), 422 (malformed), or 415 (unsupported).
+      const format = requireContentType(event, def.formats);
+
+      if (!readBody) {
+        return def.handler(event, { format });
+      }
+
+      return event.req.text().then((query) => {
+        if (get) {
+          setQueryContentLocation(event, get, query, format, defaultFormat);
+        }
+        return def.handler(event, { format, query });
+      });
+    },
+  });
 }
