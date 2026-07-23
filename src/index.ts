@@ -22,7 +22,7 @@ export { definePlugin } from "./plugin.ts";
 
 // Event
 
-export type { H3EventContext } from "./types/context.ts";
+export type { H3EventContext, TypedH3EventContext } from "./types/context.ts";
 export { H3Event, type HTTPEvent } from "./event.ts";
 export { isEvent, isHTTPEvent, mockEvent, getEventContext } from "./utils/event.ts";
 

@@ -1,6 +1,7 @@
-import type { ServerRequest } from "srvx";
+import type { ServerRequest, ServerRequestContext } from "srvx";
 import type { TypedRequest, TypedResponse, ResponseHeaderMap } from "fetchdts";
 import type { H3Event, HTTPEvent } from "../event.ts";
+import type { H3EventContext } from "./context.ts";
 import type { MaybePromise } from "./_utils.ts";
 import type { H3RouteMeta } from "./h3.ts";
 import type { H3Core } from "../h3.ts";
@@ -12,8 +13,9 @@ export type HTTPHandler = EventHandler | FetchableObject | H3Core;
 export interface EventHandler<
   _RequestT extends EventHandlerRequest = EventHandlerRequest,
   _ResponseT extends EventHandlerResponse = EventHandlerResponse,
+  _ContextT extends ServerRequestContext = H3EventContext,
 > {
-  (event: H3Event<_RequestT>): _ResponseT;
+  (event: H3Event<_RequestT, _ContextT>): _ResponseT;
   meta?: H3RouteMeta;
 }
 

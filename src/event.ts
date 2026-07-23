@@ -1,4 +1,4 @@
-import type { ServerRequest, ServerRuntimeContext } from "srvx";
+import type { ServerRequest, ServerRequestContext, ServerRuntimeContext } from "srvx";
 import type { H3EventContext } from "./types/context.ts";
 
 import { EmptyObject } from "./utils/internal/obj.ts";
@@ -29,6 +29,7 @@ export interface HTTPEvent<_RequestT extends EventHandlerRequest = EventHandlerR
 
 export class H3Event<
   _RequestT extends EventHandlerRequest = EventHandlerRequest,
+  _ContextT extends ServerRequestContext = H3EventContext,
 > implements HTTPEvent<_RequestT> {
   /**
    * Access to the H3 application instance.
@@ -72,19 +73,19 @@ export class H3Event<
   /**
    * Event context.
    */
-  readonly context: H3EventContext;
+  readonly context: _ContextT;
 
   /**
    * @internal
    */
   static __is_event__ = true;
 
-  constructor(req: ServerRequest, context?: H3EventContext, app?: H3Core) {
+  constructor(req: ServerRequest, context?: _ContextT, app?: H3Core) {
     // Keep `event.context` and `req.context` as the same reference so utilities
     // reading `event.req.context` (e.g. getRequestIP) observe writes to
     // `event.context`. Without the write-back, an explicit `context` or an
     // unset `req.context` leaves the two objects diverged.
-    this.context = req.context = context || req.context || new EmptyObject();
+    this.context = req.context = (context || req.context || new EmptyObject()) as _ContextT;
     this.req = req;
     this.app = app;
     // Parsed URL can be provided by srvx (node) and other runtimes
