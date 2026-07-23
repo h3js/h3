@@ -16,7 +16,13 @@ import type {
 import type { StandardSchemaV1, InferOutput } from "./utils/internal/standard-schema.ts";
 import type { TypedRequest } from "fetchdts";
 import { NoHandler, type H3Core } from "./h3.ts";
-import { validatedRequest, validatedURL, type OnValidateError } from "./utils/internal/validate.ts";
+import {
+  validatedRequest,
+  validatedURL,
+  validatedParams,
+  type OnValidateError,
+} from "./utils/internal/validate.ts";
+import { chain } from "./utils/internal/promise.ts";
 
 // --- event handler ---
 
@@ -50,17 +56,38 @@ export function defineHandler(input: EventHandler | EventHandlerObject): EventHa
   );
 }
 
-type StringHeaders<T> = {
+// Route params and query values are always strings at runtime, so the inferred
+// handler types are narrowed to their string members. A schema that *coerces* a
+// field to a non-string (e.g. `z.coerce.number()`) therefore infers `never` for
+// that field here — the runtime value is coerced but the type cannot represent
+// it yet. Typing coerced params/query is tracked as a follow-up (#1437).
+type StringsOnly<T> = {
   [K in keyof T]: Extract<T[K], string>;
 };
 
 /**
+ * Define an event handler with Standard-Schema validation for `body`, `headers`,
+ * `query`, and route `params`.
+ *
+ * Validation runs sequentially — `params` → `headers` → `query` — and
+ * short-circuits: a failing step throws before later steps run. Body validation
+ * stays lazy and only runs when the handler reads `event.req.json()`.
+ *
+ * Validated `params` are written back to `event.context.params` (the schema
+ * output *replaces* the raw router params, so keys a strict schema strips are
+ * dropped). This side effect is visible to any downstream middleware, response
+ * hooks, or later `getRouterParams(event)` calls.
+ *
+ * Set `validate.decodeParams: true` to `decodeURIComponent`-decode the matched
+ * route params (via {@link getRouterParams}'s `decode`) *before* validation.
+ *
  * @experimental defineValidatedHandler is an experimental feature and API may change.
  */
 export function defineValidatedHandler<
   RequestBody extends StandardSchemaV1,
   RequestHeaders extends StandardSchemaV1,
   RequestQuery extends StandardSchemaV1,
+  RequestParams extends StandardSchemaV1,
   Res extends EventHandlerResponse = EventHandlerResponse,
 >(
   def: Omit<EventHandlerObject, "handler"> & {
@@ -68,12 +95,15 @@ export function defineValidatedHandler<
       body?: RequestBody;
       headers?: RequestHeaders;
       query?: RequestQuery;
+      params?: RequestParams;
+      decodeParams?: boolean;
       onError?: OnValidateError;
     };
     handler: EventHandler<
       {
         body: InferOutput<RequestBody>;
-        query: StringHeaders<InferOutput<RequestQuery>>;
+        query: StringsOnly<InferOutput<RequestQuery>>;
+        routerParams: StringsOnly<InferOutput<RequestParams>>;
       },
       Res
     >;
@@ -84,10 +114,19 @@ export function defineValidatedHandler<
   }
   return defineHandler({
     ...def,
-    handler: async function _validatedHandler(event) {
-      (event as any) /* readonly */.req = await validatedRequest(event.req, def.validate!);
-      (event as any) /* readonly */.url = await validatedURL(event.url, def.validate!);
-      return def.handler(event as any);
+    handler: function _validatedHandler(event) {
+      const v = def.validate!;
+      // `chain` keeps a fully-sync path from yielding a microtask.
+      // params → headers → query in sequential order
+      return chain(validatedParams(event, v), () =>
+        chain(validatedRequest(event.req, v), (req) => {
+          (event as any) /* readonly */.req = req;
+          return chain(validatedURL(event.url, v), (url) => {
+            (event as any) /* readonly */.url = url;
+            return def.handler(event as any);
+          });
+        }),
+      );
     },
   }) as any;
 }
