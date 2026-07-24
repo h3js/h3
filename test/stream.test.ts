@@ -76,6 +76,26 @@ describeMatrix(
 
     // --- Response stream: Web ReadableStream ---
 
+    it("waits for the first stream chunk before committing response metadata", async () => {
+      ctx.app.get("/stream", (event) => {
+        return new ReadableStream({
+          async start(controller) {
+            await Promise.resolve();
+            event.res.status = 201;
+            event.res.headers.set("x-stream-header", "ready");
+            controller.enqueue(new TextEncoder().encode("Hello World"));
+            controller.close();
+          },
+        });
+      });
+
+      const res = await ctx.fetch("/stream");
+
+      expect(res.status).toBe(201);
+      expect(res.headers.get("x-stream-header")).toBe("ready");
+      expect(await res.text()).toBe("Hello World");
+    });
+
     it("web response stream: client abort propagates to cancel", async () => {
       const { promise: cancelled, resolve: onCancelled } = Promise.withResolvers<boolean>();
 

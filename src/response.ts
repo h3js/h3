@@ -108,6 +108,7 @@ function prepareResponse(
   event: H3Event,
   config: H3Config,
   nested?: boolean,
+  primed?: boolean,
 ): Response | Promise<Response> {
   if (val === kHandled) {
     return new FastResponse(null);
@@ -141,6 +142,12 @@ function prepareResponse(
           .catch((error) => error)
           .then((newVal) => prepareResponse(newVal ?? val, event, config, true))
       : errorResponse(error, config.debug, errHeaders);
+  }
+
+  // Delay preparing the response until the stream produces its first chunk. This
+  // lets async renderers set status and headers before the runtime commits them.
+  if (!primed && val instanceof ReadableStream) {
+    return primeStream(val).then((stream) => prepareResponse(stream, event, config, nested, true));
   }
 
   // Only set if event.res.headers is accessed
@@ -200,6 +207,15 @@ function prepareResponse(
         headers: val.headers,
       }) as Response)
     : val;
+}
+
+async function primeStream(stream: ReadableStream): Promise<BodyInit> {
+  const [probe, body] = stream.tee();
+  const reader = probe.getReader();
+  await reader.read();
+  // Do not await: tee cancellation settles only once the response branch ends.
+  void reader.cancel();
+  return body;
 }
 
 function mergeHeaders(base: HeadersInit, overrides: Headers, target = new Headers(base)): Headers {
