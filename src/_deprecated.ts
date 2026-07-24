@@ -159,7 +159,7 @@ export const sendIterable: <Value = unknown, Return = unknown>(
   options?: {
     serializer: IteratorSerializer<Value | Return>;
   },
-) => HTTPResponse = (_event, val, options) => {
+) => Promise<HTTPResponse> = (_event, val, options) => {
   return iterable(val, options);
 };
 

@@ -1,4 +1,4 @@
-import { noContent } from "../src/index.ts";
+import { html, HTTPResponse, noContent } from "../src/index.ts";
 import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("event response", (t, { it, describe, expect }) => {
@@ -60,6 +60,39 @@ describeMatrix("event response", (t, { it, describe, expect }) => {
                 date: expect.any(String),
                 "keep-alive": "timeout=5",
               },
+      });
+    });
+  });
+
+  describe("HTTPResponse", () => {
+    it("keeps the status staged on event.res when the response has none", async () => {
+      t.app.get("/test", (event) => {
+        event.res.status = 201;
+        event.res.statusText = "Created";
+        return html`<p>hi</p>`;
+      });
+
+      const res = await t.fetch("/test");
+
+      expect(await webResponseToPlain(res)).toMatchObject({
+        status: 201,
+        statusText: "Created",
+        body: "<p>hi</p>",
+      });
+    });
+
+    it("own status wins over the one staged on event.res", async () => {
+      t.app.get("/test", (event) => {
+        event.res.status = 201;
+        return new HTTPResponse("hi", { status: 418, statusText: "teapot" });
+      });
+
+      const res = await t.fetch("/test");
+
+      expect(await webResponseToPlain(res)).toMatchObject({
+        status: 418,
+        statusText: "teapot",
+        body: "hi",
       });
     });
   });

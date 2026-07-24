@@ -1,6 +1,6 @@
 import { ReadableStream } from "node:stream/web";
 import { vi } from "vitest";
-import { iterable } from "../src/index.ts";
+import { HTTPError, iterable } from "../src/index.ts";
 import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("iterable", (t, { it, expect, describe }) => {
@@ -90,6 +90,60 @@ describeMatrix("iterable", (t, { it, expect, describe }) => {
           expect(await response.text()).toBe("the-value");
         });
       }
+    });
+
+    describe("response status and headers", () => {
+      it("keeps the status staged before the iterable is returned", async () => {
+        t.app.use((event) => {
+          event.res.status = 201;
+          return iterable(["a"]);
+        });
+        const result = await t.fetch("/");
+        expect(result.status).toBe(201);
+        expect(await result.text()).toBe("a");
+      });
+
+      it("applies status and headers set while producing the first chunk", async () => {
+        t.app.use((event) =>
+          iterable(async function* () {
+            await Promise.resolve();
+            event.res.status = 201;
+            event.res.headers.set("hello", "world");
+            yield "a";
+            yield "b";
+          }),
+        );
+        const result = await t.fetch("/");
+        expect(result.status).toBe(201);
+        expect(result.headers.get("hello")).toBe("world");
+        expect(await result.text()).toBe("ab");
+      });
+
+      it("ignores changes made after the first chunk", async () => {
+        t.app.use((event) =>
+          iterable(async function* () {
+            yield "a";
+            event.res.status = 201;
+            yield "b";
+          }),
+        );
+        const result = await t.fetch("/");
+        expect(result.status).toBe(200);
+        expect(await result.text()).toBe("ab");
+      });
+
+      it("renders an error response when the first chunk throws", async () => {
+        t.app.use(() =>
+          iterable(async function* () {
+            throw new HTTPError({ status: 418, message: "nope" });
+            // eslint-disable-next-line no-unreachable
+            yield "a";
+          }),
+        );
+        const result = await t.fetch("/");
+        expect(result.status).toBe(418);
+        expect((await result.json()).message).toBe("nope");
+      });
     });
 
     describe("serializer argument", () => {

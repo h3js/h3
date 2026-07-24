@@ -92,11 +92,19 @@ export class HTTPResponse {
     this.body = body;
     this.#init = init;
   }
-  get status(): number {
-    return this.#init?.status || 200;
+  /**
+   * Status of the response, or `undefined` when unset.
+   *
+   * Unset means "inherit": the status staged on `event.res.status` is used, falling back to `200`.
+   * Defaulting to `200` here instead would make an untouched `HTTPResponse` indistinguishable from
+   * one explicitly built with `{ status: 200 }`, and always win over `event.res`.
+   */
+  get status(): number | undefined {
+    return this.#init?.status;
   }
-  get statusText(): string {
-    return this.#init?.statusText || "OK";
+  /** Status text of the response, or `undefined` when unset. See {@link HTTPResponse.status}. */
+  get statusText(): string | undefined {
+    return this.#init?.statusText;
   }
   get headers(): Headers {
     return (this.#headers ||= new Headers(this.#init?.headers));

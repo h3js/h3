@@ -186,6 +186,11 @@ export function writeEarlyHints(
  *
  * For generator (yielding) functions, the returned value is treated the same as yielded values.
  *
+ * The first chunk is awaited before the response is created, so status and headers staged while
+ * producing it (`event.res.status`, `event.res.headers`) are still applied. Everything set after
+ * the first chunk is ignored — headers are already on the wire by then. (Returning a raw
+ * `ReadableStream` gives no such window: its response is created before the stream is read.)
+ *
  * @param iterable - Iterator that produces chunks of the response.
  * @param serializer - Function that converts values from the iterable into stream-compatible values.
  * @template Value - Test
@@ -209,18 +214,22 @@ export function writeEarlyHints(
  *   return new Promise((resolve) => setTimeout(resolve, ms));
  * }
  */
-export function iterable<Value = unknown, Return = unknown>(
+export async function iterable<Value = unknown, Return = unknown>(
   iterable: IterationSource<Value, Return>,
   options?: {
     serializer: IteratorSerializer<Value | Return>;
   },
-): HTTPResponse {
+): Promise<HTTPResponse> {
   const serializer = options?.serializer ?? serializeIterableValue;
   const iterator = coerceIterable(iterable);
+  // Pull the first chunk up-front: the response is built as soon as the handler returns, so this
+  // is the only point where the producer can still influence status and headers.
+  let first: IteratorResult<Value | Return> | undefined = await iterator.next();
   return new HTTPResponse(
     new ReadableStream({
       async pull(controller) {
-        const { value, done } = await iterator.next();
+        const { value, done } = first ?? (await iterator.next());
+        first = undefined;
         if (value !== undefined) {
           const chunk = serializer(value);
           if (chunk !== undefined) {
