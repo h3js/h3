@@ -9,8 +9,8 @@ importers:
   .:
     devDependencies:
       undocs:
-        specifier: npm:undocs-nightly@0.10.1-20260724-174655-fd9e76f
-        version: undocs-nightly@0.10.1-20260724-174655-fd9e76f(chokidar@5.0.0)(csstype@3.2.3)(dotenv@17.4.2)(giget@3.3.0)(jiti@2.7.0)(lightningcss@1.33.0)(rolldown@1.2.0)(srvx@0.11.22)
+        specifier: npm:undocs-nightly@0.10.1-20260730-003522-904fbef
+        version: undocs-nightly@0.10.1-20260730-003522-904fbef(chokidar@5.0.0)(csstype@3.2.3)(dotenv@17.4.2)(giget@3.3.0)(jiti@2.7.0)(lightningcss@1.33.0)(rolldown@1.2.0)(srvx@0.11.22)
 
 packages:
 
@@ -1596,8 +1596,8 @@ packages:
   ufo@1.6.4:
     resolution: {integrity: sha512-JFNbkD1Svwe0KvGi8GOeLcP4kAWQ609twvCdcHxq1oSL8svv39ZuSvajcD8B+5D0eL4+s1Is2D/O6KN3qcTeRA==}
 
-  undocs-nightly@0.10.1-20260724-174655-fd9e76f:
-    resolution: {integrity: sha512-sXCsvOOLzhiRm3SI2+ofhE84LsqAnqBfkj9MkYN+LUwf9gWGNeczwDg4FMG1EudR3qNzogOvt6KZtNuJRBdQVA==}
+  undocs-nightly@0.10.1-20260730-003522-904fbef:
+    resolution: {integrity: sha512-d2Xp0y4c8ALK4WhTmcWjFyPMKkNLWvyfRwIkICh5st5ikVvUEzjZxw81bzVMsfgDsAt3g7MkALiyxRQoNxHNOQ==}
     hasBin: true
 
   unenv@2.0.0-rc.24:
@@ -3273,7 +3273,7 @@ snapshots:
 
   ufo@1.6.4: {}
 
-  undocs-nightly@0.10.1-20260724-174655-fd9e76f(chokidar@5.0.0)(csstype@3.2.3)(dotenv@17.4.2)(giget@3.3.0)(jiti@2.7.0)(lightningcss@1.33.0)(rolldown@1.2.0)(srvx@0.11.22):
+  undocs-nightly@0.10.1-20260730-003522-904fbef(chokidar@5.0.0)(csstype@3.2.3)(dotenv@17.4.2)(giget@3.3.0)(jiti@2.7.0)(lightningcss@1.33.0)(rolldown@1.2.0)(srvx@0.11.22):
     dependencies:
       '@fontsource-variable/geist': 5.3.0
       '@fontsource-variable/geist-mono': 5.3.0
