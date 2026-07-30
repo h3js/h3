@@ -5,6 +5,9 @@ import {
   dynamicEventHandler,
   defineLazyEventHandler,
   defineValidatedHandler,
+  getRouterParams,
+  getRouterParam,
+  H3,
 } from "../src/index.ts";
 import type { ValidateIssues } from "../src/utils/internal/validate.ts";
 
@@ -371,6 +374,204 @@ describe("handler.ts", () => {
         expect(res.status).toBe(400);
         expect(await res.json()).toMatchObject({
           data: { issues: [{ path: ["name"], message: "Name is banned" }] },
+        });
+      });
+    });
+
+    // Regression: async header validation must short-circuit query validation.
+    // A racing `Promise.all` would run the query schema even when headers
+    // already failed, and let its error win nondeterministically.
+    describe("async validation ordering", () => {
+      const querySpy = vi.fn(async (id: string) => id.length >= 3);
+      const orderingHandler = defineValidatedHandler({
+        validate: {
+          body: z.object({ name: z.string() }),
+          headers: z.object({
+            "x-token": z.string().refine(async (token) => token.length >= 3, "Token too short"),
+          }),
+          query: z.object({
+            id: z.string().refine(querySpy, "Id too short"),
+          }),
+        },
+        handler: async () => "ok",
+      });
+
+      it("runs query validation once headers pass", async () => {
+        querySpy.mockClear();
+        const res = await orderingHandler.fetch(
+          toRequest("/?id=123", { headers: { "x-token": "abc" } }),
+        );
+        expect(res.status).toBe(200);
+        expect(querySpy).toHaveBeenCalled();
+      });
+
+      it("skips query validation and reports the headers error when headers fail", async () => {
+        querySpy.mockClear();
+        const res = await orderingHandler.fetch(
+          // query would also be invalid, yet the headers error must surface
+          toRequest("/?id=1", { headers: { "x-token": "ab" } }),
+        );
+        expect(res.status).toBe(400);
+        expect(await res.json()).toMatchObject({
+          data: { issues: [{ path: ["x-token"], message: "Token too short" }] },
+        });
+        expect(querySpy).not.toHaveBeenCalled();
+      });
+    });
+
+    describe("params validation", () => {
+      // `defineValidatedHandler`'s TypedRequest return type isn't assignable to `app.get` (pre-exisitng)
+      const mount = (route: string, handler: unknown) => new H3().get(route, handler as any);
+
+      const paramsHandler = defineValidatedHandler({
+        validate: {
+          params: z.object({
+            id: z.string().min(3),
+            role: z.string().default("user"),
+          }),
+        },
+        handler: (event) => getRouterParams(event),
+      });
+
+      it("valid params, validated output written back to context", async () => {
+        const app = mount("/users/:id", paramsHandler);
+        const res = await app.request("/users/123");
+        expect(res.status).toBe(200);
+        // the `role` default proves the validated output lands in context.params
+        expect(await res.json()).toMatchObject({ id: "123", role: "user" });
+      });
+
+      it("invalid params", async () => {
+        const app = mount("/users/:id", paramsHandler);
+        const res = await app.request("/users/1");
+        expect(res.status).toBe(400);
+        expect(await res.json()).toMatchObject({
+          data: { issues: [{ path: ["id"] }] },
+        });
+      });
+
+      // The schema output replaces `context.params` entirely: params it strips
+      // are intentionally dropped so non-validated data never leaks through.
+      it("drops router params stripped by the schema", async () => {
+        const partialHandler = defineValidatedHandler({
+          validate: {
+            params: z.object({ id: z.string().min(3) }),
+          },
+          handler: (event) => getRouterParams(event),
+        });
+        const app = mount("/users/:id/posts/:postId", partialHandler);
+        const res = await app.request("/users/123/posts/456");
+        expect(res.status).toBe(200);
+        expect(await res.json()).toEqual({ id: "123" });
+      });
+
+      it("keeps extra router params with a loose schema", async () => {
+        const looseHandler = defineValidatedHandler({
+          validate: {
+            params: z.looseObject({ id: z.string().min(3) }),
+          },
+          handler: (event) => getRouterParams(event),
+        });
+        const app = mount("/users/:id/posts/:postId", looseHandler);
+        const res = await app.request("/users/123/posts/456");
+        expect(res.status).toBe(200);
+        expect(await res.json()).toEqual({ id: "123", postId: "456" });
+      });
+
+      it("coerces params at runtime; every getter returns the coerced value", async () => {
+        const coerceHandler = defineValidatedHandler({
+          validate: { params: z.object({ id: z.coerce.number() }) },
+          handler: (event) => ({
+            viaParams: typeof getRouterParams(event).id,
+            viaParam: typeof getRouterParam(event, "id"),
+            viaContext: typeof event.context.params?.id,
+            value: getRouterParams(event).id,
+          }),
+        });
+        const res = await mount("/n/:id", coerceHandler).request("/n/42");
+        expect(res.status).toBe(200);
+        expect(await res.json()).toEqual({
+          viaParams: "number",
+          viaParam: "number",
+          viaContext: "number",
+          value: 42,
+        });
+      });
+
+      describe("decode", () => {
+        const decodeHandler = defineValidatedHandler({
+          validate: {
+            params: z.object({ name: z.literal("foo@bar") }),
+            decodeParams: true,
+          },
+          handler: (event) => getRouterParams(event),
+        });
+        const noDecodeHandler = defineValidatedHandler({
+          validate: { params: z.object({ name: z.literal("foo@bar") }) },
+          handler: (event) => getRouterParams(event),
+        });
+
+        it("decodes params before validation when decode:true", async () => {
+          const app = mount("/files/:name", decodeHandler);
+          const res = await app.request("/files/foo%40bar");
+          expect(res.status).toBe(200);
+          expect(await res.json()).toMatchObject({ name: "foo@bar" });
+        });
+
+        it("leaves params encoded by default", async () => {
+          const app = mount("/files/:name", noDecodeHandler);
+          const res = await app.request("/files/foo%40bar");
+          expect(res.status).toBe(400);
+        });
+
+        // Regression: after a coercing schema, `context.params` may hold
+        // non-strings — caller-side decode must skip them, not crash.
+        it("decode:true after coercion skips non-string values", async () => {
+          const coerceHandler = defineValidatedHandler({
+            validate: { params: z.object({ id: z.coerce.number() }) },
+            handler: (event) => getRouterParams(event, { decode: true }),
+          });
+          const app = mount("/n/:id", coerceHandler);
+          const res = await app.request("/n/42");
+          expect(res.status).toBe(200);
+          expect(await res.json()).toEqual({ id: 42 });
+        });
+      });
+
+      describe("async", () => {
+        const headerSpy = vi.fn(async (token: string) => token.length >= 3);
+        const asyncParamsHandler = defineValidatedHandler({
+          validate: {
+            params: z.object({
+              id: z.string().refine(async (id) => id.length >= 3, "Id too short"),
+            }),
+            headers: z.object({
+              "x-token": z.string().refine(headerSpy, "Token too short"),
+            }),
+          },
+          handler: async () => "ok",
+        });
+
+        it("validates async params", async () => {
+          headerSpy.mockClear();
+          const app = mount("/users/:id", asyncParamsHandler);
+          const res = await app.request("/users/1", { headers: { "x-token": "abc" } });
+          expect(res.status).toBe(400);
+          expect(await res.json()).toMatchObject({
+            data: { issues: [{ path: ["id"], message: "Id too short" }] },
+          });
+        });
+
+        it("short-circuits header validation when params fail", async () => {
+          headerSpy.mockClear();
+          const app = mount("/users/:id", asyncParamsHandler);
+          // header would also be invalid, yet params validation runs first
+          const res = await app.request("/users/1", { headers: { "x-token": "ab" } });
+          expect(res.status).toBe(400);
+          expect(await res.json()).toMatchObject({
+            data: { issues: [{ path: ["id"], message: "Id too short" }] },
+          });
+          expect(headerSpy).not.toHaveBeenCalled();
         });
       });
     });
