@@ -1,7 +1,16 @@
 import { type ErrorDetails, HTTPError } from "../../error.ts";
+import { chain } from "./promise.ts";
+import { getRouterParams } from "../request.ts";
 
 import type { ServerRequest } from "srvx";
-import type { StandardSchemaV1, FailureResult, InferOutput, Issue } from "./standard-schema.ts";
+import type { H3Event } from "../../event.ts";
+import type {
+  StandardSchemaV1,
+  FailureResult,
+  InferOutput,
+  Issue,
+  Result,
+} from "./standard-schema.ts";
 
 export type ValidateResult<T> = T | true | false | void;
 
@@ -75,7 +84,7 @@ export async function validateData<T>(
 // prettier-ignore
 const reqBodyKeys = /* @__PURE__ */ new Set(["body", "text", "formData", "arrayBuffer"]);
 
-export async function validatedRequest<
+export function validatedRequest<
   RequestBody extends StandardSchemaV1,
   RequestHeaders extends StandardSchemaV1,
 >(
@@ -85,20 +94,30 @@ export async function validatedRequest<
     headers?: RequestHeaders;
     onError?: OnValidateError;
   },
-): Promise<ServerRequest> {
-  // Validate Headers
+): ServerRequest | Promise<ServerRequest> {
   if (validate.headers) {
-    const validatedheaders = await validateSource(
+    const validated = validateSource(
       "headers",
       Object.fromEntries(req.headers.entries()),
       validate.headers as StandardSchemaV1<Record<string, string>>,
       validate.onError,
     );
-    for (const [key, value] of Object.entries(validatedheaders)) {
-      req.headers.set(key, value);
-    }
+    const applyHeaders = (headers: Record<string, string>): ServerRequest => {
+      for (const [key, value] of Object.entries(headers)) {
+        req.headers.set(key, value);
+      }
+      return bodyProxy(req, validate);
+    };
+    return chain(validated, applyHeaders);
   }
 
+  return bodyProxy(req, validate);
+}
+
+function bodyProxy(
+  req: ServerRequest,
+  validate: { body?: StandardSchemaV1; onError?: OnValidateError },
+): ServerRequest {
   if (!validate.body) {
     return req;
   }
@@ -149,47 +168,81 @@ export async function validatedRequest<
   });
 }
 
-export async function validatedURL(
+export function validatedURL(
   url: URL,
   validate: {
     query?: StandardSchemaV1;
     onError?: OnValidateError;
   },
-): Promise<URL> {
+): URL | Promise<URL> {
   if (!validate.query) {
     return url;
   }
 
-  const validatedQuery = await validateSource(
+  const validated = validateSource(
     "query",
     Object.fromEntries(url.searchParams.entries()),
     validate.query as StandardSchemaV1<Record<string, string>>,
     validate.onError,
   );
 
-  for (const [key, value] of Object.entries(validatedQuery)) {
-    url.searchParams.set(key, value);
-  }
+  const applyQuery = (query: Record<string, string>): URL => {
+    for (const [key, value] of Object.entries(query)) {
+      url.searchParams.set(key, value);
+    }
+    return url;
+  };
 
-  return url;
+  return chain(validated, applyQuery);
 }
 
-async function validateSource<Source extends "headers" | "query", T = unknown>(
+export function validatedParams(
+  event: H3Event,
+  validate: {
+    params?: StandardSchemaV1;
+    decodeParams?: boolean;
+    onError?: OnValidateError;
+  },
+): Record<string, string> | undefined | Promise<Record<string, string>> {
+  if (!validate.params) {
+    return event.context.params;
+  }
+
+  const validated = validateSource(
+    "params",
+    getRouterParams(event, { decode: validate.decodeParams }),
+    validate.params as StandardSchemaV1<Record<string, string>>,
+    validate.onError,
+  );
+
+  // Replace (not merge): schema output is the source of truth.
+  const applyParams = (params: Record<string, string>): Record<string, string> => {
+    event.context.params = params;
+    return params;
+  };
+
+  return chain(validated, applyParams);
+}
+
+function validateSource<Source extends "headers" | "query" | "params", T = unknown>(
   source: Source,
   data: unknown,
   fn: StandardSchemaV1<T>,
   onError?: OnValidateError,
-): Promise<T> {
-  const result = await fn["~standard"].validate(data);
-  if (result.issues) {
-    throw createValidationError(
-      onError?.({ _source: source, ...result }) || {
-        message: VALIDATION_FAILED,
-        issues: result.issues,
-      },
-    );
-  }
-  return result.value;
+): T | Promise<T> {
+  const finish = (result: Result<T>): T => {
+    if (result.issues) {
+      throw createValidationError(
+        onError?.({ _source: source, ...result }) || {
+          message: VALIDATION_FAILED,
+          issues: result.issues,
+        },
+      );
+    }
+    return result.value;
+  };
+
+  return chain(fn["~standard"].validate(data), finish);
 }
 
 function createValidationError(cause: Error | HTTPError | ErrorDetails | FailureResult) {
