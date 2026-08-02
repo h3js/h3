@@ -249,6 +249,41 @@ describeMatrix("session", (t, { it, expect }) => {
     }
   });
 
+  it("autoReseal keeps hard expiration for header-carried sessions", async () => {
+    const t0 = Date.parse("2030-01-01T00:00:00Z");
+    vi.useFakeTimers({ toFake: ["Date"], now: t0 });
+    try {
+      let idCtr = 0;
+      const config: SessionConfig = {
+        name: "h3-arh",
+        password: sessionConfig.password,
+        maxAge: 60,
+        autoReseal: true,
+        generateId: () => `arh-${++idCtr}`,
+      };
+      t.app.get("/auto-reseal-header", async (event) => {
+        const session = await useSession(event, config);
+        return { id: session.id };
+      });
+
+      const res1 = await t.fetch("/auto-reseal-header");
+      expect((await res1.json()).id).toBe("arh-1");
+      const setCookie = res1.headers.getSetCookie().find((c) => c.startsWith("h3-arh="))!;
+      const sealed = decodeURIComponent(setCookie.match(/h3-arh=([^;]+)/)![1]);
+
+      // t=90s: past createdAt + maxAge but inside the seal's 60s clock-skew
+      // allowance — header seals are never resealed, so sliding expiration
+      // cannot apply and the hard limit must still hold
+      vi.setSystemTime(t0 + 90_000);
+      const res2 = await t.fetch("/auto-reseal-header", {
+        headers: { "x-h3-arh-session": sealed },
+      });
+      expect((await res2.json()).id).toBe("arh-2");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("expires at createdAt + maxAge by default (no autoReseal)", async () => {
     const t0 = Date.parse("2030-01-01T00:00:00Z");
     vi.useFakeTimers({ toFake: ["Date"], now: t0 });

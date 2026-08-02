@@ -146,8 +146,10 @@ export async function getSession<T extends SessionData = SessionData>(
     sessionFromCookie = true;
   }
   if (sealedSession) {
-    // Unseal session data from cookie
-    const promise = unsealSession(event, config, sealedSession)
+    // Unseal session data
+    const promise = unsealSession(event, config, sealedSession, {
+      source: sessionFromCookie ? "cookie" : "header",
+    })
       .catch(() => {})
       .then(async (unsealed) => {
         const legacySeal = unsealed && (unsealed as any)[kLegacySeal];
@@ -243,6 +245,11 @@ export async function sealSession<T extends SessionData = SessionData>(
   return sealed;
 }
 
+type UnsealSessionOptions = {
+  /** Where the sealed value was read from. Only `"cookie"` seals are eligible for `autoReseal` sliding expiration. */
+  source?: "cookie" | "header";
+};
+
 /**
  * Decrypt and verify the session data for the current request.
  */
@@ -250,6 +257,7 @@ export async function unsealSession(
   _event: HTTPEvent,
   config: SessionConfig,
   sealed: string,
+  opts?: UnsealSessionOptions,
 ): Promise<Partial<Session>> {
   const sealOptions = {
     ...sealDefaults,
@@ -282,10 +290,11 @@ export async function unsealSession(
       (unsealed as any)[kLegacySeal] = true;
     }
   }
-  // With autoReseal, expiry is governed by the seal's embedded TTL (refreshed
-  // on each reseal) — an age check based on createdAt would defeat sliding
-  // expiration
-  if (config.maxAge && !config.autoReseal) {
+  // With autoReseal, cookie session expiry is governed by the seal's embedded
+  // TTL (refreshed on each reseal) — an age check based on createdAt would
+  // defeat sliding expiration. Seals from any other source are never resealed,
+  // so they keep the hard createdAt + maxAge limit
+  if (config.maxAge && !(config.autoReseal && opts?.source === "cookie")) {
     const age = Date.now() - (unsealed.createdAt || Number.NEGATIVE_INFINITY);
     if (age > config.maxAge * 1000) {
       throw new Error("Session expired!");
