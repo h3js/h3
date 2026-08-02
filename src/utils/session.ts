@@ -53,6 +53,13 @@ export interface SessionConfig {
    *
    */
   legacySealFallback?: boolean;
+  /**
+   * Reseal the session on each request so `maxAge` counts from the last
+   * activity instead of from session creation (sliding expiration).
+   * Expiry is then enforced by the seal's embedded TTL, which is refreshed
+   * on every reseal. Only applies to cookie-based sessions.
+   */
+  autoReseal?: boolean;
   crypto?: Crypto;
   /** Default is Crypto.randomUUID */
   generateId?: () => string;
@@ -149,8 +156,10 @@ export async function getSession<T extends SessionData = SessionData>(
         }
         Object.assign(session, unsealed);
         delete context.sessions![sessionName][kGetSession];
-        if (legacySeal && sessionFromCookie) {
-          // Proactively reseal legacy cookies with the current seal options
+        if ((legacySeal || config.autoReseal) && sessionFromCookie) {
+          // Proactively reseal legacy cookies with the current seal options,
+          // and reseal on each request when autoReseal is enabled so the
+          // expiration slides
           await updateSession(event, config);
         }
         return session as Session<T>;
@@ -201,7 +210,9 @@ export async function updateSession<T extends SessionData = SessionData>(
     const sealed = await sealSession(event, config);
     setChunkedCookie(event as H3Event, sessionName, sealed, {
       ...DEFAULT_SESSION_COOKIE,
-      expires: config.maxAge ? new Date(session.createdAt + config.maxAge * 1000) : undefined,
+      expires: config.maxAge
+        ? new Date((config.autoReseal ? Date.now() : session.createdAt) + config.maxAge * 1000)
+        : undefined,
       ...config.cookie,
     });
   }
@@ -271,7 +282,10 @@ export async function unsealSession(
       (unsealed as any)[kLegacySeal] = true;
     }
   }
-  if (config.maxAge) {
+  // With autoReseal, expiry is governed by the seal's embedded TTL (refreshed
+  // on each reseal) — an age check based on createdAt would defeat sliding
+  // expiration
+  if (config.maxAge && !config.autoReseal) {
     const age = Date.now() - (unsealed.createdAt || Number.NEGATIVE_INFINITY);
     if (age > config.maxAge * 1000) {
       throw new Error("Session expired!");
