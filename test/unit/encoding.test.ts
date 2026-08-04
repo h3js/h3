@@ -40,6 +40,46 @@ describe("encoding utilities", () => {
     });
   });
 
+  // Runtimes without a global `Buffer` (Deno, service-worker and browser
+  // entries) take the hand-rolled fallback branch of these helpers, which the
+  // tests above never reach on Node. `Buffer` is swapped out synchronously so
+  // no `await` ever runs while the global is missing.
+  describe("without a global Buffer", () => {
+    function withoutBuffer<T>(fn: () => T): T {
+      const realBuffer = globalThis.Buffer;
+      (globalThis as { Buffer?: unknown }).Buffer = undefined;
+      try {
+        return fn();
+      } finally {
+        (globalThis as { Buffer?: unknown }).Buffer = realBuffer;
+      }
+    }
+
+    it("agrees with the Buffer implementation for every input length", () => {
+      // Covers all three tail cases of the 3-byte encoding loop.
+      for (let length = 0; length <= 32; length++) {
+        const input = Uint8Array.from({ length }, (_, i) => (i * 37) % 256);
+        expect(withoutBuffer(() => base64Encode(input))).toBe(base64Encode(input));
+      }
+    });
+
+    it("encodes payloads larger than the engine argument limit", () => {
+      // A session sealed by `sealSession` is base64-encoded whole. Spreading one
+      // element per output character into `String.fromCharCode` overflows the
+      // call stack well below the sizes h3 itself allows (a chunked session
+      // cookie may hold ~400KB, and header sessions are uncapped).
+      const input = Uint8Array.from({ length: 128 * 1024 }, (_, i) => i % 256);
+      const encoded = withoutBuffer(() => base64Encode(input));
+      expect(encoded).toBe(base64Encode(input));
+      expect(withoutBuffer(() => base64Decode(encoded))).toEqual(input);
+    });
+
+    it("decodes base64url produced by the Buffer implementation", () => {
+      const input = new Uint8Array([251, 239, 190, 0, 1, 2]);
+      expect(withoutBuffer(() => base64Decode(base64Encode(input)))).toEqual(input);
+    });
+  });
+
   describe("validateBinaryLike", () => {
     it("should convert a string to Uint8Array", () => {
       const input = "hello";
