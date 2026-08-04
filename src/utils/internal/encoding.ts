@@ -14,6 +14,9 @@ const base64Code = [
   115, 116, 117, 118, 119, 120, 121, 122, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 45, 95,
 ];
 
+// Number of characters emitted per `String.fromCharCode` call.
+const ENCODE_CHUNK_SIZE = 8192;
+
 export function base64Encode(data: ArrayBuffer | Uint8Array | string): string {
   const buff = validateBinaryLike(data);
   if (globalThis.Buffer) {
@@ -44,7 +47,14 @@ export function base64Encode(data: ArrayBuffer | Uint8Array | string): string {
     );
   }
 
-  return String.fromCharCode(...bytes);
+  // Spreading one argument per output character overflows the engine's argument
+  // limit (`RangeError: Maximum call stack size exceeded`) on large payloads, so
+  // build the string in fixed-size chunks instead.
+  let result = "";
+  for (let offset = 0; offset < bytes.length; offset += ENCODE_CHUNK_SIZE) {
+    result += String.fromCharCode(...bytes.slice(offset, offset + ENCODE_CHUNK_SIZE));
+  }
+  return result;
 }
 export function base64Decode(b64Url: string): Uint8Array {
   if (globalThis.Buffer) {
