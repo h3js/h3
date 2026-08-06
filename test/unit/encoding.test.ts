@@ -29,9 +29,10 @@ describe("encoding utilities", () => {
       // Runtimes without global Buffer (Deno / service-workers / browser)
       // take the hand-rolled path that used to spread ~1.33n args into
       // String.fromCharCode and hit the engine argument limit.
-      const originalBuffer = globalThis.Buffer;
+      const hadBuffer = Object.prototype.hasOwnProperty.call(globalThis, "Buffer");
+      const originalDescriptor = Object.getOwnPropertyDescriptor(globalThis, "Buffer");
       // @ts-expect-error — intentionally wipe Buffer for the fallback path
-      globalThis.Buffer = undefined;
+      delete (globalThis as { Buffer?: unknown }).Buffer;
       try {
         const input = new Uint8Array(128 * 1024);
         for (let i = 0; i < input.length; i++) input[i] = i % 256;
@@ -41,7 +42,13 @@ describe("encoding utilities", () => {
         expect(encoded).not.toMatch(/[+/=]/);
         expect(base64Decode(encoded)).toEqual(input);
       } finally {
-        globalThis.Buffer = originalBuffer;
+        if (hadBuffer && originalDescriptor) {
+          Object.defineProperty(globalThis, "Buffer", originalDescriptor);
+        } else {
+          // leave absent if it was absent
+          // @ts-expect-error
+          delete (globalThis as { Buffer?: unknown }).Buffer;
+        }
       }
     });
   });
