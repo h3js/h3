@@ -24,6 +24,26 @@ describe("encoding utilities", () => {
       const expected = "aGVsbG8";
       expect(base64Encode(input)).toBe(expected);
     });
+
+    it("should encode large payloads without RangeError when Buffer is absent", () => {
+      // Runtimes without global Buffer (Deno / service-workers / browser)
+      // take the hand-rolled path that used to spread ~1.33n args into
+      // String.fromCharCode and hit the engine argument limit.
+      const originalBuffer = globalThis.Buffer;
+      // @ts-expect-error — intentionally wipe Buffer for the fallback path
+      globalThis.Buffer = undefined;
+      try {
+        const input = new Uint8Array(128 * 1024);
+        for (let i = 0; i < input.length; i++) input[i] = i % 256;
+        const encoded = base64Encode(input);
+        expect(encoded.length).toBeGreaterThan(0);
+        // base64url: no padding, and alphabet excludes + /
+        expect(encoded).not.toMatch(/[+/=]/);
+        expect(base64Decode(encoded)).toEqual(input);
+      } finally {
+        globalThis.Buffer = originalBuffer;
+      }
+    });
   });
 
   describe("base64Decode", () => {

@@ -44,7 +44,15 @@ export function base64Encode(data: ArrayBuffer | Uint8Array | string): string {
     );
   }
 
-  return String.fromCharCode(...bytes);
+  // Avoid String.fromCharCode(...bytes): spread hits the engine argument
+  // limit (~65k–128k args) for larger payloads (session cookies, iron seals).
+  // See https://github.com/h3js/h3/issues/1514
+  let out = "";
+  const chunk = 0x8000;
+  for (let j = 0; j < bytes.length; j += chunk) {
+    out += String.fromCharCode(...bytes.slice(j, j + chunk));
+  }
+  return out;
 }
 export function base64Decode(b64Url: string): Uint8Array {
   if (globalThis.Buffer) {
