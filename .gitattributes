@@ -1,0 +1,92 @@
+# Auto-detect text files and normalize line endings
+* text=auto
+
+# Images
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.tif binary
+*.tiff binary
+*.ico binary
+*.webp binary
+*.bmp binary
+*.psd binary
+# SVG is XML text, not binary
+*.svg text
+
+# Fonts
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+*.otf binary
+
+# Archives
+*.7z binary
+*.bz2 binary
+*.gz binary
+*.rar binary
+*.tar binary
+*.tar.gz binary
+*.tgz binary
+*.zip binary
+*.zst binary
+
+# Compiled objects and libraries
+*.a binary
+*.lib binary
+*.o binary
+*.obj binary
+
+# Executables and shared libraries
+*.dll binary
+*.dylib binary
+*.exe binary
+*.so binary
+
+# Documents and data
+*.pdf binary
+*.db binary
+*.sqlite binary
+*.sqlite3 binary
+
+# Preserve byte sequences in patches
+*.patch -text
+*.diff -text
+
+# Audio
+*.aac binary
+*.aif binary
+*.aiff binary
+*.flac binary
+*.m4a binary
+*.mid binary
+*.midi binary
+*.mp3 binary
+*.ogg binary
+*.wav binary
+*.wma binary
+
+# Video
+*.3gp binary
+*.avi binary
+*.flv binary
+*.m4v binary
+*.mkv binary
+*.mov binary
+*.mp4 binary
+*.mpeg binary
+*.mpg binary
+*.ogv binary
+*.webm binary
+*.wmv binary
+
+# Lockfiles
+package-lock.json binary
+yarn.lock binary
+pnpm-lock.yaml binary
+bun.lock binary
+
+# Source maps — suppress noisy diffs (Web.gitattributes)
+*.map text -diff
