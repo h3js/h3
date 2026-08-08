@@ -18,8 +18,10 @@ describe("benchmark", () => {
     if (process.env.DEBUG) {
       console.log(`Bundle size (H3): ${bundle.bytes} (gzip: ${bundle.gzipSize})`);
     }
-    expect(bundle.bytes).toBeLessThanOrEqual(18_420); // <18.42kb
-    expect(bundle.gzipSize).toBeLessThanOrEqual(6_950); // <6.95kb
+    // Budget bumped for RFC 9457 problem-details support (content-negotiated `application/problem+json` errors),
+    // and again for correct q-value based Accept negotiation (was a naive substring check).
+    expect(bundle.bytes).toBeLessThanOrEqual(19_200); // <19.2kb
+    expect(bundle.gzipSize).toBeLessThanOrEqual(7_200); // <7.2kb
   });
 
   it("bundle size (H3Core)", async () => {
@@ -34,8 +36,10 @@ describe("benchmark", () => {
     if (process.env.DEBUG) {
       console.log(`Bundle size (H3Core): ${bundle.bytes} (gzip: ${bundle.gzipSize})`);
     }
-    expect(bundle.bytes).toBeLessThanOrEqual(7630); // <7.63kb
-    expect(bundle.gzipSize).toBeLessThanOrEqual(3020); // <3.02kb
+    // Budget bumped for RFC 9457 problem-details support (content-negotiated `application/problem+json` errors),
+    // and again for correct q-value based Accept negotiation (was a naive substring check).
+    expect(bundle.bytes).toBeLessThanOrEqual(8_400); // <8.4kb
+    expect(bundle.gzipSize).toBeLessThanOrEqual(3_250); // <3.25kb
   });
 
   it("bundle size (defineHandler)", async () => {
@@ -50,8 +54,10 @@ describe("benchmark", () => {
     if (process.env.DEBUG) {
       console.log(`Bundle size (defineHandler): ${bundle.bytes} (gzip: ${bundle.gzipSize})`);
     }
-    expect(bundle.bytes).toBeLessThanOrEqual(6750); // <6.75kb
-    expect(bundle.gzipSize).toBeLessThanOrEqual(2700); // <2.7kb
+    // Budget bumped for RFC 9457 problem-details support (content-negotiated `application/problem+json` errors),
+    // and again for correct q-value based Accept negotiation (was a naive substring check).
+    expect(bundle.bytes).toBeLessThanOrEqual(7_500); // <7.5kb
+    expect(bundle.gzipSize).toBeLessThanOrEqual(2_950); // <2.95kb
   });
 });
 

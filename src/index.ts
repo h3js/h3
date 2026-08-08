@@ -67,7 +67,13 @@ export { toResponse, HTTPResponse } from "./response.ts";
 
 // Error
 
-export { type ErrorDetails, type ErrorBody, type ErrorInput, HTTPError } from "./error.ts";
+export {
+  type ErrorDetails,
+  type ErrorBody,
+  type ErrorInput,
+  type ProblemDetails,
+  HTTPError,
+} from "./error.ts";
 
 // Adapters
 
