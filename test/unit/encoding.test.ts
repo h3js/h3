@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   base64Encode,
   base64Decode,
@@ -23,6 +23,18 @@ describe("encoding utilities", () => {
       const input = new Uint8Array([104, 101, 108, 108, 111]).buffer;
       const expected = "aGVsbG8";
       expect(base64Encode(input)).toBe(expected);
+    });
+
+    it("should encode large payloads without a global Buffer", () => {
+      const input = new Uint8Array(200_000).map((_, i) => i % 256);
+      const expected = Buffer.from(input).toString("base64url");
+
+      vi.stubGlobal("Buffer", undefined);
+      try {
+        expect(base64Encode(input)).toBe(expected);
+      } finally {
+        vi.unstubAllGlobals();
+      }
     });
   });
 

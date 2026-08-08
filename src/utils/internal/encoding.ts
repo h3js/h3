@@ -44,7 +44,13 @@ export function base64Encode(data: ArrayBuffer | Uint8Array | string): string {
     );
   }
 
-  return String.fromCharCode(...bytes);
+  // Spreading the whole array exceeds the engine's argument limit for large
+  // payloads, so build the string in chunks.
+  let base64 = "";
+  for (let offset = 0; offset < bytes.length; offset += 8192) {
+    base64 += String.fromCharCode(...bytes.slice(offset, offset + 8192));
+  }
+  return base64;
 }
 export function base64Decode(b64Url: string): Uint8Array {
   if (globalThis.Buffer) {
