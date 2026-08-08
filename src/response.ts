@@ -148,7 +148,7 @@ function prepareResponse(
           .then(() => onError(error, event))
           .catch((error) => error)
           .then((newVal) => prepareResponse(newVal ?? val, event, config, true))
-      : errorResponse(error, config.debug, errHeaders);
+      : errorResponse(error, event, config.debug, errHeaders);
   }
 
   // Only set if event.res.headers is accessed
@@ -241,6 +241,10 @@ const jsonHeaders = /* @__PURE__ */ new FrozenHeaders({
   "content-type": "application/json;charset=UTF-8",
 });
 
+const problemJsonHeaders = /* @__PURE__ */ new FrozenHeaders({
+  "content-type": "application/problem+json;charset=UTF-8",
+});
+
 function prepareResponseBody(
   val: unknown,
   event: H3Event,
@@ -325,17 +329,41 @@ function nullBody(method: string, status: number | undefined): boolean | 0 | und
   )
 }
 
-function errorResponse(error: HTTPError, debug?: boolean, errHeaders?: Headers): Response {
+// Only an exact `application/problem+json` media range with a nonzero `q` counts, so mixed
+// `Accept` headers (other types, wildcards, `q=0`) are negotiated correctly rather than matched
+// by substring.
+function wantsProblemJSON(event: H3Event): boolean {
+  const accept = event.req.headers.get("accept") || "";
+  for (const range of accept.split(",")) {
+    const [type, ...params] = range.split(";").map((s) => s.trim().toLowerCase());
+    if (type === "application/problem+json") {
+      const q = params.find((p) => p.startsWith("q="));
+      if (!q || Number.parseFloat(q.slice(2)) > 0) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+function errorResponse(
+  error: HTTPError,
+  event: H3Event,
+  debug?: boolean,
+  errHeaders?: Headers,
+): Response {
+  const asProblem = wantsProblemJSON(event);
+  const baseHeaders = asProblem ? problemJsonHeaders : jsonHeaders;
   let headers: Headers = error.headers
-    ? mergeHeaders(jsonHeaders, error.headers)
-    : new Headers(jsonHeaders);
+    ? mergeHeaders(baseHeaders, error.headers)
+    : new Headers(baseHeaders);
   if (errHeaders) {
     headers = mergeHeaders(headers, errHeaders);
   }
   return new FastResponse(
     JSON.stringify(
       {
-        ...error.toJSON(),
+        ...(asProblem ? error.toProblem() : error.toJSON()),
         stack: debug && error.stack ? error.stack.split("\n").map((l) => l.trim()) : undefined,
       },
       undefined,

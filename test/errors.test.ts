@@ -343,4 +343,160 @@ describeMatrix("errors", (t, { it, expect, describe }) => {
     expect(res.status).toBe(500);
     expect(await res.json()).toMatchObject({ status: 500, unhandled: true });
   });
+
+  describe("RFC 9457 problem details", () => {
+    it("default Accept header keeps the plain JSON error shape", async () => {
+      t.app.use(() => {
+        throw new HTTPError({
+          status: 422,
+          statusText: "Unprocessable",
+          message: "Invalid input",
+          type: "https://example.com/probs/invalid-input",
+          instance: "/errors/1",
+        });
+      });
+      const result = await t.fetch("/");
+      expect(result.status).toBe(422);
+      expect(result.headers.get("content-type")).toMatch("application/json");
+      expect(result.headers.get("content-type")).not.toMatch("problem+json");
+      const body = await result.json();
+      expect(body).toMatchObject({
+        status: 422,
+        statusText: "Unprocessable",
+        message: "Invalid input",
+      });
+      expect(body.type).toBeUndefined();
+      expect(body.detail).toBeUndefined();
+      expect(body.instance).toBeUndefined();
+    });
+
+    it("Accept: application/problem+json negotiates RFC 9457 shape", async () => {
+      t.app.use(() => {
+        throw new HTTPError({
+          status: 422,
+          statusText: "Unprocessable",
+          message: "Invalid input",
+          type: "https://example.com/probs/invalid-input",
+          instance: "/errors/1",
+          data: { field: "email" },
+          body: { topLevel: "works" },
+        });
+      });
+      const result = await t.fetch("/", { headers: { accept: "application/problem+json" } });
+      expect(result.status).toBe(422);
+      expect(result.statusText).toBe("Unprocessable");
+      expect(result.headers.get("content-type")).toMatch("application/problem+json");
+      expect(await result.json()).toMatchObject({
+        type: "https://example.com/probs/invalid-input",
+        title: "Unprocessable",
+        status: 422,
+        detail: "Invalid input",
+        instance: "/errors/1",
+        data: { field: "email" },
+        topLevel: "works",
+      });
+    });
+
+    it("body cannot overwrite reserved Problem Details members", async () => {
+      t.app.use(() => {
+        throw new HTTPError({
+          status: 422,
+          statusText: "Unprocessable",
+          message: "Invalid input",
+          type: "https://example.com/probs/invalid-input",
+          instance: "/errors/1",
+          data: { field: "email" },
+          body: {
+            type: "hijacked-type",
+            title: "hijacked-title",
+            status: 999,
+            detail: "hijacked-detail",
+            instance: "hijacked-instance",
+            unhandled: true,
+            data: "hijacked-data",
+            topLevel: "works",
+          },
+        });
+      });
+      const result = await t.fetch("/", { headers: { accept: "application/problem+json" } });
+      expect(result.status).toBe(422);
+      const body = await result.json();
+      expect(body).toMatchObject({
+        type: "https://example.com/probs/invalid-input",
+        title: "Unprocessable",
+        status: 422,
+        detail: "Invalid input",
+        instance: "/errors/1",
+        data: { field: "email" },
+        topLevel: "works",
+      });
+      expect(body.unhandled).not.toBe(true);
+    });
+
+    it("Accept header with q=0 for problem+json falls back to plain JSON", async () => {
+      t.app.use(() => {
+        throw new HTTPError({ status: 422, statusText: "Unprocessable" });
+      });
+      const result = await t.fetch("/", {
+        headers: { accept: "application/problem+json;q=0, application/json" },
+      });
+      expect(result.status).toBe(422);
+      expect(result.headers.get("content-type")).toMatch("application/json");
+      expect(result.headers.get("content-type")).not.toMatch("problem+json");
+    });
+
+    it("Accept header with mixed media ranges still negotiates problem+json", async () => {
+      t.app.use(() => {
+        throw new HTTPError({ status: 422, statusText: "Unprocessable" });
+      });
+      const result = await t.fetch("/", {
+        headers: { accept: "text/html, application/xhtml+xml;q=0.9, application/problem+json" },
+      });
+      expect(result.status).toBe(422);
+      expect(result.headers.get("content-type")).toMatch("application/problem+json");
+    });
+
+    it("Accept header casing is ignored when negotiating problem+json", async () => {
+      t.app.use(() => {
+        throw new HTTPError({ status: 422, statusText: "Unprocessable" });
+      });
+      const result = await t.fetch("/", { headers: { accept: "Application/Problem+JSON" } });
+      expect(result.status).toBe(422);
+      expect(result.headers.get("content-type")).toMatch("application/problem+json");
+    });
+
+    it("does not match non-exact problem+json media types by substring", async () => {
+      t.app.use(() => {
+        throw new HTTPError({ status: 422, statusText: "Unprocessable" });
+      });
+      const result = await t.fetch("/", {
+        headers: { accept: "application/problem+json+extra, application/vnd.problem+json" },
+      });
+      expect(result.status).toBe(422);
+      expect(result.headers.get("content-type")).toMatch("application/json");
+      expect(result.headers.get("content-type")).not.toMatch("problem+json");
+    });
+
+    it("unhandled errors negotiated as problem+json still hide detail/data", async () => {
+      t.app.use("/api/test", () => {
+        // @ts-expect-error
+        foo.bar = 123;
+      });
+      const result = await t.fetch("/api/test", {
+        headers: { accept: "application/problem+json" },
+      });
+      expect(result.status).toBe(500);
+      expect(result.headers.get("content-type")).toMatch("application/problem+json");
+      const body = await result.json();
+      expect(body).toMatchObject({
+        type: "about:blank",
+        title: "HTTPError",
+        status: 500,
+        unhandled: true,
+      });
+      expect(body.detail).toBeUndefined();
+      expect(body.data).toBeUndefined();
+      t.errors = [];
+    });
+  });
 });

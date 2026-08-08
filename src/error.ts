@@ -51,6 +51,20 @@ export interface ErrorBody<DataT = unknown> {
   message: string;
 
   /**
+   * A URI reference identifying the problem type, per [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457.html).
+   *
+   * Used as the `type` member when the error is negotiated as `application/problem+json`. Defaults to `"about:blank"`.
+   */
+  type?: string;
+
+  /**
+   * A URI reference identifying this specific occurrence of the problem, per [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457.html).
+   *
+   * Used as the `instance` member when the error is negotiated as `application/problem+json`.
+   */
+  instance?: string;
+
+  /**
    * Flag to indicate that the error was not handled by the application.
    *
    * Unhandled error stack trace, `data`, `body` and `message` are hidden for security reasons.
@@ -66,6 +80,22 @@ export interface ErrorBody<DataT = unknown> {
    * Additional top level JSON body properties to attach in the error JSON body.
    */
   body?: Record<string, unknown>;
+}
+
+/**
+ * RFC 9457 ("Problem Details for HTTP APIs") representation of an {@link HTTPError}.
+ *
+ * @see https://www.rfc-editor.org/rfc/rfc9457.html
+ */
+export interface ProblemDetails<DataT = unknown> {
+  type: string;
+  title: string | undefined;
+  status: number;
+  detail: string | undefined;
+  instance: string | undefined;
+  unhandled: boolean | undefined;
+  data: DataT | undefined;
+  [key: string]: unknown;
 }
 
 /**
@@ -110,6 +140,16 @@ export class HTTPError<DataT = unknown> extends Error implements ErrorBody<DataT
    * Additional top level JSON body properties to attach in the error JSON body.
    */
   readonly body: Record<string, unknown> | undefined;
+
+  /**
+   * A URI reference identifying the problem type, per [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457.html).
+   */
+  readonly type: string | undefined;
+
+  /**
+   * A URI reference identifying this specific occurrence of the problem, per [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457.html).
+   */
+  readonly instance: string | undefined;
 
   /**
    * Flag to indicate that the error was not handled by the application.
@@ -202,6 +242,9 @@ export class HTTPError<DataT = unknown> extends Error implements ErrorBody<DataT
 
     this.data = (details as ErrorBody)?.data as DataT | undefined;
     this.body = (details as ErrorBody)?.body;
+
+    this.type = (details as ErrorBody)?.type;
+    this.instance = (details as ErrorBody)?.instance;
   }
 
   /**
@@ -227,6 +270,25 @@ export class HTTPError<DataT = unknown> extends Error implements ErrorBody<DataT
       message: unhandled ? "HTTPError" : this.message,
       data: unhandled ? undefined : this.data,
       ...(unhandled ? undefined : this.body),
+    };
+  }
+
+  /**
+   * Render this error as [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457.html) "Problem Details".
+   *
+   * Used by h3 when the request negotiates `application/problem+json` via its `Accept` header.
+   */
+  toProblem(): ProblemDetails<DataT> {
+    const unhandled = this.unhandled;
+    return {
+      ...(unhandled ? undefined : this.body),
+      type: this.type ?? "about:blank",
+      title: unhandled ? "HTTPError" : this.statusText,
+      status: this.status,
+      detail: unhandled ? undefined : this.message,
+      instance: this.instance,
+      unhandled,
+      data: unhandled ? undefined : this.data,
     };
   }
 }
