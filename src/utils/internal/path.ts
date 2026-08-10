@@ -37,7 +37,7 @@ export function joinURL(base: string | undefined, path: string | undefined): str
   return (base[base.length - 1] === "/" ? base : base + "/") + segment;
 }
 
-const JOIN_LEADING_SLASH_RE = /^\.?\//;
+const JOIN_LEADING_SLASH_RE = /^\//;
 
 /**
  * Strip `base` from `pathname` when it matches on a segment boundary, collapsing
