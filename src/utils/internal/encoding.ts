@@ -50,6 +50,7 @@ export function base64Encode(data: ArrayBuffer | Uint8Array | string): string {
   // Spreading one argument per output character overflows the engine's argument
   // limit (`RangeError: Maximum call stack size exceeded`) on large payloads, so
   // build the string in fixed-size chunks instead.
+  // https://github.com/h3js/h3/issues/1514
   let result = "";
   for (let offset = 0; offset < bytes.length; offset += ENCODE_CHUNK_SIZE) {
     result += String.fromCharCode(...bytes.slice(offset, offset + ENCODE_CHUNK_SIZE));

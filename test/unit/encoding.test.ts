@@ -77,7 +77,7 @@ describe("encoding utilities", () => {
     it("decodes base64url produced by the Buffer implementation", () => {
       // The fixture has to be built while `Buffer` is still around, otherwise
       // this only round-trips the fallback against itself. These bytes encode
-      // to `----` plus padding, so the base64url substitutions are covered.
+      // to `----AAEC`, so the base64url substitutions are covered.
       const input = new Uint8Array([251, 239, 190, 0, 1, 2]);
       const encoded = base64Encode(input);
       expect(withoutBuffer(() => base64Decode(encoded))).toEqual(input);
