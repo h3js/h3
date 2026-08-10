@@ -94,7 +94,7 @@ export function prepareRuleTarget(
         // disagree with the raw segments the base was taken from.
         if (!isLiterallyInScope(rawPath, scopeBase)) {
           // The rule can also have matched through the matcher's *decoded*
-          // reading — a pattern spelled `/@admin/**` covers a `/%40admin/...`
+          // reading — a pattern spelled `/a b/**` covers a `/a%20b/...`
           // request — and there the raw path never literally starts with the
           // pattern prefix. Strip the request's own leading segments instead
           // (the by-count strip the dynamic-prefix branch already uses; decoding

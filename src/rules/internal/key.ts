@@ -1,4 +1,4 @@
-import { withLeadingSlash } from "../../utils/internal/path.ts";
+import { canonicalPathname, withLeadingSlash } from "../../utils/internal/path.ts";
 
 // Recognized method tokens for the optional `"METHOD /path"` key prefix; anything else is a plain path.
 // Must stay in sync with h3's `HTTPMethod` (src/types/h3.ts): a method h3 can
@@ -56,9 +56,13 @@ export function formatRouteKey(method: string, path: string): string {
 const ESCAPE_RUN_RE = /(?:%[\da-f]{2})+/gi;
 
 // Decoded text that must not be substituted into a pattern: a path separator
-// (`/`, `\`) would change the pattern's segment count, rou3 syntax (`:`, `*`,
-// `(`, `)`) would turn a literal segment into a param/wildcard/regex, and a `%`
-// would fabricate a new escape. The whole run is kept encoded when any appears.
+// (`/`, `\`) would change the pattern's segment count, and a `%` would fabricate
+// a new escape. The whole run is kept encoded when either appears.
+//
+// rou3 syntax (`:`, `*`, `(`, `)`) is deliberately *not* held back — see
+// {@link decodeRoutePattern}. It stays in the pattern only because the second
+// pass below runs on an already-canonicalized path, where no remaining escape
+// can decode to one.
 const UNSAFE_DECODED_RE = /[/\\:*()%]/;
 
 /**
@@ -72,19 +76,28 @@ const UNSAFE_DECODED_RE = /[/\\:*()%]/;
  * it an *encoded* pattern would silently cover only the encoded spelling —
  * under-protecting, since the raw spelling is the one clients normally send.
  *
- * Deliberately partial. An escape is decoded only when the character it stands
- * for cannot change how the pattern parses: a separator or rou3 syntax
- * (`:param`, `*`, `**`, regex/escaped params) stays encoded, so `/%3Aid` can
- * never turn into the `:id` param. Those spellings keep their pre-existing
- * (literal-only) behavior rather than silently changing meaning.
+ * Two passes, both idempotent (decoding only ever removes escapes, never
+ * introduces one) — which the compiler's byte-identical codegen depends on:
  *
- * Idempotent — decoding only ever removes escapes, never introduces one — which
- * the compiler's byte-identical codegen depends on.
+ * 1. {@link canonicalPathname}, the exact pass h3 applies to a route pattern
+ *    (`H3.route`) and to every request path. This is what keeps a rule key and
+ *    the equivalent route agreeing on one spelling: `/a/%3Aid` is the `:id`
+ *    param route in both, and `/f/%2A%2A` the catch-all in both. Holding rou3
+ *    syntax back here instead would leave the pattern matching only the encoded
+ *    spelling — which no request can carry anymore, since the same pass decodes
+ *    it on the way in, so the rule would silently never fire.
+ * 2. A wider whole-run decode for the escapes canonicalization leaves alone but
+ *    the matcher's decoded reading resolves: `%20`, non-ASCII (`%C3%A9`, decoded
+ *    as a run so the multi-byte sequence survives), and the escapes the URL
+ *    serializer re-adds. Only `%2F`, `%5C` and `%25` are still reachable as
+ *    unsafe decodes at this point, and those stay encoded — a separator can
+ *    never gain the pattern a segment boundary the router did not match on.
  */
 export function decodeRoutePattern(path: string): string {
   if (!path.includes("%")) {
     return path;
   }
+  path = canonicalPathname(path);
   return path.replace(ESCAPE_RUN_RE, (run) => {
     let decoded: string;
     try {

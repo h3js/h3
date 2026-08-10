@@ -90,11 +90,87 @@ export function getURLPathname(input: string): string {
   return end === -1 ? path : path.slice(0, end);
 }
 
+// Percent-escapes that are *needless*: anything downstream that decodes the path
+// (a proxy, a filesystem lookup, `serveStatic`'s own `decodeURI` peel, a handler
+// calling `decodeURIComponent`) resolves the escape and its literal to the same
+// resource, while h3's matchers compare them as two different strings. That gap
+// is the middleware-bypass vector — `/%61dmin` reaching the `/admin` route past
+// an `/admin` guard — so such a path is decoded to its canonical form before
+// anything can match on it.
+//
+// The set is every escape whose decoded character survives WHATWG path
+// serialization unchanged, minus the two that must stay opaque:
+//
+// - `%2F`, whose character is the segment separator. Decoding it would change
+//   how many segments the path has, so a `:param` could gain a boundary the
+//   router never matched on.
+// - `%25`, whose character starts an escape. Decoding it would turn `%252f`
+//   into a decodable `%2f`, handing a double-decoding downstream the separator
+//   this whole pass exists to withhold.
+//
+// What is left is `!`, `$`, `&`, `'`, `(`, `)`, `*`, `+`, `,`, `-`, `.`, `:`,
+// `;`, `=`, `@`, `[`, `]`, `_`, `|`, `~`, ALPHA and DIGIT — the RFC 3986 §2.3
+// unreserved set, equivalent to its literals per §6.2.2.2, plus the sub-delims
+// and gen-delims the serializer keeps literal. Those are not §6.2.2.2-equivalent
+// in the abstract, but every decoding consumer collapses them all the same, so
+// leaving one encoded reopens the bypass for any guard whose prefix contains it
+// (`/%40admin` vs a `/@admin` guard).
+//
+// Everything the serializer would *not* keep is excluded for free, because
+// decoding it could not change what anything matches: `%20`, `%22`, `%3C`,
+// `%3E`, `%5E`, `%60`, `%7B`, `%7D` and non-ASCII are re-encoded on the way
+// back, `%23`/`%3F` would be re-encoded rather than start a fragment or query,
+// `%5C` would be normalized into a real `/`, and `%09` and the other C0 controls
+// would be *deleted* outright. The last two are why this decodes selectively
+// instead of running `decodeURI` and re-parsing: that pass mangled them.
+//
+// Note this is wider than `decodeURI`, which preserves all of RFC 3986's
+// reserved set (`; / ? : @ & = + $ ,`) — of which only `/` is structural here.
+const NEEDLESS_ESCAPE_SRC = String.raw`%(?:2[146-9A-E]|3[0-9ABD]|4[0-9A-F]|5[0-9ABDF]|6[1-9A-F]|7[0-9ACE])`;
+const NEEDLESS_ESCAPE_RE = /* @__PURE__ */ new RegExp(NEEDLESS_ESCAPE_SRC, "i");
+const NEEDLESS_ESCAPE_RE_G = /* @__PURE__ */ new RegExp(NEEDLESS_ESCAPE_SRC, "gi");
+
 /**
- * Decode percent-encoded pathname, preserving %25 (literal `%`).
+ * Whether `pathname` is *not* in canonical form, i.e. it carries a needless
+ * escape and therefore names a resource that a decoding consumer reads under a
+ * different path than the one h3 matched routes and middleware on.
+ *
+ * A single scan, no allocation — this runs on every request whose path contains
+ * a `%`, and returns `false` for the common encodings (`%20`, `%2F`, non-ASCII).
  */
-export function decodePathname(pathname: string): string {
-  return decodeURI(pathname.includes("%25") ? pathname.replace(/%25/g, "%2525") : pathname);
+export function isNonCanonicalPathname(pathname: string): boolean {
+  return NEEDLESS_ESCAPE_RE.test(pathname);
+}
+
+/**
+ * Canonical form of `pathname`: needless escapes decoded, everything else left
+ * byte-for-byte as it arrived.
+ *
+ * Idempotent by construction — no needless escape is left to decode — so the
+ * result is a fixed point and re-canonicalizing it is a no-op. Dot segments need
+ * no handling here: the URL parser resolves them (including every `%2e` spelling,
+ * per WHATWG "double-dot path segment") before the pathname reaches h3, and
+ * decoding a needless escape introduces no new segment boundary that could
+ * reveal one. Re-parsing the result as a URL re-runs that resolution anyway.
+ */
+export function canonicalPathname(pathname: string): string {
+  return pathname.replace(NEEDLESS_ESCAPE_RE_G, (m) =>
+    String.fromCharCode(Number.parseInt(m.slice(1), 16)),
+  );
+}
+
+/**
+ * Whether `pathname` contains malformed percent-encoding — a truncated escape
+ * (`/foo%`, `/bar%2`), a non-hex one (`/%ZZ`) or an invalid UTF-8 sequence
+ * (`/%80`). Such a path has no canonical form to decode to.
+ */
+export function isMalformedPathname(pathname: string): boolean {
+  try {
+    decodeURI(pathname);
+    return false;
+  } catch {
+    return true;
+  }
 }
 
 // Percent-encoded path separators (`%2f` → `/`, `%5c` → `\`) at any `%25`-nesting
@@ -106,12 +182,21 @@ const ENCODED_SEP_RE_G = /%(?:25)*(?:2f|5c)/gi;
  * `decodeURIComponent` a path (or a single path segment), but never let an
  * encoded path separator collapse into a raw `/` or `\`.
  *
- * A full second decode on top of h3's already-once-decoded pathname would
- * reintroduce a separator (and thus `..`-based traversal) that routing and
- * pathname-based middleware never saw — a path desync / smuggling vector. So
- * the encoded separators are kept in their encoded form (at any `%25`-nesting
- * depth) while every other escape — reserved characters (`%40`, `%3b`, ...),
- * spaces, non-ASCII — decodes normally.
+ * Decoding a separator would reintroduce a boundary (and thus `..`-based
+ * traversal) that routing and pathname-based middleware never saw — a path
+ * desync / smuggling vector. So the encoded separators are kept in their
+ * encoded form while every other escape decodes normally.
+ *
+ * `%25`-nested forms (`%252f`, ...) are held back at every depth, which is what
+ * a second decode would otherwise unwrap. {@link canonicalPathname} never
+ * decodes `%25` either — and can itself *produce* a nested form, turning
+ * `%25%32%66` into `%252f`.
+ *
+ * What still decodes here that canonicalization leaves alone: `%20`, non-ASCII
+ * (`%C3%A9`), the escapes the URL serializer re-adds (`%22 %3C %3E %5E %60 %7B
+ * %7D`), and the C0 controls. The needless set (`%40`, `%3b`, ...) is already
+ * decoded in `event.url.pathname`, so for an h3 pathname this pass is about the
+ * remainder.
  *
  * Throws on malformed percent-encoding, like `decodeURIComponent` itself.
  *

@@ -432,11 +432,10 @@ describe("serve static (malformed url)", () => {
     // `..`, leaving single-encoded `%5c` separators. If the on-disk decode
     // (`%5c` → `\`) were not neutralized, the id would become
     // `/..\..\windows\win.ini` — a traversal above the root on backslash-aware
-    // (e.g. Windows) filesystem backends. It is neutralized because the event
-    // layer's URL normalization collapses `\` → `/` and resolves `..` when the
-    // decoded pathname is assigned back, *before* serveStatic runs. This asserts
-    // that invariant end-to-end so a future event-layer change can't silently
-    // regress it.
+    // (e.g. Windows) filesystem backends. It is neutralized because serveStatic
+    // re-resolves dot segments *after* that decode. The event layer cannot help
+    // here: canonicalization never decodes a separator (and is skipped entirely
+    // for a malformed path), so `%5c` reaches serveStatic in its wire form.
     let servedId: string | undefined;
     const app = new H3({ allowMalformedURL: true }).all("/**", (event) =>
       serveStatic(event, {

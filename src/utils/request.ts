@@ -1,5 +1,5 @@
 import { type ErrorDetails, HTTPError } from "../error.ts";
-import { decodePathname, decodePreservingSeparators, stripBase } from "./internal/path.ts";
+import { decodePreservingSeparators, stripBase } from "./internal/path.ts";
 import { parseQuery } from "./internal/query.ts";
 import { validateData } from "./internal/validate.ts";
 import { getEventContext } from "./event.ts";
@@ -33,17 +33,22 @@ export function requestWithURL(req: ServerRequest, url: string): ServerRequest {
 
 /**
  * Create a lightweight request proxy with the base path stripped from the URL pathname.
+ *
+ * `options.url` is the parsed request URL to strip `base` from, in place of
+ * parsing `req.url`. Pass `event.url` whenever there is an event: for a
+ * non-canonical path it holds the canonicalized form the parent matched `base`
+ * against, while `req.url` still holds the wire form, and slicing one by an
+ * offset derived from the other is how mount prefixes desync.
  */
-export function requestWithBaseURL(req: ServerRequest, base: string): ServerRequest {
-  const url = new URL(req.url);
-  let pathname: string;
-  try {
-    pathname = decodePathname(url.pathname);
-  } catch {
-    // Malformed percent-encoding: fall back to the raw pathname instead of throwing.
-    pathname = url.pathname;
-  }
-  url.pathname = stripBase(pathname, base);
+export function requestWithBaseURL(
+  req: ServerRequest,
+  base: string,
+  options: { url?: URL } = {},
+): ServerRequest {
+  // Strip only, never decode: the mounted handler must receive the same
+  // representation the parent app routed on.
+  const url = new URL(options.url || req.url);
+  url.pathname = stripBase(url.pathname, base);
   return requestWithURL(req, url.href);
 }
 

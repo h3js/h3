@@ -11,7 +11,7 @@ import {
 
 import type { ComposedMiddleware } from "./middleware.ts";
 import { requestWithBaseURL } from "./utils/request.ts";
-import { stripBase } from "./utils/internal/path.ts";
+import { canonicalPathname, stripBase } from "./utils/internal/path.ts";
 
 import type { ServerRequest } from "srvx";
 import type { H3Config, H3CoreConfig, MatchedRoute, RouterContext } from "./types/h3.ts";
@@ -220,7 +220,7 @@ export const H3 = /* @__PURE__ */ (() => {
       } else {
         const fetchHandler = "fetch" in input ? input.fetch : input;
         this.all(`${base}/**`, function _mountedMiddleware(event) {
-          return fetchHandler(requestWithBaseURL(event.req, base));
+          return fetchHandler(requestWithBaseURL(event.req, base, { url: event.url }));
         });
       }
       return this;
@@ -233,7 +233,7 @@ export const H3 = /* @__PURE__ */ (() => {
       opts?: RouteOptions,
     ): this {
       const _method = (method || "").toUpperCase();
-      route = new URL(route, "http://_").pathname;
+      route = canonicalPathname(new URL(route, "http://_").pathname);
       this["~addRoute"]({
         method: _method as HTTPMethod,
         route,

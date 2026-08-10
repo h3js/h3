@@ -9,19 +9,31 @@ import { normalizeRouteRules } from "../../src/rules/normalize.ts";
 import { decodeRoutePattern } from "../../src/rules/internal/key.ts";
 import { decodedPath, isPathInScope } from "../../src/rules/internal/scope.ts";
 import { resolveRuleTarget } from "../../src/rules/handlers/_utils.ts";
+import { canonicalPathname } from "../../src/utils/internal/path.ts";
 import type { ProxyRuleOptions } from "../../src/rules/types.ts";
 
-// `event.url.pathname` is `decodeURI`-d once, which by definition preserves
-// *reserved* characters — so a rule pattern written with the character itself
-// (`/@admin/**`, the natural spelling) must also match the percent-encoded
-// request spelling (`/%40admin/...`), which any decoding consumer — a proxied
-// backend, a static asset store, nginx — resolves back to it.
+// A rule pattern is written with the character itself (`/@admin/**`, the natural
+// spelling), so it must also match the percent-encoded request spelling, which
+// any decoding consumer — a proxied backend, a static asset store, nginx —
+// resolves back to it. The matcher owns that: it resolves each path against its
+// decoded reading (`decodedPath`) as well as the served one.
 const AUTH = { username: "admin", password: "s3cr3t", realm: "Admin" } as const;
 
-// Every reserved character `decodeURI` leaves encoded, plus the escapes the URL
-// serializer re-adds (space, non-ASCII). `?`/`#` are omitted: they terminate the
-// path, so neither can occur raw in a pathname.
-const ENCODABLE: Array<[raw: string, encoded: string]> = [
+// Escapes h3 *still serves opaque*: those the URL serializer would re-add, so
+// `canonicalPathname` leaves them alone (`src/utils/internal/path.ts`). These are
+// the ones the matcher's decoded reading has to carry on its own — they reach it
+// encoded even through a real request, so they gate end to end.
+const OPAQUE_ENCODABLE: Array<[raw: string, encoded: string]> = [
+  [" ", "%20"],
+  ["é", "%C3%A9"],
+];
+
+// Escapes h3 canonicalizes away before routing, so a real request never reaches
+// the matcher still carrying one. Kept as matcher-level coverage: `h3/rules` is
+// usable standalone (a compiled matcher, a non-h3 caller) and must not regress to
+// matching only one spelling. `?`/`#` are omitted: they terminate the path, so
+// neither can occur raw in a pathname.
+const CANONICALIZED_ENCODABLE: Array<[raw: string, encoded: string]> = [
   ["@", "%40"],
   [";", "%3B"],
   ["&", "%26"],
@@ -29,9 +41,9 @@ const ENCODABLE: Array<[raw: string, encoded: string]> = [
   ["+", "%2B"],
   ["$", "%24"],
   [",", "%2C"],
-  [" ", "%20"],
-  ["é", "%C3%A9"],
 ];
+
+const ENCODABLE = [...OPAQUE_ENCODABLE, ...CANONICALIZED_ENCODABLE];
 
 describe("encoded reserved characters cannot dodge a rule", () => {
   it.each(ENCODABLE)("`%s` written raw in the pattern still gates `%s`", (raw, encoded) => {
@@ -48,6 +60,35 @@ describe("encoded reserved characters cannot dodge a rule", () => {
     );
     expect(match("GET", `/${enc}admin/data`).routeRules.basicAuth?.options).toMatchObject(AUTH);
     expect(match("GET", `/${raw}admin/data`).routeRules.basicAuth?.options).toMatchObject(AUTH);
+  });
+
+  // The escapes h3 serves opaque are the ones only the matcher can catch: nothing
+  // upstream decodes them, so without the decoded reading these walk past the gate
+  // and a proxied backend serves them as the raw spelling.
+  it.each(OPAQUE_ENCODABLE)(
+    "`%s` gates `%s` end to end, unaided by canonicalization",
+    async (raw, encoded) => {
+      const app = new H3();
+      app.use(routeRules({ [`/${raw}admin/**`]: { basicAuth: AUTH } }));
+      app.all("/**", () => "secret");
+      // Pin that h3 really did leave it encoded — otherwise this asserts nothing.
+      app.get("/probe" + encoded, (event) => event.url.pathname);
+      const probe = await app.fetch(new Request(`http://test/probe${encoded}`));
+      expect(await probe.text()).toBe(`/probe${encoded}`);
+
+      const res = await app.fetch(new Request(`http://test/${encoded}admin/data`));
+      expect(res.status).toBe(401);
+    },
+  );
+
+  it("gates a `%25`-nested spelling end to end", async () => {
+    // `%2520` survives canonicalization (`%25` is never decoded), and only
+    // `decodedPath`'s fixpoint unwraps it to the space the pattern is written with.
+    const app = new H3();
+    app.use(routeRules({ "/a admin/**": { basicAuth: AUTH } }));
+    app.all("/**", () => "secret");
+    const res = await app.fetch(new Request("http://test/a%2520admin/data"));
+    expect(res.status).toBe(401);
   });
 
   it("gates the encoded spelling end to end, for every method", async () => {
@@ -129,17 +170,41 @@ describe("decodeRoutePattern", () => {
     expect(decodeRoutePattern("/plain/path")).toBe("/plain/path");
   });
 
-  it("keeps escapes that would change how the pattern parses", () => {
-    // rou3 syntax: decoding would turn a literal segment into a param /
-    // wildcard / regex param.
-    expect(decodeRoutePattern("/%3Aid/**")).toBe("/%3Aid/**");
-    expect(decodeRoutePattern("/%2A")).toBe("/%2A");
-    expect(decodeRoutePattern("/%28a%29")).toBe("/%28a%29");
-    // Separators would change the pattern's segment count.
+  it("keeps escapes that would change the pattern's segment count", () => {
+    // Separators, at any `%25`-nesting depth — decoding one would give the
+    // pattern a boundary the router never matched on.
     expect(decodeRoutePattern("/a%2Fb")).toBe("/a%2Fb");
     expect(decodeRoutePattern("/a%5Cb")).toBe("/a%5Cb");
     // A `%` would fabricate a new escape.
     expect(decodeRoutePattern("/a%252fb")).toBe("/a%252fb");
+  });
+
+  it("resolves an escaped rou3 metacharacter exactly as h3 resolves it in a route", () => {
+    // h3 canonicalizes a route pattern and every request path through the same
+    // `canonicalPathname` pass, so an escaped metacharacter *becomes* that
+    // metacharacter (`H3.route`). A rule key has to agree: holding `%3A` back
+    // would leave the pattern matching only `/%3Aid`, a spelling no request can
+    // carry anymore, so the rule would silently never fire.
+    expect(decodeRoutePattern("/%3Aid/**")).toBe("/:id/**");
+    expect(decodeRoutePattern("/f/%2A%2A")).toBe("/f/**");
+    expect(decodeRoutePattern("/%28a%29")).toBe("/(a)");
+    // Parity with core, over both passes and their interaction.
+    for (const pattern of ["/%3Aid/**", "/f/%2A%2A", "/%28a%29", "/a%2F%3Ab", "/%40admin/**"]) {
+      expect(decodeRoutePattern(pattern)).toBe(canonicalPathname(pattern));
+    }
+  });
+
+  it("keeps an escaped metacharacter reachable end to end", async () => {
+    const app = new H3();
+    app.use(routeRules({ "/a/%3Aid": { headers: { "x-hit": "1" } } }));
+    app.all("/**", () => "ok");
+    // Registered as the `:id` param route, so it matches any segment — and the
+    // literal `/a/%3Aid` request arrives canonicalized to `/a/:id`, which it
+    // also matches.
+    for (const path of ["/a/anything", "/a/%3Aid"]) {
+      const res = await app.fetch(new Request("http://test" + path));
+      expect(res.headers.get("x-hit")).toBe("1");
+    }
   });
 
   it("leaves malformed encoding exactly as authored", () => {
@@ -147,7 +212,7 @@ describe("decodeRoutePattern", () => {
   });
 
   it("is idempotent (byte-identical codegen depends on it)", () => {
-    for (const pattern of ["/%40a/**", "/%3Aid", "/a%252fb", "/caf%C3%A9", "/a%C3"]) {
+    for (const pattern of ["/%40a/**", "/%3Aid", "/f/%2A%2A", "/a%252fb", "/caf%C3%A9", "/a%C3"]) {
       expect(decodeRoutePattern(decodeRoutePattern(pattern))).toBe(decodeRoutePattern(pattern));
     }
   });
@@ -236,13 +301,15 @@ describe("proxy/redirect base stripping through the encoded spelling", () => {
     expect(res.status).toBe(400);
   });
 
-  it("does not apply the rule at all to a path that traverses out of it", async () => {
-    // `..%2f..%2f` walks above `/@admin` under every reading, so the proxy rule
-    // never matches — nothing is forwarded.
+  it("rejects a path that traverses out of the rule's base", async () => {
+    // `/%40admin/...` is served as `/@admin/...` (`%40` is a needless escape), so
+    // the rule matches on the raw path. `..%2f..%2f` then walks above `/@admin`
+    // under every canonical reading, so the scope check rejects rather than
+    // forwarding — nothing reaches the backend either way.
     const app = new H3();
     app.use(routeRules({ "/@admin/**": { proxy: "http://backend/**" } }, { handlers: { proxy } }));
     const res = await app.fetch(new Request("http://test/%40admin/..%2f..%2fetc/passwd"));
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(400);
   });
 });
 

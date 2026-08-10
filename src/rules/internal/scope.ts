@@ -6,10 +6,10 @@ import { decodePreservingSeparators } from "../../utils/internal/path.ts";
 // fast-path guard (`src/utils/path.ts`), so `needsCanonicalPasses` cannot desync
 // from the resolver the way a local copy of the decode set would.
 //
-// `decodeSlashes` closes the one residual gap in h3's once-decoded pathname
+// `decodeSlashes` closes the separator gap in h3's served pathname
 // (`ResolveDotSegmentsOptions` documents the full input contract): h3 already resolves
-// dot-segment traversals and leaves only `%2f` opaque, so decoding it here too
-// makes the reading match what a downstream that collapses `%2f` back to `/`
+// dot-segment traversals and leaves `%2f`/`%5c` opaque, so decoding them here too
+// makes the reading match what a downstream that collapses them back to `/`
 // resolves. Other encodings round-trip unchanged.
 const CANONICAL_OPTS = { decodeSlashes: true } as const;
 
@@ -39,17 +39,19 @@ export function canonicalPath(pathname: string): string {
  * (left to {@link canonicalPath}'s `decodeSlashes`, so the `%25`-nesting
  * boundary stays defined in exactly one place).
  *
- * h3's pathname is `decodeURI`-d once, which by definition preserves *reserved*
- * characters — `%40` stays `%40`, and so do `%3b %26 %3d %2b %24 %2c`, plus
- * `%20` and percent-encoded non-ASCII, which the URL serializer re-adds. A rule
- * pattern is written with the character itself (`/@admin/**`), so matching only
- * the served spelling lets `/%40admin/...` slip past the gate while a proxied
- * backend (or any decoding consumer) resolves it back to `/@admin/...`.
+ * h3's pathname decodes only the *needless* escapes — those whose character
+ * survives WHATWG path serialization (see `canonicalPathname`), so `/%40admin`
+ * is already served as `/@admin`. What it still carries encoded is everything
+ * the serializer would re-add (`%20`, non-ASCII, `%22 %3C %3E %5E %60 %7B %7D`),
+ * the C0 controls, and `%25` at any nesting depth. A rule pattern is written
+ * with the character itself (`/a b/**`, `/café/**`), so matching only the served
+ * spelling lets `/a%20b/...` slip past the gate while a proxied backend (or any
+ * decoding consumer) resolves it back.
  *
  * Never use the result for routing/dispatch or forwarding — like the canonical
  * readings, it exists to make a security check see every spelling of the path.
  *
- * Decoding runs to a fixpoint, so a `%25`-nested escape (`%2540` → `%40` → `@`)
+ * Decoding runs to a fixpoint, so a `%25`-nested escape (`%2520` → `%20` → ` `)
  * is caught for the same double-decoding downstream that `resolveDotSegments`
  * already covers for dots and separators (`%252e`, `%252f`) — a single pass here
  * would leave the two inconsistent, and `%2540admin` reachable past a
@@ -140,9 +142,12 @@ export function mergedCanonicalPath(pathname: string, canonical: string): string
  * allow is load-bearing for the callers that pass a genuinely unscoped base.
  *
  * The {@link decodedPath} reading is checked too, so the base has to hold for a
- * downstream that percent-decodes before resolving — which also catches the one
+ * downstream that percent-decodes before resolving — which also covers the one
  * traversal `resolveDotSegments` documents as out of reach on its own, a dot
- * whose *hex digits* are themselves encoded (`%25%32%65` → `%2e` → `.`).
+ * whose *hex digits* are themselves encoded (`%25%32%65` → `%2e` → `.`). For an
+ * h3 request that spelling now arrives already canonicalized to `%252e`, which
+ * `resolveDotSegments` collapses on its own; this keeps the check sound for a
+ * non-h3 caller and for the deeper nestings canonicalization leaves intact.
  */
 export function isPathInScope(pathname: string, base: string): boolean {
   if (!base) {

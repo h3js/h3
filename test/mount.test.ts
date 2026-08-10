@@ -11,7 +11,7 @@ describeMatrix("mount", (t, { it, expect, describe }) => {
       expect(await t.fetch("/test/123").then((r) => r.text())).toBe("/123");
     });
 
-    it("normalizes percent-encoded base path", async () => {
+    it("canonicalizes a percent-encoded base path before mounting", async () => {
       t.app.mount("/api", async (req) => {
         const url = new URL(req.url);
         if (url.pathname.startsWith("/admin")) {
@@ -24,9 +24,17 @@ describeMatrix("mount", (t, { it, expect, describe }) => {
       const res1 = await t.fetch("/api/admin");
       expect(res1.status).toBe(403);
 
-      // Percent-encoded base path should still be blocked
+      // A percent-encoded base path is canonicalized before `base` is matched
+      // and stripped, so the mounted handler sees the same `/admin` the guard
+      // above blocks — it can never receive `/%61dmin`.
       const res2 = await t.fetch("/%61pi/admin");
       expect(res2.status).toBe(403);
+    });
+
+    it("hands the mounted handler opaque escapes in their wire encoding", async () => {
+      t.app.mount("/api", (req) => new Response(`OK: ${new URL(req.url).pathname}`));
+      const res = await t.fetch("/api/a%2Fb%5Cc");
+      expect(await res.text()).toBe("OK: /a%2Fb%5Cc");
     });
 
     it("strips base for h3-based fetch handlers when runtime provides req._url", async () => {

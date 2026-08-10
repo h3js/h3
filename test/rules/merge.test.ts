@@ -267,9 +267,9 @@ describe("dual-path union (Nitro #4396)", () => {
   });
 
   it("a %5c separator is canonicalized at the matcher level too", () => {
-    // h3/srvx already decode `%5c` in `event.url.pathname`, so the e2e suite
-    // cannot reach this branch — pin the matcher-level dual-path handling
-    // directly.
+    // `%5c` is opaque in `event.url.pathname` (canonicalization never decodes a
+    // separator), so this branch *is* reachable e2e — see rules.test.ts. Pinned
+    // here at the matcher level too, since `h3/rules` is usable standalone.
     const match = matcher({
       "/app/**": { headers: { "x-app": "1" } },
       "/app/admin/**": { basicAuth: { username: "admin", password: "secret" } },

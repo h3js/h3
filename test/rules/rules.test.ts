@@ -623,12 +623,12 @@ describe("encoded-separator hardening", () => {
     expect(res.headers.get("www-authenticate")).toMatch(/^Basic realm="Strip Area"/);
   });
 
-  it("a %5c separator variant is guarded too (h3 decodes %5c upstream)", async () => {
-    // srvx/h3 already decode `%5c` to `/` in `event.url.pathname`, so this
-    // request reaches the matcher as `/app/admin/panel` and is guarded by
-    // plain raw-path matching — no dual-path resolution involved. The
-    // matcher-level `%5c` dual-path pin lives in merge.test.ts
-    // ("dual-path union").
+  it("a %5c separator variant is guarded too", async () => {
+    // `%5c` stays opaque in `event.url.pathname` (canonicalization never decodes
+    // a separator), so this reaches the matcher as `/app/admin%5cpanel` — raw
+    // matching sees only `/app/**`, and the guard comes from the dual-path
+    // reading (`decodeSlashes` resolves it to `/app/admin/panel`). A downstream
+    // that decodes the backslash would otherwise reach the admin area ungated.
     const app = createApp({
       "/app/**": { headers: { "x-app": "1" } },
       "/app/admin/**": {
@@ -704,15 +704,15 @@ describe("encoded-separator hardening", () => {
     // scope check must reject it — including the encoded-empty (`%2f%2f`) shape.
     const app = createApp({ "/rules/proxy/legacy/**": { proxy: "/api/wildcard/**" } });
     app.get("/api/wildcard/**", (event) => event.context.params?._ ?? "");
-    // Note: `%2f` stays opaque in `event.url.pathname` (the library's threat
-    // model), so these reach the scope check raw. A `%5c` variant is omitted
-    // here because srvx pre-normalizes backslashes at the URL layer (resolving
-    // it to a benign in-scope path before the rules middleware runs); `test/scope.test.ts`
-    // still covers `%5c` as a defensive `isPathInScope` input.
+    // Note: `%2f`/`%5c` stay opaque in `event.url.pathname` (the library's threat
+    // model), so all of these reach the scope check raw — including the `%5c`
+    // spelling, which a backslash-aware downstream resolves the same way.
     for (const path of [
       "/rules/proxy/legacy/a//..%2f..%2fc",
       "/rules/proxy/legacy/a//..%252f..%252fc",
       "/rules/proxy/legacy/a%2f%2f..%2f..%2fc",
+      "/rules/proxy/legacy/a//..%5c..%5cc",
+      "/rules/proxy/legacy/a%5c%5c..%5c..%5cc",
     ]) {
       const res = await app.fetch(new Request("http://test" + path));
       expect(res.status).toBe(400);

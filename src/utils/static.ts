@@ -115,13 +115,18 @@ export async function serveStatic(
 
   // Resolve traversal first, then peel one `%25` level for the on-disk lookup
   // (guarded: malformed `%` falls back to the safe traversal-resolved value).
+  // The peel itself decodes separators the first resolve had to treat as opaque
+  // (`%5c` -> `\`, and one `%25` level off `%252e`), so resolve again on the
+  // decoded form — otherwise `/..%5c..%5cwin.ini` reaches the backend as
+  // `/..\..\win.ini`, a traversal above the root on a backslash-aware backend.
   const resolvedId = withoutTrailingSlash(resolveDotSegments(event.url.pathname));
   let originalId = resolvedId;
   if (resolvedId.includes("%")) {
     try {
-      originalId = decodeURI(resolvedId);
+      originalId = withoutTrailingSlash(resolveDotSegments(decodeURI(resolvedId)));
     } catch {
-      originalId = resolvedId;
+      // Malformed escape (e.g. `%` at the end): fall back to the traversal-resolved,
+      // still-encoded `resolvedId` already assigned to `originalId` above.
     }
   }
 

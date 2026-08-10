@@ -282,9 +282,10 @@ export function createMatcherFromFind(
   canOverride: RouteOverridePredicate = canOverrideRouteShape,
 ): RouteRulesMatcher {
   return (method, pathname) => {
-    // h3 dispatches on event.url.pathname as-is (already once-decoded — only %2f
-    // and reserved characters stay opaque); the readings below are what keep a
-    // rule matched on every spelling of the path a consumer can resolve.
+    // h3 dispatches on event.url.pathname as-is (needless escapes already
+    // decoded — separators, `%25`, `%20`, non-ASCII and the controls stay
+    // opaque); the readings below are what keep a rule matched on every spelling
+    // of the path a consumer can resolve.
     const rawLayers = findRouteRules(method, pathname);
 
     let altLayers: (RouteRuleLayer[] | undefined)[] | undefined;
@@ -394,12 +395,13 @@ export function memoizeRouteRulesMatcher(
  *   it against `/admin/**`, so a slash-merging downstream (nginx
  *   `merge_slashes`) could reach a path whose gate never ran — hence the second,
  *   slash-merged reading (mirroring `isPathInScope`'s two interpretations).
- * - **A percent-encoded reserved character** (`%40` for `@`, and `%3b %26 %3d
- *   %2b %24 %2c`), or an escape the URL serializer re-adds (`%20`, non-ASCII):
- *   h3's pathname is `decodeURI`-d, which preserves all of them, while a rule
- *   pattern is written with the character itself (`/@admin/**`). Without the
- *   {@link decodedPath} reading, `/%40admin/...` walks past that gate and a
- *   proxied backend — or any consumer that decodes — serves it as `/@admin/...`.
+ * - **An escape h3 serves opaque** — one the URL serializer would re-add (`%20`,
+ *   non-ASCII, `%22 %3C %3E %5E %60 %7B %7D`), a C0 control, or `%25` at any
+ *   nesting depth (`%2540`). h3's pathname decodes only the *needless* escapes
+ *   (`canonicalPathname`, so `/%40admin` already arrives as `/@admin`), while a
+ *   rule pattern is written with the character itself (`/a b/**`). Without the
+ *   {@link decodedPath} reading, `/a%20b/...` walks past that gate and a proxied
+ *   backend — or any consumer that decodes — serves it as `/a b/...`.
  *   A consumer that decodes also *resolves*, so when the decoded path is not
  *   itself canonical it contributes its canonical readings rather than the
  *   intermediate spelling — which is also what catches a dot segment whose hex
