@@ -117,7 +117,18 @@ console.log("");
 
 // --- Bundlers ---
 
-async function loadRolldown(): Promise<typeof import("rolldown") | undefined> {
+// Structurally typed rather than `typeof import("rolldown")`: rolldown is not a
+// direct dependency, so the specifier does not resolve for `tsc` either.
+type Rolldown = {
+  rolldown: (options: Record<string, unknown>) => Promise<{
+    write: (options: Record<string, unknown>) => Promise<{
+      output: { type: string; modules?: Record<string, { renderedLength?: number }> }[];
+    }>;
+    close: () => Promise<void>;
+  }>;
+};
+
+async function loadRolldown(): Promise<Rolldown | undefined> {
   // rolldown is not a direct dependency; it comes in transitively via obuild.
   for (const specifier of ["rolldown", resolveVia("obuild/config", "rolldown")]) {
     if (!specifier) continue;
@@ -158,8 +169,8 @@ async function bundleWithRolldown(): Promise<ModuleSize[]> {
   });
   await bundle.close();
   const chunk = output.find((o) => o.type === "chunk");
-  return Object.entries((chunk as any)?.modules ?? {})
-    .map(([id, m]: [string, any]) => ({ name: shortName(id), bytes: m.renderedLength ?? 0 }))
+  return Object.entries(chunk?.modules ?? {})
+    .map(([id, m]) => ({ name: shortName(id), bytes: m.renderedLength ?? 0 }))
     .filter((m) => m.bytes > 0)
     .sort((a, b) => b.bytes - a.bytes);
 }
