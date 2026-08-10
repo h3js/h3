@@ -125,7 +125,8 @@ export async function serveStatic(
     try {
       originalId = withoutTrailingSlash(resolveDotSegments(decodeURI(resolvedId)));
     } catch {
-      originalId = resolvedId;
+      // Malformed escape (e.g. `%` at the end): fall back to the traversal-resolved,
+      // still-encoded `resolvedId` already assigned to `originalId` above.
     }
   }
 

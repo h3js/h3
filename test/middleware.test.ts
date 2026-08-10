@@ -212,4 +212,22 @@ describeMatrix("middleware", (t, { it, expect }) => {
     expect(res.headers.get("content-length")).toBe("3");
     expect(res.headers.getSetCookie()).toMatchObject(["session=abc123; Path=/; HttpOnly"]);
   });
+
+  // Regression: `event.url.pathname` is canonicalized before matching (needless
+  // escapes like `%40` decoded to `@`), but a route filter string passed to
+  // `use(route, ...)` was handed to `routeToRegExp()` raw — so an escaped filter
+  // like `/%40admin/**` could never match the canonicalized pathname of a
+  // request for `/@admin/...`.
+  it("canonicalizes a needlessly-escaped route filter passed to use()", async () => {
+    let ran = false;
+    t.app.use("/%40admin/**", () => {
+      ran = true;
+    });
+    t.app.get("/@admin/x", () => "ok");
+
+    const res = await t.fetch("/@admin/x");
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe("ok");
+    expect(ran).toBe(true);
+  });
 });

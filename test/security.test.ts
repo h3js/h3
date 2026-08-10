@@ -245,57 +245,61 @@ describe("security: canonicalization covers directly built events", () => {
 // itself a decoding consumer: any escape it collapses but canonicalization does
 // not is a guard bypass, since the guard matched the encoded form and the disk
 // lookup resolves the decoded one.
-describe("security: a guard cannot be bypassed by an escape serveStatic decodes", () => {
-  for (const [guarded, encoded] of [
-    ["/a!b", "/a%21b"],
-    ["/a'b", "/a%27b"],
-    ["/a*b", "/a%2Ab"],
-    ["/a[0]", "/a%5B0%5D"],
-    ["/a|b", "/a%7Cb"],
-    ["/%61dmin", "/%61dmin"],
-  ]) {
-    it(`blocks ${encoded} behind a ${guarded}/** guard`, async () => {
-      const app = new H3();
-      app.use(`${decodeURI(guarded!)}/**`, () => new Response("blocked", { status: 403 }));
-      app.all("/**", (event) =>
-        serveStatic(event, {
-          getMeta: (id) =>
-            id === `${decodeURI(guarded!)}/secret.txt` ? { size: 6, mtime: 0 } : undefined,
-          getContents: () => "secret",
-        }),
-      );
-      const res = await app.request(`${encoded}/secret.txt`);
-      expect(res.status).toBe(403);
-    });
-  }
-});
+describeMatrix(
+  "security: a guard cannot be bypassed by an escape serveStatic decodes",
+  (ctx, { it, expect }) => {
+    for (const [guarded, encoded] of [
+      ["/a!b", "/a%21b"],
+      ["/a'b", "/a%27b"],
+      ["/a*b", "/a%2Ab"],
+      ["/a[0]", "/a%5B0%5D"],
+      ["/a|b", "/a%7Cb"],
+      ["/%61dmin", "/%61dmin"],
+    ]) {
+      it(`blocks ${encoded} behind a ${guarded}/** guard`, async () => {
+        ctx.app.use(`${decodeURI(guarded!)}/**`, () => new Response("blocked", { status: 403 }));
+        ctx.app.all("/**", (event) =>
+          serveStatic(event, {
+            getMeta: (id) =>
+              id === `${decodeURI(guarded!)}/secret.txt` ? { size: 6, mtime: 0 } : undefined,
+            getContents: () => "secret",
+          }),
+        );
+        const res = await ctx.fetch(`${encoded}/secret.txt`);
+        expect(res.status).toBe(403);
+      });
+    }
+  },
+);
 
 // The reserved characters `decodeURI` preserves (`; : @ & = + $ ,`) are not
 // structural once the path is parsed — only `/` is — but any consumer decoding
 // with `decodeURIComponent` collapses them. Canonicalizing them is what keeps a
 // guard whose prefix contains one from being walked past by its escaped
 // spelling; `/@handle` and `/resource:action` routes are ordinary.
-describe("security: a guard cannot be bypassed by an escaped reserved character", () => {
-  for (const [guarded, encoded] of [
-    ["/@admin", "/%40admin"],
-    ["/users/me:delete", "/users/me%3Adelete"],
-    ["/a$b", "/a%24b"],
-    ["/a&b", "/a%26b"],
-    ["/a+b", "/a%2Bb"],
-    ["/a,b", "/a%2Cb"],
-    ["/a;b", "/a%3Bb"],
-    ["/a=b", "/a%3Db"],
-  ]) {
-    it(`blocks ${encoded} behind a ${guarded}/** guard`, async () => {
-      const app = new H3()
-        .use(`${guarded}/**`, () => new Response("blocked", { status: 403 }))
-        .all("/**", () => "leaked");
-      expect((await app.request(`${encoded}/x`)).status).toBe(403);
-      // ...and the literal spelling is blocked by the same guard, as before.
-      expect((await app.request(`${guarded}/x`)).status).toBe(403);
-    });
-  }
-});
+describeMatrix(
+  "security: a guard cannot be bypassed by an escaped reserved character",
+  (ctx, { it, expect }) => {
+    for (const [guarded, encoded] of [
+      ["/@admin", "/%40admin"],
+      ["/users/me:delete", "/users/me%3Adelete"],
+      ["/a$b", "/a%24b"],
+      ["/a&b", "/a%26b"],
+      ["/a+b", "/a%2Bb"],
+      ["/a,b", "/a%2Cb"],
+      ["/a;b", "/a%3Bb"],
+      ["/a=b", "/a%3Db"],
+    ]) {
+      it(`blocks ${encoded} behind a ${guarded}/** guard`, async () => {
+        ctx.app.use(`${guarded}/**`, () => new Response("blocked", { status: 403 }));
+        ctx.app.all("/**", () => "leaked");
+        expect((await ctx.fetch(`${encoded}/x`)).status).toBe(403);
+        // ...and the literal spelling is blocked by the same guard, as before.
+        expect((await ctx.fetch(`${guarded}/x`)).status).toBe(403);
+      });
+    }
+  },
+);
 
 describe("security: allowMalformedURL opt-in", () => {
   it("rejects malformed URLs with 400 by default", async () => {

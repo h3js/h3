@@ -50,13 +50,15 @@ export class H3Event<
    * Access to the parsed request URL.
    *
    * `event.url.pathname` is the path in its wire encoding, with one exception:
-   * an escape that is *needlessly* there is dropped. A percent-encoded
-   * unreserved character (`/%61dmin`, which every decoding consumer resolves to
-   * `/admin`, per RFC 3986 §6.2.2.2) is decoded once, before routing, so that
-   * route matching, `use()` matchers and a handler reading `event.url.pathname`
-   * all compare one and the same string and `/%61dmin` cannot slip past an
-   * `/admin` guard. Nothing else is touched, and `event.req.url` always keeps
-   * the original wire encoding.
+   * an escape that is *needlessly* there is dropped — one whose character
+   * survives WHATWG path serialization unchanged, minus `%2F` and `%25` which
+   * must stay opaque (e.g. `/%61dmin` -> `/admin`, `/%40handle` -> `/@handle`).
+   * This is decoded once, before routing, so that route matching, `use()`
+   * matchers and a handler reading `event.url.pathname` all compare one and the
+   * same string and `/%61dmin` cannot slip past an `/admin` guard. Nothing else
+   * is touched, and `event.req.url` always keeps the original wire encoding.
+   * See the "Pathname encoding" section of the guide for the full rule:
+   * https://h3.dev/guide/api/h3event#pathname-encoding
    *
    * Malformed encoding (`/foo%`, `/%ZZ`) has no canonical form and is rejected
    * with a `400` before any handler runs, unless the `allowMalformedURL` app
