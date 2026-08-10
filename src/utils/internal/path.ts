@@ -96,3 +96,42 @@ export function getURLPathname(input: string): string {
 export function decodePathname(pathname: string): string {
   return decodeURI(pathname.includes("%25") ? pathname.replace(/%25/g, "%2525") : pathname);
 }
+
+// Percent-encoded path separators (`%2f` → `/`, `%5c` → `\`) at any `%25`-nesting
+// depth (`%2f`, `%252f`, ...). Module-scope and reset before each use — the
+// `g` flag is only there to walk every occurrence.
+const ENCODED_SEP_RE_G = /%(?:25)*(?:2f|5c)/gi;
+
+/**
+ * `decodeURIComponent` a path (or a single path segment), but never let an
+ * encoded path separator collapse into a raw `/` or `\`.
+ *
+ * A full second decode on top of h3's already-once-decoded pathname would
+ * reintroduce a separator (and thus `..`-based traversal) that routing and
+ * pathname-based middleware never saw — a path desync / smuggling vector. So
+ * the encoded separators are kept in their encoded form (at any `%25`-nesting
+ * depth) while every other escape — reserved characters (`%40`, `%3b`, ...),
+ * spaces, non-ASCII — decodes normally.
+ *
+ * Throws on malformed percent-encoding, like `decodeURIComponent` itself.
+ *
+ * Shared by {@link import("../request.ts").getRouterParams}'s `decode: true`
+ * and the route-rules matcher's decoded reading, so the two cannot disagree
+ * about what "decoded" means.
+ */
+export function decodePreservingSeparators(value: string): string {
+  if (!value.includes("%")) {
+    return value; // Fast path: nothing to decode.
+  }
+  // Decode around the encoded separators: split on them, decode the pieces, and
+  // rejoin keeping each separator in its original (encoded) form so it can never
+  // become a raw separator.
+  let result = "";
+  let lastIndex = 0;
+  ENCODED_SEP_RE_G.lastIndex = 0;
+  for (let m: RegExpExecArray | null; (m = ENCODED_SEP_RE_G.exec(value));) {
+    result += decodeURIComponent(value.slice(lastIndex, m.index)) + m[0];
+    lastIndex = m.index + m[0].length;
+  }
+  return result + decodeURIComponent(value.slice(lastIndex));
+}

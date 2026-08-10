@@ -1,4 +1,4 @@
-import { formatRouteKey, parseRouteKey } from "./internal/key.ts";
+import { decodeRoutePattern, formatRouteKey, parseRouteKey } from "./internal/key.ts";
 import { mergeRuleOptions } from "./merge.ts";
 import type { RouteRuleConfig, RouteRules } from "./types.ts";
 
@@ -24,7 +24,11 @@ export function normalizeRouteRules(
   const normalizedRules: Record<string, RouteRules> = {};
   for (const key in config) {
     const routeConfig = config[key]!;
-    const { method, path } = parseRouteKey(key);
+    const { method, path: rawPath } = parseRouteKey(key);
+    // A pattern's literal characters are matched against a decoded reading of
+    // the request path, so an escaped one (`/%40admin/**`) has to decode here or
+    // it would cover only the encoded spelling (see `decodeRoutePattern`).
+    const path = decodeRoutePattern(rawPath);
     const canonicalKey = formatRouteKey(method, path);
 
     validateBuiltinRules(routeConfig, canonicalKey);

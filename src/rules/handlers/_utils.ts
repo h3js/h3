@@ -1,7 +1,7 @@
 import { HTTPError } from "../../error.ts";
 import type { H3Event } from "../../event.ts";
 import { getURLPathname, joinURL, withoutBase } from "../../utils/internal/path.ts";
-import { isPathInScope } from "../internal/scope.ts";
+import { decodedPath, isPathInScope } from "../internal/scope.ts";
 import type { ProxyRuleOptions, RedirectRuleOptions } from "../types.ts";
 
 /**
@@ -92,11 +92,24 @@ export function prepareRuleTarget(
         // A derived base satisfies the literal test by construction; `isPathInScope`
         // carries the weight there, rejecting a path whose canonical readings
         // disagree with the raw segments the base was taken from.
-        if (
-          !isPathInScope(rawPath, scopeBase) ||
-          !(rawPath === scopeBase || rawPath.startsWith(scopeBase + "/"))
-        ) {
-          throw new HTTPError({ status: 400 });
+        if (!isLiterallyInScope(rawPath, scopeBase)) {
+          // The rule can also have matched through the matcher's *decoded*
+          // reading — a pattern spelled `/@admin/**` covers a `/%40admin/...`
+          // request — and there the raw path never literally starts with the
+          // pattern prefix. Strip the request's own leading segments instead
+          // (the by-count strip the dynamic-prefix branch already uses; decoding
+          // never adds or removes a separator, so the counts line up), gated on
+          // the decoded reading being in scope so a path that genuinely escapes
+          // still fails closed. The forwarded remainder keeps its raw bytes.
+          const decoded = decodedPath(rawPath);
+          const derived =
+            decoded === rawPath || !isLiterallyInScope(decoded, scopeBase)
+              ? undefined
+              : leadingSegments(rawPath, countSegments(scopeBase));
+          if (derived === undefined) {
+            throw new HTTPError({ status: 400 });
+          }
+          scopeBase = derived;
         }
         targetPath = withoutBase(targetPath, scopeBase);
       } else {
@@ -170,6 +183,13 @@ function isFinalTargetInScope(pathname: string, baseTargetPath: string): boolean
   }
   const run = LEADING_SEPARATOR_RUN_RE.exec(pathname);
   return run === null || run[0] === "/";
+}
+
+// Whether `pathname` sits under `base` under *every* reading (`isPathInScope`)
+// **and** literally starts with it — the second half is what makes the base
+// faithfully strippable from the bytes that get forwarded.
+function isLiterallyInScope(pathname: string, base: string): boolean {
+  return isPathInScope(pathname, base) && (pathname === base || pathname.startsWith(base + "/"));
 }
 
 /** Number of `/`-delimited segments in a rule pattern prefix (`/:lang/old` → 2). */

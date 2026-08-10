@@ -1,5 +1,5 @@
 import { type ErrorDetails, HTTPError } from "../error.ts";
-import { decodePathname, stripBase } from "./internal/path.ts";
+import { decodePathname, decodePreservingSeparators, stripBase } from "./internal/path.ts";
 import { parseQuery } from "./internal/query.ts";
 import { validateData } from "./internal/validate.ts";
 import { getEventContext } from "./event.ts";
@@ -189,49 +189,16 @@ export function getRouterParams(
   if (opts.decode) {
     params = { ...params };
     for (const key in params) {
-      params[key] = decodeRouterParam(params[key]);
+      // Never let an encoded separator collapse into a raw `/` or `\`: whatever
+      // reaches a param survived the `decodeURI` in `event.ts` still encoded, so
+      // route matching and every pathname-based middleware only ever saw it as
+      // one opaque segment (a `:id` capture can never hold a raw separator).
+      // Decoding it here would reintroduce a separator — and `..`-based
+      // traversal — that no guard could see.
+      params[key] = decodePreservingSeparators(params[key]);
     }
   }
   return params;
-}
-
-// Percent-encoded path separators (`%2f` → `/`, `%5c` → `\`) at any `%25`-nesting
-// depth (`%2f`, `%252f`, ...). Whatever reaches a param already survived the pathname
-// decode in `event.ts` (a single `decodeURI` that preserves `%25`) still encoded:
-// `decodeURI` keeps `%2f` as a reserved char, and `%25`-nested forms (`%252f`,
-// `%255c`, ...) only lose one `%25` level. A bare `%5c` never reaches a param at all —
-// it decodes to `\`, which the URL parser normalizes into a real `/` the router splits
-// on — but it stays in the pattern as a cheap guard. Either way, route matching and any
-// pathname-based middleware only ever saw the matched param as one opaque, still-encoded
-// segment (a `:id` capture can never hold a raw separator).
-const ENCODED_SEP_RE_G = /%(?:25)*(?:2f|5c)/gi;
-
-/**
- * `decodeURIComponent` a matched route param, but never let an encoded path
- * separator collapse into a raw `/` or `\`.
- *
- * A full second decode on top of the already-once-decoded pathname would
- * reintroduce a separator (and thus `..`-based traversal) the routing/middleware
- * layer could not see — a path desync / smuggling vector when the decoded param
- * feeds a filesystem or upstream path. So the encoded separators are kept in
- * their encoded form while every other escape (spaces, non-ASCII, ...) still
- * decodes normally, keeping `decode:true` human-readable.
- */
-function decodeRouterParam(value: string): string {
-  if (!value.includes("%")) {
-    return value; // Fast path: nothing to decode.
-  }
-  // Decode around the encoded separators: split on them, decode the pieces, and
-  // rejoin keeping each separator in its original (encoded) form so it can never
-  // become a raw separator.
-  let result = "";
-  let lastIndex = 0;
-  ENCODED_SEP_RE_G.lastIndex = 0;
-  for (let m: RegExpExecArray | null; (m = ENCODED_SEP_RE_G.exec(value));) {
-    result += decodeURIComponent(value.slice(lastIndex, m.index)) + m[0];
-    lastIndex = m.index + m[0].length;
-  }
-  return result + decodeURIComponent(value.slice(lastIndex));
 }
 
 export function getValidatedRouterParams<Event extends HTTPEvent, S extends StandardSchemaV1>(

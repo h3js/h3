@@ -552,11 +552,13 @@ describe("mergeMatchedRouteRules (pure)", () => {
     const merged = mergeMatchedRouteRules(
       [layer("/a/**", [{ name: "headers", options: { a: "raw" } }])],
       [
-        layer("/a/**", [{ name: "headers", options: { a: "raw" } }]),
-        layer("/a/b/**", [
-          { name: "headers", options: false },
-          { name: "basicAuth", options: { username: "u" } },
-        ]),
+        [
+          layer("/a/**", [{ name: "headers", options: { a: "raw" } }]),
+          layer("/a/b/**", [
+            { name: "headers", options: false },
+            { name: "basicAuth", options: { username: "u" } },
+          ]),
+        ],
       ],
     );
     // canonical `false` resolved within its own pass deletes there, but the

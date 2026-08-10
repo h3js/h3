@@ -6,7 +6,12 @@ import type { RouteOverridePredicate, RouteRuleEntry, RouteRuleLayer } from "./m
 import { preMergeRuleLayers } from "./internal/premerge.ts";
 import type { PreMergedRouteRules } from "./internal/premerge.ts";
 import { ruleHandlers } from "./handlers/index.ts";
-import { canonicalPath, mergedCanonicalPath, needsCanonicalPasses } from "./internal/scope.ts";
+import {
+  canonicalPath,
+  decodedPath,
+  mergedCanonicalPath,
+  needsCanonicalPasses,
+} from "./internal/scope.ts";
 import type {
   MatchResult,
   MatchedRouteRule,
@@ -278,50 +283,36 @@ export function createMatcherFromFind(
 ): RouteRulesMatcher {
   return (method, pathname) => {
     // h3 dispatches on event.url.pathname as-is (already once-decoded — only %2f
-    // stays opaque); %2e/%5c handling below is defense-in-depth for non-h3 callers.
+    // and reserved characters stay opaque); the readings below are what keep a
+    // rule matched on every spelling of the path a consumer can resolve.
     const rawLayers = findRouteRules(method, pathname);
 
-    // An encoded separator (`%2f`) must not dodge a rule the canonical path would
-    // hit (e.g. admin%2fpanel vs admin/panel), and h3's canonical form keeps an
-    // empty `//` segment that rou3 won't match against `/admin/**` — a
-    // slash-merging downstream (nginx merge_slashes) could then reach a path whose
-    // gate never ran. So also match the canonical and slash-merged readings
-    // (the latter mirrors isPathInScope's second interpretation).
-    //
-    // Fast path: a pathname already canonical under the strictest reading is
-    // canonical under both, so neither pass can differ from `rawLayers` — one
-    // h3-owned scan (`isCanonicalPath`, never a local regex — see
-    // `needsCanonicalPasses`) skips two resolves and two lookups
-    // (~6% per un-memoized match).
-    // A path that fails the guard pays both resolves; see `mergedCanonicalPath`
-    // for why neither pass can be cheaply skipped without risking a bypass.
-    let canonicalLayers: RouteRuleLayer[] | undefined;
-    let mergedLayers: RouteRuleLayer[] | undefined;
-    if (needsCanonicalPasses(pathname)) {
-      const canonical = canonicalPath(pathname);
-      canonicalLayers = canonical === pathname ? undefined : findRouteRules(method, canonical);
-      // `undefined` when it agrees with `canonical` (and it can only equal
-      // `pathname` when both readings do, which the guard above already excluded).
-      const merged = mergedCanonicalPath(pathname, canonical);
-      mergedLayers = merged === undefined ? undefined : findRouteRules(method, merged);
+    let altLayers: (RouteRuleLayer[] | undefined)[] | undefined;
+    let hasAltMatch = false;
+    const readings = alternateReadings(pathname);
+    if (readings) {
+      altLayers = [];
+      for (const reading of readings) {
+        const layers = findRouteRules(method, reading);
+        if (layers?.length) {
+          hasAltMatch = true;
+        }
+        altLayers.push(layers);
+      }
     }
 
-    if (!rawLayers?.length && !canonicalLayers?.length && !mergedLayers?.length) {
+    if (!rawLayers?.length && !hasAltMatch) {
       // Fresh objects: only memoized results are documented shared/read-only.
       return { routeRules: {}, routeRuleMiddleware: [] };
     }
 
-    // Union raw/canonical/merged resolutions: each later pass may add or override
-    // (never delete) a rule an earlier pass resolved, and override only when
-    // `canOverride` allows it — a broader canonical pattern must never downgrade a
-    // narrower rule the served path resolved (encoded-dot escalation). Proxy/redirect
-    // still forward the raw `event.url.pathname`.
-    const routeRules = mergeMatchedRouteRules(
-      rawLayers,
-      canonicalLayers,
-      mergedLayers,
-      canOverride,
-    );
+    // Union the served path's resolution with each alternate reading's: a later
+    // reading may add or override (never delete) a rule an earlier one resolved,
+    // and override only when `canOverride` allows it — a broader alternate
+    // pattern must never downgrade a narrower rule the served path resolved
+    // (encoded-dot escalation). Proxy/redirect still forward the raw
+    // `event.url.pathname`.
+    const routeRules = mergeMatchedRouteRules(rawLayers, altLayers, canOverride);
 
     return { routeRules, routeRuleMiddleware: buildRouteRuleMiddleware(routeRules) };
   };
@@ -388,6 +379,72 @@ export function memoizeRouteRulesMatcher(
 // ------------------------------------------------------------------------
 // Internal
 // ------------------------------------------------------------------------
+
+/**
+ * Every spelling of `pathname` a rule must also be matched against, deduped and
+ * excluding `pathname` itself (`undefined` when there is none). Ordered least →
+ * most derived, which is the order they are unioned in.
+ *
+ * Three things make a path resolve differently downstream than it dispatches:
+ *
+ * - **An encoded separator** (`%2f`) must not dodge a rule the canonical path
+ *   would hit (`admin%2fpanel` vs `admin/panel`) — an ordinary reverse proxy
+ *   decodes it back.
+ * - **An empty `//` segment** survives h3's canonical form but rou3 won't match
+ *   it against `/admin/**`, so a slash-merging downstream (nginx
+ *   `merge_slashes`) could reach a path whose gate never ran — hence the second,
+ *   slash-merged reading (mirroring `isPathInScope`'s two interpretations).
+ * - **A percent-encoded reserved character** (`%40` for `@`, and `%3b %26 %3d
+ *   %2b %24 %2c`), or an escape the URL serializer re-adds (`%20`, non-ASCII):
+ *   h3's pathname is `decodeURI`-d, which preserves all of them, while a rule
+ *   pattern is written with the character itself (`/@admin/**`). Without the
+ *   {@link decodedPath} reading, `/%40admin/...` walks past that gate and a
+ *   proxied backend — or any consumer that decodes — serves it as `/@admin/...`.
+ *   A consumer that decodes also *resolves*, so when the decoded path is not
+ *   itself canonical it contributes its canonical readings rather than the
+ *   intermediate spelling — which is also what catches a dot segment whose hex
+ *   digits were themselves encoded (`%25%32%65` → `%2e` → `.`).
+ *
+ * Fast path: a pathname already canonical under the strictest reading is
+ * canonical under every weaker one, and one with no `%` has nothing to decode,
+ * so no reading can differ from the served path — an `includes("%")` and one
+ * h3-owned scan (`isCanonicalPath` via `needsCanonicalPasses`, never a local
+ * copy of the decode set, which would go stale silently) skip every resolve and
+ * every extra lookup.
+ */
+function alternateReadings(pathname: string): string[] | undefined {
+  const decoded = decodedPath(pathname);
+  if (decoded === pathname && !needsCanonicalPasses(pathname)) {
+    return; // Fast path: nothing to decode, and already canonical.
+  }
+  const readings: string[] = [];
+  // The same treatment for each spelling: a spelling that is already canonical
+  // is a reading in itself; one that is not contributes what it resolves to,
+  // never the intermediate. A path that fails the guard pays both resolves —
+  // see `mergedCanonicalPath` for why neither can be cheaply skipped.
+  for (const spelling of decoded === pathname ? [pathname] : [pathname, decoded]) {
+    if (!needsCanonicalPasses(spelling)) {
+      pushReading(readings, pathname, spelling);
+      continue;
+    }
+    const canonical = canonicalPath(spelling);
+    pushReading(readings, pathname, canonical);
+    // `undefined` when the merged reading agrees with `canonical`.
+    const merged = mergedCanonicalPath(spelling, canonical);
+    if (merged !== undefined) {
+      pushReading(readings, pathname, merged);
+    }
+  }
+  return readings.length > 0 ? readings : undefined;
+}
+
+// Skip a reading that is the served path itself (already resolved) or a
+// duplicate of one already queued — each costs a router lookup.
+function pushReading(readings: string[], pathname: string, reading: string): void {
+  if (reading !== pathname && !readings.includes(reading)) {
+    readings.push(reading);
+  }
+}
 
 // Fail loudly when an opt-in rule (`cache`/`proxy`) has no registered handler
 // (otherwise it would silently degrade to data-only). A `false` reset is falsy,

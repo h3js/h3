@@ -1,4 +1,5 @@
 import { isCanonicalPath, resolveDotSegments } from "../../utils/path.ts";
+import { decodePreservingSeparators } from "../../utils/internal/path.ts";
 
 // The two canonical readings a security check has to consider, kept here as the
 // single place that knows what h3 decodes. `isCanonicalPath` is h3's own
@@ -30,6 +31,53 @@ const MERGED_OPTS = { decodeSlashes: true, mergeSlashes: true } as const;
  */
 export function canonicalPath(pathname: string): string {
   return resolveDotSegments(pathname, CANONICAL_OPTS);
+}
+
+/**
+ * The reading a downstream that percent-decodes the path resolves: every escape
+ * `event.url.pathname` still carries is decoded, **except** the path separators
+ * (left to {@link canonicalPath}'s `decodeSlashes`, so the `%25`-nesting
+ * boundary stays defined in exactly one place).
+ *
+ * h3's pathname is `decodeURI`-d once, which by definition preserves *reserved*
+ * characters — `%40` stays `%40`, and so do `%3b %26 %3d %2b %24 %2c`, plus
+ * `%20` and percent-encoded non-ASCII, which the URL serializer re-adds. A rule
+ * pattern is written with the character itself (`/@admin/**`), so matching only
+ * the served spelling lets `/%40admin/...` slip past the gate while a proxied
+ * backend (or any decoding consumer) resolves it back to `/@admin/...`.
+ *
+ * Never use the result for routing/dispatch or forwarding — like the canonical
+ * readings, it exists to make a security check see every spelling of the path.
+ *
+ * Decoding runs to a fixpoint, so a `%25`-nested escape (`%2540` → `%40` → `@`)
+ * is caught for the same double-decoding downstream that `resolveDotSegments`
+ * already covers for dots and separators (`%252e`, `%252f`) — a single pass here
+ * would leave the two inconsistent, and `%2540admin` reachable past a
+ * `/@admin/**` gate. It terminates because every pass that changes the string
+ * shortens it, and it cannot collapse a separator: `decodePreservingSeparators`
+ * holds `%2f`/`%5c` back at every `%25` depth, so those are already at their
+ * fixpoint on the first pass.
+ *
+ * Returns `pathname` unchanged when there is nothing to decode, and stops at the
+ * last well-formed reading on malformed percent-encoding (h3 rejects those with
+ * a 400 before any handler runs; a non-h3 caller keeps the served reading rather
+ * than losing the match).
+ */
+export function decodedPath(pathname: string): string {
+  let decoded = pathname;
+  while (decoded.includes("%")) {
+    let next: string;
+    try {
+      next = decodePreservingSeparators(decoded);
+    } catch {
+      break;
+    }
+    if (next === decoded) {
+      break;
+    }
+    decoded = next;
+  }
+  return decoded;
 }
 
 /**
@@ -90,11 +138,26 @@ export function mergedCanonicalPath(pathname: string, canonical: string): string
  * escape a root still has (a leading separator run a decoding downstream reads
  * as an authority). Do not "fix" this by failing closed here: the empty-base
  * allow is load-bearing for the callers that pass a genuinely unscoped base.
+ *
+ * The {@link decodedPath} reading is checked too, so the base has to hold for a
+ * downstream that percent-decodes before resolving — which also catches the one
+ * traversal `resolveDotSegments` documents as out of reach on its own, a dot
+ * whose *hex digits* are themselves encoded (`%25%32%65` → `%2e` → `.`).
  */
 export function isPathInScope(pathname: string, base: string): boolean {
   if (!base) {
     return true;
   }
+  if (!isEveryCanonicalReadingInScope(pathname, base)) {
+    return false;
+  }
+  const decoded = decodedPath(pathname);
+  return decoded === pathname || isEveryCanonicalReadingInScope(decoded, base);
+}
+
+// Both canonical readings (empty-segment-preserving and slash-merged) of one
+// spelling of the path.
+function isEveryCanonicalReadingInScope(pathname: string, base: string): boolean {
   // Already canonical under both readings: one check on `pathname` itself.
   if (!needsCanonicalPasses(pathname)) {
     return isCanonicalInScope(pathname, base);

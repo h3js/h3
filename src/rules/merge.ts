@@ -38,36 +38,41 @@ export interface RouteRuleLayer {
 }
 
 /**
- * Multi-path merge + union: resolve the raw, canonical, and slash-merged
- * canonical paths independently (so a `false` reset stays local to its path),
- * then union in order — each later pass may **add or override, never delete**
- * a rule an earlier path resolved, and only overrides when `canOverride` allows
- * it (see {@link unionLayers}). Omitting `canOverride` keeps the historical
- * unconditional override.
+ * Multi-path merge + union: resolve the served path and each **alternate
+ * reading** of it (canonical, slash-merged, percent-decoded — see
+ * `createMatcherFromFind`) independently, so a `false` reset stays local to its
+ * reading, then union in order — each later reading may **add or override,
+ * never delete** a rule an earlier one resolved, and only overrides when
+ * `canOverride` allows it (see {@link unionLayers}). Omitting `canOverride`
+ * keeps the historical unconditional override.
  *
- * Pure: the caller supplies already-matched layers (least → most specific).
+ * Pure: the caller supplies already-matched layers (least → most specific), and
+ * decides which readings exist — `altLayers` entries may be `undefined` (a
+ * reading that resolved nothing, or one skipped as identical to an earlier one).
  */
 export function mergeMatchedRouteRules(
   rawLayers: RouteRuleLayer[] | undefined,
-  canonicalLayers?: RouteRuleLayer[] | undefined,
-  mergedLayers?: RouteRuleLayer[] | undefined,
+  altLayers?: readonly (RouteRuleLayer[] | undefined)[],
   canOverride?: RouteOverridePredicate,
 ): MatchedRouteRules {
   const routeRules = resolveLayers(rawLayers);
-  unionLayers(routeRules, canonicalLayers, canOverride);
-  unionLayers(routeRules, mergedLayers, canOverride);
+  for (const layers of altLayers || []) {
+    unionLayers(routeRules, layers, canOverride);
+  }
   return routeRules;
 }
 
 // Union one alternate reading's resolved rules onto the accumulated set (each
 // reading resolved on its own so its `false` resets stay local).
 //
-// Security: a later pass may **add** a rule the served path missed, but may
-// **override** one only when `canOverride` allows it — the incoming pattern
-// must be equal to, or strictly more specific than, the current one. This stops
-// a broader canonical pattern (reachable via a crafted `%2e%2e` path that
-// canonicalizes *up*) from downgrading a narrower rule (e.g. an auth gate) the
-// served path already resolved. Not orderable (`disjoint`/`partial`) fails
+// Security: a later reading may **add** a rule the served path missed — this is
+// what makes an auth gate written `/@admin/**` also cover the `/%40admin/...`
+// spelling a decoding downstream resolves back to it — but may **override** one
+// only when `canOverride` allows it: the incoming pattern must be equal to, or
+// strictly more specific than, the current one. This stops a broader alternate
+// pattern (reachable via a crafted `%2e%2e` path that canonicalizes *up*, or a
+// decoded reading that lands on a laxer rule) from downgrading a narrower rule
+// (e.g. an auth gate) the served path already resolved. Not orderable (`disjoint`/`partial`) fails
 // closed and keeps the served path's rule; omitting `canOverride` keeps the
 // historical unconditional override.
 function unionLayers(

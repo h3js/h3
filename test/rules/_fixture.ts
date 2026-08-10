@@ -36,6 +36,9 @@ export const FIXTURE: Record<string, RouteRuleConfig> = {
   "/rules/ba-nested/admin/**": { basicAuth: { username: "admin", password: "s", realm: "Admin" } },
   "/rules/ba-off/**": { basicAuth: { username: "admin", password: "s", realm: "Off" } },
   "/rules/ba-off/*": { basicAuth: false },
+  // Reserved character in the pattern: matched through the decoded reading when
+  // the request spells it `%40` (see encoding.test.ts).
+  "/@handles/**": { basicAuth: { username: "admin", password: "s", realm: "Handles" } },
   "/blog/**": { prerender: true, isr: 60 },
   "GET /api/cached/**": { swr: 60 },
   "/api/cached/**": { headers: { "x-all": "1" } },
@@ -64,6 +67,8 @@ export const PROBES: Array<[string, string]> = [
   ["GET", "/rules/ba-nested/admin%2fpanel"],
   ["GET", "/rules/ba-off/a"],
   ["GET", "/rules/ba-off/a%2fb"],
+  ["GET", "/@handles/pooya"],
+  ["GET", "/%40handles/pooya"],
   ["GET", "/blog/post"],
   ["GET", "/api/cached/x"],
   // HEAD resolves the GET layer (RFC 9110) — pins that the fallback lives in the
