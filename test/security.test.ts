@@ -1,6 +1,6 @@
 import { beforeEach, describe, it, expect } from "vitest";
 import { describeMatrix } from "./_setup.ts";
-import { H3, defineHandler, mockEvent, serveStatic } from "../src/index.ts";
+import { H3, HTTPResponse, defineHandler, mockEvent, serveStatic } from "../src/index.ts";
 
 describeMatrix("security: path encoding bypass", (ctx, { it, expect }) => {
   beforeEach(() => {
@@ -315,5 +315,82 @@ describe("security: allowMalformedURL opt-in", () => {
     const res = await app.request("/foo%");
     expect(res.status).toBe(200);
     expect(await res.text()).toBe("/foo%");
+  });
+});
+
+// `event.res.status` / `event.res.statusText` and `HTTPResponse` are plain user-writable fields.
+// An unsanitized value reaches the runtime unvalidated: in node mode it throws from `writeHead()`
+// (outside every h3 try/catch, killing the process), and in web mode a reason phrase carrying CRLF
+// is response splitting.
+describeMatrix("security: response status sanitization", (ctx, { it, expect }) => {
+  const statusTexts: [input: string, sanitized: string][] = [
+    ["OK\r\nX-Inj: pwned", "OKX-Inj: pwned"],
+    ["OK\nX-Inj: pwned", "OKX-Inj: pwned"],
+    ["OK\rX-Inj: pwned", "OKX-Inj: pwned"],
+    ["OK\u0000pwned", "OKpwned"],
+    ["Café", "Caf"],
+    ["I am a teapot", "I am a teapot"],
+  ];
+
+  for (const [input, sanitized] of statusTexts) {
+    it(`sanitizes event.res.statusText ${JSON.stringify(input)}`, async () => {
+      ctx.app.get("/x", (event) => {
+        event.res.statusText = input;
+        return "body";
+      });
+      const res = await ctx.fetch("/x");
+      expect(res.status).toBe(200);
+      expect(res.statusText).toBe(sanitized);
+      expect(res.headers.get("x-inj")).toBe(null);
+      expect(await res.text()).toBe("body");
+    });
+
+    it(`sanitizes HTTPResponse statusText ${JSON.stringify(input)}`, async () => {
+      ctx.app.get("/x", () => new HTTPResponse("body", { statusText: input }));
+      const res = await ctx.fetch("/x");
+      expect(res.status).toBe(200);
+      expect(res.statusText).toBe(sanitized);
+      expect(res.headers.get("x-inj")).toBe(null);
+      expect(await res.text()).toBe("body");
+    });
+  }
+
+  const statusCodes: [input: unknown, sanitized: number][] = [
+    [99, 200],
+    [600, 200],
+    [200.5, 200],
+    [Number.NaN, 200],
+    ["418", 418],
+    ["abc", 200],
+    [201, 201],
+  ];
+
+  for (const [input, sanitized] of statusCodes) {
+    it(`sanitizes event.res.status ${JSON.stringify(input)}`, async () => {
+      ctx.app.get("/x", (event) => {
+        event.res.status = input as number;
+        return "body";
+      });
+      const res = await ctx.fetch("/x");
+      expect(res.status).toBe(sanitized);
+      expect(await res.text()).toBe("body");
+    });
+
+    it(`sanitizes HTTPResponse status ${JSON.stringify(input)}`, async () => {
+      ctx.app.get("/x", () => new HTTPResponse("body", { status: input as number }));
+      const res = await ctx.fetch("/x");
+      expect(res.status).toBe(sanitized);
+      expect(await res.text()).toBe("body");
+    });
+  }
+
+  it("keeps an empty statusText empty", async () => {
+    ctx.app.get("/x", (event) => {
+      event.res.statusText = "";
+      return "body";
+    });
+    const res = await ctx.fetch("/x");
+    expect(res.status).toBe(200);
+    expect(res.statusText).toBe("");
   });
 });
