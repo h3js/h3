@@ -59,37 +59,35 @@ export function getPathname(path: string = "/"): string {
 // an `/admin` guard — so such a path is decoded to its canonical form before
 // anything can match on it.
 //
-// The set is exactly the escapes `decodeURI` decodes whose character the WHATWG
-// path serializer then keeps literal — i.e. the escapes the old decode-then
-// -reparse pass visibly collapsed, so this stays byte-for-byte on them. Derive
-// any change to the pattern from those two, not from the listing below:
+// The set is every escape whose decoded character survives WHATWG path
+// serialization unchanged, minus the two that must stay opaque:
 //
-// - RFC 3986 §2.3 unreserved (ALPHA / DIGIT / `-` / `.` / `_` / `~`), equivalent
-//   to their literals per §6.2.2.2.
-// - The sub-delims and gen-delims left in both: `!`, `'`, `(`, `)`, `*`, `[`,
-//   `]`, `|`. Not §6.2.2.2-equivalent, but every decoding consumer collapses
-//   them all the same, so leaving them encoded reopens the bypass for any guard
-//   whose prefix contains one.
+// - `%2F`, whose character is the segment separator. Decoding it would change
+//   how many segments the path has, so a `:param` could gain a boundary the
+//   router never matched on.
+// - `%25`, whose character starts an escape. Decoding it would turn `%252f`
+//   into a decodable `%2f`, handing a double-decoding downstream the separator
+//   this whole pass exists to withhold.
 //
-// Everything else is deliberately left alone, for one of three reasons:
+// What is left is `!`, `$`, `&`, `'`, `(`, `)`, `*`, `+`, `,`, `-`, `.`, `:`,
+// `;`, `=`, `@`, `[`, `]`, `_`, `|`, `~`, ALPHA and DIGIT — the RFC 3986 §2.3
+// unreserved set, equivalent to its literals per §6.2.2.2, plus the sub-delims
+// and gen-delims the serializer keeps literal. Those are not §6.2.2.2-equivalent
+// in the abstract, but every decoding consumer collapses them all the same, so
+// leaving one encoded reopens the bypass for any guard whose prefix contains it
+// (`/%40admin` vs a `/@admin` guard).
 //
-// - The serializer would not keep the character: `%20`, `%5E`, `%7B`, `%5C` and
-//   non-ASCII are re-encoded on the way back, and `%09`/`%0A`/`%0D` and the
-//   other C0 controls would be *deleted* outright. `%2F`/`%5C` are structural
-//   anyway — a `:param` must never gain a separator the router did not match on.
-// - `decodeURI` does not decode it: `%24`, `%26`, `%2B`, `%2C`, `%3A`, `%3B`,
-//   `%3D`, `%40` all survive serialization literally, so they are *not* excluded
-//   for a reason of their own — they stay encoded only to keep parity with the
-//   pass this replaced. A guard whose prefix contains one of those characters is
-//   therefore still bypassable by its escape (`/%40admin` vs a `/@admin` guard)
-//   for a consumer that decodes with `decodeURIComponent` rather than
-//   `decodeURI`. Widening the set here would close that, at the cost of
-//   diverging from what h3 has always dispatched.
-// - `%25`: decoding it would turn `%252f` into a decodable `%2f`, handing a
-//   double-decoding downstream the separator this whole pass exists to withhold.
-//   (`decodeURI` already leaves it, so this is a property of the set, not an
-//   extra carve-out.)
-const NEEDLESS_ESCAPE_SRC = String.raw`%(?:2[1789ADE]|3[0-9]|4[1-9A-F]|5[0-9ABDF]|6[1-9A-F]|7[0-9ACE])`;
+// Everything the serializer would *not* keep is excluded for free, because
+// decoding it could not change what anything matches: `%20`, `%22`, `%3C`,
+// `%3E`, `%5E`, `%60`, `%7B`, `%7D` and non-ASCII are re-encoded on the way
+// back, `%23`/`%3F` would be re-encoded rather than start a fragment or query,
+// `%5C` would be normalized into a real `/`, and `%09` and the other C0 controls
+// would be *deleted* outright. The last two are why this decodes selectively
+// instead of running `decodeURI` and re-parsing: that pass mangled them.
+//
+// Note this is wider than `decodeURI`, which preserves all of RFC 3986's
+// reserved set (`; / ? : @ & = + $ ,`) — of which only `/` is structural here.
+const NEEDLESS_ESCAPE_SRC = String.raw`%(?:2[146-9A-E]|3[0-9ABD]|4[0-9A-F]|5[0-9ABDF]|6[1-9A-F]|7[0-9ACE])`;
 const NEEDLESS_ESCAPE_RE = /* @__PURE__ */ new RegExp(NEEDLESS_ESCAPE_SRC, "i");
 const NEEDLESS_ESCAPE_RE_G = /* @__PURE__ */ new RegExp(NEEDLESS_ESCAPE_SRC, "gi");
 

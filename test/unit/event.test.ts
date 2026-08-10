@@ -122,10 +122,31 @@ describe("canonicalPathname", () => {
       "/caf%c3%a9", // non-ASCII, including its hex case
       "/a%20b",
       "/a%09b", // decoding this would let the URL parser delete the character
-      "/a%3Ab",
+      "/a%5Eb", // the serializer re-encodes these, so decoding is a round trip
+      "/a%7Bb%7Dc",
+      "/a%60b",
+      "/a%22b",
     ]) {
       expect(canonicalPathname(input)).toBe(input);
       expect(isNonCanonicalPathname(input)).toBe(false);
+    }
+  });
+
+  // The set is defined by what survives WHATWG path serialization, not by what
+  // `decodeURI` decodes: `decodeURI` preserves all of RFC 3986's reserved set
+  // (`; / ? : @ & = + $ ,`), of which only `/` is structural here. Asserted
+  // against the serializer itself so the pattern cannot drift from its rule.
+  it("decodes exactly the escapes the path serializer keeps literal, minus %2F and %25", () => {
+    for (let i = 0; i < 0x80; i++) {
+      const char = String.fromCharCode(i);
+      const escape = `%${i.toString(16).toUpperCase().padStart(2, "0")}`;
+      const survivesSerialization = new URL(`http://h/x${char}y`).pathname === `/x${char}y`;
+      const expected = survivesSerialization && char !== "/" && char !== "%";
+      expect({ escape, decoded: isNonCanonicalPathname(`/x${escape}y`) }).toEqual({
+        escape,
+        decoded: expected,
+      });
+      expect(canonicalPathname(`/x${escape}y`)).toBe(expected ? `/x${char}y` : `/x${escape}y`);
     }
   });
 

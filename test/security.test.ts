@@ -152,7 +152,7 @@ describeMatrix("security: pathname canonicalization", (ctx, { it, expect }) => {
 
   // Everything that is not a needless escape is opaque: no consumer can read it
   // as a different segment, so it reaches the handler exactly as it arrived.
-  for (const path of ["/a%2Fb", "/a%5Cb", "/a%20b", "/caf%C3%A9", "/a%2541", "/a%09b", "/a%3Ab"]) {
+  for (const path of ["/a%2Fb", "/a%5Cb", "/a%20b", "/caf%C3%A9", "/a%2541", "/a%09b", "/a%5Eb"]) {
     it(`serves ${path} unchanged`, async () => {
       const res = await ctx.fetch(path);
       expect(res.status).toBe(200);
@@ -160,11 +160,12 @@ describeMatrix("security: pathname canonicalization", (ctx, { it, expect }) => {
     });
   }
 
-  // Not unreserved, but `decodeURI` collapses them and the URL serializer keeps
-  // the literal — so a decoding consumer (`serveStatic`'s on-disk peel, a proxy,
-  // `decodeURIComponent` in a handler) reads the escape and the literal as one
-  // resource. Leaving them encoded would reopen the bypass for any guard whose
-  // prefix contains one.
+  // Not unreserved, but the URL serializer keeps the literal — so a decoding
+  // consumer (`serveStatic`'s on-disk peel, a proxy, `decodeURIComponent` in a
+  // handler) reads the escape and the literal as one resource. Leaving them
+  // encoded would reopen the bypass for any guard whose prefix contains one.
+  // The second group is what `decodeURI` alone would have left behind: RFC 3986
+  // reserves them, but only `/` is structural once the path is already parsed.
   for (const [path, canonical] of [
     ["/a%21b", "/a!b"],
     ["/a%27b", "/a'b"],
@@ -172,6 +173,14 @@ describeMatrix("security: pathname canonicalization", (ctx, { it, expect }) => {
     ["/a%2Ab", "/a*b"],
     ["/a%5Bb%5Dc", "/a[b]c"],
     ["/a%7Cb", "/a|b"],
+    ["/%40handle", "/@handle"],
+    ["/users/me%3Adelete", "/users/me:delete"],
+    ["/a%24b", "/a$b"],
+    ["/a%26b", "/a&b"],
+    ["/a%2Bb", "/a+b"],
+    ["/a%2Cb", "/a,b"],
+    ["/a%3Bb", "/a;b"],
+    ["/a%3Db", "/a=b"],
   ]) {
     it(`canonicalizes ${path} to ${canonical}`, async () => {
       const res = await ctx.fetch(path!);
@@ -257,6 +266,33 @@ describe("security: a guard cannot be bypassed by an escape serveStatic decodes"
       );
       const res = await app.request(`${encoded}/secret.txt`);
       expect(res.status).toBe(403);
+    });
+  }
+});
+
+// The reserved characters `decodeURI` preserves (`; : @ & = + $ ,`) are not
+// structural once the path is parsed — only `/` is — but any consumer decoding
+// with `decodeURIComponent` collapses them. Canonicalizing them is what keeps a
+// guard whose prefix contains one from being walked past by its escaped
+// spelling; `/@handle` and `/resource:action` routes are ordinary.
+describe("security: a guard cannot be bypassed by an escaped reserved character", () => {
+  for (const [guarded, encoded] of [
+    ["/@admin", "/%40admin"],
+    ["/users/me:delete", "/users/me%3Adelete"],
+    ["/a$b", "/a%24b"],
+    ["/a&b", "/a%26b"],
+    ["/a+b", "/a%2Bb"],
+    ["/a,b", "/a%2Cb"],
+    ["/a;b", "/a%3Bb"],
+    ["/a=b", "/a%3Db"],
+  ]) {
+    it(`blocks ${encoded} behind a ${guarded}/** guard`, async () => {
+      const app = new H3()
+        .use(`${guarded}/**`, () => new Response("blocked", { status: 403 }))
+        .all("/**", () => "leaked");
+      expect((await app.request(`${encoded}/x`)).status).toBe(403);
+      // ...and the literal spelling is blocked by the same guard, as before.
+      expect((await app.request(`${guarded}/x`)).status).toBe(403);
     });
   }
 });
