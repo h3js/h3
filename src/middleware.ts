@@ -1,6 +1,6 @@
-import { routeToRegExp } from "rou3";
 import { kNotFound } from "./response.ts";
 import { canonicalPathname } from "./utils/internal/path.ts";
+import { createRouteMatcher } from "./utils/internal/route.ts";
 
 import type { H3Event } from "./event.ts";
 import type { MiddlewareOptions } from "./types/h3.ts";
@@ -32,7 +32,10 @@ function createMatcher(opts: MiddlewareOptions & { route?: string }) {
   if (!opts.route && !opts.method && !opts.match) {
     return undefined;
   }
-  const routeMatcher = opts.route ? routeToRegExp(canonicalPathname(opts.route)) : undefined;
+  // The matcher is rou3's, the same engine `~findRoute` routes with: a scope
+  // that disagreed with the router would let a request reach a handler while
+  // skipping the guard registered for it.
+  const routeMatcher = opts.route ? createRouteMatcher(canonicalPathname(opts.route)) : undefined;
   const method = opts.method?.toUpperCase();
   return function _middlewareMatcher(event: H3Event) {
     if (method && event.req.method !== method) {
@@ -47,14 +50,14 @@ function createMatcher(opts: MiddlewareOptions & { route?: string }) {
     if (!routeMatcher) {
       return true;
     }
-    const match = event.url.pathname.match(routeMatcher);
-    if (!match) {
+    const params = routeMatcher(event.url.pathname);
+    if (params === false) {
       return false;
     }
-    if (match.groups) {
+    if (params) {
       event.context.middlewareParams = {
         ...event.context.middlewareParams,
-        ...match.groups,
+        ...params,
       };
     }
     return true;

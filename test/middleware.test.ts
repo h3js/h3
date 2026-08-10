@@ -231,3 +231,70 @@ describeMatrix("middleware", (t, { it, expect }) => {
     expect(ran).toBe(true);
   });
 });
+
+// Regression: `use(route, ...)` used to compile its own regex for the route
+// filter while the router matched with rou3, and the two disagreed — so a
+// request could reach a handler with the guard registered for it skipped.
+// A `:param` regex was `[^/]+`, rejecting the empty segment rou3's trie accepts
+// (`/admin/7//` reached `/admin/:id` unguarded), and the `/**` regex made the
+// separator optional (`/admin/**` also fired on `/adminx`). Both matchers are
+// now rou3, so the scope of a `use()` is the match-set of the same pattern.
+describeMatrix("middleware route scope", (t, { it, expect }) => {
+  // Every path here is routed by its own pattern, so its guard must fire.
+  const scopes = [
+    { route: "/admin/:id", paths: ["/admin/7", "/admin/7/", "/admin/7//"] },
+    { route: "/admin/**", paths: ["/admin", "/admin/", "/admin//", "/admin/x", "/admin/x/y"] },
+    // A named `**` needs at least one segment, so `/files` itself is not routed.
+    { route: "/files/**:rest", paths: ["/files/a", "/files/a/b", "/files/a/b/"] },
+    { route: "/a/*", paths: ["/a", "/a/", "/a/x", "/a/x/"] },
+    { route: "/api", paths: ["/api", "/api/", "/api//"] },
+  ];
+
+  for (const { route, paths } of scopes) {
+    it(`guards every path routed by ${route}`, async () => {
+      t.app.use(route, () => "DENIED");
+      t.app.all(route, () => "ALLOWED");
+      for (const path of paths) {
+        const res = await t.fetch(path);
+        expect(await res.text(), `${route} vs ${path}`).toBe("DENIED");
+      }
+    });
+  }
+
+  it("does not let a `/**` scope bleed past the segment boundary", async () => {
+    const seen: string[] = [];
+    t.app.use("/admin/**", (event) => {
+      seen.push(event.url.pathname);
+    });
+    t.app.get("/**", () => "ok");
+
+    for (const path of ["/adminx", "/administrator", "/admin-panel", "/ad"]) {
+      expect(await (await t.fetch(path)).text()).toBe("ok");
+    }
+    expect(seen).toEqual([]);
+
+    await t.fetch("/admin/x");
+    expect(seen).toEqual(["/admin/x"]);
+  });
+
+  // A leading empty segment is only reachable in web mode: the node test client
+  // resolves `//admin/...` against its base URL as a protocol-relative URL.
+  it.skipIf(t.target === "node")("guards a path with an empty leading segment", async () => {
+    t.app.use("/:tenant/admin/**", () => "DENIED");
+    t.app.get("/:tenant/admin/users", () => "ALLOWED");
+
+    const res = await t.app.request(new Request("http://localhost//admin/users"));
+    expect(await res.text()).toBe("DENIED");
+  });
+
+  it("exposes rou3 param names in middlewareParams", async () => {
+    let params: Record<string, string> | undefined;
+    t.app.use("/mix/*/:id/**:rest", (event) => {
+      params = event.context.middlewareParams;
+    });
+    t.app.get("/**", () => "ok");
+
+    await t.fetch("/mix/q/7/a/b");
+    expect(params).toEqual({ "0": "q", id: "7", rest: "a/b" });
+  });
+});
