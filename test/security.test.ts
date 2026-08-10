@@ -1,6 +1,6 @@
 import { beforeEach, describe, it, expect } from "vitest";
 import { describeMatrix } from "./_setup.ts";
-import { H3 } from "../src/index.ts";
+import { H3, defineHandler, mockEvent } from "../src/index.ts";
 
 describeMatrix("security: path encoding bypass", (ctx, { it, expect }) => {
   beforeEach(() => {
@@ -40,18 +40,13 @@ describeMatrix("security: path encoding bypass", (ctx, { it, expect }) => {
     expect(res.status).toBe(200);
   });
 
-  // A percent-encoded path is never dispatched: it is bounced to its canonical
-  // form, so the guard sees the same string as the route it protects.
-  for (const [path, canonical] of [
-    ["/api/%61dmin/users", "/api/admin/users"],
-    ["/api/admi%6e/users", "/api/admin/users"],
-    ["/%61pi/admin/users", "/api/admin/users"],
-  ]) {
+  // A percent-encoded path is canonicalized before routing, so the guard sees
+  // the same string as the route it protects and blocks it.
+  for (const path of ["/api/%61dmin/users", "/api/admi%6e/users", "/%61pi/admin/users"]) {
     it(`should NOT bypass auth via ${path}`, async () => {
-      const res = await ctx.fetch(path!);
+      const res = await ctx.fetch(path);
       expect(res.status).not.toBe(200);
-      expect(res.status).toBe(308);
-      expect(res.headers.get("location")).toBe(canonical);
+      expect(res.status).toBe(403);
     });
   }
 });
@@ -80,7 +75,7 @@ describeMatrix("security: path encoding bypass with wildcard routes", (ctx, { it
   it("should NOT bypass auth with wildcard via /api/%61dmin/users", async () => {
     const res = await ctx.fetch("/api/%61dmin/users");
     expect(res.status).not.toBe(200);
-    expect(res.status).toBe(308);
+    expect(res.status).toBe(403);
   });
 
   // Double-encoded %2561 stays as %2561 — %25 (encoded %) is preserved to avoid
@@ -123,37 +118,36 @@ describeMatrix("security: malformed percent-encoded URL", (ctx, { it, expect }) 
   });
 });
 
-describeMatrix("security: canonical pathname redirect", (ctx, { it, expect }) => {
+describeMatrix("security: pathname canonicalization", (ctx, { it, expect }) => {
   beforeEach(() => {
-    ctx.app.all("/**", (event) => ({ path: event.url.pathname, method: event.req.method }));
+    ctx.app.all("/**", (event) => ({
+      path: event.url.pathname,
+      search: event.url.search,
+      reqPath: new URL(event.req.url).pathname,
+    }));
   });
 
-  it("redirects a non-canonical path, preserving the query", async () => {
+  it("decodes an unreserved escape, leaving req.url and the query alone", async () => {
     const res = await ctx.fetch("/a/%61?x=%61&y=1");
-    expect(res.status).toBe(308);
-    expect(res.headers.get("location")).toBe("/a/a?x=%61&y=1");
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      path: "/a/a",
+      search: "?x=%61&y=1",
+      reqPath: "/a/%61",
+    });
   });
 
   // The URL parser resolves an encoded dot segment before h3 sees it, so this
   // arrives as `/%61dmin`; canonicalizing it must not put the traversal back.
-  it("never redirects to a path with a dot segment left in it", async () => {
+  it("never reintroduces a dot segment", async () => {
     const res = await ctx.fetch("/files/%2e%2e/%61dmin");
-    expect(res.status).toBe(308);
-    expect(res.headers.get("location")).toBe("/admin");
+    expect((await res.json()).path).toBe("/admin");
   });
 
-  it("uses 308 so a POST is replayed with its method and body", async () => {
-    const res = await ctx.fetch("/%61pi", { method: "POST", body: "x" });
-    expect(res.status).toBe(308);
-    expect(res.headers.get("location")).toBe("/api");
-  });
-
-  // The canonical form is a fixed point, so a client following the redirect
-  // lands on a dispatched response rather than another redirect.
-  it("does not loop: the redirect target is dispatched", async () => {
+  // The canonical form is a fixed point, so the second request is a no-op.
+  it("is a fixed point: the canonical form dispatches unchanged", async () => {
     const res = await ctx.fetch("/a/a");
-    expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ path: "/a/a", method: "GET" });
+    expect((await res.json()).path).toBe("/a/a");
   });
 
   // Everything that is not an unreserved escape is opaque: no consumer can read
@@ -162,91 +156,97 @@ describeMatrix("security: canonical pathname redirect", (ctx, { it, expect }) =>
     it(`serves ${path} unchanged`, async () => {
       const res = await ctx.fetch(path);
       expect(res.status).toBe(200);
-      expect(await res.json()).toEqual({ path, method: "GET" });
+      expect(await res.json()).toMatchObject({ path, reqPath: path });
     });
   }
+
+  it("matches routes and middleware on the canonical path", async () => {
+    let guarded: string | undefined;
+    ctx.app
+      .use("/api/admin/**", (event, next) => {
+        guarded = event.url.pathname;
+        return next();
+      })
+      .get("/api/admin/:action", (event) => event.context.params!.action);
+    const res = await ctx.fetch("/api/%61dmin/users");
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe("users");
+    expect(guarded).toBe("/api/admin/users");
+  });
+
+  it("hands a mounted fetch handler the canonical path", async () => {
+    ctx.app.mount("/api", (req) => new Response(new URL(req.url).pathname));
+    const res = await ctx.fetch("/%61pi/%61dmin");
+    expect(await res.text()).toBe("/admin");
+  });
 });
 
-// A protocol-relative `Location` would send the client to another origin. Not a
-// matrix test: `ctx.fetch` resolves the path against the test server's URL,
-// which swallows the leading `//` before it can reach the app.
-describe("security: canonical redirect location", () => {
-  it("is never protocol-relative", async () => {
-    const app = new H3().all("/**", () => "ok");
-    for (const [path, location] of [
-      ["//evil.com/%61", "/evil.com/a"],
-      ["///evil.com/%61", "/evil.com/a"],
-      ["//%61", "/a"],
+// Canonicalization only ever *removes* an escape, so it cannot add a segment
+// boundary — a leading slash run stays exactly as long as it arrived and can
+// never become protocol-relative for a consumer that reads the pathname back.
+// Not a matrix test: `ctx.fetch` resolves the path against the test server's
+// URL, which swallows the leading `//` before it can reach the app.
+describe("security: canonicalization and the leading slash run", () => {
+  it("leaves the leading slash run untouched", async () => {
+    const app = new H3().all("/**", (event) => event.url.pathname);
+    for (const [path, expected] of [
+      ["//evil.com/%61", "//evil.com/a"],
+      ["///evil.com/%61", "///evil.com/a"],
+      ["//%61", "//a"],
     ]) {
-      const res = await app.request(path!);
-      expect(res.status).toBe(308);
-      expect(res.headers.get("location")).toBe(location);
+      expect(await (await app.request(path!)).text()).toBe(expected);
     }
   });
 });
 
-describe("security: canonicalURL modes", () => {
-  const appWith = (canonicalURL?: "redirect" | "rewrite" | false) =>
-    new H3({ canonicalURL }).get("/**", (event) => ({
+// Canonicalization lives in the H3Event constructor, so it also covers events
+// that never reach app dispatch.
+describe("security: canonicalization covers directly built events", () => {
+  it("applies to a standalone handler.fetch()", async () => {
+    const handler = defineHandler((event) => event.url.pathname);
+    expect(await (await handler.fetch("http://h/%61dmin")).text()).toBe("/admin");
+  });
+
+  it("applies to mockEvent()", () => {
+    expect(mockEvent("/%61dmin").url.pathname).toBe("/admin");
+    expect(mockEvent("/a%2Fb").url.pathname).toBe("/a%2Fb");
+  });
+});
+
+describe("security: allowNonCanonicalURL opt-in", () => {
+  const appWith = (allowNonCanonicalURL?: boolean) =>
+    new H3({ allowNonCanonicalURL }).get("/**", (event) => ({
       pathname: event.url.pathname,
       reqPathname: new URL(event.req.url).pathname,
     }));
 
-  it("redirects by default", async () => {
-    for (const app of [appWith(), appWith("redirect")]) {
-      const res = await app.request("/api/%61dmin");
-      expect(res.status).toBe(308);
-      expect(res.headers.get("location")).toBe("/api/admin");
-    }
-  });
-
-  // The guard still cannot be bypassed — the canonical path is what gets routed
-  // — but event.url no longer matches req.url, which is the mode's whole cost.
-  it("rewrite dispatches the canonical path without a round trip", async () => {
-    const res = await appWith("rewrite").request("/api/%61dmin");
-    expect(res.status).toBe(200);
+  it("canonicalizes by default", async () => {
+    const res = await appWith().request("/api/%61dmin");
     expect(await res.json()).toEqual({
       pathname: "/api/admin",
       reqPathname: "/api/%61dmin",
     });
   });
 
-  it("rewrite leaves opaque escapes alone", async () => {
-    const res = await appWith("rewrite").request("/a%2Fb%20c");
-    expect(await res.json()).toEqual({
-      pathname: "/a%2Fb%20c",
-      reqPathname: "/a%2Fb%20c",
-    });
-  });
-
-  it("rewrite matches routes and middleware on the canonical path", async () => {
-    let guarded: string | undefined;
-    const app = new H3({ canonicalURL: "rewrite" })
-      .use("/api/admin/**", (event, next) => {
-        guarded = event.url.pathname;
-        return next();
-      })
-      .get("/api/admin/:action", (event) => event.context.params!.action);
-    const res = await app.request("/api/%61dmin/users");
-    expect(res.status).toBe(200);
-    expect(await res.text()).toBe("users");
-    expect(guarded).toBe("/api/admin/users");
-  });
-
-  it("rewrite keeps a mounted fetch handler on the same path", async () => {
-    const app = new H3({ canonicalURL: "rewrite" });
-    app.mount("/api", (req) => new Response(new URL(req.url).pathname));
-    const res = await app.request("/%61pi/%61dmin");
-    expect(await res.text()).toBe("/admin");
-  });
-
-  it("false dispatches the raw pathname", async () => {
-    const res = await appWith(false).request("/api/%61dmin");
+  it("dispatches the raw pathname when enabled", async () => {
+    const res = await appWith(true).request("/api/%61dmin");
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
       pathname: "/api/%61dmin",
       reqPathname: "/api/%61dmin",
     });
+  });
+
+  // The whole point of the opt-out: the app owns the encoded spellings now.
+  it("lets an encoded path past a pathname guard when enabled", async () => {
+    const app = new H3({ allowNonCanonicalURL: true })
+      .use("/api/admin/**", (event) => {
+        event.res.status = 403;
+        return "Forbidden";
+      })
+      .all("/**", () => "ok");
+    expect((await app.request("/api/admin/x")).status).toBe(403);
+    expect((await app.request("/api/%61dmin/x")).status).toBe(200);
   });
 });
 

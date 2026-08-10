@@ -24,14 +24,14 @@ describeMatrix("mount", (t, { it, expect, describe }) => {
       const res1 = await t.fetch("/api/admin");
       expect(res1.status).toBe(403);
 
-      // A percent-encoded base path never reaches the mounted handler: it is
-      // bounced to the canonical form, which the guard above then blocks.
+      // A percent-encoded base path is canonicalized before `base` is matched
+      // and stripped, so the mounted handler sees the same `/admin` the guard
+      // above blocks — it can never receive `/%61dmin`.
       const res2 = await t.fetch("/%61pi/admin");
-      expect(res2.status).toBe(308);
-      expect(res2.headers.get("location")).toBe("/api/admin");
+      expect(res2.status).toBe(403);
     });
 
-    it("hands the mounted handler the path in its wire encoding", async () => {
+    it("hands the mounted handler opaque escapes in their wire encoding", async () => {
       t.app.mount("/api", (req) => new Response(`OK: ${new URL(req.url).pathname}`));
       const res = await t.fetch("/api/a%2Fb%5Cc");
       expect(await res.text()).toBe("OK: /a%2Fb%5Cc");

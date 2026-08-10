@@ -57,8 +57,8 @@ export function getPathname(path: string = "/"): string {
 // proxy, a filesystem, a handler calling `decodeURIComponent`) resolves
 // `/%61dmin` and `/admin` to the same resource, while h3's matchers compare them
 // as two different strings. That gap is the middleware-bypass vector, so such a
-// path is bounced to its canonical form instead of being served under a name a
-// guard would not recognize.
+// path is decoded to its canonical form before anything can match on it, rather
+// than being dispatched under a name a guard would not recognize.
 //
 // Every other escape is deliberately left alone: `%2F`/`%5C` are structural (a
 // `:param` must never gain a separator the router did not match on), and `%20`,
@@ -84,11 +84,13 @@ export function isNonCanonicalPathname(pathname: string): boolean {
  * Canonical form of `pathname`: unreserved escapes decoded, everything else left
  * byte-for-byte as it arrived.
  *
- * Idempotent by construction — no unreserved escape is left to decode — so
- * redirecting to the result cannot loop. Dot segments need no handling here: the
- * URL parser resolves them (including every `%2e` spelling, per WHATWG "double-dot
- * path segment") before the pathname reaches h3, and decoding an unreserved
- * escape introduces no new segment boundary that could reveal one.
+ * Idempotent by construction — no unreserved escape is left to decode — so the
+ * result is a fixed point and re-canonicalizing it is a no-op. Dot segments need
+ * no handling here: the URL parser resolves them (including every `%2e` spelling,
+ * per WHATWG "double-dot path segment") before the pathname reaches h3, and
+ * decoding an unreserved escape introduces no new segment boundary that could
+ * reveal one. Assigning the result back through a URL `pathname` setter re-runs
+ * that resolution anyway.
  */
 export function canonicalPathname(pathname: string): string {
   return pathname.replace(UNRESERVED_ESCAPE_RE_G, (m) =>
@@ -99,7 +101,7 @@ export function canonicalPathname(pathname: string): string {
 /**
  * Whether `pathname` contains malformed percent-encoding — a truncated escape
  * (`/foo%`, `/bar%2`), a non-hex one (`/%ZZ`) or an invalid UTF-8 sequence
- * (`/%80`). Such a path has no canonical form to redirect to.
+ * (`/%80`). Such a path has no canonical form to decode to.
  */
 export function isMalformedPathname(pathname: string): boolean {
   try {

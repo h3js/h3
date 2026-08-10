@@ -1,5 +1,5 @@
 import { createRouter, addRoute, findRoute } from "rou3";
-import { H3Event } from "./event.ts";
+import { H3Event, kMalformedURL } from "./event.ts";
 import { HTTPError } from "./error.ts";
 import { toResponse, kNotFound } from "./response.ts";
 import {
@@ -11,14 +11,9 @@ import {
 
 import type { ComposedMiddleware } from "./middleware.ts";
 import { requestWithBaseURL } from "./utils/request.ts";
-import {
-  canonicalPathname,
-  isMalformedPathname,
-  isNonCanonicalPathname,
-  stripBase,
-} from "./utils/internal/path.ts";
+import { stripBase } from "./utils/internal/path.ts";
 
-import { FastURL, type ServerRequest } from "srvx";
+import type { ServerRequest } from "srvx";
 import type { H3Config, H3CoreConfig, MatchedRoute, RouterContext } from "./types/h3.ts";
 import type { H3Plugin } from "./plugin.ts";
 import type { H3EventContext } from "./types/context.ts";
@@ -42,57 +37,6 @@ import { toRequest } from "./utils/request.ts";
 import { toEventHandler } from "./handler.ts";
 
 export const NoHandler: EventHandler = () => kNotFound;
-
-/**
- * Screen the request URL before routing, returning a response to send instead of
- * dispatching (or `undefined` to continue).
- *
- * A path that percent-encodes an unreserved character names one resource to h3's
- * matchers and another to anything that decodes it, which is how `/%61dmin`
- * slips past an `/admin` guard. Both cures below close that gap by making one
- * representation authoritative for the whole request; they differ only in who
- * re-issues it. See the `canonicalURL` option for the trade-off.
- */
-function checkRequestURL(event: H3Event, config: H3CoreConfig): Response | undefined {
-  const pathname = event.url.pathname;
-  if (!pathname.includes("%")) {
-    return; // Fast path: nothing encoded, nothing to canonicalize.
-  }
-  if (isMalformedPathname(pathname)) {
-    // No canonical form to redirect to. Opt out with `allowMalformedURL` to
-    // receive the raw pathname instead.
-    if (config.allowMalformedURL) {
-      return;
-    }
-    throw new HTTPError({ status: 400, message: "Bad Request" });
-  }
-  const mode = config.canonicalURL ?? "redirect";
-  if (!mode || !isNonCanonicalPathname(pathname)) {
-    return;
-  }
-  const canonical = canonicalPathname(pathname);
-  if (mode === "rewrite") {
-    // Clone rather than mutate: the parsed URL is shared with the runtime, and
-    // `req.url` must keep the wire encoding (#1432). Only reached for a path
-    // that is actually non-canonical, so the common `/a%20b` and `/caf%C3%A9`
-    // never pay for it.
-    const url = new FastURL(event.req.url);
-    url.pathname = canonical;
-    event.url = url;
-    return;
-  }
-  // 308 (not 301/302) so the method and body of the replayed request are
-  // preserved. The target is canonical by construction, so this cannot loop.
-  //
-  // The leading slash run is collapsed like everywhere else h3 builds a path
-  // (see `stripBase`): a `//evil.com/...` target is a protocol-relative URL, so
-  // emitting it verbatim would turn this canonical redirect into an open
-  // redirect — the bug class behind serve-static's CVE-2015-1164.
-  return new Response(null, {
-    status: 308,
-    headers: { location: canonical.replace(/^\/+/, "/") + event.url.search },
-  });
-}
 
 export class H3Core implements H3CoreType {
   static "~h3" = true;
@@ -133,11 +77,12 @@ export class H3Core implements H3CoreType {
     // Execute the handler
     let handlerRes: unknown | Promise<unknown>;
     try {
-      // Screen the request URL before any routing or app logic runs.
-      const urlRes = checkRequestURL(event, this.config);
-      if (urlRes) {
-        handlerRes = urlRes;
-      } else if (this.config.onRequest) {
+      if ((event as any)[kMalformedURL] && !this.config.allowMalformedURL) {
+        // Reject malformed request URLs before any routing or app logic runs.
+        // Opt out with `allowMalformedURL` to receive the raw pathname instead.
+        throw new HTTPError({ status: 400, message: "Bad Request" });
+      }
+      if (this.config.onRequest) {
         const hookRes = this.config.onRequest(event);
         handlerRes =
           typeof hookRes?.then === "function"

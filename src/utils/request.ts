@@ -37,10 +37,10 @@ export function requestWithURL(req: ServerRequest, url: string): ServerRequest {
 export function requestWithBaseURL(req: ServerRequest, base: string, reqURL?: URL): ServerRequest {
   // Strip only, never decode: the mounted handler must receive the same
   // representation the parent app routed on. Pass `event.url` as `reqURL` when
-  // there is one — under `canonicalURL: "rewrite"` it is the canonicalized path
-  // the parent matched `base` against, while `req.url` still holds the wire
-  // form, and slicing one by an offset derived from the other is how mount
-  // prefixes desync.
+  // there is one — for a non-canonical path it holds the canonicalized form the
+  // parent matched `base` against, while `req.url` still holds the wire form,
+  // and slicing one by an offset derived from the other is how mount prefixes
+  // desync.
   const url = new URL(reqURL || req.url);
   url.pathname = stripBase(url.pathname, base);
   return requestWithURL(req, url.href);

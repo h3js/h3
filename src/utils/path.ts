@@ -21,8 +21,9 @@ export interface ResolveDotSegmentsOptions {
    * repeated whole `%25` prefixes (`%252f`, `%25252f`, ...) at any depth, so a
    * downstream that keeps `%25`-re-encoding and decoding cannot smuggle one
    * past. It does NOT catch a separator whose own hex digits are themselves
-   * percent-encoded (`%25%32%66` → `%2f` → `/` after two decodes), a form that
-   * can reach a handler verbatim since h3 never decodes the pathname.
+   * percent-encoded (`%25%32%66` → `%2f` → `/` after two decodes) — though that
+   * exact spelling arrives already canonicalized to `%252f`, which is collapsed,
+   * unless the app opted out with `allowNonCanonicalURL`.
    * Treat this as covering the common `%25`-nesting case, not as an absolute
    * guarantee against every multi-decode chain. Other escapes (e.g. `%20`) are
    * never decoded.

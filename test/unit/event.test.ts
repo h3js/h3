@@ -16,10 +16,9 @@ describe("H3Event URL", () => {
     expect(event.url).toBe((req as any)._url);
   });
 
-  // The event never decodes or re-serializes the pathname, so the URL shared
-  // with the runtime is neither mutated nor cloned (#1432) and `event.url`
-  // cannot drift from `event.req.url`.
-  for (const pathname of ["/h%65llo", "/a%2Fb", "/a%2541-%41", "/caf%c3%a9", "/a%20b"]) {
+  // Nothing but an unreserved escape is canonicalized, so for these the URL
+  // shared with the runtime is neither mutated nor cloned (#1432).
+  for (const pathname of ["/a%2Fb", "/a%5Cb", "/caf%c3%a9", "/a%20b", "/a%09b"]) {
     it(`keeps ${pathname} in its wire form, reusing _url`, () => {
       const href = `http://localhost${pathname}?q=%41`;
       const req = new Request(href);
@@ -30,6 +29,41 @@ describe("H3Event URL", () => {
       expect(event.url.search).toBe("?q=%41");
     });
   }
+
+  // A non-canonical pathname is decoded into a *clone*: the shared parsed URL
+  // and `req.url` must keep the original wire encoding (#1432).
+  for (const [pathname, canonical] of [
+    ["/h%65llo", "/hello"],
+    ["/a%2541-%41", "/a%2541-A"],
+    ["/%7Euser", "/~user"],
+  ]) {
+    it(`canonicalizes ${pathname} without touching _url`, () => {
+      const href = `http://localhost${pathname}?q=%41`;
+      const req = new Request(href);
+      (req as any)._url = new FastURL(href);
+      const event = new H3Event(req);
+      expect(event.url).not.toBe((req as any)._url);
+      expect(event.url.pathname).toBe(canonical);
+      expect(event.url.search).toBe("?q=%41");
+      expect(((req as any)._url as URL).pathname).toBe(pathname);
+      expect(new URL(req.url).pathname).toBe(pathname);
+    });
+  }
+
+  it("does not double-decode when two events share one _url", () => {
+    const href = "http://localhost/a%2541-%41";
+    const req = new Request(href);
+    (req as any)._url = new FastURL(href);
+    expect(new H3Event(req).url.pathname).toBe("/a%2541-A");
+    expect(new H3Event(req).url.pathname).toBe("/a%2541-A");
+    expect(((req as any)._url as URL).pathname).toBe("/a%2541-%41");
+  });
+
+  it("keeps the raw pathname when the encoding is malformed", () => {
+    const req = new Request("http://localhost/%61dmin%ZZ");
+    const event = new H3Event(req);
+    expect(event.url.pathname).toBe("/%61dmin%ZZ");
+  });
 });
 
 describe("H3Event context reference", () => {

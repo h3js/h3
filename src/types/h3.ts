@@ -46,23 +46,17 @@ export interface H3Config {
   allowMalformedURL?: boolean;
 
   /**
-   * How to handle a request whose URL path percent-encodes an unreserved
-   * character (e.g. `/%61dmin`, equivalent to `/admin` per RFC 3986 §6.2.2.2).
-   * Such a path is read as a different resource by anything that decodes it, so
-   * left alone it lets `/%61dmin` slip past an `/admin` guard.
+   * By default H3 canonicalizes a URL path that percent-encodes an unreserved
+   * character (e.g. `/%61dmin`, equivalent to `/admin` per RFC 3986 §6.2.2.2)
+   * before routing, so `event.url.pathname` is the one representation every
+   * matcher and handler compares. Without it, `/%61dmin` slips past an `/admin`
+   * guard and still reaches whatever decodes downstream.
    *
-   * - `"redirect"` (default): answer with a `308` to the canonical form before
-   *   routing. The path is then one and the same string everywhere — `event.url`
-   *   equals `event.req.url`, and so does whatever you forward it to. Costs a
-   *   round trip, and breaks clients that do not follow redirects.
-   * - `"rewrite"`: canonicalize `event.url` in place and dispatch. Every client
-   *   works and no round trip is paid, but `event.url` no longer matches
-   *   `event.req.url` — read the path from `event.url`, never re-derive it from
-   *   `event.req.url`.
-   * - `false`: dispatch the raw pathname. Every pathname-based guard in the app
-   *   is then responsible for the encoded spellings too.
+   * When enabled, such requests are dispatched with the raw pathname instead.
+   * Every pathname-based guard in your app is then responsible for the encoded
+   * spellings too.
    */
-  canonicalURL?: "redirect" | "rewrite" | false;
+  allowNonCanonicalURL?: boolean;
 
   plugins?: H3Plugin[];
 
