@@ -109,9 +109,12 @@ export class H3Event<
         // Clone instead of mutating: the parsed URL is shared with the runtime,
         // and req.url must keep the original wire encoding (#1432). Only reached
         // for a path that is actually non-canonical, so the common `/a%20b` and
-        // `/caf%C3%A9` never pay for it.
-        url = new FastURL(req.url);
-        url.pathname = canonicalPathname(pathname);
+        // `/caf%C3%A9` never pay for it. Built as one href and parsed once — the
+        // parser resolves any dot segment the decode revealed, so setting
+        // `pathname` on a second parse of `req.url` would only pay for it twice.
+        url = new FastURL(
+          `${url.protocol}//${url.host}${canonicalPathname(pathname)}${url.search}`,
+        );
       }
     }
     this.url = url;
