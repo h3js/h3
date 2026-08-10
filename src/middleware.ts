@@ -1,5 +1,5 @@
 import { kNotFound } from "./response.ts";
-import { canonicalPathname } from "./utils/internal/path.ts";
+import { normalizeRoute } from "./utils/internal/path.ts";
 import { createRouteMatcher } from "./utils/internal/route.ts";
 
 import type { H3Event } from "./event.ts";
@@ -32,10 +32,11 @@ function createMatcher(opts: MiddlewareOptions & { route?: string }) {
   if (!opts.route && !opts.method && !opts.match) {
     return undefined;
   }
-  // The matcher is rou3's, the same engine `~findRoute` routes with: a scope
-  // that disagreed with the router would let a request reach a handler while
+  // The matcher is rou3's, the same engine `~findRoute` routes with, over the
+  // same `normalizeRoute` form `on()` registers with: a scope that disagreed
+  // with the router on either half would let a request reach a handler while
   // skipping the guard registered for it.
-  const routeMatcher = opts.route ? createRouteMatcher(canonicalPathname(opts.route)) : undefined;
+  const routeMatcher = opts.route ? createRouteMatcher(normalizeRoute(opts.route)) : undefined;
   const method = opts.method?.toUpperCase();
   return function _middlewareMatcher(event: H3Event) {
     if (method && event.req.method !== method) {

@@ -120,6 +120,74 @@ export function canonicalPathname(pathname: string): string {
   );
 }
 
+// A route pattern is a *pathname*, never a URL: `http://evil.com/admin` used to
+// be parsed as one and silently registered at `/admin` on this app, and
+// `//admin` at `/` — a pattern that reads as scoped mounting a handler at the
+// root. Both are rejected/kept-literal instead (see `normalizeRoute`).
+const ABSOLUTE_URL_RE = /^[a-z][a-z\d+\-.]*:\/\//i;
+
+// Characters that a request's `event.url.pathname` always carries percent-encoded
+// (the WHATWG path percent-encode set) and that carry no meaning in a rou3
+// pattern, so encoding them here is what makes `use("/café/**")` scope the route
+// `get("/café/secret")` registers as `/caf%C3%A9/secret`.
+//
+// Deliberately *not* encoded, even though the URL serializer encodes them:
+// `?` `{` `}` `^` — rou3 pattern syntax (optional params `:id?`, groups `{x}`)
+// or regex operators inside a `(...)` segment. A pattern needing one of those as
+// a *literal* must spell it percent-encoded (`%3F`, `%7B`, `%7D`, `%5E`).
+// `\` is rou3's escape character and is likewise left alone — the URL parser
+// turned it into `/`, which silently rewrote `/user/:id(\d+)` to `/user/:id(/d+)`.
+// eslint-disable-next-line no-control-regex -- encoding controls is the point
+const ROUTE_ENCODE_RE = /[\u0000-\u0020"#<>\u0060]|[^\u0000-\u007E]/gu;
+
+/**
+ * Canonical form of a route *pattern*, in the same shape as the
+ * `event.url.pathname` it will be matched against.
+ *
+ * Shared by `on()`, `use(route, …)`, `mount()` and `removeRoute()`: a pattern
+ * that normalized differently depending on which one received it let a request
+ * reach a handler while the guard registered with the same source string matched
+ * nothing — guards failing open.
+ *
+ * Rejects absolute URLs; everything else is treated as a pathname: a leading
+ * slash is added if missing, characters the URL serializer would percent-encode
+ * are encoded (minus rou3 syntax, see {@link ROUTE_ENCODE_RE}), needless escapes
+ * are decoded by {@link canonicalPathname}, and `.`/`..` segments are resolved
+ * the way the URL parser resolves them in a request path. Idempotent.
+ */
+export function normalizeRoute(route: string): string {
+  if (ABSOLUTE_URL_RE.test(route)) {
+    throw new Error(`Route patterns are pathnames, received URL: ${route}`);
+  }
+  if (route.charCodeAt(0) !== 47 /* / */) {
+    route = `/${route}`;
+  }
+  // `encodeURIComponent` ignores `replace`'s extra arguments. It throws on a
+  // lone surrogate, which is then reported as an invalid route rather than
+  // silently substituted.
+  route = canonicalPathname(route.replace(ROUTE_ENCODE_RE, encodeURIComponent as () => string));
+  // A `.`/`..` segment is one the URL parser would have resolved away in a
+  // request path, so a pattern carrying one could never be reached.
+  return route.includes("/.") ? resolveDotSegments(route) : route;
+}
+
+function resolveDotSegments(pathname: string): string {
+  const out: string[] = [];
+  let dot = false;
+  for (const segment of pathname.split("/")) {
+    dot = segment === "." || segment === "..";
+    if (!dot) {
+      out.push(segment);
+    } else if (segment.length === 2 && out.length > 1) {
+      out.pop();
+    }
+  }
+  if (dot) {
+    out.push(""); // a resolved trailing dot segment leaves a trailing slash
+  }
+  return out.join("/");
+}
+
 /**
  * Whether `pathname` contains malformed percent-encoding — a truncated escape
  * (`/foo%`, `/bar%2`), a non-hex one (`/%ZZ`) or an invalid UTF-8 sequence

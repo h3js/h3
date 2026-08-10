@@ -287,6 +287,24 @@ describeMatrix("middleware route scope", (t, { it, expect }) => {
     expect(await res.text()).toBe("DENIED");
   });
 
+  // `on()` percent-encoded these (via `new URL(route, "http://_")`) while
+  // `use()` kept them literal, so the route was reachable at its encoded path
+  // while its guard, registered from the same string, matched nothing.
+  // See `normalizeRoute` in src/utils/internal/path.ts.
+  const unencodedScopes = [
+    { route: "/café/secret", guard: "/café/**", path: "/caf%C3%A9/secret" },
+    { route: "/a b/secret", guard: "/a b/**", path: "/a%20b/secret" },
+  ];
+
+  for (const { route, guard, path } of unencodedScopes) {
+    it(`guards ${path} registered as ${guard}`, async () => {
+      t.app.use(guard, () => "DENIED");
+      t.app.get(route, () => "ALLOWED");
+
+      expect(await (await t.fetch(path)).text()).toBe("DENIED");
+    });
+  }
+
   it("exposes rou3 param names in middlewareParams", async () => {
     let params: Record<string, string> | undefined;
     t.app.use("/mix/*/:id/**:rest", (event) => {
