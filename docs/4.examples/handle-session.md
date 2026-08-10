@@ -148,6 +148,34 @@ Every option is optional except `password`. The `name` option is worth calling o
 > [!NOTE]
 > The `secure: true` option tells the browser to only store and send the cookie over HTTPS. When developing locally over plain HTTP, compliant browsers (notably Safari and iOS, and Chrome on some local domains) silently drop the cookie, so the session will not persist. Set `cookie: { secure: false }` during local development to work around this.
 
+## Expiration
+
+Sessions have two independent expiration controls, and you can use either or both:
+
+- `maxAge` is an **absolute** lifetime, counted from when the session was created. It is reached however active the user is.
+- `idleTimeout` is a **sliding** lifetime, counted from the last request. An active user stays signed in; an idle one is signed out.
+
+```js
+const session = await useSession(event, {
+  password: "80d42cfb-1cd2-462c-8f17-e3237d9027e9",
+  idleTimeout: 60 * 30, // signed out after 30 minutes of inactivity...
+  maxAge: 60 * 60 * 24 * 7, // ...and after 7 days regardless
+});
+```
+
+With `idleTimeout` set, H3 reseals the session cookie on every request and stamps the reseal time into it, moving the idle window forward. `createdAt` is left untouched, which is what lets `maxAge` still act as a hard cap on top. The cookie `Expires` is set to whichever limit runs out first.
+
+If you are coming from `express-session` or `koa-session`, `idleTimeout` is their `rolling` option. The difference is that it carries its own duration instead of reinterpreting `maxAge`, so enabling it does not cost you the absolute limit.
+
+> [!NOTE]
+> Only cookie sessions slide. A session sent through the `x-{name}-session` header cannot be resealed, so it expires `idleTimeout` after its seal was issued.
+
+> [!IMPORTANT]
+> Because the session lives in the cookie, resealing on every request means read-only requests now write the session back too. If a request that only reads the session overlaps with one that writes it, whichever response the browser applies last wins, so the write can be lost. Without `idleTimeout` a read-only request sets no cookie and cannot clobber a concurrent write.
+
+> [!NOTE]
+> `idleTimeout` seals the session on every request, which roughly doubles the per-request session crypto cost and puts a `Set-Cookie` header on every response — shared caches and CDNs often refuse to store those.
+
 ## Use Multiple Sessions
 
 Because each session is stored under its own `name`, you can run several independent sessions on the same request. They live in separate cookies and never overwrite each other, which is useful for keeping unrelated concerns apart, such as a long-lived auth session and a short-lived flash message:

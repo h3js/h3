@@ -16,7 +16,13 @@ export type SessionData<T extends SessionDataT = SessionDataT> = Partial<T>;
 
 export interface Session<T extends SessionDataT = SessionDataT> {
   id: string;
+  /** Time the session was created. The point `maxAge` is measured from. */
   createdAt: number;
+  /**
+   * Time the session was last resealed. Only stamped when `idleTimeout` is set,
+   * and the point the idle window is measured from.
+   */
+  updatedAt?: number;
   data: SessionData<T>;
   [kGetSession]?: Promise<Session<T>>;
 }
@@ -38,14 +44,43 @@ export interface SessionConfig {
    * unsafe even at 32+ characters.
    */
   password: string;
-  /** Session expiration time in seconds */
+  /**
+   * Absolute session lifetime in seconds, counted from when the session was
+   * created. Reached regardless of how active the user is.
+   */
   maxAge?: number;
+  /**
+   * Sliding session lifetime in seconds, counted from the last request. An
+   * active user stays signed in; an idle one is signed out after this long.
+   *
+   * Equivalent to `rolling` in express-session and koa-session, but with its own
+   * duration instead of reinterpreting `maxAge` — so `maxAge` remains available
+   * as an absolute cap on top of the idle window rather than being replaced.
+   *
+   * H3 reseals the session cookie on every request and stamps the reseal time
+   * into it as `updatedAt`, moving the window forward; `createdAt` is untouched.
+   * Only cookie-based sessions slide: a session read from the session header
+   * cannot be resealed, so it expires `idleTimeout` after its seal was issued.
+   *
+   * Note that this seals the session on every request, roughly doubling the
+   * per-request session crypto cost and adding a `Set-Cookie` header to every
+   * response, which can stop shared caches from storing it.
+   */
+  idleTimeout?: number;
   /** default is h3 */
   name?: string;
   /** Default is secure, httpOnly, sameSite lax, / */
   cookie?: false | (CookieSerializeOptions & { chunkMaxLength?: number });
   /** Default is x-h3-session / x-{name}-session */
   sessionHeader?: false | string;
+  /**
+   * Overrides for the iron seal (algorithms, PBKDF2 iterations, TTL, clock skew).
+   *
+   * `SealOptions` has no optional fields, so an override must specify all of
+   * them. Session expiration is enforced by `maxAge`/`idleTimeout` independently
+   * of the seal `ttl` set here, so a shorter or zeroed `ttl` cannot extend a
+   * session beyond those limits.
+   */
   seal?: SealOptions;
   /**
    * Set to `false` to reject sessions sealed with the legacy default of 1
@@ -53,13 +88,6 @@ export interface SessionConfig {
    *
    */
   legacySealFallback?: boolean;
-  /**
-   * Reseal the session on each request so `maxAge` counts from the last
-   * activity instead of from session creation (sliding expiration).
-   * Expiry is then enforced by the seal's embedded TTL, which is refreshed
-   * on every reseal. Only applies to cookie-based sessions.
-   */
-  autoReseal?: boolean;
   crypto?: Crypto;
   /** Default is Crypto.randomUUID */
   generateId?: () => string;
@@ -146,10 +174,8 @@ export async function getSession<T extends SessionData = SessionData>(
     sessionFromCookie = true;
   }
   if (sealedSession) {
-    // Unseal session data
-    const promise = unsealSession(event, config, sealedSession, {
-      source: sessionFromCookie ? "cookie" : "header",
-    })
+    // Unseal session data from cookie
+    const promise = unsealSession(event, config, sealedSession)
       .catch(() => {})
       .then(async (unsealed) => {
         const legacySeal = unsealed && (unsealed as any)[kLegacySeal];
@@ -158,10 +184,11 @@ export async function getSession<T extends SessionData = SessionData>(
         }
         Object.assign(session, unsealed);
         delete context.sessions![sessionName][kGetSession];
-        if ((legacySeal || config.autoReseal) && sessionFromCookie) {
-          // Proactively reseal legacy cookies with the current seal options,
-          // and reseal on each request when autoReseal is enabled so the
-          // expiration slides
+        // Proactively reseal legacy cookies with the current seal options, and
+        // reseal on every request under idleTimeout so the window slides from
+        // the last activity. A session that failed to unseal has no id and is
+        // replaced below, so resealing it here is wasted work.
+        if (session.id && sessionFromCookie && (legacySeal || config.idleTimeout)) {
           await updateSession(event, config);
         }
         return session as Session<T>;
@@ -212,9 +239,7 @@ export async function updateSession<T extends SessionData = SessionData>(
     const sealed = await sealSession(event, config);
     setChunkedCookie(event as H3Event, sessionName, sealed, {
       ...DEFAULT_SESSION_COOKIE,
-      expires: config.maxAge
-        ? new Date((config.autoReseal ? Date.now() : session.createdAt) + config.maxAge * 1000)
-        : undefined,
+      expires: sessionExpires(session, config),
       ...config.cookie,
     });
   }
@@ -236,19 +261,21 @@ export async function sealSession<T extends SessionData = SessionData>(
   const session: Session<T> =
     (context.sessions?.[sessionName] as Session<T>) || (await getSession<T>(event, config));
 
+  if (config.idleTimeout) {
+    // The idle window is measured from the last reseal rather than from
+    // createdAt. Only stamped when enabled, so the default sealed payload is
+    // unchanged.
+    session.updatedAt = Date.now();
+  }
+
   const sealed = await seal(session, config.password, {
     ...sealDefaults,
-    ttl: config.maxAge ? config.maxAge * 1000 : 0,
+    ttl: (config.maxAge || config.idleTimeout || 0) * 1000,
     ...config.seal,
   });
 
   return sealed;
 }
-
-type UnsealSessionOptions = {
-  /** Where the sealed value was read from. Only `"cookie"` seals are eligible for `autoReseal` sliding expiration. */
-  source?: "cookie" | "header";
-};
 
 /**
  * Decrypt and verify the session data for the current request.
@@ -257,11 +284,10 @@ export async function unsealSession(
   _event: HTTPEvent,
   config: SessionConfig,
   sealed: string,
-  opts?: UnsealSessionOptions,
 ): Promise<Partial<Session>> {
   const sealOptions = {
     ...sealDefaults,
-    ttl: config.maxAge ? config.maxAge * 1000 : 0,
+    ttl: (config.maxAge || config.idleTimeout || 0) * 1000,
     ...config.seal,
   };
   let unsealed: Partial<Session>;
@@ -290,13 +316,20 @@ export async function unsealSession(
       (unsealed as any)[kLegacySeal] = true;
     }
   }
-  // With autoReseal, cookie session expiry is governed by the seal's embedded
-  // TTL (refreshed on each reseal) — an age check based on createdAt would
-  // defeat sliding expiration. Seals from any other source are never resealed,
-  // so they keep the hard createdAt + maxAge limit
-  if (config.maxAge && !(config.autoReseal && opts?.source === "cookie")) {
+  // Absolute lifetime, counted from when the session was created
+  if (config.maxAge) {
     const age = Date.now() - (unsealed.createdAt || Number.NEGATIVE_INFINITY);
     if (age > config.maxAge * 1000) {
+      throw new Error("Session expired!");
+    }
+  }
+  // Idle window, counted from the last reseal. Sessions sealed before
+  // idleTimeout was configured, and sessions read from the session header (which
+  // are never resealed), fall back to createdAt
+  if (config.idleTimeout) {
+    const idle =
+      Date.now() - (unsealed.updatedAt || unsealed.createdAt || Number.NEGATIVE_INFINITY);
+    if (idle > config.idleTimeout * 1000) {
       throw new Error("Session expired!");
     }
   }
@@ -319,4 +352,19 @@ export function clearSession(event: HTTPEvent, config: Partial<SessionConfig>): 
     });
   }
   return Promise.resolve();
+}
+
+/**
+ * Cookie expiry: whichever of the absolute lifetime and the idle window runs out
+ * first, or none if neither is configured.
+ */
+function sessionExpires(session: Session<any>, config: SessionConfig): Date | undefined {
+  const times: number[] = [];
+  if (config.maxAge) {
+    times.push(session.createdAt + config.maxAge * 1000);
+  }
+  if (config.idleTimeout) {
+    times.push((session.updatedAt || session.createdAt) + config.idleTimeout * 1000);
+  }
+  return times.length > 0 ? new Date(Math.min(...times)) : undefined;
 }

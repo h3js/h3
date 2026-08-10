@@ -177,114 +177,194 @@ describeMatrix("session", (t, { it, expect }) => {
     expect(body.session.data).toEqual({});
   });
 
-  it("autoReseal slides expiration for active sessions", async () => {
+  it("idleTimeout slides expiration for active sessions", async () => {
     const t0 = Date.parse("2030-01-01T00:00:00Z");
     vi.useFakeTimers({ toFake: ["Date"], now: t0 });
     try {
       let idCtr = 0;
       const config: SessionConfig = {
-        name: "h3-ar",
+        name: "h3-idle",
         password: sessionConfig.password,
-        maxAge: 60,
-        autoReseal: true,
-        generateId: () => `ar-${++idCtr}`,
+        idleTimeout: 60,
+        generateId: () => `idle-${++idCtr}`,
       };
-      t.app.get("/auto-reseal", async (event) => {
+      t.app.get("/idle", async (event) => {
         const session = await useSession(event, config);
-        return { id: session.id };
+        await session.update((data) => ({ hits: (data.hits || 0) + 1 }));
+        return { id: session.id, data: session.data };
       });
-      const arCookie = (res: Response) =>
-        res.headers.getSetCookie().find((c) => c.startsWith("h3-ar="));
+      const idleCookie = (res: Response) =>
+        res.headers.getSetCookie().find((c) => c.startsWith("h3-idle="));
 
       // t=0: new session
-      const res1 = await t.fetch("/auto-reseal");
-      expect((await res1.json()).id).toBe("ar-1");
-      let cookie = arCookie(res1)!;
+      const res1 = await t.fetch("/idle");
+      expect((await res1.json()).id).toBe("idle-1");
+      let cookie = idleCookie(res1)!;
 
       // t=45s: active request keeps the session and slides the cookie expiry
       vi.setSystemTime(t0 + 45_000);
-      const res2 = await t.fetch("/auto-reseal", { headers: { Cookie: cookie } });
-      expect((await res2.json()).id).toBe("ar-1");
-      const resealed = arCookie(res2);
+      const res2 = await t.fetch("/idle", { headers: { Cookie: cookie } });
+      expect(await res2.json()).toMatchObject({ id: "idle-1", data: { hits: 2 } });
+      const resealed = idleCookie(res2);
       expect(resealed).toBeDefined();
       expect(resealed).toContain(`Expires=${new Date(t0 + 45_000 + 60_000).toUTCString()}`);
       cookie = resealed!;
 
-      // t=90s: past createdAt + maxAge, but only 45s idle — session survives
+      // t=90s: past createdAt + idleTimeout, but only 45s idle — the session and
+      // its data survive the reseals
       vi.setSystemTime(t0 + 90_000);
-      const res3 = await t.fetch("/auto-reseal", { headers: { Cookie: cookie } });
-      expect((await res3.json()).id).toBe("ar-1");
+      const res3 = await t.fetch("/idle", { headers: { Cookie: cookie } });
+      expect(await res3.json()).toMatchObject({ id: "idle-1", data: { hits: 3 } });
     } finally {
       vi.useRealTimers();
     }
   });
 
-  it("autoReseal still expires idle sessions", async () => {
+  it("idleTimeout expires sessions after exactly idleTimeout of inactivity", async () => {
     const t0 = Date.parse("2030-01-01T00:00:00Z");
     vi.useFakeTimers({ toFake: ["Date"], now: t0 });
     try {
       let idCtr = 0;
       const config: SessionConfig = {
-        name: "h3-ar-idle",
+        name: "h3-idle-exp",
         password: sessionConfig.password,
-        maxAge: 60,
-        autoReseal: true,
-        generateId: () => `idle-${++idCtr}`,
+        idleTimeout: 60,
+        generateId: () => `exp-${++idCtr}`,
       };
-      t.app.get("/auto-reseal-idle", async (event) => {
+      t.app.get("/idle-expiry", async (event) => {
         const session = await useSession(event, config);
         return { id: session.id };
       });
 
-      const res1 = await t.fetch("/auto-reseal-idle");
-      expect((await res1.json()).id).toBe("idle-1");
-      const cookie = res1.headers.getSetCookie().find((c) => c.startsWith("h3-ar-idle="))!;
+      const res1 = await t.fetch("/idle-expiry");
+      expect((await res1.json()).id).toBe("exp-1");
+      const cookie = res1.headers.getSetCookie().find((c) => c.startsWith("h3-idle-exp="))!;
 
-      // Idle past maxAge + the seal's 60s clock-skew allowance: session resets
+      // No clock-skew slack: still alive at 59s of inactivity
+      vi.setSystemTime(t0 + 59_000);
+      const res2 = await t.fetch("/idle-expiry", { headers: { Cookie: cookie } });
+      expect((await res2.json()).id).toBe("exp-1");
+
+      // ...and reset at 61s, measured from the original cookie's reseal time
+      vi.setSystemTime(t0 + 61_000);
+      const res3 = await t.fetch("/idle-expiry", { headers: { Cookie: cookie } });
+      expect((await res3.json()).id).toBe("exp-2");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("maxAge caps a sliding session", async () => {
+    const t0 = Date.parse("2030-01-01T00:00:00Z");
+    vi.useFakeTimers({ toFake: ["Date"], now: t0 });
+    try {
+      let idCtr = 0;
+      const config: SessionConfig = {
+        name: "h3-both",
+        password: sessionConfig.password,
+        maxAge: 120,
+        idleTimeout: 60,
+        generateId: () => `both-${++idCtr}`,
+      };
+      t.app.get("/both", async (event) => {
+        const session = await useSession(event, config);
+        return { id: session.id };
+      });
+      const bothCookie = (res: Response) =>
+        res.headers.getSetCookie().find((c) => c.startsWith("h3-both="))!;
+
+      const res1 = await t.fetch("/both");
+      expect((await res1.json()).id).toBe("both-1");
+      let cookie = bothCookie(res1);
+
+      // t=45s: idle window (t+60s) runs out before the absolute cap (t0+120s)
+      vi.setSystemTime(t0 + 45_000);
+      const res2 = await t.fetch("/both", { headers: { Cookie: cookie } });
+      expect((await res2.json()).id).toBe("both-1");
+      cookie = bothCookie(res2);
+      expect(cookie).toContain(`Expires=${new Date(t0 + 105_000).toUTCString()}`);
+
+      // t=90s: now the absolute cap is the earlier of the two, so it wins
+      vi.setSystemTime(t0 + 90_000);
+      const res3 = await t.fetch("/both", { headers: { Cookie: cookie } });
+      expect((await res3.json()).id).toBe("both-1");
+      cookie = bothCookie(res3);
+      expect(cookie).toContain(`Expires=${new Date(t0 + 120_000).toUTCString()}`);
+
+      // t=121s: only 31s idle, but past createdAt + maxAge — session resets
       vi.setSystemTime(t0 + 121_000);
-      const res2 = await t.fetch("/auto-reseal-idle", { headers: { Cookie: cookie } });
-      expect((await res2.json()).id).toBe("idle-2");
+      const res4 = await t.fetch("/both", { headers: { Cookie: cookie } });
+      expect((await res4.json()).id).toBe("both-2");
     } finally {
       vi.useRealTimers();
     }
   });
 
-  it("autoReseal keeps hard expiration for header-carried sessions", async () => {
+  it("idleTimeout keeps hard expiration for header-carried sessions", async () => {
     const t0 = Date.parse("2030-01-01T00:00:00Z");
     vi.useFakeTimers({ toFake: ["Date"], now: t0 });
     try {
       let idCtr = 0;
       const config: SessionConfig = {
-        name: "h3-arh",
+        name: "h3-idleh",
         password: sessionConfig.password,
-        maxAge: 60,
-        autoReseal: true,
-        generateId: () => `arh-${++idCtr}`,
+        idleTimeout: 60,
+        generateId: () => `idleh-${++idCtr}`,
       };
-      t.app.get("/auto-reseal-header", async (event) => {
+      t.app.get("/idle-header", async (event) => {
         const session = await useSession(event, config);
         return { id: session.id };
       });
 
-      const res1 = await t.fetch("/auto-reseal-header");
-      expect((await res1.json()).id).toBe("arh-1");
-      const setCookie = res1.headers.getSetCookie().find((c) => c.startsWith("h3-arh="))!;
-      const sealed = decodeURIComponent(setCookie.match(/h3-arh=([^;]+)/)![1]);
+      const res1 = await t.fetch("/idle-header");
+      expect((await res1.json()).id).toBe("idleh-1");
+      const setCookie = res1.headers.getSetCookie().find((c) => c.startsWith("h3-idleh="))!;
+      const sealed = decodeURIComponent(setCookie.match(/h3-idleh=([^;]+)/)![1]);
 
-      // t=90s: past createdAt + maxAge but inside the seal's 60s clock-skew
-      // allowance — header seals are never resealed, so sliding expiration
-      // cannot apply and the hard limit must still hold
+      // t=90s: header seals are never resealed, so their `updatedAt` stays
+      // pinned to when the seal was issued and the window cannot slide
       vi.setSystemTime(t0 + 90_000);
-      const res2 = await t.fetch("/auto-reseal-header", {
-        headers: { "x-h3-arh-session": sealed },
+      const res2 = await t.fetch("/idle-header", {
+        headers: { "x-h3-idleh-session": sealed },
       });
-      expect((await res2.json()).id).toBe("arh-2");
+      expect((await res2.json()).id).toBe("idleh-2");
     } finally {
       vi.useRealTimers();
     }
   });
 
-  it("expires at createdAt + maxAge by default (no autoReseal)", async () => {
+  it("idleTimeout expiration does not depend on the seal ttl", async () => {
+    const t0 = Date.parse("2030-01-01T00:00:00Z");
+    vi.useFakeTimers({ toFake: ["Date"], now: t0 });
+    try {
+      let idCtr = 0;
+      const config: SessionConfig = {
+        name: "h3-idle-seal",
+        password: sessionConfig.password,
+        idleTimeout: 60,
+        generateId: () => `seal-${++idCtr}`,
+        // `SealOptions` has no optional fields, so any override carries a `ttl`.
+        // Expiration must not rely on it
+        seal: { ...sealDefaults, ttl: 0 },
+      };
+      t.app.get("/idle-seal", async (event) => {
+        const session = await useSession(event, config);
+        return { id: session.id };
+      });
+
+      const res1 = await t.fetch("/idle-seal");
+      expect((await res1.json()).id).toBe("seal-1");
+      const cookie = res1.headers.getSetCookie().find((c) => c.startsWith("h3-idle-seal="))!;
+
+      vi.setSystemTime(t0 + 61_000);
+      const res2 = await t.fetch("/idle-seal", { headers: { Cookie: cookie } });
+      expect((await res2.json()).id).toBe("seal-2");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("expires at createdAt + maxAge by default (no idleTimeout)", async () => {
     const t0 = Date.parse("2030-01-01T00:00:00Z");
     vi.useFakeTimers({ toFake: ["Date"], now: t0 });
     try {
