@@ -18,7 +18,7 @@ import {
   stripBase,
 } from "./utils/internal/path.ts";
 
-import type { ServerRequest } from "srvx";
+import { FastURL, type ServerRequest } from "srvx";
 import type { H3Config, H3CoreConfig, MatchedRoute, RouterContext } from "./types/h3.ts";
 import type { H3Plugin } from "./plugin.ts";
 import type { H3EventContext } from "./types/context.ts";
@@ -47,13 +47,11 @@ export const NoHandler: EventHandler = () => kNotFound;
  * Screen the request URL before routing, returning a response to send instead of
  * dispatching (or `undefined` to continue).
  *
- * H3 never rewrites `event.url`, so every consumer — the router, `use()`
- * matchers, a handler reading `event.url.pathname` — sees the exact path from
- * the wire. That is only safe as long as a path whose decoded form names a
- * different resource cannot reach them at all: `/%61dmin` is answered with a
- * `308` to `/admin` rather than served under a name an `/admin` guard would not
- * recognize. Redirecting (instead of decoding in place) keeps one representation
- * per request end to end, including for whatever the handler proxies it to.
+ * A path that percent-encodes an unreserved character names one resource to h3's
+ * matchers and another to anything that decodes it, which is how `/%61dmin`
+ * slips past an `/admin` guard. Both cures below close that gap by making one
+ * representation authoritative for the whole request; they differ only in who
+ * re-issues it. See the `canonicalURL` option for the trade-off.
  */
 function checkRequestURL(event: H3Event, config: H3CoreConfig): Response | undefined {
   const pathname = event.url.pathname;
@@ -68,7 +66,19 @@ function checkRequestURL(event: H3Event, config: H3CoreConfig): Response | undef
     }
     throw new HTTPError({ status: 400, message: "Bad Request" });
   }
-  if (config.allowNonCanonicalURL || !isNonCanonicalPathname(pathname)) {
+  const mode = config.canonicalURL ?? "redirect";
+  if (!mode || !isNonCanonicalPathname(pathname)) {
+    return;
+  }
+  const canonical = canonicalPathname(pathname);
+  if (mode === "rewrite") {
+    // Clone rather than mutate: the parsed URL is shared with the runtime, and
+    // `req.url` must keep the wire encoding (#1432). Only reached for a path
+    // that is actually non-canonical, so the common `/a%20b` and `/caf%C3%A9`
+    // never pay for it.
+    const url = new FastURL(event.req.url);
+    url.pathname = canonical;
+    event.url = url;
     return;
   }
   // 308 (not 301/302) so the method and body of the replayed request are
@@ -78,10 +88,9 @@ function checkRequestURL(event: H3Event, config: H3CoreConfig): Response | undef
   // (see `stripBase`): a `//evil.com/...` target is a protocol-relative URL, so
   // emitting it verbatim would turn this canonical redirect into an open
   // redirect — the bug class behind serve-static's CVE-2015-1164.
-  const location = canonicalPathname(pathname).replace(/^\/+/, "/");
   return new Response(null, {
     status: 308,
-    headers: { location: location + event.url.search },
+    headers: { location: canonical.replace(/^\/+/, "/") + event.url.search },
   });
 }
 
@@ -266,7 +275,7 @@ export const H3 = /* @__PURE__ */ (() => {
       } else {
         const fetchHandler = "fetch" in input ? input.fetch : input;
         this.all(`${base}/**`, function _mountedMiddleware(event) {
-          return fetchHandler(requestWithBaseURL(event.req, base));
+          return fetchHandler(requestWithBaseURL(event.req, base, event.url));
         });
       }
       return this;

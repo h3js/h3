@@ -185,21 +185,68 @@ describe("security: canonical redirect location", () => {
   });
 });
 
-describe("security: allowNonCanonicalURL opt-in", () => {
-  it("dispatches the raw pathname when enabled", async () => {
-    const app = new H3({ allowNonCanonicalURL: true });
-    app.get("/**", (event) => event.url.pathname);
-    const res = await app.request("/api/%61dmin");
-    expect(res.status).toBe(200);
-    expect(await res.text()).toBe("/api/%61dmin");
-  });
+describe("security: canonicalURL modes", () => {
+  const appWith = (canonicalURL?: "redirect" | "rewrite" | false) =>
+    new H3({ canonicalURL }).get("/**", (event) => ({
+      pathname: event.url.pathname,
+      reqPathname: new URL(event.req.url).pathname,
+    }));
 
   it("redirects by default", async () => {
-    const app = new H3();
-    app.get("/**", (event) => event.url.pathname);
-    const res = await app.request("/api/%61dmin");
-    expect(res.status).toBe(308);
-    expect(res.headers.get("location")).toBe("/api/admin");
+    for (const app of [appWith(), appWith("redirect")]) {
+      const res = await app.request("/api/%61dmin");
+      expect(res.status).toBe(308);
+      expect(res.headers.get("location")).toBe("/api/admin");
+    }
+  });
+
+  // The guard still cannot be bypassed — the canonical path is what gets routed
+  // — but event.url no longer matches req.url, which is the mode's whole cost.
+  it("rewrite dispatches the canonical path without a round trip", async () => {
+    const res = await appWith("rewrite").request("/api/%61dmin");
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      pathname: "/api/admin",
+      reqPathname: "/api/%61dmin",
+    });
+  });
+
+  it("rewrite leaves opaque escapes alone", async () => {
+    const res = await appWith("rewrite").request("/a%2Fb%20c");
+    expect(await res.json()).toEqual({
+      pathname: "/a%2Fb%20c",
+      reqPathname: "/a%2Fb%20c",
+    });
+  });
+
+  it("rewrite matches routes and middleware on the canonical path", async () => {
+    let guarded: string | undefined;
+    const app = new H3({ canonicalURL: "rewrite" })
+      .use("/api/admin/**", (event, next) => {
+        guarded = event.url.pathname;
+        return next();
+      })
+      .get("/api/admin/:action", (event) => event.context.params!.action);
+    const res = await app.request("/api/%61dmin/users");
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe("users");
+    expect(guarded).toBe("/api/admin/users");
+  });
+
+  it("rewrite keeps a mounted fetch handler on the same path", async () => {
+    const app = new H3({ canonicalURL: "rewrite" });
+    app.mount("/api", (req) => new Response(new URL(req.url).pathname));
+    const res = await app.request("/%61pi/%61dmin");
+    expect(await res.text()).toBe("/admin");
+  });
+
+  it("false dispatches the raw pathname", async () => {
+    const res = await appWith(false).request("/api/%61dmin");
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      pathname: "/api/%61dmin",
+      reqPathname: "/api/%61dmin",
+    });
   });
 });
 

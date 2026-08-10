@@ -34,11 +34,14 @@ export function requestWithURL(req: ServerRequest, url: string): ServerRequest {
 /**
  * Create a lightweight request proxy with the base path stripped from the URL pathname.
  */
-export function requestWithBaseURL(req: ServerRequest, base: string): ServerRequest {
-  const url = new URL(req.url);
-  // Strip only — the pathname is never decoded, so the mounted handler receives
-  // the same representation the parent app routed on (which its own `~request`
-  // already screened for non-canonical encoding).
+export function requestWithBaseURL(req: ServerRequest, base: string, reqURL?: URL): ServerRequest {
+  // Strip only, never decode: the mounted handler must receive the same
+  // representation the parent app routed on. Pass `event.url` as `reqURL` when
+  // there is one — under `canonicalURL: "rewrite"` it is the canonicalized path
+  // the parent matched `base` against, while `req.url` still holds the wire
+  // form, and slicing one by an offset derived from the other is how mount
+  // prefixes desync.
+  const url = new URL(reqURL || req.url);
   url.pathname = stripBase(url.pathname, base);
   return requestWithURL(req, url.href);
 }
