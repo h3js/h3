@@ -321,11 +321,11 @@ describeMatrix("app", (t, { it, expect }) => {
     // Legacy handler must see the base-stripped path in raw req.url
     expect(await t.fetch("/api/hello?q=1").then((r) => r.text())).toBe("/hello?q=1");
 
-    // Rewrites must propagate even when the pathname needed percent-decode
-    // normalization (event.url is a clone detached from the shared _url)
-    expect(await t.fetch("/api/h%65llo").then((r) => r.text())).toBe("/hello");
+    // Rewrites must propagate in the wire encoding, without re-encoding or
+    // decoding the pathname on the way to the legacy handler
+    expect(await t.fetch("/api/caf%C3%A9?q=1").then((r) => r.text())).toBe("/caf%C3%A9?q=1");
     // ...and the raw url is restored once the handler settles
-    expect(rawUrlAfter).toBe("/api/h%65llo");
+    expect(rawUrlAfter).toBe("/api/caf%C3%A9?q=1");
   });
 
   it.skipIf(t.target !== "node")("fromNodeHandler + piping", async () => {

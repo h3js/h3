@@ -1,5 +1,5 @@
 import { type ErrorDetails, HTTPError } from "../error.ts";
-import { decodePathname, stripBase } from "./internal/path.ts";
+import { stripBase } from "./internal/path.ts";
 import { parseQuery } from "./internal/query.ts";
 import { validateData } from "./internal/validate.ts";
 import { getEventContext } from "./event.ts";
@@ -33,17 +33,22 @@ export function requestWithURL(req: ServerRequest, url: string): ServerRequest {
 
 /**
  * Create a lightweight request proxy with the base path stripped from the URL pathname.
+ *
+ * `options.url` is the parsed request URL to strip `base` from, in place of
+ * parsing `req.url`. Pass `event.url` whenever there is an event: for a
+ * non-canonical path it holds the canonicalized form the parent matched `base`
+ * against, while `req.url` still holds the wire form, and slicing one by an
+ * offset derived from the other is how mount prefixes desync.
  */
-export function requestWithBaseURL(req: ServerRequest, base: string): ServerRequest {
-  const url = new URL(req.url);
-  let pathname: string;
-  try {
-    pathname = decodePathname(url.pathname);
-  } catch {
-    // Malformed percent-encoding: fall back to the raw pathname instead of throwing.
-    pathname = url.pathname;
-  }
-  url.pathname = stripBase(pathname, base);
+export function requestWithBaseURL(
+  req: ServerRequest,
+  base: string,
+  options: { url?: URL } = {},
+): ServerRequest {
+  // Strip only, never decode: the mounted handler must receive the same
+  // representation the parent app routed on.
+  const url = new URL(options.url || req.url);
+  url.pathname = stripBase(url.pathname, base);
   return requestWithURL(req, url.href);
 }
 
@@ -196,26 +201,24 @@ export function getRouterParams(
 }
 
 // Percent-encoded path separators (`%2f` → `/`, `%5c` → `\`) at any `%25`-nesting
-// depth (`%2f`, `%252f`, ...). Whatever reaches a param already survived the pathname
-// decode in `event.ts` (a single `decodeURI` that preserves `%25`) still encoded:
-// `decodeURI` keeps `%2f` as a reserved char, and `%25`-nested forms (`%252f`,
-// `%255c`, ...) only lose one `%25` level. A bare `%5c` never reaches a param at all —
-// it decodes to `\`, which the URL parser normalizes into a real `/` the router splits
-// on — but it stays in the pattern as a cheap guard. Either way, route matching and any
-// pathname-based middleware only ever saw the matched param as one opaque, still-encoded
-// segment (a `:id` capture can never hold a raw separator).
+// depth (`%2f`, `%252f`, ...). A separator reaches a param in its wire form:
+// pathname canonicalization decodes only needless escapes and never a separator,
+// so route matching and any pathname-based middleware only ever saw the matched
+// param as one opaque, still-encoded segment (a `:id` capture can never hold a
+// raw separator). `%25`-nested forms are covered because `%25` is not decoded
+// either — and canonicalization can itself *produce* one, from `%25%32%66`.
 const ENCODED_SEP_RE_G = /%(?:25)*(?:2f|5c)/gi;
 
 /**
  * `decodeURIComponent` a matched route param, but never let an encoded path
  * separator collapse into a raw `/` or `\`.
  *
- * A full second decode on top of the already-once-decoded pathname would
- * reintroduce a separator (and thus `..`-based traversal) the routing/middleware
- * layer could not see — a path desync / smuggling vector when the decoded param
- * feeds a filesystem or upstream path. So the encoded separators are kept in
- * their encoded form while every other escape (spaces, non-ASCII, ...) still
- * decodes normally, keeping `decode:true` human-readable.
+ * Decoding a separator would reintroduce a boundary (and thus `..`-based
+ * traversal) the routing/middleware layer could not see — a path desync /
+ * smuggling vector when the decoded param feeds a filesystem or upstream path.
+ * So the encoded separators are kept in their encoded form while every other
+ * escape (spaces, non-ASCII, ...) still decodes normally, keeping `decode:true`
+ * human-readable.
  */
 function decodeRouterParam(value: string): string {
   if (!value.includes("%")) {

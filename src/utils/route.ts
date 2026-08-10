@@ -5,6 +5,7 @@ import type { H3Plugin } from "../plugin.ts";
 import type { StandardSchemaV1 } from "./internal/standard-schema.ts";
 import { removeRoute as _removeRoute } from "rou3";
 import { defineValidatedHandler } from "../handler.ts";
+import { canonicalPathname } from "./internal/path.ts";
 
 /**
  * Route definition options
@@ -91,7 +92,7 @@ export function removeRoute(
   route: string,
 ): void {
   const _method = method ? method.toUpperCase() : undefined;
-  route = new URL(route, "http://_").pathname;
+  route = canonicalPathname(new URL(route, "http://_").pathname);
   _removeRoute(app["~rou3"], _method || "", route);
   const idx = app["~routes"].findIndex(
     (r) => r.route === route && (_method == null || r.method === _method),

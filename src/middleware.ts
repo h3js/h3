@@ -1,5 +1,6 @@
 import { routeToRegExp } from "rou3";
 import { kNotFound } from "./response.ts";
+import { canonicalPathname } from "./utils/internal/path.ts";
 
 import type { H3Event } from "./event.ts";
 import type { MiddlewareOptions } from "./types/h3.ts";
@@ -31,7 +32,7 @@ function createMatcher(opts: MiddlewareOptions & { route?: string }) {
   if (!opts.route && !opts.method && !opts.match) {
     return undefined;
   }
-  const routeMatcher = opts.route ? routeToRegExp(opts.route) : undefined;
+  const routeMatcher = opts.route ? routeToRegExp(canonicalPathname(opts.route)) : undefined;
   const method = opts.method?.toUpperCase();
   return function _middlewareMatcher(event: H3Event) {
     if (method && event.req.method !== method) {
