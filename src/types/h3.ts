@@ -45,19 +45,6 @@ export interface H3Config {
    */
   allowMalformedURL?: boolean;
 
-  /**
-   * By default H3 canonicalizes a URL path that percent-encodes an unreserved
-   * character (e.g. `/%61dmin`, equivalent to `/admin` per RFC 3986 §6.2.2.2)
-   * before routing, so `event.url.pathname` is the one representation every
-   * matcher and handler compares. Without it, `/%61dmin` slips past an `/admin`
-   * guard and still reaches whatever decodes downstream.
-   *
-   * When enabled, such requests are dispatched with the raw pathname instead.
-   * Every pathname-based guard in your app is then responsible for the encoded
-   * spellings too.
-   */
-  allowNonCanonicalURL?: boolean;
-
   plugins?: H3Plugin[];
 
   onRequest?: (event: H3Event) => MaybePromise<void>;

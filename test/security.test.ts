@@ -213,43 +213,6 @@ describe("security: canonicalization covers directly built events", () => {
   });
 });
 
-describe("security: allowNonCanonicalURL opt-in", () => {
-  const appWith = (allowNonCanonicalURL?: boolean) =>
-    new H3({ allowNonCanonicalURL }).get("/**", (event) => ({
-      pathname: event.url.pathname,
-      reqPathname: new URL(event.req.url).pathname,
-    }));
-
-  it("canonicalizes by default", async () => {
-    const res = await appWith().request("/api/%61dmin");
-    expect(await res.json()).toEqual({
-      pathname: "/api/admin",
-      reqPathname: "/api/%61dmin",
-    });
-  });
-
-  it("dispatches the raw pathname when enabled", async () => {
-    const res = await appWith(true).request("/api/%61dmin");
-    expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
-      pathname: "/api/%61dmin",
-      reqPathname: "/api/%61dmin",
-    });
-  });
-
-  // The whole point of the opt-out: the app owns the encoded spellings now.
-  it("lets an encoded path past a pathname guard when enabled", async () => {
-    const app = new H3({ allowNonCanonicalURL: true })
-      .use("/api/admin/**", (event) => {
-        event.res.status = 403;
-        return "Forbidden";
-      })
-      .all("/**", () => "ok");
-    expect((await app.request("/api/admin/x")).status).toBe(403);
-    expect((await app.request("/api/%61dmin/x")).status).toBe(200);
-  });
-});
-
 describe("security: allowMalformedURL opt-in", () => {
   it("rejects malformed URLs with 400 by default", async () => {
     const app = new H3();

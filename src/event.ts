@@ -60,9 +60,7 @@ export class H3Event<
    *
    * Malformed encoding (`/foo%`, `/%ZZ`) has no canonical form and is rejected
    * with a `400` before any handler runs, unless the `allowMalformedURL` app
-   * option is enabled. Canonicalization itself can be turned off with
-   * `allowNonCanonicalURL`, which makes every pathname-based guard in the app
-   * responsible for the encoded spellings too.
+   * option is enabled.
    *
    * Every escape that survives is therefore opaque, and must be treated as such:
    * `%2F`/`%5C` keep a separator out of a `:param` the router matched as one
@@ -107,7 +105,7 @@ export class H3Event<
         // to decode to. Flag for a 400 response and keep the raw pathname so
         // route matching and middleware guards still see one consistent value.
         (this as any)[kMalformedURL] = true;
-      } else if (!app?.config.allowNonCanonicalURL && isNonCanonicalPathname(pathname)) {
+      } else if (isNonCanonicalPathname(pathname)) {
         // Clone instead of mutating: the parsed URL is shared with the runtime,
         // and req.url must keep the original wire encoding (#1432). Only reached
         // for a path that is actually non-canonical, so the common `/a%20b` and

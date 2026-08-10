@@ -22,8 +22,8 @@ export interface ResolveDotSegmentsOptions {
    * downstream that keeps `%25`-re-encoding and decoding cannot smuggle one
    * past. It does NOT catch a separator whose own hex digits are themselves
    * percent-encoded (`%25%32%66` → `%2f` → `/` after two decodes) — though that
-   * exact spelling arrives already canonicalized to `%252f`, which is collapsed,
-   * unless the app opted out with `allowNonCanonicalURL`.
+   * exact spelling reaches a handler already canonicalized to `%252f`, which is
+   * collapsed.
    * Treat this as covering the common `%25`-nesting case, not as an absolute
    * guarantee against every multi-decode chain. Other escapes (e.g. `%20`) are
    * never decoded.
