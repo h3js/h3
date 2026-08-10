@@ -175,13 +175,31 @@ export function getValidatedQuery(
 /**
  * Get matched route params.
  *
- * If `decode` option is `true`, it will decode the matched route params (like
- * `decodeURIComponent`), except encoded path separators (`%2f`, `%5c`) are kept
- * encoded so decoding can never reintroduce a `/` or `\` the router never matched.
+ * By default params are returned exactly as they appeared in the URL path, still
+ * percent-encoded.
+ *
+ * With `decode: true` each param is decoded **once** (like `decodeURIComponent`),
+ * except encoded path separators (`%2f`, `%5c`, at any `%25`-nesting depth) which
+ * are left in their encoded form so decoding can never reintroduce a `/` or `\`
+ * the router never matched.
+ *
+ * A single decode is not the same as "fully decoded": `%25XX` decodes to the
+ * literal text `%XX`, so the result can still contain percent-escapes — including
+ * dot segments (`%252e%252e` -> `%2e%2e`) and control characters (`%2500` -> `%00`).
+ * **Do not decode the result again**: a second pass turns those back into
+ * traversal (`../`) and separators the routing and middleware layers never saw.
+ * Treat the returned string as final and validate it as-is.
  *
  * @example
  * app.get("/", (event) => {
  *   const params = getRouterParams(event); // { key: "value" }
+ * });
+ *
+ * @example
+ * // GET /files/%252e%252e/x
+ * app.get("/files/**:rest", (event) => {
+ *   getRouterParams(event); // { rest: "%252e%252e/x" }
+ *   getRouterParams(event, { decode: true }); // { rest: "%2e%2e/x" } — still encoded, do not decode again
  * });
  */
 export function getRouterParams(
@@ -229,9 +247,10 @@ export function getValidatedRouterParams<
 /**
  * Get matched route params and validate with validate function.
  *
- * If `decode` option is `true`, it will decode the matched route params (like
- * `decodeURIComponent`), except encoded path separators (`%2f`, `%5c`) are kept
- * encoded so decoding can never reintroduce a `/` or `\` the router never matched.
+ * If `decode` option is `true`, params are decoded **once** exactly as described in
+ * {@link getRouterParams} — path separators stay encoded, other escapes decode a
+ * single level, and the validated value can still contain `%XX`. Validate it as-is;
+ * do not decode it again.
  *
  * You can use a simple function to validate the params object or use a Standard-Schema compatible library like `zod` to define a schema.
  *

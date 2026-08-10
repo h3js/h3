@@ -1,6 +1,7 @@
 import { FastResponse } from "srvx";
 import { HTTPError } from "./error.ts";
 import { isJSONSerializable } from "./utils/internal/object.ts";
+import { sanitizeStatusCode, sanitizeStatusMessage } from "./utils/sanitize.ts";
 import { kEventDispose, type DisposeState } from "./utils/internal/dispose.ts";
 
 import type { H3Config } from "./types/h3.ts";
@@ -165,10 +166,17 @@ function prepareResponse(
 
   if (!(val instanceof Response)) {
     const res = prepareResponseBody(val, event, config);
-    const status = res.status || preparedRes?.status;
+    // Sanitize on the way out: `event.res.status`/`statusText` and `HTTPResponse` are plain
+    // user-writable fields, and `FastResponse` defers validation to the runtime. An invalid value
+    // then throws from Node's `writeHead()` — after `toResponse` returned, so outside every h3
+    // try/catch — and takes the process down; on runtimes that do not validate the reason phrase,
+    // a CRLF in `statusText` is response splitting.
+    const rawStatus = res.status || preparedRes?.status;
+    const status = rawStatus ? sanitizeStatusCode(rawStatus) : undefined;
+    const rawStatusText = res.statusText || preparedRes?.statusText;
     return new FastResponse(nullBody(event.req.method, status) ? null : res.body, {
       status,
-      statusText: res.statusText || preparedRes?.statusText,
+      statusText: rawStatusText === undefined ? undefined : sanitizeStatusMessage(rawStatusText),
       headers:
         res.headers && preparedHeaders
           ? mergeHeaders(res.headers, preparedHeaders)

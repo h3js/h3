@@ -179,6 +179,20 @@ describeMatrix("router", (t, { it, expect, describe }) => {
         const nonAscii = await (await t.fetch("/files/caf%C3%A9")).text();
         expect(nonAscii).toBe("café");
       });
+
+      it("decodes exactly one level (documented in docs/2.utils/4.security.md)", async () => {
+        // `decode:true` is one `decodeURIComponent` pass, not a full
+        // normalization: `%25XX` yields the literal text `%XX`, so the result
+        // can still contain escapes and must not be decoded again.
+        t.app.get("/files/**:rest", (event) => {
+          return getRouterParams(event, { decode: true }).rest;
+        });
+
+        expect(await (await t.fetch("/files/%252e%252e/x")).text()).toBe("%2e%2e/x");
+        expect(await (await t.fetch("/files/%2500")).text()).toBe("%00");
+        // Separators stay encoded at every `%25`-nesting depth.
+        expect(await (await t.fetch("/files/a%252fb")).text()).toBe("a%252fb");
+      });
     });
 
     describe("without router", () => {
