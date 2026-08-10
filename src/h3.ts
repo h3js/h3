@@ -1,5 +1,5 @@
 import { createRouter, addRoute, findRoute } from "rou3";
-import { H3Event, kMalformedURL } from "./event.ts";
+import { H3Event } from "./event.ts";
 import { HTTPError } from "./error.ts";
 import { toResponse, kNotFound } from "./response.ts";
 import {
@@ -11,7 +11,12 @@ import {
 
 import type { ComposedMiddleware } from "./middleware.ts";
 import { requestWithBaseURL } from "./utils/request.ts";
-import { stripBase } from "./utils/internal/path.ts";
+import {
+  canonicalPathname,
+  isMalformedPathname,
+  isNonCanonicalPathname,
+  stripBase,
+} from "./utils/internal/path.ts";
 
 import type { ServerRequest } from "srvx";
 import type { H3Config, H3CoreConfig, MatchedRoute, RouterContext } from "./types/h3.ts";
@@ -37,6 +42,42 @@ import { toRequest } from "./utils/request.ts";
 import { toEventHandler } from "./handler.ts";
 
 export const NoHandler: EventHandler = () => kNotFound;
+
+/**
+ * Screen the request URL before routing, returning a response to send instead of
+ * dispatching (or `undefined` to continue).
+ *
+ * H3 never rewrites `event.url`, so every consumer — the router, `use()`
+ * matchers, a handler reading `event.url.pathname` — sees the exact path from
+ * the wire. That is only safe as long as a path whose decoded form names a
+ * different resource cannot reach them at all: `/%61dmin` is answered with a
+ * `308` to `/admin` rather than served under a name an `/admin` guard would not
+ * recognize. Redirecting (instead of decoding in place) keeps one representation
+ * per request end to end, including for whatever the handler proxies it to.
+ */
+function checkRequestURL(event: H3Event, config: H3CoreConfig): Response | undefined {
+  const pathname = event.url.pathname;
+  if (!pathname.includes("%")) {
+    return; // Fast path: nothing encoded, nothing to canonicalize.
+  }
+  if (isMalformedPathname(pathname)) {
+    // No canonical form to redirect to. Opt out with `allowMalformedURL` to
+    // receive the raw pathname instead.
+    if (config.allowMalformedURL) {
+      return;
+    }
+    throw new HTTPError({ status: 400, message: "Bad Request" });
+  }
+  if (config.allowNonCanonicalURL || !isNonCanonicalPathname(pathname)) {
+    return;
+  }
+  // 308 (not 301/302) so the method and body of the replayed request are
+  // preserved. The target is canonical by construction, so this cannot loop.
+  return new Response(null, {
+    status: 308,
+    headers: { location: canonicalPathname(pathname) + event.url.search },
+  });
+}
 
 export class H3Core implements H3CoreType {
   static "~h3" = true;
@@ -77,12 +118,11 @@ export class H3Core implements H3CoreType {
     // Execute the handler
     let handlerRes: unknown | Promise<unknown>;
     try {
-      if ((event as any)[kMalformedURL] && !this.config.allowMalformedURL) {
-        // Reject malformed request URLs before any routing or app logic runs.
-        // Opt out with `allowMalformedURL` to receive the raw pathname instead.
-        throw new HTTPError({ status: 400, message: "Bad Request" });
-      }
-      if (this.config.onRequest) {
+      // Screen the request URL before any routing or app logic runs.
+      const urlRes = checkRequestURL(event, this.config);
+      if (urlRes) {
+        handlerRes = urlRes;
+      } else if (this.config.onRequest) {
         const hookRes = this.config.onRequest(event);
         handlerRes =
           typeof hookRes?.then === "function"

@@ -1,5 +1,5 @@
 import { type ErrorDetails, HTTPError } from "../error.ts";
-import { decodePathname, stripBase } from "./internal/path.ts";
+import { stripBase } from "./internal/path.ts";
 import { parseQuery } from "./internal/query.ts";
 import { validateData } from "./internal/validate.ts";
 import { getEventContext } from "./event.ts";
@@ -36,14 +36,10 @@ export function requestWithURL(req: ServerRequest, url: string): ServerRequest {
  */
 export function requestWithBaseURL(req: ServerRequest, base: string): ServerRequest {
   const url = new URL(req.url);
-  let pathname: string;
-  try {
-    pathname = decodePathname(url.pathname);
-  } catch {
-    // Malformed percent-encoding: fall back to the raw pathname instead of throwing.
-    pathname = url.pathname;
-  }
-  url.pathname = stripBase(pathname, base);
+  // Strip only — the pathname is never decoded, so the mounted handler receives
+  // the same representation the parent app routed on (which its own `~request`
+  // already screened for non-canonical encoding).
+  url.pathname = stripBase(url.pathname, base);
   return requestWithURL(req, url.href);
 }
 
@@ -196,26 +192,22 @@ export function getRouterParams(
 }
 
 // Percent-encoded path separators (`%2f` → `/`, `%5c` → `\`) at any `%25`-nesting
-// depth (`%2f`, `%252f`, ...). Whatever reaches a param already survived the pathname
-// decode in `event.ts` (a single `decodeURI` that preserves `%25`) still encoded:
-// `decodeURI` keeps `%2f` as a reserved char, and `%25`-nested forms (`%252f`,
-// `%255c`, ...) only lose one `%25` level. A bare `%5c` never reaches a param at all —
-// it decodes to `\`, which the URL parser normalizes into a real `/` the router splits
-// on — but it stays in the pattern as a cheap guard. Either way, route matching and any
-// pathname-based middleware only ever saw the matched param as one opaque, still-encoded
-// segment (a `:id` capture can never hold a raw separator).
+// depth (`%2f`, `%252f`, ...). Whatever reaches a param is still in its wire form:
+// h3 never decodes the pathname, so route matching and any pathname-based
+// middleware only ever saw the matched param as one opaque, still-encoded segment
+// (a `:id` capture can never hold a raw separator).
 const ENCODED_SEP_RE_G = /%(?:25)*(?:2f|5c)/gi;
 
 /**
  * `decodeURIComponent` a matched route param, but never let an encoded path
  * separator collapse into a raw `/` or `\`.
  *
- * A full second decode on top of the already-once-decoded pathname would
- * reintroduce a separator (and thus `..`-based traversal) the routing/middleware
- * layer could not see — a path desync / smuggling vector when the decoded param
- * feeds a filesystem or upstream path. So the encoded separators are kept in
- * their encoded form while every other escape (spaces, non-ASCII, ...) still
- * decodes normally, keeping `decode:true` human-readable.
+ * Decoding a separator would reintroduce a boundary (and thus `..`-based
+ * traversal) the routing/middleware layer could not see — a path desync /
+ * smuggling vector when the decoded param feeds a filesystem or upstream path.
+ * So the encoded separators are kept in their encoded form while every other
+ * escape (spaces, non-ASCII, ...) still decodes normally, keeping `decode:true`
+ * human-readable.
  */
 function decodeRouterParam(value: string): string {
   if (!value.includes("%")) {

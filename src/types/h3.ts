@@ -45,6 +45,21 @@ export interface H3Config {
    */
   allowMalformedURL?: boolean;
 
+  /**
+   * By default H3 answers a request whose URL path percent-encodes an unreserved
+   * character (e.g. `/%61dmin`, equivalent to `/admin` per RFC 3986 §6.2.2.2)
+   * with a `308` redirect to that canonical form, before routing.
+   *
+   * This keeps one representation of the path per request: `event.url` is never
+   * rewritten, so the router, `use()` matchers and your own
+   * `event.url.pathname` checks cannot disagree with whatever decodes the path
+   * downstream (a proxy, the filesystem, `decodeURIComponent`).
+   *
+   * When enabled, such requests are dispatched with the raw pathname instead.
+   * Any pathname-based guard is then responsible for the encoded forms too.
+   */
+  allowNonCanonicalURL?: boolean;
+
   plugins?: H3Plugin[];
 
   onRequest?: (event: H3Event) => MaybePromise<void>;

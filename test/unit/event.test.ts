@@ -2,45 +2,34 @@ import { describe, it, expect } from "vitest";
 import { FastURL } from "srvx";
 import { H3Event } from "../../src/event.ts";
 import { getRequestIP } from "../../src/utils/request.ts";
-import { decodePathname } from "../../src/utils/internal/path.ts";
+import {
+  canonicalPathname,
+  isMalformedPathname,
+  isNonCanonicalPathname,
+} from "../../src/utils/internal/path.ts";
 
-describe("H3Event URL normalization", () => {
-  it("reuses the runtime-provided _url when no decoding is needed", () => {
+describe("H3Event URL", () => {
+  it("reuses the runtime-provided _url", () => {
     const req = new Request("http://localhost/hello");
     (req as any)._url = new FastURL("http://localhost/hello");
     const event = new H3Event(req);
     expect(event.url).toBe((req as any)._url);
   });
 
-  it("reuses the runtime-provided _url when decoding is an identity (reserved chars)", () => {
-    const req = new Request("http://localhost/a%2Fb");
-    (req as any)._url = new FastURL("http://localhost/a%2Fb");
-    const event = new H3Event(req);
-    expect(event.url).toBe((req as any)._url);
-    expect(event.url.pathname).toBe("/a%2Fb");
-  });
-
-  it("clones instead of mutating the runtime-provided _url when decoding", () => {
-    const req = new Request("http://localhost/h%65llo?q=%41");
-    (req as any)._url = new FastURL("http://localhost/h%65llo?q=%41");
-    const event = new H3Event(req);
-    expect(event.url.pathname).toBe("/hello");
-    expect(event.url.search).toBe("?q=%41");
-    expect(event.url).not.toBe((req as any)._url);
-    // The shared parsed URL keeps the original wire encoding (#1432)
-    expect(((req as any)._url as URL).pathname).toBe("/h%65llo");
-  });
-
-  it("does not double-decode when two events share one _url", () => {
-    const href = "http://localhost/a%2541-%41";
-    const req = new Request(href);
-    (req as any)._url = new FastURL(href);
-    const first = new H3Event(req);
-    expect(first.url.pathname).toBe("/a%2541-A");
-    const second = new H3Event(req);
-    expect(second.url.pathname).toBe("/a%2541-A");
-    expect(((req as any)._url as URL).pathname).toBe("/a%2541-%41");
-  });
+  // The event never decodes or re-serializes the pathname, so the URL shared
+  // with the runtime is neither mutated nor cloned (#1432) and `event.url`
+  // cannot drift from `event.req.url`.
+  for (const pathname of ["/h%65llo", "/a%2Fb", "/a%2541-%41", "/caf%c3%a9", "/a%20b"]) {
+    it(`keeps ${pathname} in its wire form, reusing _url`, () => {
+      const href = `http://localhost${pathname}?q=%41`;
+      const req = new Request(href);
+      (req as any)._url = new FastURL(href);
+      const event = new H3Event(req);
+      expect(event.url).toBe((req as any)._url);
+      expect(event.url.pathname).toBe(pathname);
+      expect(event.url.search).toBe("?q=%41");
+    });
+  }
 });
 
 describe("H3Event context reference", () => {
@@ -74,18 +63,60 @@ describe("H3Event context reference", () => {
   });
 });
 
-describe("decodePathname", () => {
-  it("is idempotent", () => {
+describe("canonicalPathname", () => {
+  it("decodes unreserved escapes", () => {
+    expect(canonicalPathname("/api/%61dmin")).toBe("/api/admin");
+    expect(canonicalPathname("/a%2Eb")).toBe("/a.b");
+    expect(canonicalPathname("/%7Euser/%2Dx/%5Fy/%30")).toBe("/~user/-x/_y/0");
+  });
+
+  // Dot segments are resolved by the URL parser (every `%2e` spelling, per the
+  // WHATWG "double-dot path segment" check) before a pathname reaches h3, and
+  // decoding an unreserved escape adds no separator that could reveal a new one.
+  it("relies on the URL parser having resolved dot segments", () => {
+    for (const spelling of ["/a/%2e%2e/b", "/a/%2E%2E/b", "/a/.%2e/b", "/a/../b"]) {
+      expect(new URL(spelling, "http://h").pathname).toBe("/b");
+    }
+    expect(canonicalPathname("/a/%2e%2ex/b")).toBe("/a/..x/b"); // not a dot segment
+  });
+
+  it("leaves every other escape byte-for-byte", () => {
     for (const input of [
-      "/a%41b",
-      "/a%2541", // encoded % must stay encoded, never becoming decodable
-      "/%2525",
-      "/a%2Fb", // reserved chars stay encoded
-      "/caf%C3%A9",
-      "/plain",
+      "/a%2Fb", // separators stay encoded: a `:param` must not gain a boundary
+      "/a%5Cb",
+      "/a%2541", // `%25` is not unreserved, so this never becomes decodable
+      "/caf%c3%a9", // non-ASCII, including its hex case
+      "/a%20b",
+      "/a%09b", // decoding this would let the URL parser delete the character
+      "/a%3Ab",
     ]) {
-      const once = decodePathname(input);
-      expect(decodePathname(once)).toBe(once);
+      expect(canonicalPathname(input)).toBe(input);
+      expect(isNonCanonicalPathname(input)).toBe(false);
+    }
+  });
+
+  it("is idempotent, so a redirect to it cannot loop", () => {
+    for (const input of ["/api/%61dmin", "/a/%2e%2e/b", "/a%2541", "/caf%C3%A9", "/plain"]) {
+      const once = canonicalPathname(input);
+      expect(canonicalPathname(once)).toBe(once);
+      expect(isNonCanonicalPathname(once)).toBe(false);
+    }
+  });
+
+  it("flags exactly the pathnames it would change", () => {
+    for (const input of ["/api/%61dmin", "/a%2Eb", "/a%2Fb", "/a%20b", "/plain", "/a%2541"]) {
+      expect(isNonCanonicalPathname(input)).toBe(canonicalPathname(input) !== input);
+    }
+  });
+});
+
+describe("isMalformedPathname", () => {
+  it("detects truncated, non-hex and invalid-UTF-8 escapes", () => {
+    for (const input of ["/foo%", "/%ZZ", "/bar%2", "/%", "/%80", "/%C3%28"]) {
+      expect(isMalformedPathname(input)).toBe(true);
+    }
+    for (const input of ["/plain", "/a%20b", "/caf%C3%A9", "/a%2541", "/a%2Fb"]) {
+      expect(isMalformedPathname(input)).toBe(false);
     }
   });
 });

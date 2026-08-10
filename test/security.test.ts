@@ -40,20 +40,20 @@ describeMatrix("security: path encoding bypass", (ctx, { it, expect }) => {
     expect(res.status).toBe(200);
   });
 
-  it("should NOT bypass auth via percent-encoded path /api/%61dmin/users", async () => {
-    const res = await ctx.fetch("/api/%61dmin/users");
-    expect(res.status).not.toBe(200);
-  });
-
-  it("should NOT bypass auth via /api/admi%6e/users", async () => {
-    const res = await ctx.fetch("/api/admi%6e/users");
-    expect(res.status).not.toBe(200);
-  });
-
-  it("should NOT bypass auth via /%61pi/admin/users", async () => {
-    const res = await ctx.fetch("/%61pi/admin/users");
-    expect(res.status).not.toBe(200);
-  });
+  // A percent-encoded path is never dispatched: it is bounced to its canonical
+  // form, so the guard sees the same string as the route it protects.
+  for (const [path, canonical] of [
+    ["/api/%61dmin/users", "/api/admin/users"],
+    ["/api/admi%6e/users", "/api/admin/users"],
+    ["/%61pi/admin/users", "/api/admin/users"],
+  ]) {
+    it(`should NOT bypass auth via ${path}`, async () => {
+      const res = await ctx.fetch(path!);
+      expect(res.status).not.toBe(200);
+      expect(res.status).toBe(308);
+      expect(res.headers.get("location")).toBe(canonical);
+    });
+  }
 });
 
 describeMatrix("security: path encoding bypass with wildcard routes", (ctx, { it, expect }) => {
@@ -80,6 +80,7 @@ describeMatrix("security: path encoding bypass with wildcard routes", (ctx, { it
   it("should NOT bypass auth with wildcard via /api/%61dmin/users", async () => {
     const res = await ctx.fetch("/api/%61dmin/users");
     expect(res.status).not.toBe(200);
+    expect(res.status).toBe(308);
   });
 
   // Double-encoded %2561 stays as %2561 — %25 (encoded %) is preserved to avoid
@@ -119,6 +120,68 @@ describeMatrix("security: malformed percent-encoded URL", (ctx, { it, expect }) 
   it("does not bypass the auth guard via a malformed segment", async () => {
     const res = await ctx.fetch("/api/admin%ZZ/users");
     expect(res.status).not.toBe(200);
+  });
+});
+
+describeMatrix("security: canonical pathname redirect", (ctx, { it, expect }) => {
+  beforeEach(() => {
+    ctx.app.all("/**", (event) => ({ path: event.url.pathname, method: event.req.method }));
+  });
+
+  it("redirects a non-canonical path, preserving the query", async () => {
+    const res = await ctx.fetch("/a/%61?x=%61&y=1");
+    expect(res.status).toBe(308);
+    expect(res.headers.get("location")).toBe("/a/a?x=%61&y=1");
+  });
+
+  // The URL parser resolves an encoded dot segment before h3 sees it, so this
+  // arrives as `/%61dmin`; canonicalizing it must not put the traversal back.
+  it("never redirects to a path with a dot segment left in it", async () => {
+    const res = await ctx.fetch("/files/%2e%2e/%61dmin");
+    expect(res.status).toBe(308);
+    expect(res.headers.get("location")).toBe("/admin");
+  });
+
+  it("uses 308 so a POST is replayed with its method and body", async () => {
+    const res = await ctx.fetch("/%61pi", { method: "POST", body: "x" });
+    expect(res.status).toBe(308);
+    expect(res.headers.get("location")).toBe("/api");
+  });
+
+  // The canonical form is a fixed point, so a client following the redirect
+  // lands on a dispatched response rather than another redirect.
+  it("does not loop: the redirect target is dispatched", async () => {
+    const res = await ctx.fetch("/a/a");
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ path: "/a/a", method: "GET" });
+  });
+
+  // Everything that is not an unreserved escape is opaque: no consumer can read
+  // it as a different segment, so it reaches the handler exactly as it arrived.
+  for (const path of ["/a%2Fb", "/a%5Cb", "/a%20b", "/caf%C3%A9", "/a%2541", "/a%09b", "/a%3Ab"]) {
+    it(`serves ${path} unchanged`, async () => {
+      const res = await ctx.fetch(path);
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ path, method: "GET" });
+    });
+  }
+});
+
+describe("security: allowNonCanonicalURL opt-in", () => {
+  it("dispatches the raw pathname when enabled", async () => {
+    const app = new H3({ allowNonCanonicalURL: true });
+    app.get("/**", (event) => event.url.pathname);
+    const res = await app.request("/api/%61dmin");
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe("/api/%61dmin");
+  });
+
+  it("redirects by default", async () => {
+    const app = new H3();
+    app.get("/**", (event) => event.url.pathname);
+    const res = await app.request("/api/%61dmin");
+    expect(res.status).toBe(308);
+    expect(res.headers.get("location")).toBe("/api/admin");
   });
 });
 

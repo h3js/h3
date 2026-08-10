@@ -51,9 +51,61 @@ export function getPathname(path: string = "/"): string {
   return path.startsWith("/") ? path.split("?")[0] : new URL(path, "http://localhost").pathname;
 }
 
+// Percent-escapes of *unreserved* characters (RFC 3986 §2.3: ALPHA / DIGIT / `-`
+// / `.` / `_` / `~`). Encoding them is never necessary, and §6.2.2.2 makes the
+// encoded and decoded forms equivalent — so anything that decodes downstream (a
+// proxy, a filesystem, a handler calling `decodeURIComponent`) resolves
+// `/%61dmin` and `/admin` to the same resource, while h3's matchers compare them
+// as two different strings. That gap is the middleware-bypass vector, so such a
+// path is bounced to its canonical form instead of being served under a name a
+// guard would not recognize.
+//
+// Every other escape is deliberately left alone: `%2F`/`%5C` are structural (a
+// `:param` must never gain a separator the router did not match on), and `%20`,
+// `%25`, `%09`, non-ASCII and friends decode to bytes that cannot make one
+// segment read as a different segment.
+const UNRESERVED_ESCAPE_SRC = String.raw`%(?:2[DE]|3[0-9]|4[1-9A-F]|5[0-9AF]|6[1-9A-F]|7[0-9AE])`;
+const UNRESERVED_ESCAPE_RE = /* @__PURE__ */ new RegExp(UNRESERVED_ESCAPE_SRC, "i");
+const UNRESERVED_ESCAPE_RE_G = /* @__PURE__ */ new RegExp(UNRESERVED_ESCAPE_SRC, "gi");
+
 /**
- * Decode percent-encoded pathname, preserving %25 (literal `%`).
+ * Whether `pathname` is *not* in canonical form, i.e. it percent-encodes an
+ * unreserved character and therefore names a resource that a decoding consumer
+ * reads under a different path than the one h3 matched routes and middleware on.
+ *
+ * A single scan, no allocation — this runs on every request whose path contains
+ * a `%`, and returns `false` for the common encodings (`%20`, `%2F`, non-ASCII).
  */
-export function decodePathname(pathname: string): string {
-  return decodeURI(pathname.includes("%25") ? pathname.replace(/%25/g, "%2525") : pathname);
+export function isNonCanonicalPathname(pathname: string): boolean {
+  return UNRESERVED_ESCAPE_RE.test(pathname);
+}
+
+/**
+ * Canonical form of `pathname`: unreserved escapes decoded, everything else left
+ * byte-for-byte as it arrived.
+ *
+ * Idempotent by construction — no unreserved escape is left to decode — so
+ * redirecting to the result cannot loop. Dot segments need no handling here: the
+ * URL parser resolves them (including every `%2e` spelling, per WHATWG "double-dot
+ * path segment") before the pathname reaches h3, and decoding an unreserved
+ * escape introduces no new segment boundary that could reveal one.
+ */
+export function canonicalPathname(pathname: string): string {
+  return pathname.replace(UNRESERVED_ESCAPE_RE_G, (m) =>
+    String.fromCharCode(Number.parseInt(m.slice(1), 16)),
+  );
+}
+
+/**
+ * Whether `pathname` contains malformed percent-encoding — a truncated escape
+ * (`/foo%`, `/bar%2`), a non-hex one (`/%ZZ`) or an invalid UTF-8 sequence
+ * (`/%80`). Such a path has no canonical form to redirect to.
+ */
+export function isMalformedPathname(pathname: string): boolean {
+  try {
+    decodeURI(pathname);
+    return false;
+  } catch {
+    return true;
+  }
 }
