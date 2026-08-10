@@ -189,15 +189,21 @@ function resolveDotSegments(pathname: string): string {
 }
 
 /**
- * Whether `pathname` contains malformed percent-encoding — a truncated escape
- * (`/foo%`, `/bar%2`), a non-hex one (`/%ZZ`) or an invalid UTF-8 sequence
- * (`/%80`). Such a path has no canonical form to decode to.
+ * Decoded `pathname`, or `undefined` when it carries malformed percent-encoding
+ * — a truncated escape (`/foo%`, `/bar%2`), a non-hex one (`/%ZZ`) or an invalid
+ * UTF-8 sequence (`/%80`). Such a path has no canonical form to decode to.
+ *
+ * Returns the decoded value rather than a boolean so that the `decodeURI` call
+ * is *consumed*: bundlers treat it as pure, and rolldown (the bundler `pnpm
+ * build` uses) deletes a bare `decodeURI(pathname);` whose result nothing reads
+ * — which shipped this guard as `try { return false } catch {}` in `dist`, i.e.
+ * no guard at all. Keep the value flowing to the caller; `test/dist.test.ts`
+ * asserts the built output still rejects these paths.
  */
-export function isMalformedPathname(pathname: string): boolean {
+export function decodePathname(pathname: string): string | undefined {
   try {
-    decodeURI(pathname);
-    return false;
+    return decodeURI(pathname);
   } catch {
-    return true;
+    return undefined;
   }
 }

@@ -4,7 +4,7 @@ import { H3Event } from "../../src/event.ts";
 import { getRequestIP } from "../../src/utils/request.ts";
 import {
   canonicalPathname,
-  isMalformedPathname,
+  decodePathname,
   isNonCanonicalPathname,
 } from "../../src/utils/internal/path.ts";
 
@@ -165,13 +165,13 @@ describe("canonicalPathname", () => {
   });
 });
 
-describe("isMalformedPathname", () => {
+describe("decodePathname", () => {
   it("detects truncated, non-hex and invalid-UTF-8 escapes", () => {
     for (const input of ["/foo%", "/%ZZ", "/bar%2", "/%", "/%80", "/%C3%28"]) {
-      expect(isMalformedPathname(input)).toBe(true);
+      expect(decodePathname(input)).toBe(undefined);
     }
     for (const input of ["/plain", "/a%20b", "/caf%C3%A9", "/a%2541", "/a%2Fb"]) {
-      expect(isMalformedPathname(input)).toBe(false);
+      expect(decodePathname(input)).toBe(decodeURI(input));
     }
   });
 });

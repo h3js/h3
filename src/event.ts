@@ -4,7 +4,7 @@ import type { H3EventContext } from "./types/context.ts";
 import { EmptyObject } from "./utils/internal/obj.ts";
 import {
   canonicalPathname,
-  isMalformedPathname,
+  decodePathname,
   isNonCanonicalPathname,
 } from "./utils/internal/path.ts";
 import { FastURL } from "srvx";
@@ -102,7 +102,7 @@ export class H3Event<
     // reach the app dispatch path.
     const pathname = url.pathname;
     if (pathname.includes("%")) {
-      if (isMalformedPathname(pathname)) {
+      if (decodePathname(pathname) === undefined) {
         // Malformed percent-encoding (e.g. `/foo%`, `/%ZZ`): no canonical form
         // to decode to. Flag for a 400 response and keep the raw pathname so
         // route matching and middleware guards still see one consistent value.
