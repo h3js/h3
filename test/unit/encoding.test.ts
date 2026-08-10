@@ -64,9 +64,9 @@ describe("encoding utilities", () => {
     });
 
     it("encodes payloads larger than the engine argument limit", () => {
-      // A session sealed by `sealSession` is base64-encoded whole. Spreading one
-      // element per output character into `String.fromCharCode` overflows the
-      // call stack well below the sizes h3 itself allows (a chunked session
+      // A session sealed by `sealSession` is base64-encoded whole, and the
+      // sizes h3 itself allows go well past the argument limit that a
+      // `String.fromCharCode(...codes)` encoder overflows on (a chunked session
       // cookie may hold ~400KB, and header sessions are uncapped).
       const input = Uint8Array.from({ length: 128 * 1024 }, (_, i) => i % 256);
       const encoded = withoutBuffer(() => base64Encode(input));

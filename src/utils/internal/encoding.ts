@@ -7,15 +7,7 @@ https://github.com/denoland/std/blob/main/LICENSE
 export const textEncoder: TextEncoder = /* @__PURE__ */ new TextEncoder();
 export const textDecoder: TextDecoder = /* @__PURE__ */ new TextDecoder();
 
-// ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_
-const base64Code = [
-  65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88,
-  89, 90, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114,
-  115, 116, 117, 118, 119, 120, 121, 122, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 45, 95,
-];
-
-// Number of characters emitted per `String.fromCharCode` call.
-const ENCODE_CHUNK_SIZE = 8192;
+const base64Chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
 
 export function base64Encode(data: ArrayBuffer | Uint8Array | string): string {
   const buff = validateBinaryLike(data);
@@ -23,37 +15,29 @@ export function base64Encode(data: ArrayBuffer | Uint8Array | string): string {
     return globalThis.Buffer.from(buff).toString("base64url");
   }
   // Credits: https://gist.github.com/enepomnyaschih/72c423f727d395eeaa09697058238727
-  const bytes: number[] = [];
+  // Appended char by char: buffering the codes and spreading them into
+  // `String.fromCharCode` overflows the engine's argument limit on large
+  // payloads (https://github.com/h3js/h3/issues/1514).
+  let result = "";
   let i;
   const len = buff.length;
   for (i = 2; i < len; i += 3) {
-    bytes.push(
-      base64Code[buff[i - 2]! >> 2],
-      base64Code[((buff[i - 2]! & 0x03) << 4) | (buff[i - 1]! >> 4)],
-      base64Code[((buff[i - 1]! & 0x0f) << 2) | (buff[i]! >> 6)],
-      base64Code[buff[i]! & 0x3f],
-    );
+    result +=
+      base64Chars[buff[i - 2]! >> 2] +
+      base64Chars[((buff[i - 2]! & 0x03) << 4) | (buff[i - 1]! >> 4)] +
+      base64Chars[((buff[i - 1]! & 0x0f) << 2) | (buff[i]! >> 6)] +
+      base64Chars[buff[i]! & 0x3f];
   }
   if (i === len + 1) {
     // 1 octet yet to write
-    bytes.push(base64Code[buff[i - 2]! >> 2], base64Code[(buff[i - 2]! & 0x03) << 4]);
+    result += base64Chars[buff[i - 2]! >> 2] + base64Chars[(buff[i - 2]! & 0x03) << 4];
   }
   if (i === len) {
     // 2 octets yet to write
-    bytes.push(
-      base64Code[buff[i - 2]! >> 2],
-      base64Code[((buff[i - 2]! & 0x03) << 4) | (buff[i - 1]! >> 4)],
-      base64Code[(buff[i - 1]! & 0x0f) << 2],
-    );
-  }
-
-  // Spreading one argument per output character overflows the engine's argument
-  // limit (`RangeError: Maximum call stack size exceeded`) on large payloads, so
-  // build the string in fixed-size chunks instead.
-  // https://github.com/h3js/h3/issues/1514
-  let result = "";
-  for (let offset = 0; offset < bytes.length; offset += ENCODE_CHUNK_SIZE) {
-    result += String.fromCharCode(...bytes.slice(offset, offset + ENCODE_CHUNK_SIZE));
+    result +=
+      base64Chars[buff[i - 2]! >> 2] +
+      base64Chars[((buff[i - 2]! & 0x03) << 4) | (buff[i - 1]! >> 4)] +
+      base64Chars[(buff[i - 1]! & 0x0f) << 2];
   }
   return result;
 }
