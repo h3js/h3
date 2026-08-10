@@ -10,6 +10,7 @@ import { canonicalPath, mergedCanonicalPath, needsCanonicalPasses } from "./inte
 import type {
   MatchResult,
   MatchedRouteRule,
+  MatchedRouteRules,
   RouteRules,
   RuleHandler,
   RuleHandlers,
@@ -96,6 +97,21 @@ export function createRulesRouter(
     }
     methods.set(method, [...(methods.get(method) || []), ...entries]);
   }
+  // HEAD is served by the GET handler (RFC 9110) — h3 falls back to the GET
+  // route in `~findRoute` and its middleware matcher treats GET-scoped as
+  // HEAD-matching — so GET-scoped rules must also register on HEAD, otherwise a
+  // method-scoped gate (e.g. `GET /admin/**: { basicAuth }`) is bypassable with
+  // a HEAD request that still reaches the handler. Materialized here (rather
+  // than as a lookup-time method rewrite) so the layers stay ordered by
+  // specificity, explicit `HEAD /...` rules keep overriding the GET ones, and
+  // both the runtime matcher and compiled codegen (which shares this router)
+  // inherit it.
+  for (const methods of byPath.values()) {
+    const get = methods.get("GET");
+    if (get) {
+      methods.set("HEAD", [...get, ...(methods.get("HEAD") || [])]);
+    }
+  }
   const router = createRouter<RouteRuleEntry[] | PreMergedRouteRules>();
   if (preMerge) {
     for (const [path, methods] of preMergeRuleLayers(byPath)) {
@@ -154,9 +170,11 @@ export function createRouteRulesMatcher(
 
   // Memoization is opt-in (wrap with memoizeRouteRulesMatcher) so an un-memoized
   // bundle can tree-shake it away.
-  // Inject the specificity guard here (not in createMatcherFromFind) so a
-  // canonical reading can only override with an equal-or-more-specific pattern,
-  // never downgrade — and so a compiled bundle that skips it tree-shakes rou3 out.
+  // Inject the *exact* (`compareRoutes`-based) specificity guard here: this
+  // matcher already carries the rou3 router, so precision is free — while
+  // createMatcherFromFind's own default stays dependency-free, keeping rou3 out
+  // of compiled bundles. Either way a canonical reading can only override with
+  // an equal-or-more-specific pattern, never downgrade.
   return createMatcherFromFind(findRouteRules, canOverrideRoute);
 }
 
@@ -171,6 +189,72 @@ const canOverrideRoute: RouteOverridePredicate = (currentRoute, incomingRoute) =
   return rel === "superset" || rel === "equal";
 };
 
+// Segment syntax the shape guard below cannot reason about (regex / partial /
+// escaped params) — such a segment only ever matches itself, literally.
+const OPAQUE_SEGMENT_RE = /[()\\]/;
+
+// A concrete (non-pattern) segment: matches exactly itself, so any
+// single-segment param contains it.
+const CONCRETE_SEGMENT_RE = /^[^:*()\\]+$/;
+
+/**
+ * Dependency-free default for {@link createMatcherFromFind}: the same
+ * fail-closed question as {@link canOverrideRoute} ("is every path matching
+ * `incomingRoute` also matched by `currentRoute`?") decided by comparing
+ * pattern shapes instead of calling rou3's `compareRoutes`.
+ *
+ * Why not `compareRoutes`: a compiled matcher (`h3/rules/compiler`) exists to
+ * keep the rou3 router out of the runtime bundle, and referencing
+ * `compareRoutes` from the default would drag ~6 KB of rou3 back into every
+ * compiled bundle (pinned by `test/rules/treeshake.test.ts`). The runtime
+ * matcher — which already carries rou3 — injects the exact predicate, and
+ * `compileRouteRules({ matcher })` bakes the exact relation as a static table,
+ * so both keep full precision.
+ *
+ * **Sound, deliberately conservative**: it allows only containment it can
+ * prove, so it can never permit an override `compareRoutes` would reject
+ * (verified against rou3 as an oracle in `test/rules/match.test.ts`). Where it
+ * cannot decide — a named catch-all (`**:rest`), a regex/partial param, an
+ * empty (`//`, trailing-slash) segment, or a `**` with nothing to absorb — it
+ * keeps the rule the served path resolved, which is the pre-guard status quo
+ * for that pair.
+ *
+ * Exported for the soundness test only — not part of the `h3/rules` surface.
+ */
+export const canOverrideRouteShape: RouteOverridePredicate = (currentRoute, incomingRoute) => {
+  if (currentRoute === incomingRoute) {
+    return true;
+  }
+  const current = currentRoute.split("/");
+  const incoming = incomingRoute.split("/");
+  for (let i = 0; i < current.length; i++) {
+    const cur = current[i]!;
+    if (cur === "**") {
+      // A trailing catch-all absorbs every remaining incoming segment — but
+      // only when there is at least one to absorb (rou3 does not consistently
+      // treat `x/**` as containing `x` itself, so that pair fails closed).
+      return i === current.length - 1 && incoming.length > i;
+    }
+    const inc = incoming[i];
+    if (inc === undefined) {
+      return false;
+    }
+    if (cur === inc) {
+      continue;
+    }
+    // A single-segment param contains any concrete segment; anything else
+    // (another param, an empty segment, a catch-all) may be broader.
+    if (
+      (cur === "*" || (cur.startsWith(":") && !OPAQUE_SEGMENT_RE.test(cur))) &&
+      CONCRETE_SEGMENT_RE.test(inc)
+    ) {
+      continue;
+    }
+    return false;
+  }
+  return current.length === incoming.length;
+};
+
 /**
  * Create a matcher from a `findAllRoutes`-compatible lookup — the integration
  * point for compiled matchers (`h3/rules/compiler`), sharing this exact code
@@ -180,14 +264,17 @@ const canOverrideRoute: RouteOverridePredicate = (currentRoute, incomingRoute) =
  * explicitly so an un-memoized bundle can tree-shake it away.
  *
  * `canOverride` gates the dual-path union's override step (see
- * {@link mergeMatchedRouteRules}): omitted, a later reading overrides
- * unconditionally (historical behavior); `createRouteRulesMatcher` injects a
- * specificity guard so a broader canonical pattern can never downgrade a
- * narrower rule the served path resolved.
+ * {@link mergeMatchedRouteRules}) so a broader canonical pattern can never
+ * downgrade a narrower rule the served path resolved. It **defaults to a
+ * specificity guard** — the dependency-free `canOverrideRouteShape`, since a
+ * compiled matcher must not pull rou3 back in; `createRouteRulesMatcher`
+ * injects the exact `compareRoutes`-based one, and `compileRouteRules({ matcher })`
+ * bakes the exact relation as a static table. Pass `() => true` to opt back
+ * into the historical unconditional override.
  */
 export function createMatcherFromFind(
   findRouteRules: FindRouteRules,
-  canOverride?: RouteOverridePredicate,
+  canOverride: RouteOverridePredicate = canOverrideRouteShape,
 ): RouteRulesMatcher {
   return (method, pathname) => {
     // h3 dispatches on event.url.pathname as-is (already once-decoded — only %2f
@@ -236,22 +323,34 @@ export function createMatcherFromFind(
       canOverride,
     );
 
-    // Handlers run sorted by `order` ascending (basicAuth -2, headers -1, so auth
-    // gates before redirect/proxy and headers wrap the response). Skip sort for 0/1 rules.
-    const routeRuleMiddleware: MatchResult["routeRuleMiddleware"] = [];
-    const matchedRules = Object.values(routeRules) as MatchedRouteRule[];
-    const orderedRules =
-      matchedRules.length > 1 ? matchedRules.sort(compareRuleOrder) : matchedRules;
-    for (const rule of orderedRules) {
-      // merged rule sets never contain `false` options (types.ts: MatchedRouteRule)
-      if (!rule.handler) {
-        continue;
-      }
-      routeRuleMiddleware.push(rule.handler.handler(rule));
-    }
-
-    return { routeRules, routeRuleMiddleware };
+    return { routeRules, routeRuleMiddleware: buildRouteRuleMiddleware(routeRules) };
   };
+}
+
+/**
+ * Build the ordered middleware chain for a merged rule map: handlers run sorted
+ * by `order` ascending (cors -3, basicAuth -2, headers -1, so a preflight is
+ * answered before auth gates, auth gates before redirect/proxy, and headers
+ * wrap the response). Skips sorting for 0/1 rules.
+ *
+ * Not part of the public `h3/rules` surface — shared with the `routeRules()`
+ * middleware, which rebuilds the chain when it lifts a preflight `cors` rule so
+ * ordering stays defined in exactly one place.
+ */
+export function buildRouteRuleMiddleware(
+  routeRules: MatchedRouteRules,
+): MatchResult["routeRuleMiddleware"] {
+  const routeRuleMiddleware: MatchResult["routeRuleMiddleware"] = [];
+  const matchedRules = Object.values(routeRules) as MatchedRouteRule[];
+  const orderedRules = matchedRules.length > 1 ? matchedRules.sort(compareRuleOrder) : matchedRules;
+  for (const rule of orderedRules) {
+    // merged rule sets never contain `false` options (types.ts: MatchedRouteRule)
+    if (!rule.handler) {
+      continue;
+    }
+    routeRuleMiddleware.push(rule.handler.handler(rule));
+  }
+  return routeRuleMiddleware;
 }
 
 /**

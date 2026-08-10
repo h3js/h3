@@ -83,7 +83,7 @@ export interface RouteRuleConfig {
   proxy?: string | ({ to: string } & ProxyOptions) | false;
 
   /** HTTP Basic Auth; `false` disables auth inherited from a less-specific pattern. */
-  basicAuth?: Pick<BasicAuthOptions, "password" | "username" | "realm"> | false;
+  basicAuth?: BasicAuthRuleOptions | false;
 
   /**
    * CORS via h3's `handleCors`; `true` applies permissive defaults (`*`), or pass
@@ -115,10 +115,24 @@ export interface RouteRules {
   redirect?: RedirectRuleOptions | false;
   proxy?: ProxyRuleOptions | false;
   cache?: CacheRuleOptions | false;
-  basicAuth?: Pick<BasicAuthOptions, "password" | "username" | "realm"> | false;
+  basicAuth?: BasicAuthRuleOptions | false;
   cors?: CorsOptions | false;
   [key: string]: unknown;
 }
+
+/**
+ * `basicAuth` rule options — h3's {@link BasicAuthOptions} restricted to what a
+ * declarative (and compilable) rule can express.
+ *
+ * `validate` is deliberately **not** a rule option: a function has no place in
+ * serialized/compiled rule config. h3's own `BasicAuthOptions` is
+ * `Partial<...> & ({ validate } | { password })`, i.e. a credential is
+ * mandatory; dropping `validate` therefore makes `password` **required**.
+ * A plain `Pick<>` of `BasicAuthOptions` silently erased that union, so a rule
+ * with only a `username` type-checked and then failed with a 500 at runtime.
+ */
+export type BasicAuthRuleOptions = Required<Pick<BasicAuthOptions, "password">> &
+  Pick<BasicAuthOptions, "username" | "realm">;
 
 /** Normalized `redirect` rule options. */
 export interface RedirectRuleOptions {

@@ -7,9 +7,16 @@ import type { RouteRuleConfig, RouteRules } from "./types.ts";
  *
  * Expands the `swr` shortcut, normalizes `cors` (`true` → permissive options)
  * and `redirect`/`proxy` string forms, and attaches a first-class `base` field
- * to `/**` redirect/proxy rules. Keys may carry a `"METHOD /path"` prefix (see
+ * to `/**` redirect/proxy rules — the rule key's *pattern* prefix, which the
+ * runtime resolves per request when it carries dynamic segments (see
+ * `prepareRuleTarget`). Keys may carry a `"METHOD /path"` prefix (see
  * {@link parseRouteKey}); the result is re-keyed in canonical form. Unknown/
  * custom keys pass through untouched (data-only rules).
+ *
+ * Config-time validation (fail fast at startup/build rather than per request):
+ * a falsy non-`false` value for a built-in rule, a `basicAuth` rule with no
+ * `password`, a credentialed wildcard `cors` origin, a reserved rule name, and
+ * top-level array options are all rejected here.
  */
 export function normalizeRouteRules(
   config: Record<string, RouteRuleConfig>,
@@ -19,6 +26,8 @@ export function normalizeRouteRules(
     const routeConfig = config[key]!;
     const { method, path } = parseRouteKey(key);
     const canonicalKey = formatRouteKey(method, path);
+
+    validateBuiltinRules(routeConfig, canonicalKey);
 
     // Re-added below in this same fixed order (redirect, proxy, cors, cache) so
     // normalization is key-order idempotent — the compiler depends on this for
@@ -49,9 +58,13 @@ export function normalizeRouteRules(
       // `Access-Control-Allow-Origin: *` is invalid for credentialed requests
       // (Fetch spec) — reject at normalize time. A function `origin` can't be
       // checked statically, so it passes (as does h3's literal `"null"`).
+      // The falsy test mirrors h3's own emission condition (`!originOption`,
+      // `utils/cors.ts`) exactly: a defined-but-falsy origin (`null`, `""`) is
+      // a wildcard there too, so anything narrower here would let the
+      // credentialed-wildcard pair ship anyway.
       if (
         corsOptions.credentials === true &&
-        (corsOptions.origin === undefined ||
+        (!corsOptions.origin ||
           corsOptions.origin === "*" ||
           (Array.isArray(corsOptions.origin) && corsOptions.origin.includes("*")))
       ) {
@@ -125,4 +138,56 @@ export function normalizeRouteRules(
     }
   }
   return normalizedRules;
+}
+
+// ------------------------------------------------------------------------
+// Internal
+// ------------------------------------------------------------------------
+
+// Every rule name this module gives meaning to. Custom/data-only keys are
+// deliberately excluded from the checks below: their values are opaque data,
+// where `null`/`""`/`0` are legitimate.
+const BUILTIN_RULE_NAMES: readonly (keyof RouteRuleConfig)[] = [
+  "cache",
+  "headers",
+  "redirect",
+  "proxy",
+  "basicAuth",
+  "cors",
+  "swr",
+];
+
+/**
+ * Reject built-in rule shapes that can only misbehave at runtime.
+ *
+ * - **Falsy non-`false` value.** `false` is the one reset marker (it deletes an
+ *   inherited rule at merge time). Any other falsy value is a config mistake:
+ *   normalization would silently drop the rule (`redirect: null`), or hand a
+ *   handler options it cannot act on — `basicAuth: null` used to fail *open*
+ *   and serve the guarded route unauthenticated.
+ * - **`basicAuth` with no `password`.** `validate` is deliberately not a rule
+ *   option (see `BasicAuthRuleOptions`), so `password` is the only credential a
+ *   rule can carry; without it `requireBasicAuth` throws a 500 on every request.
+ */
+function validateBuiltinRules(routeConfig: RouteRuleConfig, canonicalKey: string): void {
+  for (const name of BUILTIN_RULE_NAMES) {
+    const value = routeConfig[name];
+    if (value || value === undefined || value === false) {
+      continue;
+    }
+    // `swr: 0` is a real value (serve stale, revalidate immediately).
+    if (name === "swr" && value === 0) {
+      continue;
+    }
+    throw new Error(
+      `[h3] rules: \`${name}\` rule for \`${canonicalKey}\` is \`${String(value)}\` — use \`false\` to disable a rule inherited from a less-specific pattern, or provide options`,
+    );
+  }
+
+  const { basicAuth } = routeConfig;
+  if (basicAuth && !basicAuth.password) {
+    throw new Error(
+      `[h3] rules: \`basicAuth\` rule for \`${canonicalKey}\` has no \`password\` — provide \`{ password, username?, realm? }\`, or \`false\` to disable auth inherited from a less-specific pattern`,
+    );
+  }
 }

@@ -66,6 +66,9 @@ export const PROBES: Array<[string, string]> = [
   ["GET", "/rules/ba-off/a%2fb"],
   ["GET", "/blog/post"],
   ["GET", "/api/cached/x"],
+  // HEAD resolves the GET layer (RFC 9110) — pins that the fallback lives in the
+  // shared router build, so compiled and pre-merged matchers inherit it.
+  ["HEAD", "/api/cached/x"],
   ["POST", "/api/cached/x"],
   ["DELETE", "/api/cached/x"],
   ["GET", "/params/users/42"],

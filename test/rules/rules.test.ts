@@ -4,7 +4,8 @@ import { routeRules } from "../../src/rules/middleware.ts";
 import { canonicalPath, isPathInScope } from "../../src/rules/internal/scope.ts";
 import { proxy } from "../../src/rules/proxy.ts";
 import { resolveRuleTarget } from "../../src/rules/handlers/_utils.ts";
-import type { RouteRuleConfig } from "../../src/rules/types.ts";
+import { basicAuth as basicAuthRule } from "../../src/rules/handlers/basic-auth.ts";
+import type { MatchedRouteRule, RouteRuleConfig } from "../../src/rules/types.ts";
 import type { RouteRulesMatcherOptions } from "../../src/rules/match.ts";
 
 // `proxy` is an opt-in subpath handler (`h3/rules/proxy`) — register it by
@@ -36,6 +37,65 @@ describe("headers rule", () => {
     // `headers` rule (order -1, `.set`) still owns `access-control-allow-methods`.
     expect(res.headers.get("access-control-allow-origin")).toBe("*");
     expect(res.headers.get("access-control-allow-methods")).toBe("GET");
+  });
+});
+
+// Runtime fail-closed / error-path regressions for the built-in rule handlers.
+// Each pins the *runtime* half only — the matching config-time guards in
+// `normalizeRouteRules` are a separate layer, so these cases are constructed to
+// stay reachable (via merge, or straight from the handler) even once config-time
+// validation rejects the same shape earlier.
+describe("headers rule on error responses", () => {
+  // `prepareResponse` swaps in `event.res.errHeaders` for status >= 400, and an
+  // exception unwinds past `await next()` — a rule header must survive both.
+  const HEADER_RULES: Record<string, RouteRuleConfig> = {
+    "/rules/err/**": { headers: { "x-rule": "1" } },
+  };
+
+  it("applies to a 2xx response", async () => {
+    const app = createApp(HEADER_RULES);
+    app.get("/rules/err/ok", () => "ok");
+    const res = await app.fetch(new Request("http://test/rules/err/ok"));
+    expect(res.status).toBe(200);
+    expect(res.headers.get("x-rule")).toBe("1");
+  });
+
+  it("applies to a 404 from an unmatched route", async () => {
+    const app = createApp(HEADER_RULES);
+    const res = await app.fetch(new Request("http://test/rules/err/missing"));
+    expect(res.status).toBe(404);
+    expect(res.headers.get("x-rule")).toBe("1");
+  });
+
+  it("applies to a thrown 500", async () => {
+    const app = new H3({ silent: true });
+    app.use(routeRules(HEADER_RULES));
+    app.get("/rules/err/boom", () => {
+      throw new Error("boom");
+    });
+    const res = await app.fetch(new Request("http://test/rules/err/boom"));
+    expect(res.status).toBe(500);
+    expect(res.headers.get("x-rule")).toBe("1");
+  });
+});
+
+describe("basicAuth rule fail-closed", () => {
+  // Built straight from the handler: a falsy non-`false` options value must
+  // reject, never fall through to the route. (`false` is the reset marker and is
+  // resolved away by the merge, so it never reaches the handler.)
+  const appWithOptions = (options: unknown) => {
+    const app = new H3({ silent: true });
+    app.use(basicAuthRule.handler({ options, route: "/**" } as MatchedRouteRule<"basicAuth">));
+    app.get("/**", () => "leaked");
+    return app;
+  };
+
+  it("rejects a falsy non-`false` options value instead of passing through", async () => {
+    for (const options of [null, undefined, "", 0]) {
+      const res = await appWithOptions(options).fetch(new Request("http://test/secret"));
+      expect(res.status).toBe(500);
+      expect(await res.text()).not.toContain("leaked");
+    }
   });
 });
 
@@ -108,6 +168,24 @@ describe("cors rule", () => {
     );
     expect(res.headers.get("access-control-allow-origin")).toBe("*");
     expect(res.headers.get("access-control-allow-credentials")).toBe(null);
+  });
+
+  it("drops credentials when a merge re-forms a falsy-but-defined origin", async () => {
+    // Same hazard as above with a *defined* falsy origin (`null`, `""`): h3 emits
+    // `Access-Control-Allow-Origin: *` whenever `!origin`, so the guard's wildcard
+    // test must match h3's emission condition, not just `undefined`/`"*"`.
+    for (const origin of [null, ""]) {
+      const app = createApp({
+        "/api/cred3/**": { cors: { credentials: true, origin: ["https://a.com"] } },
+        "/api/cred3/wide": { cors: { origin: origin as unknown as "*" } },
+      });
+      app.get("/api/cred3/wide", () => "ok");
+      const res = await app.fetch(
+        new Request("http://test/api/cred3/wide", { headers: { origin: "https://evil.com" } }),
+      );
+      expect(res.headers.get("access-control-allow-origin")).toBe("*");
+      expect(res.headers.get("access-control-allow-credentials")).toBe(null);
+    }
   });
 
   it("keeps credentials for an array origin allowlist re-formed by merge", async () => {
@@ -718,6 +796,144 @@ describe("method-scoped rules (end-to-end)", () => {
     const post = await app.fetch(new Request("http://test/api/x", { method: "POST" }));
     expect(post.headers.get("x-m")).toBeNull();
   });
+
+  it("a GET-scoped auth gate is not bypassable with HEAD", async () => {
+    // h3 serves HEAD from the GET route (`~findRoute` falls back, RFC 9110), so
+    // a GET-scoped rule must apply to HEAD too — otherwise the handler runs
+    // ungated (headers, and any side effect it performs, still reach the client).
+    const app = createApp({
+      "GET /admin/**": { basicAuth: { username: "admin", password: "secret" } },
+    });
+    app.get("/admin/x", (event) => {
+      event.res.headers.set("x-ran", "1");
+      return "secret";
+    });
+    const head = await app.fetch(new Request("http://test/admin/x", { method: "HEAD" }));
+    expect(head.status).toBe(401);
+    expect(head.headers.get("x-ran")).toBeNull();
+    const get = await app.fetch(new Request("http://test/admin/x"));
+    expect(get.status).toBe(401);
+  });
+
+  it("GET-scoped rules apply to HEAD, and HEAD-scoped rules still override them", async () => {
+    const app = createApp({
+      "GET /api/**": { headers: { "x-m": "get", "x-get-only": "1" } },
+      "HEAD /api/**": { headers: { "x-m": "head" } },
+    });
+    app.get("/api/x", () => "ok");
+    const head = await app.fetch(new Request("http://test/api/x", { method: "HEAD" }));
+    expect(head.headers.get("x-m")).toBe("head"); // HEAD layer wins
+    expect(head.headers.get("x-get-only")).toBe("1"); // …merged over the GET layer
+    const get = await app.fetch(new Request("http://test/api/x"));
+    expect(get.headers.get("x-m")).toBe("get"); // HEAD rules never leak into GET
+  });
+
+  it("the HEAD fallback holds under preMerge", async () => {
+    // preMerge resolves each pattern's chain at startup over a `method × path`
+    // matrix, so the HEAD registration must exist before that analysis runs.
+    const app = createApp(
+      {
+        "GET /admin/**": { basicAuth: { username: "admin", password: "secret" } },
+        "/admin/**": { headers: { "x-all": "1" } },
+      },
+      { preMerge: true },
+    );
+    app.get("/admin/x", () => "secret");
+    const head = await app.fetch(new Request("http://test/admin/x", { method: "HEAD" }));
+    expect(head.status).toBe(401);
+    // …and the method-agnostic layer still merges into the HEAD registration.
+    const authed = await app.fetch(
+      new Request("http://test/admin/x", {
+        method: "HEAD",
+        headers: { Authorization: basic("admin", "secret") },
+      }),
+    );
+    expect(authed.status).toBe(200);
+    expect(authed.headers.get("x-all")).toBe("1");
+  });
+
+  it("only GET falls back — other method-scoped rules stay scoped for HEAD", async () => {
+    const app = createApp({ "POST /api/**": { headers: { "x-m": "post" } } });
+    app.get("/api/x", () => "ok");
+    const head = await app.fetch(new Request("http://test/api/x", { method: "HEAD" }));
+    expect(head.headers.get("x-m")).toBeNull();
+  });
+});
+
+describe("method-scoped cors preflight", () => {
+  const preflight = (path: string, method = "PUT") =>
+    new Request(`http://test${path}`, {
+      method: "OPTIONS",
+      headers: {
+        origin: "https://example.com",
+        "access-control-request-method": method,
+      },
+    });
+
+  it("answers a preflight for a cors rule scoped to the requested method", async () => {
+    // The preflight itself is an OPTIONS request, so a `PUT /api/**` cors rule
+    // would never be constructed for it and the browser would fail the actual
+    // request — the rule must be resolved against `access-control-request-method`.
+    const app = createApp({ "PUT /api/**": { cors: { origin: ["https://example.com"] } } });
+    app.put("/api/x", () => "ok");
+    const res = await app.fetch(preflight("/api/x"));
+    expect(res.status).toBe(204);
+    expect(res.headers.get("access-control-allow-origin")).toBe("https://example.com");
+  });
+
+  it("lifts only `cors` from the preflight lookup (never a gate)", async () => {
+    // Browsers send preflights without credentials, so lifting a method-scoped
+    // `basicAuth` (or any other rule) out of that lookup would 401 every
+    // preflight and break CORS entirely.
+    const app = createApp({
+      "PUT /api/**": {
+        cors: { origin: ["https://example.com"] },
+        basicAuth: { username: "u", password: "p" },
+        headers: { "x-lifted": "1" },
+      },
+    });
+    app.put("/api/x", () => "ok");
+    const res = await app.fetch(preflight("/api/x"));
+    expect(res.status).toBe(204);
+    expect(res.headers.get("x-lifted")).toBeNull();
+    // …while the real PUT is still gated.
+    const real = await app.fetch(
+      new Request("http://test/api/x", { method: "PUT", headers: { origin: "https://a" } }),
+    );
+    expect(real.status).toBe(401);
+  });
+
+  it("prefers the requested method's cors policy over an OPTIONS-visible one", async () => {
+    const app = createApp({
+      "/api/**": { cors: { origin: ["https://broad.com"] } },
+      "PUT /api/**": { cors: { origin: ["https://example.com"] } },
+    });
+    app.put("/api/x", () => "ok");
+    const res = await app.fetch(preflight("/api/x"));
+    expect(res.headers.get("access-control-allow-origin")).toBe("https://example.com");
+  });
+
+  it("leaves a plain OPTIONS request (no preflight header) alone", async () => {
+    const app = createApp({ "PUT /api/**": { cors: true } });
+    app.on("OPTIONS", "/api/x", () => "options");
+    const res = await app.fetch(new Request("http://test/api/x", { method: "OPTIONS" }));
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe("options");
+    expect(res.headers.get("access-control-allow-origin")).toBeNull();
+  });
+
+  it("exposes the lifted cors rule on event.context.routeRules", async () => {
+    // The preflight is answered by the cors rule, but a `cors: false` reset on a
+    // more specific pattern must still win for the requested method.
+    const app = createApp({
+      "PUT /api/**": { cors: { origin: ["https://example.com"] } },
+      "PUT /api/off": { cors: false },
+    });
+    app.put("/api/off", () => "ok");
+    const res = await app.fetch(preflight("/api/off"));
+    expect(res.status).not.toBe(204);
+    expect(res.headers.get("access-control-allow-origin")).toBeNull();
+  });
 });
 
 describe("matcher options", () => {
@@ -751,6 +967,23 @@ describe("matcher options", () => {
     const res = await app.fetch(new Request("http://test/base/p/hello"));
     expect(res.status).toBe(200);
     expect(await res.text()).toBe("/api/echo/hello");
+  });
+
+  it("composes baseURL into a *dynamic* wildcard proxy scope base", async () => {
+    // `base` stays rou3 pattern text (`/mount/:tenant/p`), and the effective
+    // base is derived per request from its segment count — so plain prefix
+    // concatenation with `baseURL` must keep the counts adding up (no extra or
+    // missing separator, no normalization of `:`).
+    const app = createApp({ "/:tenant/p/**": { proxy: "/api/echo/**" } }, { baseURL: "/mount" });
+    app.get("/api/echo/**", (event) => event.url.pathname);
+    const res = await app.fetch(new Request("http://test/mount/acme/p/hello"));
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe("/api/echo/hello");
+    // …and traversal out of the mounted, tenant-scoped base is still rejected.
+    const traversal = await app.fetch(
+      new Request("http://test/mount/acme/p/..%2f..%2f..%2fsecret"),
+    );
+    expect(traversal.status).toBe(400);
   });
 
   it("custom handlers extend the registry", async () => {

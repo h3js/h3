@@ -237,6 +237,26 @@ describe("cache rule (ocache-backed, h3/rules/cache)", () => {
     expect(calls).toBe(1);
   });
 
+  it("dispatches the route exactly once for a `headersOnly` cache rule (F12)", async () => {
+    // ocache's `headersOnly` path returns `handler(event)` raw (no `toResponse`),
+    // so a handler with no return value hands back `undefined` — which h3's
+    // `callLayer` reads as unhandled and re-dispatches the whole route.
+    let calls = 0;
+    const app = createApp(
+      { "/cached-headers-only/**": { cache: { headersOnly: true, maxAge: 60 } } },
+      createOcacheRuleHandler(),
+    );
+    app.get("/cached-headers-only/:id", (event) => {
+      calls++;
+      event.res.headers.set("x-calls", String(calls));
+    });
+
+    const res = await app.fetch(new Request("http://test/cached-headers-only/a"));
+    expect(res.status).toBe(200);
+    expect(calls).toBe(1);
+    expect(res.headers.get("x-calls")).toBe("1");
+  });
+
   // NOTE: keep this test last in this describe — the `storage` option mutates
   // ocache's process-global storage (`setStorage`), so it would leak into the
   // default-storage tests above if it ran first.
@@ -333,6 +353,66 @@ describe("cache rule (core defineCachedHandler injection)", () => {
     await app.fetch(new Request("http://test/cached-memo/b"));
     // same rule route + same matched route → single wrap
     expect(defineCachedHandler).toHaveBeenCalledTimes(1);
+  });
+
+  it("runs per-route middleware for cache-matched routes (F1)", async () => {
+    // The cache rule replaces the route dispatch, so it must invoke the route's
+    // composed (middleware + handler) pair, not the bare handler.
+    const seen: string[] = [];
+    const app = createInjectedApp(
+      { "/cached-route-mw/**": { cache: { maxAge: 60 } } },
+      { defineCachedHandler: (handler) => handler },
+    );
+    app.get("/cached-route-mw/:id", () => "ok", {
+      middleware: [
+        (event, next) => {
+          seen.push("route-mw");
+          event.res.headers.set("x-route-mw", "1");
+          return next();
+        },
+      ],
+    });
+
+    const res = await app.fetch(new Request("http://test/cached-route-mw/a"));
+    expect(await res.text()).toBe("ok");
+    expect(seen).toEqual(["route-mw"]);
+    expect(res.headers.get("x-route-mw")).toBe("1");
+  });
+
+  it("wraps same-path routes of different methods separately (F3)", async () => {
+    const defineCachedHandler = vi.fn((handler: EventHandler): EventHandler => handler);
+    const app = createInjectedApp(
+      { "/cached-method/**": { cache: { maxAge: 60 } } },
+      { defineCachedHandler },
+    );
+    app.get("/cached-method/x", () => "get");
+    app.post("/cached-method/x", () => "post");
+
+    const get = await app.fetch(new Request("http://test/cached-method/x"));
+    expect(await get.text()).toBe("get");
+    const post = await app.fetch(new Request("http://test/cached-method/x", { method: "POST" }));
+    expect(await post.text()).toBe("post");
+    expect(defineCachedHandler).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not share wrappers across apps using one handler instance (F3)", async () => {
+    // The `cache` export of `h3/rules/cache` is module-scoped, so a single
+    // handler instance is shared process-wide across apps.
+    const defineCachedHandler = vi.fn((handler: EventHandler): EventHandler => handler);
+    const shared = createCacheRuleHandler({ defineCachedHandler });
+    const config: Record<string, RouteRuleConfig> = {
+      "/cached-apps/**": { cache: { maxAge: 60 } },
+    };
+    const app1 = createApp(config, shared);
+    const app2 = createApp(config, shared);
+    app1.get("/cached-apps/x", () => "one");
+    app2.get("/cached-apps/x", () => "two");
+
+    const first = await app1.fetch(new Request("http://test/cached-apps/x"));
+    expect(await first.text()).toBe("one");
+    const second = await app2.fetch(new Request("http://test/cached-apps/x"));
+    expect(await second.text()).toBe("two");
+    expect(defineCachedHandler).toHaveBeenCalledTimes(2);
   });
 
   it("memoization is instance-scoped, not global", async () => {

@@ -109,6 +109,58 @@ describe("routeRules() middleware", () => {
     expect(seen[3]).toEqual(seen[0]);
   });
 
+  it("merges over an earlier instance's context rules instead of replacing them", async () => {
+    // Two instances (e.g. a framework-level rule set plus an app-level one) must
+    // compose: the second must not erase what the first exposed.
+    const seen: ContextRouteRules[] = [];
+    const app = new H3();
+    app.use(routeRules({ "/api/**": { headers: { "x-first": "1" } } }));
+    app.use(routeRules({ "/api/**": { custom: { a: 1 } } }));
+    app.get("/api/x", (event) => {
+      seen.push(event.context.routeRules!);
+      return "ok";
+    });
+    const res = await app.fetch(new Request("http://test/api/x"));
+    expect(res.headers.get("x-first")).toBe("1");
+    expect(Object.keys(seen[0]!).sort()).toEqual(["custom", "headers"]);
+    // The merged map must be freshly allocated per request, never a mutated
+    // memoized result (both instances memoize by default and share their maps).
+    await app.fetch(new Request("http://test/api/x"));
+    expect(seen[1]).not.toBe(seen[0]);
+    expect(seen[1]).toEqual(seen[0]);
+  });
+
+  it("a second instance that matches nothing keeps the first instance's rules", async () => {
+    const seen: ContextRouteRules[] = [];
+    const app = new H3();
+    app.use(routeRules({ "/api/**": { headers: { "x-first": "1" } } }));
+    app.use(routeRules({ "/other/**": { headers: { "x-second": "2" } } }));
+    app.get("/api/x", (event) => {
+      seen.push(event.context.routeRules!);
+      return "ok";
+    });
+    await app.fetch(new Request("http://test/api/x"));
+    expect(Object.keys(seen[0]!)).toEqual(["headers"]);
+    expect(seen[0]!.headers?.options).toEqual({ "x-first": "1" });
+  });
+
+  it("a later instance wins per rule name", async () => {
+    const seen: ContextRouteRules[] = [];
+    const app = new H3();
+    app.use(routeRules({ "/api/**": { headers: { "x-h": "first" } } }));
+    app.use(routeRules({ "/api/**": { headers: { "x-h": "second" } } }));
+    app.get("/api/x", (event) => {
+      seen.push(event.context.routeRules!);
+      return "ok";
+    });
+    const res = await app.fetch(new Request("http://test/api/x"));
+    expect(seen[0]!.headers?.options).toEqual({ "x-h": "second" });
+    // Both instances still run their own middleware; the `headers` rule applies
+    // after `next()`, so the *outer* (first) instance writes the header last.
+    // Only the context map is merged — rule middleware is not deduplicated.
+    expect(res.headers.get("x-h")).toBe("first");
+  });
+
   it("runs rule middleware sorted by numeric handler order (lower first)", async () => {
     const ran: string[] = [];
     const mk = (name: string, order?: number) => ({

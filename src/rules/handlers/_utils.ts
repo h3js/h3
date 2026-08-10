@@ -15,6 +15,18 @@ export type RuleTargetResolver = (event: H3Event) => string;
 // target can't be read downstream as a protocol-relative `//host` URL.
 const LEADING_SEPARATOR_RUN_RE = /^(?:[/\\]|%(?:25)*(?:2f|5c))+/i;
 
+// Any rou3 pattern syntax that can make a prefix segment dynamic: `:param`,
+// `*`, and the regex/partial/escaped forms (`(`, `\`). Deliberately over-broad
+// — a segment wrongly treated as dynamic still resolves to the request's own
+// (literally matched) segment; only the stricter literal-prefix comparison is
+// traded away.
+const DYNAMIC_PATTERN_RE = /[:*()\\]/;
+
+// A `**` segment inside the prefix has no fixed segment count, so no effective
+// base can be derived from it. Left to the literal comparison below, which
+// rejects (400) — the same outcome as before, never a silent wrong strip.
+const UNCOUNTABLE_PATTERN_RE = /(?:^|\/)\*\*/;
+
 /**
  * Prepare the target resolver for a `redirect`/`proxy` rule, or `undefined`
  * when the rule has no target. Static `to`/`base`-derived work happens once
@@ -25,6 +37,13 @@ const LEADING_SEPARATOR_RUN_RE = /^(?:[/\\]|%(?:25)*(?:2f|5c))+/i;
  * exactly as h3 served it (an encoded `%2f` stays opaque — like nginx
  * `proxy_pass $request_uri`), and the scope check canonicalizes to reject
  * traversal that only surfaces once a downstream decodes that separator.
+ *
+ * `base` is the rule *key* minus `/**` (see {@link RedirectRuleOptions.base}),
+ * i.e. **pattern text** — `/:lang/old` for `/:lang/old/**` — which no request
+ * path can ever equal literally. rou3's `:param`/`*` (and regex/partial params)
+ * each match exactly one segment, so for a dynamic prefix the effective base is
+ * the matched path's own leading segments, taken by count at request time.
+ * A fully static prefix keeps the literal string: faster, and a stricter check.
  *
  * For non-wildcard targets, the raw request query string is forwarded with
  * full fidelity (no URLSearchParams round-trip, which would collapse
@@ -42,6 +61,11 @@ export function prepareRuleTarget(
   if (target.endsWith("/**")) {
     const baseTarget = target.slice(0, -3);
     const base = options?.base;
+    // Segment count of a dynamic pattern prefix (0 = use `base` literally).
+    const baseSegments =
+      base && DYNAMIC_PATTERN_RE.test(base) && !UNCOUNTABLE_PATTERN_RE.test(base)
+        ? countSegments(base)
+        : 0;
     // Target's own base path (`to` minus `/**`), used to scope-check the final forwarded target below.
     let baseTargetPath = getURLPathname(baseTarget);
     if (baseTargetPath.endsWith("/")) {
@@ -49,18 +73,32 @@ export function prepareRuleTarget(
     }
     return (event) => {
       let targetPath = event.url.pathname + event.url.search;
-      if (base) {
-        // Fail closed if the raw path doesn't literally sit under `base` (e.g. an
+      const rawPath = event.url.pathname;
+      // Effective base for this request: the literal prefix, or the path's own
+      // leading segments when the prefix is dynamic.
+      let scopeBase = base;
+      if (baseSegments) {
+        scopeBase = leadingSegments(rawPath, baseSegments);
+        if (scopeBase === undefined) {
+          // Fewer segments than the pattern prefix (unreachable through rou3,
+          // reachable through the matcher's canonical readings) — fail closed.
+          throw new HTTPError({ status: 400 });
+        }
+      }
+      if (scopeBase) {
+        // Fail closed if the raw path doesn't literally sit under `scopeBase` (e.g. an
         // encoded separator or dot-segment makes it canonical-only under base) —
         // it can't be faithfully stripped, so don't forward it unstripped.
-        const rawPath = event.url.pathname;
+        // A derived base satisfies the literal test by construction; `isPathInScope`
+        // carries the weight there, rejecting a path whose canonical readings
+        // disagree with the raw segments the base was taken from.
         if (
-          !isPathInScope(rawPath, base) ||
-          !(rawPath === base || rawPath.startsWith(base + "/"))
+          !isPathInScope(rawPath, scopeBase) ||
+          !(rawPath === scopeBase || rawPath.startsWith(scopeBase + "/"))
         ) {
           throw new HTTPError({ status: 400 });
         }
-        targetPath = withoutBase(targetPath, base);
+        targetPath = withoutBase(targetPath, scopeBase);
       } else {
         // Only the leading position can leak as a protocol-relative `//host` URL;
         // interior separators stay opaque and are forwarded verbatim.
@@ -70,7 +108,7 @@ export function prepareRuleTarget(
       // Re-check scope on the final joined target, not just the incoming path:
       // joinURL collapses empty segments that may have shielded a `..` pre-join,
       // so a `..%2f` can still escape the target's own base post-join.
-      if (!isPathInScope(getURLPathname(resolved), baseTargetPath)) {
+      if (!isFinalTargetInScope(getURLPathname(resolved), baseTargetPath)) {
         throw new HTTPError({ status: 400 });
       }
       return resolved;
@@ -105,4 +143,58 @@ export function resolveRuleTarget(
   options: RedirectRuleOptions | ProxyRuleOptions | undefined,
 ): string | undefined {
   return prepareRuleTarget(options)?.(event);
+}
+
+// ------------------------------------------------------------------------
+// Internal
+// ------------------------------------------------------------------------
+
+/**
+ * Scope check for the **final joined** target path against the target's own
+ * base path — the root-aware counterpart of {@link isPathInScope}.
+ *
+ * With a base path, canonical containment is the whole story. Without one
+ * (`to: "https://internal/**"`, or a bare `to: "/**"`, both of which yield an
+ * empty pathname) the target is an origin root, and `isPathInScope(x, "")`
+ * allows everything **by contract** — which would leave this re-check inert.
+ * A root has exactly one escape: a leading separator *run*, which a
+ * `%2f`-decoding downstream reads as an authority (`//evil.com`) rather than a
+ * path. The base-less forwarding branch collapses such a run before joining,
+ * but the `base` branch cannot — h3's `stripBase` collapses only *literal*
+ * leading slashes, so `/old/%2f%2fevil.com` survives base stripping intact.
+ * Reject it here instead of short-circuiting to allow.
+ */
+function isFinalTargetInScope(pathname: string, baseTargetPath: string): boolean {
+  if (baseTargetPath) {
+    return isPathInScope(pathname, baseTargetPath);
+  }
+  const run = LEADING_SEPARATOR_RUN_RE.exec(pathname);
+  return run === null || run[0] === "/";
+}
+
+/** Number of `/`-delimited segments in a rule pattern prefix (`/:lang/old` → 2). */
+function countSegments(base: string): number {
+  // A prefix without a leading `/` still routes as if it had one (rou3 coerces
+  // it), so its first segment would otherwise go uncounted.
+  let count = base.startsWith("/") ? 0 : 1;
+  for (let i = 0; i < base.length; i++) {
+    if (base[i] === "/") {
+      count++;
+    }
+  }
+  return count;
+}
+
+/** The first `count` segments of `pathname`, or `undefined` when it has fewer. */
+function leadingSegments(pathname: string, count: number): string | undefined {
+  let index = 0;
+  for (let i = 0; i < count; i++) {
+    index = pathname.indexOf("/", index + 1);
+    if (index === -1) {
+      // The last segment runs to the end of the path; anything short of that
+      // means the path cannot cover the pattern prefix.
+      return i === count - 1 ? pathname : undefined;
+    }
+  }
+  return pathname.slice(0, index);
 }

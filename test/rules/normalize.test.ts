@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { parseRouteKey } from "../../src/rules/internal/key.ts";
+import { routeRules } from "../../src/rules/middleware.ts";
 import { normalizeRouteRules } from "../../src/rules/normalize.ts";
-import type { RouteRuleConfig } from "../../src/rules/types.ts";
+import type { BasicAuthRuleOptions, RouteRuleConfig } from "../../src/rules/types.ts";
+import type { CorsOptions } from "../../src/utils/cors.ts";
 import { FIXTURE } from "./_fixture.ts";
 
 // Ported verbatim from Nitro test/unit/route-rules.test.ts
@@ -207,6 +209,19 @@ describe("normalizeRouteRules - cors", () => {
       expect(rules["/api/**"]!.cors).toEqual({ credentials: true, origin: "null" });
     });
 
+    it("throws on credentials: true with a falsy *defined* origin", () => {
+      // h3 emits `Access-Control-Allow-Origin: *` whenever `!originOption`, not
+      // only when it is `undefined` — so `null`/`""` are wildcards too and must
+      // be rejected here, or the credentialed-wildcard pair ships anyway.
+      for (const origin of [null, "", 0]) {
+        expect(() =>
+          normalizeRouteRules({
+            "/api/**": { cors: { credentials: true, origin } as CorsOptions },
+          }),
+        ).toThrow(/`cors` rule for `\/api\/\*\*`.*wildcard origin/);
+      }
+    });
+
     it("does not throw without credentials (wildcard origin alone is fine)", () => {
       const rules = normalizeRouteRules({
         "/api/**": { cors: { origin: "*" } },
@@ -251,6 +266,31 @@ describe("route key parsing", () => {
   it("treats keys without a method prefix as all-methods", () => {
     expect(parseRouteKey("/api/**")).toEqual({ method: "", path: "/api/**" });
     expect(parseRouteKey("api/**")).toEqual({ method: "", path: "/api/**" });
+  });
+
+  it("parses every method h3 itself routes, including QUERY", () => {
+    // The recognized set must track h3's `HTTPMethod` (src/types/h3.ts) — a
+    // method h3 can route but the key parser does not know silently degrades
+    // into a literal path containing a space, which can never match.
+    for (const method of [
+      "GET",
+      "HEAD",
+      "POST",
+      "PUT",
+      "PATCH",
+      "DELETE",
+      "OPTIONS",
+      "CONNECT",
+      "TRACE",
+      "QUERY",
+    ]) {
+      expect(parseRouteKey(`${method} /s`)).toEqual({ method, path: "/s" });
+    }
+  });
+
+  it("re-keys a QUERY rule canonically instead of making it a literal path", () => {
+    const rules = normalizeRouteRules({ "query /search/**": { headers: { a: "1" } } });
+    expect(Object.keys(rules)).toEqual(["QUERY /search/**"]);
   });
 
   it("does not treat non-method tokens as methods", () => {
@@ -356,4 +396,108 @@ describe("normalizeRouteRules - reserved rule names rejected", () => {
       expect(Object.hasOwn(Object.prototype, "polluted")).toBe(false);
     });
   }
+});
+
+// D3: `false` is the *only* reset marker. Any other falsy value for a built-in
+// rule is a config mistake — normalization would otherwise silently drop the
+// rule, or hand a handler falsy options it cannot act on (`basicAuth` failed
+// *open* on exactly this shape).
+describe("normalizeRouteRules - falsy rule values rejected", () => {
+  it("throws on `basicAuth: null` (only `false` disables a rule)", () => {
+    expect(() =>
+      normalizeRouteRules({ "/admin/**": { basicAuth: null as unknown as false } }),
+    ).toThrow(/`basicAuth` rule for `\/admin\/\*\*`/);
+  });
+
+  it("throws on every falsy non-`false` value, for every built-in rule", () => {
+    for (const name of ["cache", "headers", "redirect", "proxy", "basicAuth", "cors"]) {
+      for (const value of [null, "", 0, Number.NaN]) {
+        expect(() => normalizeRouteRules({ "/x": { [name]: value } as RouteRuleConfig })).toThrow(
+          new RegExp(`\\\`${name}\\\` rule for \\\`/x\\\``),
+        );
+      }
+    }
+  });
+
+  it("points at `false` as the way to disable an inherited rule", () => {
+    expect(() => normalizeRouteRules({ "get /x": { redirect: null as unknown as false } })).toThrow(
+      /`redirect` rule for `GET \/x`.*use `false` to disable/,
+    );
+  });
+
+  it("keeps `false` itself as a reset marker", () => {
+    const rules = normalizeRouteRules({
+      "/x": { redirect: false, proxy: false, cors: false, cache: false, basicAuth: false },
+    });
+    expect(rules["/x"]).toEqual({
+      redirect: false,
+      proxy: false,
+      cors: false,
+      cache: false,
+      basicAuth: false,
+    });
+  });
+
+  it("keeps `swr: 0` (a real value: serve stale, revalidate immediately)", () => {
+    expect(normalizeRouteRules({ "/x": { swr: 0 } })["/x"]!.cache).toMatchObject({
+      swr: true,
+      maxAge: 0,
+    });
+    expect(() => normalizeRouteRules({ "/x": { swr: null as unknown as false } })).toThrow(
+      /`swr` rule for `\/x`/,
+    );
+  });
+
+  it("leaves custom/data-only keys alone (`null` is legitimate data there)", () => {
+    const rules = normalizeRouteRules({ "/x": { custom: null, isr: 0, tags: "" } });
+    expect(rules["/x"]).toEqual({ custom: null, isr: 0, tags: "" });
+  });
+
+  it("rejects at app setup through `routeRules()`", () => {
+    expect(() => routeRules({ "/admin/**": { basicAuth: null as unknown as false } })).toThrow(
+      /`basicAuth` rule for `\/admin\/\*\*`/,
+    );
+  });
+});
+
+// F13 config half: `validate` is deliberately not a rule option, so `password`
+// is the only credential a rule can carry. Without it `requireBasicAuth` throws
+// a 500 on every request to the guarded route — catch it once, at config time.
+describe("normalizeRouteRules - basicAuth requires a password", () => {
+  it("throws when a basicAuth rule has no password", () => {
+    expect(() =>
+      normalizeRouteRules({
+        "/admin/**": { basicAuth: { username: "admin" } as unknown as BasicAuthRuleOptions },
+      }),
+    ).toThrow(/`basicAuth` rule for `\/admin\/\*\*`.*`password`/);
+  });
+
+  it("throws on an empty-string password (h3 rejects it at runtime too)", () => {
+    expect(() => normalizeRouteRules({ "/admin/**": { basicAuth: { password: "" } } })).toThrow(
+      /`password`/,
+    );
+  });
+
+  it("names the required shape", () => {
+    expect(() => normalizeRouteRules({ "GET /a": { basicAuth: { realm: "x" } as never } })).toThrow(
+      /`basicAuth` rule for `GET \/a`.*\{ password/,
+    );
+  });
+
+  it("passes with a password and keeps the options untouched", () => {
+    const rules = normalizeRouteRules({
+      "/admin/**": { basicAuth: { username: "admin", password: "s3cret", realm: "Secure" } },
+    });
+    expect(rules["/admin/**"]!.basicAuth).toEqual({
+      username: "admin",
+      password: "s3cret",
+      realm: "Secure",
+    });
+  });
+
+  it("leaves `basicAuth: false` alone (reset marker, no credential needed)", () => {
+    expect(normalizeRouteRules({ "/admin/**": { basicAuth: false } })["/admin/**"]!.basicAuth).toBe(
+      false,
+    );
+  });
 });

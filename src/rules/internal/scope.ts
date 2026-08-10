@@ -75,11 +75,21 @@ export function mergedCanonicalPath(pathname: string, canonical: string): string
 /**
  * Whether `pathname` stays within `base` once canonicalized. Security-critical:
  * an encoded traversal like `..%2f` must not escape a `/**` proxy/redirect scope
- * once a downstream decodes it. Empty base allows everything.
+ * once a downstream decodes it.
  *
  * Fails closed under both readings — h3's canonical form (preserves empty `//`
  * segments) and the slash-merged form — since a `..` next to an empty segment is
  * in-scope under one but a traversal under the other.
+ *
+ * **Empty base allows everything, by contract** — there is no scope to escape.
+ * That makes it useless as a *check*: a caller validating a forwarded target
+ * whose base may be empty (an origin-root `to: "https://internal/**"`, or a bare
+ * `to: "/**"`) gets an unconditional `true` and no validation at all. Such
+ * callers must handle the root case explicitly instead of relying on this —
+ * see `isFinalTargetInScope` in `../handlers/_utils.ts`, which rejects the one
+ * escape a root still has (a leading separator run a decoding downstream reads
+ * as an authority). Do not "fix" this by failing closed here: the empty-base
+ * allow is load-bearing for the callers that pass a genuinely unscoped base.
  */
 export function isPathInScope(pathname: string, base: string): boolean {
   if (!base) {

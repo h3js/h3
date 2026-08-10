@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
+import { resolveRuleTarget } from "../../src/rules/handlers/_utils.ts";
 import {
   canonicalPath,
   isPathInScope,
   mergedCanonicalPath,
   needsCanonicalPasses,
 } from "../../src/rules/internal/scope.ts";
+import { normalizeRouteRules } from "../../src/rules/normalize.ts";
+import type { RedirectRuleOptions } from "../../src/rules/types.ts";
 
 // An encoded traversal like `..%2f` must
 // not let a request escape a `/**` proxy/redirect scope once the downstream
@@ -268,5 +271,117 @@ describe("mergedCanonicalPath / needsCanonicalPasses", () => {
         );
       }
     }
+  });
+});
+
+// The `/**` rule target resolver's scope handling. `base` is the rule *key*
+// minus `/**`, i.e. pattern text — so it may carry rou3 dynamic segments that
+// can never equal a request path literally.
+describe("rule target scope (prepareRuleTarget)", () => {
+  const evt = (raw: string) =>
+    ({ url: new URL("http://localhost" + raw) }) as Parameters<typeof resolveRuleTarget>[0];
+  const resolve = (raw: string, options: RedirectRuleOptions) =>
+    resolveRuleTarget(evt(raw), options);
+  const blocked = (raw: string, options: RedirectRuleOptions) => {
+    try {
+      resolve(raw, options);
+    } catch (error: any) {
+      if (error?.status === 400) {
+        return true;
+      }
+      throw error; // surface unexpected failures instead of reporting "not blocked"
+    }
+    return false;
+  };
+  // Go through normalization so the `base` under test is the one the runtime
+  // actually receives, not a hand-written stand-in.
+  const rule = (key: string, to: string): RedirectRuleOptions =>
+    normalizeRouteRules({ [key]: { redirect: to } })[key]!.redirect as RedirectRuleOptions;
+
+  describe("dynamic pattern prefix", () => {
+    it("strips a `:param` prefix using the request's own leading segments", () => {
+      const options = rule("/:lang/old/**", "/new/**");
+      expect(options.base).toBe("/:lang/old");
+      expect(resolve("/en/old/docs", options)).toBe("/new/docs");
+      expect(resolve("/fr/old/a/b", options)).toBe("/new/a/b");
+      expect(resolve("/en/old/docs?x=1", options)).toBe("/new/docs?x=1");
+    });
+
+    it("strips a `*` prefix segment", () => {
+      const options = rule("/*/old/**", "/new/**");
+      expect(resolve("/en/old/docs", options)).toBe("/new/docs");
+    });
+
+    it("resolves an empty tail without emitting an empty target", () => {
+      const options = rule("/:lang/old/**", "/new/**");
+      expect(resolve("/en/old", options)).toBe("/new");
+      expect(resolve("/en/old/", options)).toBe("/new");
+    });
+
+    it("keeps the literal fast path for a fully static prefix", () => {
+      const options = rule("/old/**", "/new/**");
+      expect(options.base).toBe("/old");
+      expect(resolve("/old/docs", options)).toBe("/new/docs");
+      // a static base is still compared literally: a path only *canonically*
+      // under it cannot be faithfully stripped
+      expect(blocked("/old%2fdocs", options)).toBe(true);
+    });
+
+    it("still rejects traversal out of a dynamically derived base", () => {
+      const options = rule("/:lang/old/**", "/new/**");
+      expect(blocked("/en/old/..%2f..%2fadmin", options)).toBe(true);
+      expect(blocked("/en/old/a//..%2f..%2fc", options)).toBe(true);
+      expect(blocked("/en/old/../../admin", options)).toBe(true);
+    });
+
+    it("rejects an encoded separator inside the dynamic segment itself", () => {
+      // The derived base is taken from the raw path, so a `%2f` in the matched
+      // segment makes the two canonical readings disagree with it — fail closed
+      // rather than forward a base that decodes to something else.
+      const options = rule("/:lang/old/**", "/new/**");
+      expect(blocked("/e%2fn/old/x", options)).toBe(true);
+    });
+
+    it("rejects a path with fewer segments than the pattern prefix", () => {
+      const options = rule("/:lang/old/**", "/new/**");
+      expect(blocked("/en", options)).toBe(true);
+    });
+
+    it("composes a matcher baseURL prefix (segment counts add)", () => {
+      // `createRulesRouter` composes `baseURL + base`; the derived base must
+      // then cover the mount prefix as well.
+      const options = { ...rule("/:lang/old/**", "/new/**"), base: "/mount/:lang/old" };
+      expect(resolve("/mount/en/old/docs", options)).toBe("/new/docs");
+      // traversal out of the mounted scope still fails closed
+      expect(blocked("/mount/en/old/..%2f..%2f..%2fsecret", options)).toBe(true);
+      // a path too short to cover the composed prefix cannot be stripped
+      expect(blocked("/mount/en", options)).toBe(true);
+    });
+  });
+
+  describe("origin-root target (empty target base)", () => {
+    // `isPathInScope(x, "")` allows everything by contract, so the post-join
+    // re-check is inert for a target rooted at an origin (`to: "https://internal/**"`,
+    // or a bare `/**`). The root has exactly one escape: a leading separator
+    // *run*, which a `%2f`-decoding downstream reads as an authority
+    // (`//evil.com`). h3's `stripBase` collapses only *literal* leading
+    // slashes, so the encoded form survives base stripping and must be rejected.
+    it("rejects a leading encoded separator run after base stripping", () => {
+      expect(blocked("/old/%2f%2fevil.com", { to: "/**", base: "/old", status: 307 })).toBe(true);
+      expect(
+        blocked("/api/%2f%2fevil.com", { to: "https://internal/**", base: "/api", status: 307 }),
+      ).toBe(true);
+      expect(blocked("/old/%5c%5cevil.com", { to: "/**", base: "/old", status: 307 })).toBe(true);
+      expect(blocked("/old/%252f%252fevil.com", { to: "/**", base: "/old", status: 307 })).toBe(
+        true,
+      );
+    });
+
+    it("still forwards a benign leading slash and interior encoded separators", () => {
+      const options: RedirectRuleOptions = { to: "/**", base: "/old", status: 307 };
+      expect(resolve("/old/a%2fb", options)).toBe("/a%2fb");
+      expect(resolve("/old//evil.com", options)).toBe("/evil.com");
+      expect(resolve("/old/docs", options)).toBe("/docs");
+    });
   });
 });

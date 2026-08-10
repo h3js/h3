@@ -1,6 +1,9 @@
 import { withLeadingSlash } from "../../utils/internal/path.ts";
 
 // Recognized method tokens for the optional `"METHOD /path"` key prefix; anything else is a plain path.
+// Must stay in sync with h3's `HTTPMethod` (src/types/h3.ts): a method h3 can
+// route but this set omits degrades into a literal path containing a space,
+// which never matches a request.
 const HTTP_METHODS = new Set([
   "GET",
   "HEAD",
@@ -11,6 +14,7 @@ const HTTP_METHODS = new Set([
   "OPTIONS",
   "CONNECT",
   "TRACE",
+  "QUERY",
 ]);
 
 const METHOD_KEY_RE = /^([A-Za-z]+)\s+(\/.*)$/;

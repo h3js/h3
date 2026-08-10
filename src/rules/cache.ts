@@ -136,7 +136,11 @@ export function createOcacheRuleHandler(opts?: OcacheRuleHandlerOptions): RuleHa
  * Shared default ocache-backed `cache` rule handler — the named export
  * compiled matchers import (`import { cache } from "h3/rules/cache"`, the
  * `DEFAULT_RUNTIME_RULES` source for `cache`), so its memoization is
- * module-scoped. Runtime matchers register it explicitly
+ * module-scoped — shared by every app in the process. Wrappers are keyed by
+ * route handler identity, so two apps never resolve to each other's wrapper;
+ * they do still share an ocache storage key when their rule pattern *and*
+ * matched route are identical (the entry's per-handler `integrity` invalidates
+ * it rather than serving the other app's body). Runtime matchers register it explicitly
  * (`handlers: { cache }`); for custom wiring point `runtimeRules`
  * (`{ cache: "#your/cache" }`) / `handlers` at your own instance instead.
  */
