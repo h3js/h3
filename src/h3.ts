@@ -73,9 +73,15 @@ function checkRequestURL(event: H3Event, config: H3CoreConfig): Response | undef
   }
   // 308 (not 301/302) so the method and body of the replayed request are
   // preserved. The target is canonical by construction, so this cannot loop.
+  //
+  // The leading slash run is collapsed like everywhere else h3 builds a path
+  // (see `stripBase`): a `//evil.com/...` target is a protocol-relative URL, so
+  // emitting it verbatim would turn this canonical redirect into an open
+  // redirect — the bug class behind serve-static's CVE-2015-1164.
+  const location = canonicalPathname(pathname).replace(/^\/+/, "/");
   return new Response(null, {
     status: 308,
-    headers: { location: canonicalPathname(pathname) + event.url.search },
+    headers: { location: location + event.url.search },
   });
 }
 

@@ -167,6 +167,24 @@ describeMatrix("security: canonical pathname redirect", (ctx, { it, expect }) =>
   }
 });
 
+// A protocol-relative `Location` would send the client to another origin. Not a
+// matrix test: `ctx.fetch` resolves the path against the test server's URL,
+// which swallows the leading `//` before it can reach the app.
+describe("security: canonical redirect location", () => {
+  it("is never protocol-relative", async () => {
+    const app = new H3().all("/**", () => "ok");
+    for (const [path, location] of [
+      ["//evil.com/%61", "/evil.com/a"],
+      ["///evil.com/%61", "/evil.com/a"],
+      ["//%61", "/a"],
+    ]) {
+      const res = await app.request(path!);
+      expect(res.status).toBe(308);
+      expect(res.headers.get("location")).toBe(location);
+    }
+  });
+});
+
 describe("security: allowNonCanonicalURL opt-in", () => {
   it("dispatches the raw pathname when enabled", async () => {
     const app = new H3({ allowNonCanonicalURL: true });
