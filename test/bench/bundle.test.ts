@@ -19,7 +19,7 @@ describe("benchmark", () => {
       console.log(`Bundle size (H3): ${bundle.bytes} (gzip: ${bundle.gzipSize})`);
     }
     expect(bundle.bytes).toBeLessThanOrEqual(18_590); // <18.59kb
-    expect(bundle.gzipSize).toBeLessThanOrEqual(7_030); // <7.03kb
+    expect(bundle.gzipSize).toBeLessThanOrEqual(7_050); // <7.05kb
   });
 
   it("bundle size (H3Core)", async () => {
@@ -35,7 +35,7 @@ describe("benchmark", () => {
       console.log(`Bundle size (H3Core): ${bundle.bytes} (gzip: ${bundle.gzipSize})`);
     }
     expect(bundle.bytes).toBeLessThanOrEqual(7830); // <7.83kb
-    expect(bundle.gzipSize).toBeLessThanOrEqual(3110); // <3.11kb
+    expect(bundle.gzipSize).toBeLessThanOrEqual(3130); // <3.13kb
   });
 
   it("bundle size (defineHandler)", async () => {

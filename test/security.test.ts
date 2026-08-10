@@ -1,6 +1,6 @@
 import { beforeEach, describe, it, expect } from "vitest";
 import { describeMatrix } from "./_setup.ts";
-import { H3, defineHandler, mockEvent } from "../src/index.ts";
+import { H3, defineHandler, mockEvent, serveStatic } from "../src/index.ts";
 
 describeMatrix("security: path encoding bypass", (ctx, { it, expect }) => {
   beforeEach(() => {
@@ -150,13 +150,32 @@ describeMatrix("security: pathname canonicalization", (ctx, { it, expect }) => {
     expect((await res.json()).path).toBe("/a/a");
   });
 
-  // Everything that is not an unreserved escape is opaque: no consumer can read
-  // it as a different segment, so it reaches the handler exactly as it arrived.
+  // Everything that is not a needless escape is opaque: no consumer can read it
+  // as a different segment, so it reaches the handler exactly as it arrived.
   for (const path of ["/a%2Fb", "/a%5Cb", "/a%20b", "/caf%C3%A9", "/a%2541", "/a%09b", "/a%3Ab"]) {
     it(`serves ${path} unchanged`, async () => {
       const res = await ctx.fetch(path);
       expect(res.status).toBe(200);
       expect(await res.json()).toMatchObject({ path, reqPath: path });
+    });
+  }
+
+  // Not unreserved, but `decodeURI` collapses them and the URL serializer keeps
+  // the literal — so a decoding consumer (`serveStatic`'s on-disk peel, a proxy,
+  // `decodeURIComponent` in a handler) reads the escape and the literal as one
+  // resource. Leaving them encoded would reopen the bypass for any guard whose
+  // prefix contains one.
+  for (const [path, canonical] of [
+    ["/a%21b", "/a!b"],
+    ["/a%27b", "/a'b"],
+    ["/a%28b%29c", "/a(b)c"],
+    ["/a%2Ab", "/a*b"],
+    ["/a%5Bb%5Dc", "/a[b]c"],
+    ["/a%7Cb", "/a|b"],
+  ]) {
+    it(`canonicalizes ${path} to ${canonical}`, async () => {
+      const res = await ctx.fetch(path!);
+      expect(await res.json()).toMatchObject({ path: canonical, reqPath: path });
     });
   }
 
@@ -211,6 +230,35 @@ describe("security: canonicalization covers directly built events", () => {
     expect(mockEvent("/%61dmin").url.pathname).toBe("/admin");
     expect(mockEvent("/a%2Fb").url.pathname).toBe("/a%2Fb");
   });
+});
+
+// `serveStatic` peels the path with `decodeURI` for the on-disk lookup, so it is
+// itself a decoding consumer: any escape it collapses but canonicalization does
+// not is a guard bypass, since the guard matched the encoded form and the disk
+// lookup resolves the decoded one.
+describe("security: a guard cannot be bypassed by an escape serveStatic decodes", () => {
+  for (const [guarded, encoded] of [
+    ["/a!b", "/a%21b"],
+    ["/a'b", "/a%27b"],
+    ["/a*b", "/a%2Ab"],
+    ["/a[0]", "/a%5B0%5D"],
+    ["/a|b", "/a%7Cb"],
+    ["/%61dmin", "/%61dmin"],
+  ]) {
+    it(`blocks ${encoded} behind a ${guarded}/** guard`, async () => {
+      const app = new H3();
+      app.use(`${decodeURI(guarded!)}/**`, () => new Response("blocked", { status: 403 }));
+      app.all("/**", (event) =>
+        serveStatic(event, {
+          getMeta: (id) =>
+            id === `${decodeURI(guarded!)}/secret.txt` ? { size: 6, mtime: 0 } : undefined,
+          getContents: () => "secret",
+        }),
+      );
+      const res = await app.request(`${encoded}/secret.txt`);
+      expect(res.status).toBe(403);
+    });
+  }
 });
 
 describe("security: allowMalformedURL opt-in", () => {
