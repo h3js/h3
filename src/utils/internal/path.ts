@@ -59,23 +59,36 @@ export function getPathname(path: string = "/"): string {
 // an `/admin` guard — so such a path is decoded to its canonical form before
 // anything can match on it.
 //
-// The set is exactly the escapes whose decoded character survives WHATWG path
-// serialization unchanged, minus `%25`:
+// The set is exactly the escapes `decodeURI` decodes whose character the WHATWG
+// path serializer then keeps literal — i.e. the escapes the old decode-then
+// -reparse pass visibly collapsed, so this stays byte-for-byte on them. Derive
+// any change to the pattern from those two, not from the listing below:
 //
 // - RFC 3986 §2.3 unreserved (ALPHA / DIGIT / `-` / `.` / `_` / `~`), equivalent
 //   to their literals per §6.2.2.2.
-// - The sub-delims and gen-delims the serializer keeps literal: `!`, `'`, `(`,
-//   `)`, `*`, `[`, `]`, `|`. Not §6.2.2.2-equivalent, but every decoding consumer
-//   collapses them all the same, so leaving them encoded reopens the bypass for
-//   any guard whose prefix contains one.
-// - NOT `%25`: decoding it would turn `%252f` into a decodable `%2f`, handing a
-//   double-decoding downstream the separator this whole pass exists to withhold.
+// - The sub-delims and gen-delims left in both: `!`, `'`, `(`, `)`, `*`, `[`,
+//   `]`, `|`. Not §6.2.2.2-equivalent, but every decoding consumer collapses
+//   them all the same, so leaving them encoded reopens the bypass for any guard
+//   whose prefix contains one.
 //
-// Everything else is deliberately left alone. `%2F`/`%5C` are structural (a
-// `:param` must never gain a separator the router did not match on); `%09` and
-// friends would be *deleted* by the URL parser rather than decoded; and `%20`,
-// `%5E`, `%7B`, non-ASCII and the rest are re-encoded by the serializer on the
-// way back, so decoding them cannot change what anything matches.
+// Everything else is deliberately left alone, for one of three reasons:
+//
+// - The serializer would not keep the character: `%20`, `%5E`, `%7B`, `%5C` and
+//   non-ASCII are re-encoded on the way back, and `%09`/`%0A`/`%0D` and the
+//   other C0 controls would be *deleted* outright. `%2F`/`%5C` are structural
+//   anyway — a `:param` must never gain a separator the router did not match on.
+// - `decodeURI` does not decode it: `%24`, `%26`, `%2B`, `%2C`, `%3A`, `%3B`,
+//   `%3D`, `%40` all survive serialization literally, so they are *not* excluded
+//   for a reason of their own — they stay encoded only to keep parity with the
+//   pass this replaced. A guard whose prefix contains one of those characters is
+//   therefore still bypassable by its escape (`/%40admin` vs a `/@admin` guard)
+//   for a consumer that decodes with `decodeURIComponent` rather than
+//   `decodeURI`. Widening the set here would close that, at the cost of
+//   diverging from what h3 has always dispatched.
+// - `%25`: decoding it would turn `%252f` into a decodable `%2f`, handing a
+//   double-decoding downstream the separator this whole pass exists to withhold.
+//   (`decodeURI` already leaves it, so this is a property of the set, not an
+//   extra carve-out.)
 const NEEDLESS_ESCAPE_SRC = String.raw`%(?:2[1789ADE]|3[0-9]|4[1-9A-F]|5[0-9ABDF]|6[1-9A-F]|7[0-9ACE])`;
 const NEEDLESS_ESCAPE_RE = /* @__PURE__ */ new RegExp(NEEDLESS_ESCAPE_SRC, "i");
 const NEEDLESS_ESCAPE_RE_G = /* @__PURE__ */ new RegExp(NEEDLESS_ESCAPE_SRC, "gi");

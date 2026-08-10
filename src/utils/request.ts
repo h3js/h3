@@ -201,10 +201,12 @@ export function getRouterParams(
 }
 
 // Percent-encoded path separators (`%2f` → `/`, `%5c` → `\`) at any `%25`-nesting
-// depth (`%2f`, `%252f`, ...). Whatever reaches a param is still in its wire form:
-// h3 never decodes the pathname, so route matching and any pathname-based
-// middleware only ever saw the matched param as one opaque, still-encoded segment
-// (a `:id` capture can never hold a raw separator).
+// depth (`%2f`, `%252f`, ...). A separator reaches a param in its wire form:
+// pathname canonicalization decodes only needless escapes and never a separator,
+// so route matching and any pathname-based middleware only ever saw the matched
+// param as one opaque, still-encoded segment (a `:id` capture can never hold a
+// raw separator). `%25`-nested forms are covered because `%25` is not decoded
+// either — and canonicalization can itself *produce* one, from `%25%32%66`.
 const ENCODED_SEP_RE_G = /%(?:25)*(?:2f|5c)/gi;
 
 /**

@@ -434,8 +434,8 @@ describe("serve static (malformed url)", () => {
     // `/..\..\windows\win.ini` — a traversal above the root on backslash-aware
     // (e.g. Windows) filesystem backends. It is neutralized because serveStatic
     // re-resolves dot segments *after* that decode. The event layer cannot help
-    // here: it never rewrites `event.url.pathname`, so `%5c` reaches serveStatic
-    // in its wire form.
+    // here: canonicalization never decodes a separator (and is skipped entirely
+    // for a malformed path), so `%5c` reaches serveStatic in its wire form.
     let servedId: string | undefined;
     const app = new H3({ allowMalformedURL: true }).all("/**", (event) =>
       serveStatic(event, {
