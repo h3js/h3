@@ -220,7 +220,7 @@ export const H3 = /* @__PURE__ */ (() => {
       } else {
         const fetchHandler = "fetch" in input ? input.fetch : input;
         this.all(`${base}/**`, function _mountedMiddleware(event) {
-          return fetchHandler(requestWithBaseURL(event.req, base, event.url));
+          return fetchHandler(requestWithBaseURL(event.req, base, { url: event.url }));
         });
       }
       return this;

@@ -33,15 +33,21 @@ export function requestWithURL(req: ServerRequest, url: string): ServerRequest {
 
 /**
  * Create a lightweight request proxy with the base path stripped from the URL pathname.
+ *
+ * `options.url` is the parsed request URL to strip `base` from, in place of
+ * parsing `req.url`. Pass `event.url` whenever there is an event: for a
+ * non-canonical path it holds the canonicalized form the parent matched `base`
+ * against, while `req.url` still holds the wire form, and slicing one by an
+ * offset derived from the other is how mount prefixes desync.
  */
-export function requestWithBaseURL(req: ServerRequest, base: string, reqURL?: URL): ServerRequest {
+export function requestWithBaseURL(
+  req: ServerRequest,
+  base: string,
+  options: { url?: URL } = {},
+): ServerRequest {
   // Strip only, never decode: the mounted handler must receive the same
-  // representation the parent app routed on. Pass `event.url` as `reqURL` when
-  // there is one — for a non-canonical path it holds the canonicalized form the
-  // parent matched `base` against, while `req.url` still holds the wire form,
-  // and slicing one by an offset derived from the other is how mount prefixes
-  // desync.
-  const url = new URL(reqURL || req.url);
+  // representation the parent app routed on.
+  const url = new URL(options.url || req.url);
   url.pathname = stripBase(url.pathname, base);
   return requestWithURL(req, url.href);
 }
