@@ -77,7 +77,7 @@ importers:
         version: 'link:'
       h3-nightly:
         specifier: latest
-        version: 2.0.0-20260724-181945-6ebd459(crossws@0.4.10(srvx@0.12.4))
+        version: 2.0.0-20260810-070940-82bee3b(crossws@0.4.10(srvx@0.12.4))
       happy-dom:
         specifier: ^20.11.1
         version: 20.11.1
@@ -99,6 +99,9 @@ importers:
       obuild:
         specifier: ^0.4.38
         version: 0.4.38(@typescript/native-preview@7.0.0-dev.20260707.2)(chokidar@5.0.0)(dotenv@17.4.2)(giget@3.3.0)(jiti@2.7.0)(magicast@0.5.3)(typescript@7.0.2)
+      ocache:
+        specifier: ^0.2.0
+        version: 0.2.0
       oxc-parser:
         specifier: '>=0.140.0'
         version: 0.141.0
@@ -131,7 +134,7 @@ importers:
     dependencies:
       h3:
         specifier: latest
-        version: 2.0.1-rc.25(crossws@0.4.10(srvx@0.12.4))
+        version: 2.0.1-rc.26(crossws@0.4.10(srvx@0.12.4))
 
   playground:
     dependencies:
@@ -1781,8 +1784,8 @@ packages:
     resolution: {integrity: sha512-ZUKRh6/kUFoAiTAtTYPZJ3hw9wNxx+BIBOijnlG9PnrJsCcSjs1wyyD6vJpaYtgnzDrKYRSqf3OO6Rfa93xsRg==}
     engines: {node: '>= 0.4'}
 
-  h3-nightly@2.0.0-20260724-181945-6ebd459:
-    resolution: {integrity: sha512-BGOJ8cFJvSNiAtRkxbVqnkDgEXosxUbWw+QpVNpGt4xWbyBSfBX7JwyHjaK6KsFbSPgOwcjJ+rK3rw3ZY6ux+w==}
+  h3-nightly@2.0.0-20260810-070940-82bee3b:
+    resolution: {integrity: sha512-H/zVojhyDeo4M4qmqpHGoMCFaF/ozBusKh6jNtRWjfqBvQIed+xTCPE7fAmCZiC2XHve/ik8pCVqUbr33kPLVA==}
     engines: {node: '>=20.11.1'}
     hasBin: true
     peerDependencies:
@@ -1793,6 +1796,16 @@ packages:
 
   h3@2.0.1-rc.25:
     resolution: {integrity: sha512-uIK++Up28xDt4n0+bSWfVssRivNXpUmMmA6CCiK6j9+utLcBMcFK97Gn9PlSZwAPW9oLy3CjGJ4ag40CY9YYtQ==}
+    engines: {node: '>=20.11.1'}
+    hasBin: true
+    peerDependencies:
+      crossws: ^0.4.9
+    peerDependenciesMeta:
+      crossws:
+        optional: true
+
+  h3@2.0.1-rc.26:
+    resolution: {integrity: sha512-GDxlvDsKxgjRvG5UBRJYyGJTMWLV30CJ4cV+e7QCTgftDHihrvio1fVPbNembhEr6J4WNm8IWy3fookgyTweLw==}
     engines: {node: '>=20.11.1'}
     hasBin: true
     peerDependencies:
@@ -2061,6 +2074,9 @@ packages:
   obuild@0.4.38:
     resolution: {integrity: sha512-82uy8eU+qmdtWkKlJb/jE47caBGMAGO3CrZVwGmc0Mn63hwc5Z4Fb82nBY7lwPzc44Dmv2eMBVuvnESdqHFT6Q==}
     hasBin: true
+
+  ocache@0.2.0:
+    resolution: {integrity: sha512-QE+SxXf/A8yR01rEOg2X5KwUe+mARHo1xQXl+iwLMzLIH06S5lBOZhhHQWp7T5etfFa8nOnRhvjGuo9YBCWwig==}
 
   ofetch@1.5.1:
     resolution: {integrity: sha512-2W4oUZlVaqAPAil6FUg/difl6YhqhUR7x2eZY4bQCko22UXg3hptq9KLQdqFClV+Wu85UX7hNtdGTngi/1BxcA==}
@@ -3692,7 +3708,7 @@ snapshots:
 
   gopd@1.2.0: {}
 
-  h3-nightly@2.0.0-20260724-181945-6ebd459(crossws@0.4.10(srvx@0.12.4)):
+  h3-nightly@2.0.0-20260810-070940-82bee3b(crossws@0.4.10(srvx@0.12.4)):
     dependencies:
       rou3: 0.9.1
       srvx: 0.12.4
@@ -3703,6 +3719,13 @@ snapshots:
     dependencies:
       rou3: 0.9.1
       srvx: 0.11.22
+    optionalDependencies:
+      crossws: 0.4.10(srvx@0.12.4)
+
+  h3@2.0.1-rc.26(crossws@0.4.10(srvx@0.12.4)):
+    dependencies:
+      rou3: 0.9.1
+      srvx: 0.12.4
     optionalDependencies:
       crossws: 0.4.10(srvx@0.12.4)
 
@@ -3936,6 +3959,10 @@ snapshots:
       - oxc-resolver
       - typescript
       - vue-tsc
+
+  ocache@0.2.0:
+    dependencies:
+      ohash: 2.0.11
 
   ofetch@1.5.1:
     dependencies:
