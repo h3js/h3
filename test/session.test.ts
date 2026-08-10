@@ -1,6 +1,6 @@
 import type { SessionConfig } from "../src/utils/session.ts";
 import { beforeEach, vi } from "vitest";
-import { useSession, clearSession, readBody, H3 } from "../src/index.ts";
+import { useSession, clearSession, readBody, H3, HTTPError } from "../src/index.ts";
 import { seal, unseal, defaults as sealDefaults } from "../src/utils/internal/iron-crypto.ts";
 import { describeMatrix } from "./_setup.ts";
 
@@ -321,7 +321,7 @@ describeMatrix("session", (t, { it, expect }) => {
       const setCookie = res1.headers.getSetCookie().find((c) => c.startsWith("h3-idleh="))!;
       const sealed = decodeURIComponent(setCookie.match(/h3-idleh=([^;]+)/)![1]);
 
-      // t=90s: header seals are never resealed, so their `updatedAt` stays
+      // t=90s: header seals are never resealed, so their `lastSeenAt` stays
       // pinned to when the seal was issued and the window cannot slide
       vi.setSystemTime(t0 + 90_000);
       const res2 = await t.fetch("/idle-header", {
@@ -394,6 +394,252 @@ describeMatrix("session", (t, { it, expect }) => {
       vi.setSystemTime(t0 + 61_000);
       const res3 = await t.fetch("/hard-expiry", { headers: { Cookie: cookie } });
       expect((await res3.json()).id).toBe("hard-2");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("throttles idleTimeout reseals to once per half window", async () => {
+    const t0 = Date.parse("2030-01-01T00:00:00Z");
+    vi.useFakeTimers({ toFake: ["Date"], now: t0 });
+    // Every seal runs exactly one `subtle.encrypt` (see `iron-crypto.ts`)
+    const encrypt = vi.spyOn(globalThis.crypto.subtle, "encrypt");
+    try {
+      const config: SessionConfig = {
+        name: "h3-throttle",
+        password: sessionConfig.password,
+        idleTimeout: 60,
+      };
+      t.app.get("/throttle", async (event) => {
+        const session = await useSession(event, config);
+        return { hits: session.data.hits || 0 };
+      });
+      t.app.get("/throttle-write", async (event) => {
+        const session = await useSession(event, config);
+        await session.update((data) => ({ hits: (data.hits || 0) + 1 }));
+        return { hits: session.data.hits };
+      });
+      const throttleCookie = (res: Response) =>
+        res.headers.getSetCookie().find((c) => c.startsWith("h3-throttle="));
+
+      // t=0: new session, sealed once
+      const res1 = await t.fetch("/throttle");
+      expect(encrypt).toHaveBeenCalledTimes(1);
+      let cookie = throttleCookie(res1)!;
+      expect(cookie).toContain(`Expires=${new Date(t0 + 60_000).toUTCString()}`);
+
+      // t=10s: less than half the window is used, so reading does not reseal —
+      // and sets no cookie at all, leaving the response cacheable
+      vi.setSystemTime(t0 + 10_000);
+      encrypt.mockClear();
+      const res2 = await t.fetch("/throttle", { headers: { Cookie: cookie } });
+      expect(await res2.json()).toMatchObject({ hits: 0 });
+      expect(encrypt).not.toHaveBeenCalled();
+      expect(throttleCookie(res2)).toBeUndefined();
+
+      // t=10s: a write seals once — not once to slide and again for the update —
+      // and slides the window as a side effect of restamping `lastSeenAt`
+      encrypt.mockClear();
+      const res3 = await t.fetch("/throttle-write", { headers: { Cookie: cookie } });
+      expect(await res3.json()).toMatchObject({ hits: 1 });
+      expect(encrypt).toHaveBeenCalledTimes(1);
+      cookie = throttleCookie(res3)!;
+      expect(cookie).toContain(`Expires=${new Date(t0 + 70_000).toUTCString()}`);
+
+      // t=45s: 35s of the window used, so reading reseals and slides
+      vi.setSystemTime(t0 + 45_000);
+      encrypt.mockClear();
+      const res4 = await t.fetch("/throttle", { headers: { Cookie: cookie } });
+      expect(await res4.json()).toMatchObject({ hits: 1 });
+      expect(encrypt).toHaveBeenCalledTimes(1);
+      cookie = throttleCookie(res4)!;
+      expect(cookie).toContain(`Expires=${new Date(t0 + 105_000).toUTCString()}`);
+
+      // t=100s: 55s idle since that reseal, so the session is still alive
+      vi.setSystemTime(t0 + 100_000);
+      const res5 = await t.fetch("/throttle", { headers: { Cookie: cookie } });
+      expect(await res5.json()).toMatchObject({ hits: 1 });
+    } finally {
+      encrypt.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
+  it("signs out an idle session between half of idleTimeout and idleTimeout", async () => {
+    const t0 = Date.parse("2030-01-01T00:00:00Z");
+    vi.useFakeTimers({ toFake: ["Date"], now: t0 });
+    try {
+      let idCtr = 0;
+      const config: SessionConfig = {
+        name: "h3-floor",
+        password: sessionConfig.password,
+        idleTimeout: 60,
+        generateId: () => `floor-${++idCtr}`,
+      };
+      t.app.get("/floor", async (event) => {
+        const session = await useSession(event, config);
+        return { id: session.id };
+      });
+
+      const res1 = await t.fetch("/floor");
+      expect((await res1.json()).id).toBe("floor-1");
+      const cookie = res1.headers.getSetCookie().find((c) => c.startsWith("h3-floor="))!;
+
+      // t=29s: the last request the window is not slid on, so the session now
+      // expires at t=89s — 60s after its seal, but only 31s after this request
+      vi.setSystemTime(t0 + 29_000);
+      const res2 = await t.fetch("/floor", { headers: { Cookie: cookie } });
+      expect((await res2.json()).id).toBe("floor-1");
+      expect(res2.headers.getSetCookie().find((c) => c.startsWith("h3-floor="))).toBeUndefined();
+
+      vi.setSystemTime(t0 + 61_000);
+      const res3 = await t.fetch("/floor", { headers: { Cookie: cookie } });
+      expect((await res3.json()).id).toBe("floor-2");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("applies the session cookie to error responses", async () => {
+    let idCtr = 0;
+    const config: SessionConfig = {
+      name: "h3-err",
+      password: sessionConfig.password,
+      generateId: () => `err-${++idCtr}`,
+    };
+    t.app.get("/err", async (event) => {
+      const session = await useSession(event, config);
+      throw new HTTPError({ status: 401, data: { id: session.id } });
+    });
+    t.app.get("/err-ok", async (event) => {
+      const session = await useSession(event, config);
+      return { id: session.id };
+    });
+
+    // A session created during a request that throws is still persisted
+    const res1 = await t.fetch("/err");
+    expect(res1.status).toBe(401);
+    const cookie = res1.headers.getSetCookie().find((c) => c.startsWith("h3-err="));
+    expect(cookie).toBeDefined();
+
+    const res2 = await t.fetch("/err-ok", { headers: { Cookie: cookie! } });
+    expect((await res2.json()).id).toBe("err-1");
+  });
+
+  it("slides idleTimeout on error responses", async () => {
+    const t0 = Date.parse("2030-01-01T00:00:00Z");
+    vi.useFakeTimers({ toFake: ["Date"], now: t0 });
+    try {
+      let idCtr = 0;
+      const config: SessionConfig = {
+        name: "h3-idle-err",
+        password: sessionConfig.password,
+        idleTimeout: 60,
+        generateId: () => `idleerr-${++idCtr}`,
+      };
+      t.app.get("/idle-err", async (event) => {
+        await useSession(event, config);
+        throw new HTTPError({ status: 400 });
+      });
+      t.app.get("/idle-err-ok", async (event) => {
+        const session = await useSession(event, config);
+        return { id: session.id };
+      });
+      const idleCookie = (res: Response) =>
+        res.headers.getSetCookie().find((c) => c.startsWith("h3-idle-err="))!;
+
+      const res1 = await t.fetch("/idle-err-ok");
+      expect((await res1.json()).id).toBe("idleerr-1");
+      let cookie = idleCookie(res1);
+
+      // t=45s: the request errors, but the reseal still reaches the client
+      vi.setSystemTime(t0 + 45_000);
+      const res2 = await t.fetch("/idle-err", { headers: { Cookie: cookie } });
+      expect(res2.status).toBe(400);
+      expect(idleCookie(res2)).toContain(`Expires=${new Date(t0 + 105_000).toUTCString()}`);
+      cookie = idleCookie(res2);
+
+      // t=90s: 45s idle since the errored request, so the session survives
+      vi.setSystemTime(t0 + 90_000);
+      const res3 = await t.fetch("/idle-err-ok", { headers: { Cookie: cookie } });
+      expect((await res3.json()).id).toBe("idleerr-1");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not resurrect a cleared session on an error response", async () => {
+    const t0 = Date.parse("2030-01-01T00:00:00Z");
+    vi.useFakeTimers({ toFake: ["Date"], now: t0 });
+    try {
+      let idCtr = 0;
+      const config: SessionConfig = {
+        name: "h3-clear-err",
+        password: sessionConfig.password,
+        idleTimeout: 60,
+        generateId: () => `clr-${++idCtr}`,
+      };
+      t.app.get("/clear-err", async (event) => {
+        await useSession(event, config);
+        await clearSession(event, config);
+        throw new HTTPError({ status: 403 });
+      });
+      t.app.get("/clear-err-ok", async (event) => {
+        const session = await useSession(event, config);
+        return { id: session.id };
+      });
+
+      const res1 = await t.fetch("/clear-err-ok");
+      const cookie = res1.headers.getSetCookie().find((c) => c.startsWith("h3-clear-err="))!;
+
+      // t=45s: past the reseal threshold, so `getSession` slides the window — and
+      // that reseal must not outlive the clear
+      vi.setSystemTime(t0 + 45_000);
+      const res2 = await t.fetch("/clear-err", { headers: { Cookie: cookie } });
+      expect(res2.status).toBe(403);
+      const cleared = res2.headers.getSetCookie().filter((c) => c.startsWith("h3-clear-err="));
+      expect(cleared).toHaveLength(1);
+      expect(cleared[0]).toContain("Max-Age=0");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("applies every chunk of a chunked session cookie to error responses", async () => {
+    const t0 = Date.parse("2030-01-01T00:00:00Z");
+    vi.useFakeTimers({ toFake: ["Date"], now: t0 });
+    try {
+      const config: SessionConfig = {
+        name: "h3-chunk-err",
+        password: sessionConfig.password,
+        idleTimeout: 60,
+      };
+      const big = "x".repeat(5000);
+      t.app.get("/chunk-err-ok", async (event) => {
+        const session = await useSession(event, config);
+        await session.update({ big });
+        return "ok";
+      });
+      t.app.get("/chunk-err", async (event) => {
+        await useSession(event, config);
+        throw new HTTPError({ status: 418 });
+      });
+
+      const res1 = await t.fetch("/chunk-err-ok");
+      const setCookies = res1.headers.getSetCookie();
+      expect(setCookies.length).toBeGreaterThan(1);
+      const cookieHeader = setCookies.map((c) => c.split(";")[0]).join("; ");
+
+      // t=45s: past the reseal threshold, so the errored request reseals
+      vi.setSystemTime(t0 + 45_000);
+      const res2 = await t.fetch("/chunk-err", { headers: { Cookie: cookieHeader } });
+      expect(res2.status).toBe(418);
+      expect(
+        res2.headers
+          .getSetCookie()
+          .map((c) => c.split("=")[0])
+          .sort(),
+      ).toEqual(setCookies.map((c) => c.split("=")[0]).sort());
     } finally {
       vi.useRealTimers();
     }

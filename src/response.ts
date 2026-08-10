@@ -143,12 +143,19 @@ function prepareResponse(
     }
     const { onError } = config;
     const errHeaders: Headers | undefined = (event as any)[kEventRes]?.[kEventResErrHeaders];
-    return onError && !nested
-      ? Promise.resolve()
-          .then(() => onError(error, event))
-          .catch((error) => error)
-          .then((newVal) => prepareResponse(newVal ?? val, event, config, true))
-      : errorResponse(error, config.debug, errHeaders);
+    if (onError && !nested) {
+      return Promise.resolve()
+        .then(() => onError(error, event))
+        .catch((error) => error)
+        .then((newVal) => prepareResponse(newVal ?? val, event, config, true));
+    }
+    // `errorResponse` merges `errHeaders` into the response it builds, so clear the
+    // prepared response before rendering. With `onError` configured the rendered
+    // Response is passed back through `prepareResponse`, which would otherwise merge
+    // `errHeaders` a second time — harmless for single-valued headers (`set`), but
+    // `set-cookie` is appended and would be duplicated.
+    (event as any)[kEventRes] = undefined;
+    return errorResponse(error, config.debug, errHeaders);
   }
 
   // Only set if event.res.headers is accessed

@@ -163,18 +163,29 @@ const session = await useSession(event, {
 });
 ```
 
-With `idleTimeout` set, H3 reseals the session cookie on every request and stamps the reseal time into it, moving the idle window forward. `createdAt` is left untouched, which is what lets `maxAge` still act as a hard cap on top. The cookie `Expires` is set to whichever limit runs out first.
+With `idleTimeout` set, H3 moves the idle window forward by resealing the session cookie with the reseal time stamped into it. `createdAt` is left untouched, which is what lets `maxAge` still act as a hard cap on top. The cookie `Expires` is set to whichever limit runs out first.
 
 If you are coming from `express-session` or `koa-session`, `idleTimeout` is their `rolling` option. The difference is that it carries its own duration instead of reinterpreting `maxAge`, so enabling it does not cost you the absolute limit.
+
+Resealing is the expensive part of a session, so H3 does not do it on every request: it reseals only once more than half the window has been used, and updating the session counts as a reseal. An active user therefore never gets signed out, but the recorded last-seen time can trail the real one by up to half the window:
+
+```js
+// idleTimeout: 60 * 30
+// Sign-out happens 15 to 30 minutes after the last request, never later.
+```
+
+Halve `idleTimeout` if you need the shorter end of that range to be your real limit.
 
 > [!NOTE]
 > Only cookie sessions slide. A session sent through the `x-{name}-session` header cannot be resealed, so it expires `idleTimeout` after its seal was issued.
 
 > [!IMPORTANT]
-> Because the session lives in the cookie, resealing on every request means read-only requests now write the session back too. If a request that only reads the session overlaps with one that writes it, whichever response the browser applies last wins, so the write can be lost. Without `idleTimeout` a read-only request sets no cookie and cannot clobber a concurrent write.
+> Because the session lives in the cookie, a request that only reads the session writes it back when it slides the window. If such a request overlaps with one that writes the session, whichever response the browser applies last wins, so the write can be lost. Without `idleTimeout` a read-only request sets no cookie and cannot clobber a concurrent write.
 
 > [!NOTE]
-> `idleTimeout` seals the session on every request, which roughly doubles the per-request session crypto cost and puts a `Set-Cookie` header on every response — shared caches and CDNs often refuse to store those.
+> A request that slides the window pays for an extra seal and puts a `Set-Cookie` header on its response — shared caches and CDNs often refuse to store those. Requests that only read the session inside the throttle window set no cookie at all.
+
+The session cookie is also applied to error responses, so a request that throws still slides the window and still persists a session created during it.
 
 ## Use Multiple Sessions
 

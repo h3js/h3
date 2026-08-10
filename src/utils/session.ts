@@ -22,7 +22,7 @@ export interface Session<T extends SessionDataT = SessionDataT> {
    * Time the session was last resealed. Only stamped when `idleTimeout` is set,
    * and the point the idle window is measured from.
    */
-  updatedAt?: number;
+  lastSeenAt?: number;
   data: SessionData<T>;
   [kGetSession]?: Promise<Session<T>>;
 }
@@ -57,14 +57,16 @@ export interface SessionConfig {
    * duration instead of reinterpreting `maxAge` — so `maxAge` remains available
    * as an absolute cap on top of the idle window rather than being replaced.
    *
-   * H3 reseals the session cookie on every request and stamps the reseal time
-   * into it as `updatedAt`, moving the window forward; `createdAt` is untouched.
-   * Only cookie-based sessions slide: a session read from the session header
-   * cannot be resealed, so it expires `idleTimeout` after its seal was issued.
+   * H3 moves the window forward by resealing the session cookie with the reseal
+   * time stamped into it as `lastSeenAt`; `createdAt` is untouched. Only
+   * cookie-based sessions slide: a session read from the session header cannot
+   * be resealed, so it expires `idleTimeout` after its seal was issued.
    *
-   * Note that this seals the session on every request, roughly doubling the
-   * per-request session crypto cost and adding a `Set-Cookie` header to every
-   * response, which can stop shared caches from storing it.
+   * The reseal is throttled to once per half window (writing the session
+   * reseals it too, and counts), so `lastSeenAt` can trail the last request by
+   * up to half of `idleTimeout`. An idle session is therefore signed out
+   * between `idleTimeout / 2` and `idleTimeout` after the last request — never
+   * later, and never while the user keeps making requests.
    */
   idleTimeout?: number;
   /** default is h3 */
@@ -185,10 +187,10 @@ export async function getSession<T extends SessionData = SessionData>(
         Object.assign(session, unsealed);
         delete context.sessions![sessionName][kGetSession];
         // Proactively reseal legacy cookies with the current seal options, and
-        // reseal on every request under idleTimeout so the window slides from
-        // the last activity. A session that failed to unseal has no id and is
-        // replaced below, so resealing it here is wasted work.
-        if (session.id && sessionFromCookie && (legacySeal || config.idleTimeout)) {
+        // reseal under idleTimeout to slide the window (see `shouldSlide`). A
+        // session that failed to unseal has no id and is replaced below, so
+        // resealing it here is wasted work.
+        if (session.id && sessionFromCookie && (legacySeal || shouldSlide(session, config))) {
           await updateSession(event, config);
         }
         return session as Session<T>;
@@ -242,6 +244,7 @@ export async function updateSession<T extends SessionData = SessionData>(
       expires: sessionExpires(session, config),
       ...config.cookie,
     });
+    stageSessionErrCookies(event as H3Event, sessionName);
   }
 
   return session;
@@ -265,7 +268,7 @@ export async function sealSession<T extends SessionData = SessionData>(
     // The idle window is measured from the last reseal rather than from
     // createdAt. Only stamped when enabled, so the default sealed payload is
     // unchanged.
-    session.updatedAt = Date.now();
+    session.lastSeenAt = Date.now();
   }
 
   const sealed = await seal(session, config.password, {
@@ -328,7 +331,7 @@ export async function unsealSession(
   // are never resealed), fall back to createdAt
   if (config.idleTimeout) {
     const idle =
-      Date.now() - (unsealed.updatedAt || unsealed.createdAt || Number.NEGATIVE_INFINITY);
+      Date.now() - (unsealed.lastSeenAt || unsealed.createdAt || Number.NEGATIVE_INFINITY);
     if (idle > config.idleTimeout * 1000) {
       throw new Error("Session expired!");
     }
@@ -350,8 +353,72 @@ export function clearSession(event: HTTPEvent, config: Partial<SessionConfig>): 
       ...DEFAULT_SESSION_COOKIE,
       ...config.cookie,
     });
+    stageSessionErrCookies(event as H3Event, sessionName);
   }
   return Promise.resolve();
+}
+
+/**
+ * Fraction of the idle window that has to be used up before `getSession`
+ * reseals to slide it. See {@link shouldSlide}.
+ */
+const SLIDE_THRESHOLD = 0.5;
+
+/**
+ * Whether reading the session should also reseal it to move the idle window
+ * forward.
+ *
+ * Sliding the window means writing `lastSeenAt` back into the cookie, and that
+ * seal is by far the most expensive thing a session does. Doing it on every
+ * request also wastes it twice over on a request that writes the session: the
+ * handler's `update()` reseals with the same fresh `lastSeenAt`, and
+ * `setCookie`'s dedupe drops the first `Set-Cookie` anyway.
+ *
+ * So reseal only once the window is more than half used. Any `updateSession`
+ * (from a handler write, or from the reseal itself) restamps `lastSeenAt`, so
+ * writes keep sliding the window for free and a request that both reads and
+ * writes almost never seals twice.
+ *
+ * The trade-off is granularity, in the safe direction: `lastSeenAt` can trail
+ * the last request by up to half the window, so an idle session is signed out
+ * somewhere between `idleTimeout / 2` and `idleTimeout` after the last request,
+ * never later.
+ */
+function shouldSlide(session: Session<any>, config: SessionConfig): boolean {
+  if (!config.idleTimeout) {
+    return false;
+  }
+  // Sessions sealed before `idleTimeout` was configured have no `lastSeenAt`
+  const lastSeenAt = session.lastSeenAt || session.createdAt || 0;
+  return Date.now() - lastSeenAt > config.idleTimeout * 1000 * SLIDE_THRESHOLD;
+}
+
+/**
+ * Mirror this session's `Set-Cookie` headers into `event.res.errHeaders`.
+ *
+ * Error responses only receive headers explicitly staged as `errHeaders`, so
+ * without this a request that throws drops the session cookie entirely: a
+ * session created during that request is lost, and under `idleTimeout` the idle
+ * window fails to slide even though the user was active.
+ *
+ * Re-staged from scratch on every write so the latest state wins — in
+ * particular, a `clearSession` after a reseal must not leave the stale reseal
+ * cookie behind to resurrect the session on an error response.
+ */
+function stageSessionErrCookies(event: H3Event, sessionName: string): void {
+  // Chunks are stored as `{name}.{n}` by `setChunkedCookie`
+  const isSessionCookie = (cookie: string) =>
+    cookie.startsWith(`${sessionName}=`) || cookie.startsWith(`${sessionName}.`);
+
+  const errHeaders = event.res.errHeaders;
+  const staged = [
+    ...errHeaders.getSetCookie().filter((cookie) => !isSessionCookie(cookie)),
+    ...event.res.headers.getSetCookie().filter((cookie) => isSessionCookie(cookie)),
+  ];
+  errHeaders.delete("set-cookie");
+  for (const cookie of staged) {
+    errHeaders.append("set-cookie", cookie);
+  }
 }
 
 /**
@@ -364,7 +431,7 @@ function sessionExpires(session: Session<any>, config: SessionConfig): Date | un
     times.push(session.createdAt + config.maxAge * 1000);
   }
   if (config.idleTimeout) {
-    times.push((session.updatedAt || session.createdAt) + config.idleTimeout * 1000);
+    times.push((session.lastSeenAt || session.createdAt) + config.idleTimeout * 1000);
   }
   return times.length > 0 ? new Date(Math.min(...times)) : undefined;
 }
