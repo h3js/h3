@@ -204,6 +204,17 @@ describe("redirect rule", () => {
     expect(res.headers.get("location")).toBe("https://h3.dev/docs");
   });
 
+  it("never emits an empty location when the tail is empty", async () => {
+    // An empty `Location` is a URI-reference that resolves back to the request
+    // URL, so the client would re-request `/old` and loop to the redirect limit.
+    const app = createApp({ "/old/**": { redirect: { to: "/**" } } });
+    for (const path of ["/old", "/old/"]) {
+      const res = await app.fetch(new Request("http://test" + path));
+      expect(res.status).toBe(307);
+      expect(res.headers.get("location")).toBe("/");
+    }
+  });
+
   it("returns 400 for an out-of-scope encoded traversal", async () => {
     const app = createApp({
       "/rules/redirect/wildcard/**": { redirect: "https://h3.dev/**" },

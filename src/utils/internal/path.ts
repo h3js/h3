@@ -14,16 +14,18 @@ export function withLeadingSlash(path: string | undefined): string {
 /**
  * Join `base` and `path` on a single `/` boundary.
  *
- * Semantics match `ufo`'s two-argument `joinURL` exactly (route rules rely on
- * it for `redirect`/`proxy` wildcard targets, where the joined value is then
- * re-scope-checked): an empty/`"/"` `path` yields `base` untouched, a single
- * leading `/` (or `./`) on `path` is absorbed by the boundary while a longer
- * separator run is preserved, and a falsy `base` yields `path` — or `""` when
- * there is nothing to join at all.
+ * Route rules join `redirect`/`proxy` wildcard targets with this and then
+ * re-scope-check the result, so the contract is: an empty/`"/"` `path` yields
+ * `base` untouched, a single leading `/` on `path` is absorbed by the boundary
+ * while a longer separator run is preserved, and a falsy `base` yields `path`.
+ *
+ * The result is never empty — an empty `Location` is a URI-reference that
+ * resolves back to the request URL, which turns a wildcard redirect onto `/`
+ * into a redirect loop.
  */
 export function joinURL(base: string | undefined, path: string | undefined): string {
   if (!path || path === "/") {
-    return base || "";
+    return base || "/";
   }
   if (!base) {
     return path;
@@ -42,9 +44,10 @@ const JOIN_LEADING_SLASH_RE = /^\.?\//;
  * the leading-slash run so `/base//evil.com` can never strip to a protocol-relative
  * `//evil.com` a downstream redirect could turn into an open redirect.
  *
- * A `?` also counts as a boundary (`ufo` parity), so callers may pass
- * `pathname + search` — `/base?q=1` with base `/base` strips to `/?q=1` instead
- * of silently staying unstripped. For a bare pathname this is unreachable.
+ * A `?` also counts as a boundary, because the rules `/**` target resolver
+ * passes `pathname + search`: without it, `GET /old?q=1` under base `/old`
+ * resolves to `/new/old?q=1` instead of `/new/?q=1`. A WHATWG `pathname` can
+ * never contain a literal `?`, so this is unreachable for h3's core callers.
  *
  * `base` must not have a trailing slash; use {@link withoutBase} to tolerate one.
  */
@@ -63,59 +66,26 @@ export function withoutBase(input: string = "", base: string = ""): string {
   return stripBase(input, withoutTrailingSlash(base));
 }
 
-export function getPathname(path: string = "/"): string {
-  return path.startsWith("/") ? path.split("?")[0] : new URL(path, "http://localhost").pathname;
-}
-
-// NUL is part of ufo's own character classes (it treats a `\0` as leading
-// whitespace / a scheme character, so a NUL-smuggled URL parses the same way
-// there and here) — matching it is the point.
-// Non-strict protocol test (`ufo`'s `hasProtocol`): a scheme, optionally
-// followed by `//`, or a protocol-relative `//host` prefix.
-// eslint-disable-next-line no-control-regex
-const PROTOCOL_RE = /^[\s\w\u0000+.-]{2,}:([/\\]{2})?/;
-const PROTOCOL_RELATIVE_RE = /^([/\\]\s*){2,}[^/\\]/;
-// Opaque schemes whose whole remainder is the "pathname".
-// eslint-disable-next-line no-control-regex
-const SPECIAL_PROTOCOL_RE = /^[\s\u0000]*(?:blob:|data:|javascript:|vbscript:)(.*)/i;
-// scheme + `//` + optional userinfo, leaving `host[/path][?query][#hash]`.
-// eslint-disable-next-line no-control-regex
-const AUTHORITY_RE = /^[\s\u0000]*([\w+.-]{2,}:)?\/\/(?:[^/@]+@)?(.*)/;
-const HOST_AND_PATH_RE = /([^#/?]*)(.*)?/;
-const FILE_DRIVE_RE = /\/(?=[A-Za-z]:)/;
+// `scheme://` or a protocol-relative `//`; whatever follows, up to the next
+// `/`, `?` or `#`, is the authority. Scheme syntax per RFC 3986 §3.1.
+const AUTHORITY_RE = /^(?:[a-z][a-z\d+.-]*:)?\/\//i;
 
 /**
  * The pathname of an absolute, protocol-relative, or relative URL/path —
  * everything after the authority (if any) and before `?`/`#`.
  *
- * Purely lexical, matching `ufo`'s `parseURL(input).pathname`: unlike
- * {@link getPathname} it never routes through `new URL()`, which would
- * *normalize dot segments* (`/base//../secret` → `/base/secret`) and thereby
- * defeat a scope check meant to catch exactly that escape, and would also read
- * a protocol-relative `//host/p` as the pathname `//host/p`. Percent-encoding
- * is likewise left untouched, so an opaque `%2f` stays opaque for the caller's
- * own canonicalization passes.
+ * Purely lexical, never `new URL()`: the result is scope-checked against the
+ * *exact bytes* that get forwarded, so nothing may be normalized away first.
+ * `new URL()` would resolve dot segments (`/base//../secret` → `/base/secret`),
+ * collapsing the empty segment that the rules scope check's slash-merged
+ * reading needs in order to see the escape, and would re-encode characters the
+ * target string keeps verbatim. Percent-encoding is likewise left untouched, so
+ * an opaque `%2f` stays opaque for the caller's own canonicalization passes.
  */
 export function getURLPathname(input: string): string {
-  const special = SPECIAL_PROTOCOL_RE.exec(input);
-  if (special) {
-    return special[1]!;
-  }
-  if (!PROTOCOL_RE.test(input) && !PROTOCOL_RELATIVE_RE.test(input)) {
-    return splitPathname(input);
-  }
-  // A scheme without `//` (e.g. `mailto:x`) has no authority to split off and
-  // no pathname in this model — the match fails and yields "".
-  const authority = AUTHORITY_RE.exec(input.replace(/\\/g, "/"));
-  let path = HOST_AND_PATH_RE.exec(authority?.[2] ?? "")?.[2] ?? "";
-  if (authority?.[1]?.toLowerCase() === "file:") {
-    // `file:///C:/x` addresses drive `C:`, not a root-level `/C:` directory.
-    path = path.replace(FILE_DRIVE_RE, "");
-  }
-  return splitPathname(path);
-}
-
-function splitPathname(path: string): string {
+  const path = AUTHORITY_RE.test(input)
+    ? input.replace(AUTHORITY_RE, "").replace(/^[^/?#]*/, "")
+    : input;
   const end = path.search(/[#?]/);
   return end === -1 ? path : path.slice(0, end);
 }
