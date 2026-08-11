@@ -1,4 +1,4 @@
-import { compareRoutes } from "rou3";
+import { addRoute, compareRoutes, createRouter, findAllRoutes } from "rou3";
 import { describe, expect, it, vi } from "vitest";
 import { compileFindRouteRules } from "../../src/rules/compiler.ts";
 import {
@@ -9,6 +9,7 @@ import {
 import type { FindRouteRules } from "../../src/rules/match.ts";
 import { normalizeRouteRules } from "../../src/rules/normalize.ts";
 import { ruleHandlers } from "../../src/rules/handlers/index.ts";
+import type { RouteRuleConfig } from "../../src/rules/types.ts";
 import { FIXTURE, FIXTURE_HANDLERS, PROBES, snapshotResult } from "./_fixture.ts";
 
 describe("preMerge parity (runtime)", () => {
@@ -85,6 +86,79 @@ describe("preMerge method matrix", () => {
     const post = matcher("POST", "/api/deep/x");
     expect(post.routeRules.headers).toBeUndefined();
     expect(post.routeRules.cache!.options).toEqual({ swr: true, maxAge: 60 });
+  });
+});
+
+// rou3's `findAllRoutes` returns matched layers broad → narrow for plain
+// patterns, but NOT for modifier params (`:x?`, `:x*`, `:x+`): a *broader*
+// modifier pattern comes back AFTER the narrower pattern it subsumes. preMerge
+// must therefore pick the most specific matched layer by its build-time
+// containment rank, never by position — "take the last layer" silently dropped
+// the narrower pattern's whole chain (its `basicAuth` gate included), and the
+// chain-cleanliness validator can't catch it because these pairs are `subset`,
+// not `partial`.
+describe("preMerge layer selection (findAllRoutes order is not containment order)", () => {
+  const OPTIONAL = {
+    "/admin": { basicAuth: { username: "admin", password: "s3cret" } },
+    "/admin/:page?": { headers: { "x-a": "1" } },
+  } satisfies Record<string, RouteRuleConfig>;
+
+  const REPEAT = {
+    "/api/*/**": { basicAuth: { username: "admin", password: "s3cret" } },
+    "/api/*/:path*": { headers: { "x-a": "1" } },
+  } satisfies Record<string, RouteRuleConfig>;
+
+  const CASES: Array<[string, Record<string, RouteRuleConfig>, string]> = [
+    ["optional param (`:page?`)", OPTIONAL, "/admin"],
+    ["repeat param (`:path*`)", REPEAT, "/api/v1/x"],
+  ];
+
+  it.each(CASES)("rou3 returns the broader %s layer last", (_label, config, pathname) => {
+    const routes = Object.keys(config);
+    expect(compareRoutes(routes[0]!, routes[1]!)).toBe("subset"); // [1] subsumes [0]
+    const router = createRouter<string>();
+    for (const route of routes) {
+      addRoute(router, "GET", route, route);
+    }
+    // The broader pattern comes back LAST — the premise "layer order === containment order" is false.
+    expect(findAllRoutes(router, "GET", pathname).map((l) => l.data)).toEqual([
+      routes[0],
+      routes[1],
+    ]);
+  });
+
+  it.each(CASES)("preMerged === plain for a %s chain", (_label, config, pathname) => {
+    const plain = createRouteRulesMatcher(normalizeRouteRules(config));
+    const preMerged = createRouteRulesMatcher(normalizeRouteRules(config), { preMerge: true });
+    expect(snapshotResult(preMerged("GET", pathname))).toEqual(
+      snapshotResult(plain("GET", pathname)),
+    );
+    // Spelled out: the gate registered on the narrower pattern must survive.
+    expect(preMerged("GET", pathname).routeRules.basicAuth?.options).toMatchObject({
+      username: "admin",
+    });
+  });
+
+  it.each(CASES)("compiled preMerged === plain for a %s chain", (_label, config, pathname) => {
+    const rules = normalizeRouteRules(config);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const code = compileFindRouteRules(rules, { preMerge: true });
+      // Not the compiler's fail-safe fallback: preMerge really is applied here.
+      expect(warn).not.toHaveBeenCalled();
+      // eslint-disable-next-line no-new-func
+      const find = new Function(
+        ...Object.keys(ruleHandlers).map((name) => `__ruleHandlers__$${name}`),
+        `return (${code});`,
+      )(...Object.values(ruleHandlers)) as FindRouteRules;
+      const compiled = createMatcherFromFind(find);
+      const plain = createRouteRulesMatcher(rules);
+      expect(snapshotResult(compiled("GET", pathname))).toEqual(
+        snapshotResult(plain("GET", pathname)),
+      );
+    } finally {
+      warn.mockRestore();
+    }
   });
 });
 

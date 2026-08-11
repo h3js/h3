@@ -187,6 +187,44 @@ describe("generated code shape", () => {
     expect(code).not.toContain("handler:__ruleHandlers__$prerender");
   });
 
+  it("emits the layer rank, and only where a pattern is actually subsumed", () => {
+    // Layer ordering is decided by `rank` (containment depth, computed at router
+    // build time), so it has to reach the compiled output — a compiled matcher
+    // that merged layers in `findAllRoutes` order would lose gates the runtime
+    // matcher keeps. `0` is the default and stays implicit.
+    const code = compileFindRouteRules({
+      "/mod/reset/*/**": { basicAuth: { username: "admin", password: "s" } },
+      "/mod/reset/*/:path*": { basicAuth: false },
+    });
+    expect(code).toContain("rank:1"); // `/mod/reset/*/**`, subsumed by the `:path*` one
+    expect([...code.matchAll(/rank:/g)]).toHaveLength(1);
+    expect(compileFindRouteRules({ "/a/**": { headers: { a: "1" } } })).not.toContain("rank:");
+  });
+
+  it("a compiled matcher with no override predicate still keeps a subsumed gate", () => {
+    // The divergence this pins: `createMatcherFromFind`'s dependency-free default
+    // predicate (`canOverrideRouteShape`) is not exact for modifier params —
+    // it reports `/mod/reset/*​/**` as subsuming the `/mod/reset/*​/:path*` that
+    // actually subsumes IT. Ordering matched layers must therefore never consult
+    // a predicate, or the compiled default fails open: the broader pattern's
+    // `basicAuth: false` lands last and deletes the gate. `evaluateCompiled`
+    // builds exactly that predicate-less matcher.
+    const config: Record<string, RouteRuleConfig> = {
+      "/mod/reset/*/**": { basicAuth: { username: "admin", password: "s" } },
+      "/mod/reset/*/:path*": { basicAuth: false },
+    };
+    const compiled = evaluateCompiled(config);
+    const runtime = createRouteRulesMatcher(normalizeRouteRules(config));
+    for (const pathname of ["/mod/reset/v1/x", "/mod/reset/v1"]) {
+      expect(snapshotResult(compiled("GET", pathname))).toEqual(
+        snapshotResult(runtime("GET", pathname)),
+      );
+      expect(compiled("GET", pathname).routeRules.basicAuth?.options, pathname).toMatchObject({
+        username: "admin",
+      });
+    }
+  });
+
   it("encodes method scope in the lookup, not per entry", () => {
     // Method scope decides *which* `(method, path)` node an entry is registered
     // on — rou3's codegen emits it as a guard. Entries carry no `method` field

@@ -21,6 +21,56 @@ describe("merge algorithm", () => {
     expect(match("GET", "/api/y").routeRules.headers!.options).toEqual({ "x-a": "broad" });
   });
 
+  // rou3's `findAllRoutes` order is containment order for plain patterns but not
+  // for modifier params (`:x?`, `:x*`, `:x+`), and merging a chain in the wrong
+  // order lets the BROADER pattern win — its options override the narrower
+  // pattern's, and its `false` reset deletes the narrower pattern's rule outright.
+  // This is the default (no `preMerge`, no compiler) path.
+  describe("matched layers are merged in containment order, not findAllRoutes order", () => {
+    // Two distinct upstream shapes: `/api/*​/:path*` subsumes `/api/*​/**` and comes
+    // back last in BOTH registration orders (rou3 sorts it there), while
+    // `/admin/:page?` subsumes `/admin` and gets no specificity sort at all (both
+    // weigh 0 in `pushSorted`, so config order survives) — hence both orders below.
+    const SHAPES: Array<[string, string, string, string]> = [
+      ["stable inversion", "/api/*/**", "/api/*/:path*", "/api/v1/x"],
+      ["unsorted (config order)", "/admin", "/admin/:page?", "/admin"],
+    ];
+
+    it.each(SHAPES)("%s: the narrower pattern's options win", (_l, narrow, broad, pathname) => {
+      for (const config of [
+        { [narrow]: { headers: { who: "narrow" } }, [broad]: { headers: { who: "broad" } } },
+        { [broad]: { headers: { who: "broad" } }, [narrow]: { headers: { who: "narrow" } } },
+      ]) {
+        const rule = matcher(config)("GET", pathname).routeRules.headers!;
+        expect(rule.options, JSON.stringify(config)).toEqual({ who: "narrow" });
+        expect(rule.route).toBe(narrow);
+      }
+    });
+
+    const gate = { basicAuth: { username: "admin", password: "s3cret" } } satisfies RouteRuleConfig;
+    const reset = { basicAuth: false } satisfies RouteRuleConfig;
+
+    it.each(SHAPES)("%s: a broader `false` never resets a narrower gate", (_l, n, b, pathname) => {
+      for (const config of [
+        { [n]: gate, [b]: reset },
+        { [b]: reset, [n]: gate },
+      ]) {
+        const { routeRules } = matcher(config)("GET", pathname);
+        expect(routeRules.basicAuth?.options, JSON.stringify(config)).toMatchObject({
+          username: "admin",
+        });
+      }
+    });
+
+    it.each(SHAPES)("%s: a narrower `false` still resets a broader rule", (_l, n, b, pathname) => {
+      // The other direction must keep working: reordering may not turn a
+      // legitimate narrow reset into a no-op.
+      expect(
+        matcher({ [b]: gate, [n]: reset })("GET", pathname).routeRules.basicAuth,
+      ).toBeUndefined();
+    });
+  });
+
   it("object options shallow-merge across layers", () => {
     const match = matcher({
       "/api/**": { headers: { "x-a": "1", "x-b": "1" } },
@@ -472,6 +522,38 @@ describe("dual-path union (Nitro #4396)", () => {
     expect(match("GET", "/app/admin/off/x").routeRules.basicAuth).toBeUndefined();
   });
 
+  // KNOWN OPEN ISSUE — `it.fails` pins the *current* (wrong) behavior so the
+  // suite stays green while the gap stays visible; flip it to a plain `it` when
+  // the union learns to tell a re-spelling apart from a climb (below).
+  //
+  // `unionLayers` consults the anti-escalation guard only when the rule is
+  // already present, and a `false` reset is implemented as a `delete` — so a
+  // reset rule is indistinguishable from one that never matched, and a broader
+  // alternate reading takes the unguarded ADD branch and restores it at full
+  // breadth. `/app/private/x%2f..%2f..%2fy` is served by h3 under
+  // `/app/private/**` (the `%2f` stays opaque in dispatch, so the private handler
+  // really runs), yet its canonical reading `/app/y` matches only `/**` and
+  // re-adds `cors: *` — making the private response cross-origin readable.
+  //
+  // Gating the ADD on `canOverride(resetRoute, incomingRoute)` does NOT fix this:
+  // the config above is isomorphic (under pattern containment) to the
+  // `/rules/ba-off/**` + `/rules/ba-off/*` pair three tests above, where the
+  // re-add is exactly what keeps the auth gate — both are `{broad B, narrow N
+  // carrying the reset}` with the served path matching `{B, N}` and the alternate
+  // reading matching `{B}` only. The two cases differ only in how the reading was
+  // derived (a pure `%2f` re-spelling of the same resource vs a `..` climb out of
+  // the reset's scope), which is information `mergeMatchedRouteRules` is not
+  // given.
+  it.fails("an alternate reading never RESURRECTS a rule the served path reset", () => {
+    const match = matcher({
+      "/**": { cors: { origin: "*" } },
+      "/app/private/**": { cors: false },
+    });
+    // Control: the reset holds on an uncrafted path (this part passes today).
+    expect(match("GET", "/app/private/x").routeRules.cors).toBeUndefined();
+    expect(match("GET", "/app/private/x%2f..%2f..%2fy").routeRules.cors).toBeUndefined();
+  });
+
   it("a broader canonical rule never DOWNGRADES a narrower rule the served path resolved", () => {
     // Encoded-dot escalation: a crafted `%2e%2e` path is served (raw) under a
     // strict narrow gate but canonicalizes *up* to a broad weak rule. The union
@@ -565,6 +647,37 @@ describe("mergeMatchedRouteRules (pure)", () => {
     // union can never delete what the raw path resolved
     expect(merged.headers!.options).toEqual({ a: "raw" });
     expect(merged.basicAuth!.options).toEqual({ username: "u" });
+  });
+
+  it("orders matched layers by `rank`, with no override predicate involved", () => {
+    // Layer ordering must be decided by the build-time rank alone: the only
+    // predicate a compiled matcher has by default is `canOverrideRouteShape`,
+    // which is *not* exact for modifier params (it reports `/api/*​/**` as
+    // subsuming the `/api/*​/:path*` that subsumes it), so a predicate-driven
+    // order fails open exactly here. No `canOverride` is passed below.
+    const gate = {
+      data: [{ name: "basicAuth", route: "/api/*/**", options: { username: "admin" }, rank: 1 }],
+    };
+    const reset = {
+      data: [{ name: "basicAuth", route: "/api/*/:path*", options: false, rank: 0 }],
+    };
+    // Either arrival order — rou3 hands the broader `:path*` layer over last.
+    for (const layers of [
+      [gate, reset],
+      [reset, gate],
+    ]) {
+      expect(mergeMatchedRouteRules(layers).basicAuth!.options).toEqual({ username: "admin" });
+    }
+    // The legitimate direction is untouched: a *narrower* `false` still resets.
+    const broadGate = {
+      data: [
+        { name: "basicAuth", route: "/api/*/:path*", options: { username: "admin" }, rank: 0 },
+      ],
+    };
+    const narrowReset = {
+      data: [{ name: "basicAuth", route: "/api/*/**", options: false, rank: 1 }],
+    };
+    expect(mergeMatchedRouteRules([narrowReset, broadGate]).basicAuth).toBeUndefined();
   });
 
   it("returns empty map for no layers", () => {

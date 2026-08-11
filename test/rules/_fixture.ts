@@ -44,6 +44,17 @@ export const FIXTURE: Record<string, RouteRuleConfig> = {
   "/api/cached/**": { headers: { "x-all": "1" } },
   "/params/:section/**": { custom: { a: 1 } },
   "/params/:section/:id": { custom: { b: 2 } },
+  // Modifier params: rou3 returns these layers out of containment order —
+  // `/mod/opt/:page?` subsumes `/mod/opt` yet comes back after it, and
+  // `/mod/rep/*/:path*` subsumes `/mod/rep/*/**`. The gate sits on the NARROWER
+  // pattern, so a layer-order regression drops it.
+  "/mod/opt": { basicAuth: { username: "admin", password: "s", realm: "Opt" } },
+  "/mod/opt/:page?": { headers: { "x-mod-opt": "1" } },
+  "/mod/rep/*/**": { basicAuth: { username: "admin", password: "s", realm: "Rep" } },
+  "/mod/rep/*/:path*": { headers: { "x-mod-rep": "1" } },
+  // …and the security-relevant shape: a broader modifier pattern resetting a gate.
+  "/mod/reset/*/**": { basicAuth: { username: "admin", password: "s", realm: "Reset" } },
+  "/mod/reset/*/:path*": { basicAuth: false },
   "/**": { headers: { "x-catch": "all" } },
 };
 
@@ -80,6 +91,12 @@ export const PROBES: Array<[string, string]> = [
   ["POST", "/params/users/42"],
   ["GET", "/params/users/42/nested"],
   ["GET", "/params/users"],
+  // Modifier-param chains, where rou3's layer order contradicts containment.
+  ["GET", "/mod/opt"],
+  ["GET", "/mod/opt/page1"],
+  ["GET", "/mod/rep/v1/x"],
+  ["GET", "/mod/rep/v1"],
+  ["GET", "/mod/reset/v1/x"],
   ["GET", "/unmatched-by-specific/x"],
   ["GET", "/"],
 ];

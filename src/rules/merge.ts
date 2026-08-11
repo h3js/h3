@@ -25,12 +25,26 @@ export interface RouteRuleEntry {
   route: string;
   options: unknown;
   handler?: MatchedRouteRule["handler"];
+  /**
+   * Specificity rank of {@link route}: how many patterns of the rule set strictly
+   * subsume it (`routeContainmentRanks`, stamped at router-build time and emitted
+   * by the compiler). Absent means `0` — nothing subsumes it, or the registration
+   * predates ranking.
+   *
+   * Matched layers are merged in ascending rank, **not** in the order
+   * `findAllRoutes` returned them: that order is containment order for plain
+   * patterns but not for modifier params, and merging a chain out of order lets a
+   * broader pattern's options — or its `false` reset — beat a narrower pattern's
+   * (see {@link RouteRuleLayer} and `PreMergedRouteRules.rank`). Every entry of a
+   * layer shares one pattern, so they all carry the same rank.
+   */
+  rank?: number;
 }
 
 /**
  * A matched rou3 layer: the entries registered for a pattern plus its params.
  * Data is either a plain entry array (merged per request) or a pre-merged layer
- * (`preMerge` mode — the most specific matched layer is the full result).
+ * (`preMerge` mode — the highest-`rank` matched layer is the full result).
  */
 export interface RouteRuleLayer {
   data: RouteRuleEntry[] | PreMergedRouteRules;
@@ -46,9 +60,12 @@ export interface RouteRuleLayer {
  * `canOverride` allows it (see {@link unionLayers}). Omitting `canOverride`
  * keeps the historical unconditional override.
  *
- * Pure: the caller supplies already-matched layers (least → most specific), and
- * decides which readings exist — `altLayers` entries may be `undefined` (a
- * reading that resolved nothing, or one skipped as identical to an earlier one).
+ * Pure: the caller supplies each reading's matched layers, and decides which
+ * readings exist — `altLayers` entries may be `undefined` (a reading that
+ * resolved nothing, or one skipped as identical to an earlier one). Layers do
+ * **not** have to arrive least → most specific: each reading's own layers are
+ * re-ordered by their build-time specificity rank (see {@link resolveLayers}).
+ * `canOverride` governs only the *cross-reading* union.
  */
 export function mergeMatchedRouteRules(
   rawLayers: RouteRuleLayer[] | undefined,
@@ -93,15 +110,25 @@ function unionLayers(
   }
 }
 
-// Resolve one path's matched layers (least → most specific); called per path
-// so a `false` reset doesn't leak across paths.
+// Resolve one path's matched layers into a rule set; called per reading so a
+// `false` reset doesn't leak across readings.
+//
+// Layers are re-ordered broad → narrow first (see {@link orderedLayers}) —
+// `findAllRoutes` hands them over in *its* order, which is containment order for
+// plain patterns but not for modifier params, and merging a chain out of order
+// lets a broader pattern's options (or its `false` reset) win over a narrower
+// pattern's.
 function resolveLayers(layers: RouteRuleLayer[] | undefined): MatchedRouteRules {
-  const lastData = layers?.[layers.length - 1]?.data;
-  if (lastData && !Array.isArray(lastData)) {
-    return resolvePreMergedLayers(layers!, lastData);
+  // A router is built entirely in one mode, so the first layer decides which:
+  // an entry array merges layer by layer, a pre-merged layer already carries
+  // its whole chain and is selected by rank (never by position — see
+  // `PreMergedRouteRules.rank`).
+  const firstData = layers?.[0]?.data;
+  if (firstData && !Array.isArray(firstData)) {
+    return resolvePreMergedLayers(layers!);
   }
   const routeRules = emptyRouteRules();
-  for (const layer of layers || []) {
+  for (const layer of orderedLayers(layers)) {
     for (const entry of layer.data as RouteRuleEntry[]) {
       mergeRouteRule(routeRules, entry.name, entry, layer.params);
     }
@@ -140,15 +167,82 @@ export function mergeRuleOptions(current: unknown, incoming: unknown): unknown {
 // Internal
 // ------------------------------------------------------------------------
 
+/**
+ * Re-order a reading's matched layers broad → narrow, so resolution does not
+ * depend on the order `findAllRoutes` happened to produce.
+ *
+ * That order is containment order for plain patterns, but **not** for rou3's
+ * modifier params: `/api/*​/:path*` comes back after the `/api/*​/**` it subsumes
+ * whatever the registration order, and `/admin/:page?` vs `/admin` gets no
+ * specificity sort at all (both weigh 0 in rou3's `pushSorted`, so config order
+ * survives). Merged in that order, the broader pattern is applied last and wins
+ * — its options override the narrower pattern's, and its `false` reset deletes
+ * the narrower pattern's rule outright (an auth gate written on the narrower
+ * pattern simply disappears).
+ *
+ * A stable insertion sort on the entries' build-time {@link RouteRuleEntry.rank}
+ * (containment depth, ascending). Deliberately **not** a containment predicate
+ * evaluated here: ordering must not depend on a per-request comparison at all —
+ * `createMatcherFromFind`'s dependency-free default (`canOverrideRouteShape`) is
+ * conservative *and* not exact for modifier params, which is precisely the shape
+ * this ordering exists for, so a compiled matcher without a baked predicate
+ * would drop the very gates the rank preserves. A number decided once at build
+ * time is exact for every matcher, costs nothing per request, and keeps `rou3`
+ * out of compiled bundles. Equal ranks (incomparable patterns, or a registration
+ * without ranks) keep the order `findAllRoutes` produced.
+ */
+function orderedLayers(layers: RouteRuleLayer[] | undefined): RouteRuleLayer[] {
+  if (!layers || layers.length < 2) {
+    return layers || [];
+  }
+  let ordered = layers;
+  for (let i = 1; i < ordered.length; i++) {
+    const layer = ordered[i]!;
+    const rank = layerRank(layer);
+    let j = i - 1;
+    while (j >= 0 && layerRank(ordered[j]!) > rank) {
+      // Copy on the first move only — an already-ordered set (the common case)
+      // allocates nothing, and the caller's array is never mutated.
+      if (ordered === layers) {
+        ordered = [...layers];
+      }
+      ordered[j + 1] = ordered[j]!;
+      j--;
+    }
+    if (j + 1 !== i) {
+      ordered[j + 1] = layer;
+    }
+  }
+  return ordered;
+}
+
+// Every entry of a layer shares one pattern, so the first one carries the
+// layer's rank. An empty layer (a rule object with no entries) contributes
+// nothing either way.
+function layerRank(layer: RouteRuleLayer): number {
+  return (layer.data as RouteRuleEntry[])[0]?.rank ?? 0;
+}
+
 // preMerge mode: the matched layer already carries the merged chain result;
 // only attach per-rule params here, merged from exactly the layers whose
 // pattern contributed to that rule (`paramRoutes`).
-function resolvePreMergedLayers(
-  layers: RouteRuleLayer[],
-  lastData: PreMergedRouteRules,
-): MatchedRouteRules {
+//
+// The complete result is the *most specific* matched layer, which is the
+// highest-ranked one — `findAllRoutes` does not always return layers in
+// containment order (see {@link orderedLayers}), so taking the last layer
+// silently dropped whole chains, gates included. Sorting by rank (rather than
+// scanning for the maximum) also puts the per-rule `params` merge below in
+// broad → narrow order, so a narrower contributor's params win. See
+// `PreMergedRouteRules.rank`.
+function resolvePreMergedLayers(rawLayers: RouteRuleLayer[]): MatchedRouteRules {
+  const layers =
+    rawLayers.length < 2
+      ? rawLayers
+      : [...rawLayers].sort(
+          (a, b) => (a.data as PreMergedRouteRules).rank - (b.data as PreMergedRouteRules).rank,
+        );
   const routeRules = emptyRouteRules();
-  for (const entry of lastData.rules) {
+  for (const entry of (layers[layers.length - 1]!.data as PreMergedRouteRules).rules) {
     const paramRoutes = entry.paramRoutes;
     let params: Record<string, string> | undefined;
     for (const layer of layers) {
