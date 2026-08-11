@@ -8,10 +8,11 @@ import { compileRouteRules } from "../../src/rules/compiler.ts";
 import { normalizeRouteRules } from "../../src/rules/normalize.ts";
 import { routeRules } from "../../src/rules/middleware.ts";
 import type { BasicAuthOptions } from "../../src/utils/auth.ts";
-import type { RouteRules as ContextRouteRules } from "../../src/types/route-rules.ts";
+import type { ResolvedRouteRules as ContextRouteRules } from "../../src/types/route-rules.ts";
 import type {
   BasicAuthRuleOptions,
   CacheRuleOptions,
+  MatchedRouteRule,
   MatchedRouteRules,
   RedirectRuleOptions,
   RouteRuleConfig,
@@ -132,54 +133,41 @@ expectTypeOf(matched.myPlugin?.options).toEqualTypeOf<unknown>();
 //
 // Declaration merging compares redeclared properties by **type identity**, so
 // naming the built-ins on `RouteRules` directly made every such augmentation a
-// `TS2717`. They are declared on a base interface instead, which turns the
-// check into assignability (`TS2430`) against a union carrying an escape-hatch
-// arm — see the block comment in `src/types/route-rules.ts`.
+// `TS2717`, and inheriting them (`extends BuiltinRouteRules`) only downgraded it
+// to a `TS2430` assignability check the real shapes fail — see the block comment
+// in `src/types/route-rules.ts`. `RouteRules` is unconstrained instead, and the
+// built-ins are composed in by `ResolvedRouteRules` for the keys nobody claimed.
 //
 // The augmentation below is that exact scenario, expressed against the source
 // module (typecheck runs over `src/`, not the built `h3` package). It uses
 // `proxy` rather than `redirect` only because module augmentation is
 // program-global: the runtime suites read `routeRules.redirect?.options` and
 // `routeRules.cache?.options` off the context, and re-typing those keys here
-// would re-type them for every file in the program.
+// would re-type them for every file in the program. It deliberately carries
+// both arms the inherited design rejected: a bare `string` (the shape h3's own
+// `@example` shipped, and `nitropack`'s `redirect`) and `false` (h3's reset
+// marker, which `nitropack` spells on `cache` and `cors`).
 declare module "../../src/types/route-rules.ts" {
   interface RouteRules {
-    proxy?: { to: string; status?: number };
+    proxy?: string | { to: string; status?: number } | false;
   }
 }
 
 declare const contextRules: ContextRouteRules;
 
-// The augmented key carries the augmenter's type, not h3's built-in wrapper.
-expectTypeOf(contextRules.proxy).toEqualTypeOf<{ to: string; status?: number } | undefined>();
+// The augmented key comes through verbatim — h3's built-in is replaced, not
+// intersected with (an intersection would be uninhabitable).
+expectTypeOf(contextRules.proxy).toEqualTypeOf<
+  string | { to: string; status?: number } | false | undefined
+>();
 
-// A built-in nobody augmented still resolves to the `h3/rules` wrapper shape,
-// so `options` keeps its rule-specific type.
+// A built-in nobody augmented is exactly the `h3/rules` wrapper — no
+// escape-hatch widening, so members read without narrowing.
+expectTypeOf(contextRules.redirect).toEqualTypeOf<MatchedRouteRule<"redirect"> | undefined>();
+expectTypeOf<NonNullable<ContextRouteRules["redirect"]>["route"]>().toEqualTypeOf<string>();
 expectTypeOf(contextRules.redirect?.options).toEqualTypeOf<RedirectRuleOptions | undefined>();
 
-// The escape-hatch arm admits the legacy shapes without an augmentation having
-// to match h3's wrapper exactly (this assignability is what makes the
-// declaration merge above legal).
-expectTypeOf<{ to: string; status?: number }>().toExtend<
-  NonNullable<ContextRouteRules["redirect"]>
->();
-expectTypeOf<{ to: string; _redirectStripBase?: string }>().toExtend<
-  NonNullable<ContextRouteRules["redirect"]>
->();
-
-// A named interface is admitted as well as an inline object literal — the
-// escape-hatch arm must not require an (implicit) index signature.
-interface LegacyRedirectRule {
-  to: string;
-  status?: number;
-}
-expectTypeOf<LegacyRedirectRule>().toExtend<NonNullable<ContextRouteRules["redirect"]>>();
-
-// Documented limit: a *primitive* member is not admitted, since allowing one
-// would remove member access from the un-augmented union entirely.
-expectTypeOf<string>().not.toExtend<NonNullable<ContextRouteRules["redirect"]>>();
-
-// ...and the interface is still closed: an undeclared key is a compile error.
+// ...and the resolved type is still closed: an undeclared key is a compile error.
 // @ts-expect-error - unknown rule key on the context `RouteRules`
 contextRules.notDeclaredAnywhere;
 
