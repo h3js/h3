@@ -6,6 +6,10 @@ import type { RuleHandler } from "../types.ts";
 // order: -2, outer to `headers`/`redirect`/`proxy`/`cache` — auth failure throws before any of them run.
 export const basicAuth: RuleHandler<"basicAuth"> = {
   order: -2,
+  // A gate: re-adding it through an alternate reading can only fail closed, so
+  // a `false` exemption resolved by one reading does not carry over to a
+  // reading the exemption's pattern does not cover (see `RuleHandler.restricting`).
+  restricting: true,
   handler: (m) => {
     // Fail closed: only `false` disables auth, and the merge resolves that away
     // before a handler is ever built — so any other falsy options value here is a

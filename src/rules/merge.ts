@@ -72,9 +72,13 @@ export function mergeMatchedRouteRules(
   altLayers?: readonly (RouteRuleLayer[] | undefined)[],
   canOverride?: RouteOverridePredicate,
 ): MatchedRouteRules {
-  const routeRules = resolveLayers(rawLayers);
+  // Names some reading resolved to `false`. A reset is applied as a deletion, so
+  // without this the union cannot tell "this path explicitly exempted the rule"
+  // from "the rule never matched here" — and takes the unguarded add branch.
+  const resets = new Set<string>();
+  const routeRules = resolveLayers(rawLayers, resets);
   for (const layers of altLayers || []) {
-    unionLayers(routeRules, layers, canOverride);
+    unionLayers(routeRules, layers, canOverride, resets);
   }
   return routeRules;
 }
@@ -96,14 +100,24 @@ function unionLayers(
   routeRules: MatchedRouteRules,
   layers: RouteRuleLayer[] | undefined,
   canOverride?: RouteOverridePredicate,
+  resets?: Set<string>,
 ): void {
   if (!layers?.length) {
     return;
   }
-  const resolved = resolveLayers(layers);
+  const resolved = resolveLayers(layers, resets);
   for (const [name, rule] of Object.entries(resolved) as [string, MatchedRouteRule][]) {
     const current = routeRules[name as keyof MatchedRouteRules];
-    if (current && canOverride && !canOverride(current.route, rule.route)) {
+    if (current) {
+      if (canOverride && !canOverride(current.route, rule.route)) {
+        continue;
+      }
+    } else if (resets?.has(name) && !rule.handler?.restricting) {
+      // Reset by an earlier reading, and re-adding this rule could only loosen
+      // the response — honor the exemption. A restriction is fail-closed and
+      // still re-added (see `RuleHandler.restricting`), which is what keeps a
+      // single-segment `basicAuth: false` from covering a path that decodes to
+      // more segments than the pattern granting it.
       continue;
     }
     mergeRouteRule(routeRules, name, rule, rule.params);
@@ -118,18 +132,24 @@ function unionLayers(
 // plain patterns but not for modifier params, and merging a chain out of order
 // lets a broader pattern's options (or its `false` reset) win over a narrower
 // pattern's.
-function resolveLayers(layers: RouteRuleLayer[] | undefined): MatchedRouteRules {
+function resolveLayers(
+  layers: RouteRuleLayer[] | undefined,
+  resets?: Set<string>,
+): MatchedRouteRules {
   // A router is built entirely in one mode, so the first layer decides which:
   // an entry array merges layer by layer, a pre-merged layer already carries
   // its whole chain and is selected by rank (never by position — see
   // `PreMergedRouteRules.rank`).
   const firstData = layers?.[0]?.data;
   if (firstData && !Array.isArray(firstData)) {
-    return resolvePreMergedLayers(layers!);
+    return resolvePreMergedLayers(layers!, resets);
   }
   const routeRules = emptyRouteRules();
   for (const layer of orderedLayers(layers)) {
     for (const entry of layer.data as RouteRuleEntry[]) {
+      if (entry.options === false) {
+        resets?.add(entry.name);
+      }
       mergeRouteRule(routeRules, entry.name, entry, layer.params);
     }
   }
@@ -234,7 +254,10 @@ function layerRank(layer: RouteRuleLayer): number {
 // scanning for the maximum) also puts the per-rule `params` merge below in
 // broad → narrow order, so a narrower contributor's params win. See
 // `PreMergedRouteRules.rank`.
-function resolvePreMergedLayers(rawLayers: RouteRuleLayer[]): MatchedRouteRules {
+function resolvePreMergedLayers(
+  rawLayers: RouteRuleLayer[],
+  resets?: Set<string>,
+): MatchedRouteRules {
   const layers =
     rawLayers.length < 2
       ? rawLayers
@@ -242,7 +265,13 @@ function resolvePreMergedLayers(rawLayers: RouteRuleLayer[]): MatchedRouteRules 
           (a, b) => (a.data as PreMergedRouteRules).rank - (b.data as PreMergedRouteRules).rank,
         );
   const routeRules = emptyRouteRules();
-  for (const entry of (layers[layers.length - 1]!.data as PreMergedRouteRules).rules) {
+  const winning = layers[layers.length - 1]!.data as PreMergedRouteRules;
+  if (resets && winning.resets) {
+    for (const name of winning.resets) {
+      resets.add(name);
+    }
+  }
+  for (const entry of winning.rules) {
     const paramRoutes = entry.paramRoutes;
     let params: Record<string, string> | undefined;
     for (const layer of layers) {

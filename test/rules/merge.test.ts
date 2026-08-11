@@ -522,36 +522,56 @@ describe("dual-path union (Nitro #4396)", () => {
     expect(match("GET", "/app/admin/off/x").routeRules.basicAuth).toBeUndefined();
   });
 
-  // KNOWN OPEN ISSUE — `it.fails` pins the *current* (wrong) behavior so the
-  // suite stays green while the gap stays visible; flip it to a plain `it` when
-  // the union learns to tell a re-spelling apart from a climb (below).
+  // A `false` reset is implemented as a `delete`, so a reset rule would otherwise
+  // be indistinguishable from one that never matched and a broader alternate
+  // reading would take the unguarded ADD branch, restoring it at full breadth.
+  // `/app/private/x%2f..%2f..%2fy` is served by h3 under `/app/private/**` (the
+  // `%2f` stays opaque in dispatch, so the private handler really runs), yet its
+  // canonical reading `/app/y` matches only `/**` — re-adding `cors: *` there
+  // makes the private response cross-origin readable.
   //
-  // `unionLayers` consults the anti-escalation guard only when the rule is
-  // already present, and a `false` reset is implemented as a `delete` — so a
-  // reset rule is indistinguishable from one that never matched, and a broader
-  // alternate reading takes the unguarded ADD branch and restores it at full
-  // breadth. `/app/private/x%2f..%2f..%2fy` is served by h3 under
-  // `/app/private/**` (the `%2f` stays opaque in dispatch, so the private handler
-  // really runs), yet its canonical reading `/app/y` matches only `/**` and
-  // re-adds `cors: *` — making the private response cross-origin readable.
-  //
-  // Gating the ADD on `canOverride(resetRoute, incomingRoute)` does NOT fix this:
-  // the config above is isomorphic (under pattern containment) to the
+  // Gating the ADD on `canOverride(resetRoute, incomingRoute)` cannot fix this:
+  // this config is isomorphic (under pattern containment) to the
   // `/rules/ba-off/**` + `/rules/ba-off/*` pair three tests above, where the
   // re-add is exactly what keeps the auth gate — both are `{broad B, narrow N
   // carrying the reset}` with the served path matching `{B, N}` and the alternate
-  // reading matching `{B}` only. The two cases differ only in how the reading was
-  // derived (a pure `%2f` re-spelling of the same resource vs a `..` climb out of
-  // the reset's scope), which is information `mergeMatchedRouteRules` is not
-  // given.
-  it.fails("an alternate reading never RESURRECTS a rule the served path reset", () => {
+  // reading matching `{B}` only. What separates them is the *rule*, not the
+  // patterns: re-adding a gate is fail-closed, re-adding a permission undoes the
+  // exemption. Hence `RuleHandler.restricting`.
+  it("an alternate reading never RESURRECTS a permission the served path reset", () => {
     const match = matcher({
       "/**": { cors: { origin: "*" } },
       "/app/private/**": { cors: false },
     });
-    // Control: the reset holds on an uncrafted path (this part passes today).
+    // Control: the reset holds on an uncrafted path.
     expect(match("GET", "/app/private/x").routeRules.cors).toBeUndefined();
     expect(match("GET", "/app/private/x%2f..%2f..%2fy").routeRules.cors).toBeUndefined();
+  });
+
+  it("…but a restriction is still re-added, so a reset cannot dodge a gate", () => {
+    // The isomorphic counterpart: `basicAuth` is `restricting`, so the exemption
+    // written for a single segment does not survive into a reading with two.
+    const match = matcher({
+      "/app/gate/**": { basicAuth: { username: "admin", password: "s3cret" } },
+      "/app/gate/*": { basicAuth: false },
+    });
+    expect(match("GET", "/app/gate/a").routeRules.basicAuth).toBeUndefined();
+    expect(match("GET", "/app/gate/a%2fb").routeRules.basicAuth!.options).toMatchObject({
+      username: "admin",
+    });
+  });
+
+  it("a reset re-resolved later in the same reading is not treated as a reset", () => {
+    // `false` then a narrower re-enable: the rule is present, so the union takes
+    // the ordinary override path and the reset must not linger as a veto.
+    const match = matcher({
+      "/**": { cors: { origin: "*" } },
+      "/app/**": { cors: false },
+      "/app/ok/**": { cors: { origin: ["https://ok.example"] } },
+    });
+    expect(match("GET", "/app/ok/x").routeRules.cors!.options).toMatchObject({
+      origin: ["https://ok.example"],
+    });
   });
 
   it("a broader canonical rule never DOWNGRADES a narrower rule the served path resolved", () => {

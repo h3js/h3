@@ -31,6 +31,16 @@ export interface PreMergedRouteRules {
    */
   rank: number;
   rules: PreMergedRouteRuleEntry[];
+  /**
+   * Rule names this chain reset with `false`, when any. The reset itself is
+   * applied here at build time, so the resolved `rules` cannot show it — but the
+   * cross-reading union has to tell "reset by this path" apart from "never
+   * matched" to stop a broader alternate reading resurrecting a permission
+   * (`mergeMatchedRouteRules`). Plain mode reads the same information off the
+   * `false` entries it merges per request; recording it keeps both modes — and
+   * the compiled table — resolving identically.
+   */
+  resets?: string[];
 }
 
 export interface PreMergedRouteRuleEntry extends RouteRuleEntry {
@@ -157,13 +167,14 @@ export function preMergeRuleLayers(
         continue;
       }
       const merged = new Map<string, ChainRule>();
+      const resets = new Set<string>();
       for (const route of chain) {
         const methods = byPath.get(route)!;
         // Same precedence as plain registration: agnostic first, then method-scoped overrides.
         const agnostic = methods.get("") || [];
         const scoped = (method && methods.get(method)) || [];
         for (const entry of [...agnostic, ...scoped]) {
-          mergeChainRule(merged, entry);
+          mergeChainRule(merged, entry, resets);
         }
       }
       // Register even when empty — an all-`false` resolution is itself the result.
@@ -175,6 +186,8 @@ export function preMergeRuleLayers(
             ? rule
             : { ...rule, paramRoutes },
         ),
+        // A name reset then re-added later in the chain is resolved, not reset.
+        ...(resets.size > 0 && { resets: [...resets].filter((name) => !merged.has(name)) }),
       });
     }
     result.set(path, registrations);
@@ -183,7 +196,14 @@ export function preMergeRuleLayers(
 }
 
 // Chain-time equivalent of `mergeRouteRule`, additionally tracking which patterns contributed (for exact per-rule params).
-function mergeChainRule(merged: Map<string, ChainRule>, entry: RouteRuleEntry): void {
+function mergeChainRule(
+  merged: Map<string, ChainRule>,
+  entry: RouteRuleEntry,
+  resets: Set<string>,
+): void {
+  if (entry.options === false) {
+    resets.add(entry.name);
+  }
   const current = merged.get(entry.name);
   if (current) {
     if (entry.options === false) {

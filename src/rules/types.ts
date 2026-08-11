@@ -237,6 +237,25 @@ export type MatchedRouteRules = {
  */
 export interface RuleHandler<K extends RouteRuleName = RouteRuleName> {
   order?: number;
+  /**
+   * Whether this rule *restricts* what a request may do (an auth gate) rather
+   * than *permitting* something (CORS, a redirect, caching).
+   *
+   * Only consulted when a rule was reset with `false` by one reading of the
+   * path and a broader pattern re-adds it through an [alternate reading]. Since
+   * a reset is applied as a deletion, the re-add is otherwise indistinguishable
+   * from a rule that simply never matched — and resurrecting a *permission* at a
+   * broader pattern's breadth undoes the exemption the narrower pattern granted
+   * (`cors: false` on a private subtree, re-added as `origin: "*"` from `/**`,
+   * on a response h3 still serves from the private handler).
+   *
+   * Re-adding a restriction is fail-closed, so it stays allowed: that is what
+   * keeps a single-segment `basicAuth: false` exemption from covering a path
+   * that only decodes to multiple segments. Re-adding anything else is refused.
+   * Defaults to `false` — mark a custom rule `true` only when applying it more
+   * broadly can never weaken a response.
+   */
+  restricting?: boolean;
   handler: (matched: MatchedRouteRule<K>) => Middleware;
 }
 

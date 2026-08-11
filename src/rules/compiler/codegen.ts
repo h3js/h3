@@ -14,7 +14,11 @@ export function serializePreMergedRouteRules(
   // specific matched layer (see `PreMergedRouteRules.rank`) — dropping it here
   // would make compiled preMerge fall back to layer position and silently lose
   // rules whose pattern rou3 returns out of containment order.
-  return `{route:${JSON.stringify(data.route)},rank:${data.rank},rules:${serializeRouteRuleEntries(
+  // `resets` likewise: the reset was applied at build time, so the resolved
+  // `rules` cannot show it, and the cross-reading union needs it to tell an
+  // explicit exemption apart from a rule that never matched.
+  const resets = data.resets?.length ? `,resets:${JSON.stringify(data.resets)}` : "";
+  return `{route:${JSON.stringify(data.route)},rank:${data.rank}${resets},rules:${serializeRouteRuleEntries(
     data.rules,
     ns,
     runtimeRules,
