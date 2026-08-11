@@ -316,3 +316,68 @@ describeMatrix("middleware route scope", (t, { it, expect }) => {
     expect(params).toEqual({ "0": "q", id: "7", rest: "a/b" });
   });
 });
+
+// Regression: `use(fn, { method })` uppercased the scope but compared it against
+// a raw `event.req.method`, so a guard scoped to a method was skipped whenever
+// the request spelled that method in any other case — and a skipped middleware
+// falls through to the method-agnostic route (fail-open), unlike a method-scoped
+// route, which just 404s. `new Request()` only normalizes the fetch spec's fixed
+// token list (DELETE/GET/HEAD/OPTIONS/POST/PUT), so `patch` reaches handlers
+// verbatim through `app.fetch()` on every runtime.
+describeMatrix("middleware method scope", (t, { it, expect }) => {
+  // `t.app.request()` instead of `t.fetch()`: in node mode the latter goes over a
+  // real socket, and llhttp rejects an unknown-cased method token with a 400
+  // before h3 sees it. The in-process path is the one that is actually reachable.
+  const request = (method: string) => t.app.request("http://localhost/secret", { method });
+
+  for (const method of ["PATCH", "patch", "PaTcH"]) {
+    it(`guards a PATCH-scoped route spelled ${method}`, async () => {
+      t.app.use(() => "DENIED", { method: "PATCH" });
+      t.app.all("/secret", () => "SECRET");
+
+      expect(await (await request(method)).text()).toBe("DENIED");
+    });
+  }
+
+  it("does not match a genuinely different method", async () => {
+    let ran = false;
+    t.app.use(
+      () => {
+        ran = true;
+        return "DENIED";
+      },
+      { method: "PATCH" },
+    );
+    t.app.all("/secret", () => "SECRET");
+
+    for (const method of ["POST", "post"]) {
+      expect(await (await request(method)).text(), method).toBe("SECRET");
+    }
+    expect(ran).toBe(false);
+  });
+
+  it("matches HEAD for a lowercase `get` scope", async () => {
+    const seen: string[] = [];
+    t.app.use((event) => void seen.push(event.req.method), { method: "get" });
+    t.app.get("/foo", () => "hello");
+
+    const res = await t.app.request("http://localhost/foo", { method: "HEAD" });
+    expect(res.status).toBe(200);
+    expect(seen).toEqual(["HEAD"]);
+  });
+
+  it("matches an unnormalized `head` token for a GET scope", async () => {
+    const seen: string[] = [];
+    t.app.use((event) => void seen.push(event.req.method), { method: "GET" });
+    t.app.all("/foo", () => "hello");
+
+    // `new Request()` normalizes `head` to `HEAD`; force the token back to model a
+    // runtime that hands h3 the method as it arrived on the wire.
+    const req = new Request("http://localhost/foo", { method: "HEAD" });
+    Object.defineProperty(req, "method", { value: "head", configurable: true });
+
+    const res = await t.app.request(req);
+    expect(res.status).toBe(200);
+    expect(seen).toEqual(["head"]);
+  });
+});
