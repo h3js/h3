@@ -75,9 +75,19 @@ export function routeRules(
     : matcher;
   return function routeRulesMiddleware(event, next) {
     const pathname = event.url.pathname;
-    let matched = match(event.req.method, pathname);
+    // Uppercase before the lookup: rule keys are uppercased at parse time
+    // (internal/key.ts), and rou3 resolves `methods[method] || methods[""]` — a
+    // method-scoped rule never populates `methods[""]`, so a case mismatch is a
+    // *total* miss that fails OPEN (unlike a method-scoped route, which 404s).
+    // A lowercase method is reachable everywhere: the Fetch spec only
+    // byte-uppercases DELETE/GET/HEAD/OPTIONS/POST/PUT, so `patch`/`query` pass
+    // through `app.fetch()` verbatim, and raw-socket parsers that forward the
+    // method token expose the well-known six too. Normalizing here also keeps the
+    // matcher's memo keyed on one spelling per method.
+    const method = event.req.method.toUpperCase();
+    let matched = match(method, pathname);
     // Method check first: it keeps every non-`OPTIONS` request off the header reads.
-    if (event.req.method === "OPTIONS" && isPreflightRequest(event)) {
+    if (method === "OPTIONS" && isPreflightRequest(event)) {
       matched = liftPreflightCors(matched, match, event, pathname);
     }
     const { routeRules, routeRuleMiddleware } = matched;

@@ -109,6 +109,28 @@ describe("routeRules() middleware", () => {
     expect(seen[3]).toEqual(seen[0]);
   });
 
+  it("normalizes the request method before the lookup (and before the memo key)", async () => {
+    // Rule keys are uppercased at parse time, so the lookup method must be too —
+    // otherwise a method-scoped rule (which never populates rou3's `methods[""]`)
+    // misses entirely and fails open. Normalizing here rather than inside the
+    // matcher also keeps the memo keyed on one spelling per method: the shared
+    // result identity below is what pins that ordering.
+    const seen: ContextRouteRules[] = [];
+    const app = new H3();
+    app.use(routeRules({ "PATCH /api/**": { headers: { "x-m": "patch" } } }));
+    app.all("/api/x", (event) => {
+      seen.push(event.context.routeRules!);
+      return "ok";
+    });
+    for (const method of ["PATCH", "patch", "PaTcH"]) {
+      const res = await app.fetch(new Request("http://test/api/x", { method }));
+      expect([method, res.headers.get("x-m")]).toEqual([method, "patch"]);
+    }
+    expect(seen).toHaveLength(3);
+    expect(seen[1]).toBe(seen[0]); // one memo entry, not one per spelling
+    expect(seen[2]).toBe(seen[0]);
+  });
+
   it("merges over an earlier instance's context rules instead of replacing them", async () => {
     // Two instances (e.g. a framework-level rule set plus an app-level one) must
     // compose: the second must not erase what the first exposed.

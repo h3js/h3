@@ -858,6 +858,76 @@ describe("method-scoped rules (end-to-end)", () => {
     const head = await app.fetch(new Request("http://test/api/x", { method: "HEAD" }));
     expect(head.headers.get("x-m")).toBeNull();
   });
+
+  it("a method-scoped auth gate is not bypassable with a lowercase/mixed-case method", async () => {
+    // Rule keys are uppercased at parse time (internal/key.ts), so the lookup
+    // method must be too: rou3 resolves `methods[method] || methods[""]` and a
+    // method-scoped rule never populates `methods[""]`, making a case mismatch a
+    // *total* miss that fails OPEN over a method-agnostic route (`app.all`, and
+    // every `app.mount()` base, which registers `all(base + "/**")`).
+    //
+    // Reachable on every runtime: the Fetch spec only byte-uppercases
+    // DELETE/GET/HEAD/OPTIONS/POST/PUT, so `patch`/`query` reach the app
+    // verbatim (raw-socket parsers that forward the token expose the six too).
+    const app = createApp({
+      "PATCH /admin/**": { basicAuth: { username: "admin", password: "secret" } },
+      "QUERY /admin/**": { basicAuth: { username: "admin", password: "secret" } },
+    });
+    let ran = 0;
+    app.all("/admin/**", () => {
+      ran++;
+      return "secret";
+    });
+    for (const method of ["PATCH", "patch", "PaTcH", "QUERY", "query", "QuErY"]) {
+      const res = await app.fetch(new Request("http://test/admin/x", { method }));
+      expect([method, res.status, ran]).toEqual([method, 401, 0]);
+    }
+    // …and the gate still opens on valid credentials, in either spelling.
+    for (const method of ["PATCH", "patch"]) {
+      const res = await app.fetch(
+        new Request("http://test/admin/x", {
+          method,
+          headers: { Authorization: basic("admin", "secret") },
+        }),
+      );
+      expect([method, res.status]).toEqual([method, 200]);
+    }
+    expect(ran).toBe(2);
+  });
+
+  it("a lowercase method resolves the same layers as its canonical spelling", async () => {
+    // Normalization must not stop at gates: header/scope resolution has to agree
+    // too, and a differently-cased method must not pick up another method's rules.
+    const app = createApp({
+      "/api/**": { headers: { "x-all": "1" } },
+      "PATCH /api/**": { headers: { "x-m": "patch" } },
+      "POST /api/**": { headers: { "x-m": "post" } },
+    });
+    app.all("/api/x", () => "ok");
+    for (const method of ["PATCH", "patch", "PaTcH"]) {
+      const res = await app.fetch(new Request("http://test/api/x", { method }));
+      expect([method, res.headers.get("x-m"), res.headers.get("x-all")]).toEqual([
+        method,
+        "patch",
+        "1",
+      ]);
+    }
+  });
+
+  it("path-only rules gate every method spelling", async () => {
+    // Unaffected by the method lookup (they live under rou3's `methods[""]`) —
+    // pinned so a normalization regression cannot go unnoticed here either.
+    const app = createApp({
+      "/admin/**": { basicAuth: { username: "admin", password: "secret" } },
+    });
+    let ran = 0;
+    app.all("/admin/**", () => (ran++, "secret"));
+    for (const method of ["GET", "PATCH", "patch", "query"]) {
+      const res = await app.fetch(new Request("http://test/admin/x", { method }));
+      expect([method, res.status]).toEqual([method, 401]);
+    }
+    expect(ran).toBe(0);
+  });
 });
 
 describe("method-scoped cors preflight", () => {
