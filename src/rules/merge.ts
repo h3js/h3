@@ -33,10 +33,11 @@ export interface RouteRuleEntry {
    *
    * Matched layers are merged in ascending rank, **not** in the order
    * `findAllRoutes` returned them: that order is containment order for plain
-   * patterns but not for modifier params, and merging a chain out of order lets a
-   * broader pattern's options — or its `false` reset — beat a narrower pattern's
-   * (see {@link RouteRuleLayer} and `PreMergedRouteRules.rank`). Every entry of a
-   * layer shares one pattern, so they all carry the same rank.
+   * patterns but not for modifier params (rou3's documented optional-syntax
+   * carve-out — see `preMergeRuleLayers`), and merging a chain out of order lets
+   * a broader pattern's options — or its `false` reset — beat a narrower
+   * pattern's (see {@link RouteRuleLayer} and `PreMergedRouteRules.rank`). Every
+   * entry of a layer shares one pattern, so they all carry the same rank.
    */
   rank?: number;
 }

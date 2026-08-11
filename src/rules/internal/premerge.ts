@@ -28,6 +28,15 @@ export interface PreMergedRouteRules {
    * and the chain-cleanliness check below cannot catch it (those pairs are
    * `subset`, not `partial`, so nothing throws and the compiler's fail-safe
    * fallback never fires).
+   *
+   * This is rou3's documented behavior, not a bug to wait out: its README
+   * "Result ordering" scopes subsumption consistency to patterns *without*
+   * optional syntax, and carves out `:name?` / `:name*` / `{...}?` explicitly —
+   * such a pattern registers one entry per expansion, and results are ordered by
+   * the specificity of the entry that *matched*, not by the breadth of the whole
+   * pattern. The carve-out closes by telling consumers who need a pattern-level
+   * containment order to re-sort the result with `compareRoutes` themselves,
+   * which is exactly what ranking does here.
    */
   rank: number;
   rules: PreMergedRouteRuleEntry[];
