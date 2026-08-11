@@ -62,14 +62,27 @@ export interface BuiltinRouteRules {
  * commonly memoized, so a matched object can be shared between requests and must
  * not be mutated in place.
  *
+ * Declare the shape *whoever populates the context actually writes*. Under
+ * `h3/rules`' own `routeRules()` middleware that is the matched wrapper, so a
+ * custom key mirrors its built-in neighbours. A framework that populates
+ * `event.context.routeRules` itself declares whatever it writes instead —
+ * raw values included, which is why nothing here constrains the shape.
+ *
+ * Note this is a *different* interface from `h3/rules`' `RouteRules`, which
+ * types the normalized rule **options**. A custom rule needs both: the option
+ * shape there, the matched shape here.
+ *
  * @example
  * ```ts
+ * import type { MatchedRouteRule } from "h3/rules";
+ *
  * declare module "h3" {
  *   interface RouteRules {
- *     swr?: number | boolean;
- *     redirect?: string | { to: string; status?: number };
+ *     audience?: MatchedRouteRule<"audience">;
  *   }
  * }
+ *
+ * // event.context.routeRules.audience?.options -> the merged value
  * ```
  */
 export interface RouteRules {}
