@@ -55,32 +55,76 @@ export function canonicalPath(pathname: string): string {
  * is caught for the same double-decoding downstream that `resolveDotSegments`
  * already covers for dots and separators (`%252e`, `%252f`) — a single pass here
  * would leave the two inconsistent, and `%2540admin` reachable past a
- * `/@admin/**` gate. It terminates because every pass that changes the string
- * shortens it, and it cannot collapse a separator: `decodePreservingSeparators`
+ * `/@admin/**` gate. It cannot collapse a separator: `decodePreservingSeparators`
  * holds `%2f`/`%5c` back at every `%25` depth, so those are already at their
  * fixpoint on the first pass.
  *
+ * **The fixpoint is reached in a bounded number of passes** — see
+ * {@link EXACT_PASSES}. A pass unwraps one `%25` level and rescans the whole
+ * string, so termination alone (every changing pass shortens the string) left
+ * a nested chain costing one full pass per level: quadratic, and reachable from
+ * a single request that matches no rule at all. The bound never truncates the
+ * reading: past the window a pass first unwraps the nesting *whole*, so a chain
+ * of any depth still decodes to the same character it always did — a deeper
+ * spelling can never degrade into "no alternate reading" and walk a gate.
+ *
  * Returns `pathname` unchanged when there is nothing to decode, and stops at the
- * last well-formed reading on malformed percent-encoding (h3 rejects those with
- * a 400 before any handler runs; a non-h3 caller keeps the served reading rather
- * than losing the match).
+ * last well-formed reading on malformed percent-encoding — including one a
+ * decode *produces* (`/a%25zzb` → `/a%zzb`), which h3 serves with a 200 since
+ * `decodeURI` accepts it. Such a path keeps the reading decoded so far rather
+ * than losing the match.
  */
 export function decodedPath(pathname: string): string {
   let decoded = pathname;
-  while (decoded.includes("%")) {
+  for (let pass = 0; hasDecodableEscape(decoded); pass++) {
+    if (pass >= MAX_PASSES) {
+      return decoded;
+    }
+    // Past the exact window, take the nesting out of the chain in one linear
+    // scan instead of one pass per level. Only the passes a real double/triple
+    // decoding consumer can reach run unaccelerated, so nothing that resolves
+    // within the window can observe this.
+    const input = pass < EXACT_PASSES ? decoded : flattenNesting(decoded);
     let next: string;
     try {
-      next = decodePreservingSeparators(decoded);
+      next = decodePreservingSeparators(input);
     } catch {
-      break;
+      return input;
     }
-    if (next === decoded) {
-      break;
+    if (next === input) {
+      return input;
     }
     decoded = next;
   }
   return decoded;
 }
+
+// Passes that run exactly as they always have — one `%25` level per pass, no
+// acceleration. It covers every depth a decoding consumer can actually resolve
+// (a proxy decodes, a backend decodes again, and five more), so any path whose
+// decoding converges — or aborts on a malformed escape — within the window is
+// byte-identical to the unbounded loop, abort semantics included. Past it the
+// depth is no longer information a consumer can act on, only passes to burn.
+const EXACT_PASSES = 8;
+
+// Absolute ceiling on the loop, so the work is O(n) whatever the input. Past
+// `EXACT_PASSES` every pass first collapses all `%25` nesting, leaving only one
+// construction that still needs another pass — an escape whose own hex digits
+// are escaped (`%25%32%66` → `%2f`), which triples in length per level, so the
+// passes here are logarithmic in the path length: the deepest such chain a 1 MB
+// path can carry needs 13. Reaching the ceiling would return the most decoded
+// reading found so far, the same partial-reading contract a malformed escape
+// already has.
+const MAX_PASSES = 24;
+
+// `hasDecodableEscape`/`flattenNesting` (end of file) each need one fact about
+// the pass they bracket: `%2f`/`%5c` at any `%25` nesting depth are held back at
+// *every* pass, so such a chain is already at its fixpoint
+// (`decodePreservingSeparators`). It is the only upstream detail duplicated
+// here; getting it wrong can only cost a pass or leave a separator chain
+// untouched, never decode one into a real separator.
+const CHAR_2 = 50;
+const CHAR_5 = 53;
 
 /**
  * Whether either canonical reading can differ from `pathname` itself. `false`
@@ -175,4 +219,81 @@ function isEveryCanonicalReadingInScope(pathname: string, base: string): boolean
 
 function isCanonicalInScope(canonical: string, base: string): boolean {
   return canonical === base || canonical.startsWith(base + "/");
+}
+
+/**
+ * Whether decoding `value` can still change it — i.e. it carries a `%` that is
+ * not a nested separator. `false` is exact and means the next pass would return
+ * `value` unchanged, so the loop can stop one pass early: every `%` is then
+ * inside a separator match, which is re-emitted verbatim, and the gaps between
+ * those matches have no `%` left for `decodeURIComponent` to act on.
+ *
+ * Only the maximal `25` run has to be checked per `%`: a shorter one is
+ * followed by `25`, which is neither `2f` nor `5c`.
+ */
+function hasDecodableEscape(value: string): boolean {
+  for (let i = value.indexOf("%"); i !== -1; i = value.indexOf("%", i + 1)) {
+    const byte = escapeByte(value, nestingEnd(value, i));
+    if (byte !== 0x2f && byte !== 0x5c) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Collapse every `%25` nesting chain to the level it would reach after the
+ * unwrapping passes, in a single scan — `%25252540` → `%40`, the same string
+ * the third pass produces.
+ *
+ * A chain unwrapping onto something that is not an escape body (`%2525zz`, or
+ * the end of the string) keeps one level, so the bare `%` that aborts the pass
+ * still appears exactly one pass later, as it does unaccelerated. A separator
+ * chain is left alone — it is at its fixpoint at every depth.
+ */
+function flattenNesting(path: string): string {
+  let flat = "";
+  let last = 0;
+  for (let i = path.indexOf("%"); i !== -1; i = path.indexOf("%", i + 1)) {
+    const end = nestingEnd(path, i);
+    if (end === i + 1) {
+      continue; // not a nesting chain
+    }
+    const byte = escapeByte(path, end);
+    if (byte === 0x2f || byte === 0x5c) {
+      continue; // separator chain: already at its fixpoint, at every depth
+    }
+    flat += path.slice(last, i) + (byte === -1 ? "%25" : "%");
+    last = end;
+  }
+  return last === 0 ? path : flat + path.slice(last);
+}
+
+/** Index just past the run of `25` pairs following the `%` at `index`. */
+function nestingEnd(value: string, index: number): number {
+  let end = index + 1;
+  while (value.charCodeAt(end) === CHAR_2 && value.charCodeAt(end + 1) === CHAR_5) {
+    end += 2;
+  }
+  return end;
+}
+
+/** The byte two hex digits at `index` stand for, or `-1` if they are not two. */
+function escapeByte(value: string, index: number): number {
+  const high = hexDigit(value.charCodeAt(index));
+  const low = hexDigit(value.charCodeAt(index + 1));
+  return high === -1 || low === -1 ? -1 : high * 16 + low;
+}
+
+function hexDigit(code: number): number {
+  if (code >= 48 && code <= 57) {
+    return code - 48; // 0-9
+  }
+  if (code >= 97 && code <= 102) {
+    return code - 87; // a-f
+  }
+  if (code >= 65 && code <= 70) {
+    return code - 55; // A-F
+  }
+  return -1;
 }

@@ -12,6 +12,21 @@ import { resolveRuleTarget } from "../../src/rules/handlers/_utils.ts";
 import { canonicalPathname } from "../../src/utils/internal/path.ts";
 import type { ProxyRuleOptions } from "../../src/rules/types.ts";
 
+// Count decode passes so the `decodedPath` bound can be asserted as an
+// operation count instead of a wall clock. The mock only wraps the real
+// function — every other consumer of the module is unaffected.
+const decodePasses = vi.hoisted(() => ({ count: 0 }));
+vi.mock("../../src/utils/internal/path.ts", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../src/utils/internal/path.ts")>();
+  return {
+    ...actual,
+    decodePreservingSeparators(value: string) {
+      decodePasses.count++;
+      return actual.decodePreservingSeparators(value);
+    },
+  };
+});
+
 // A rule pattern is written with the character itself (`/@admin/**`, the natural
 // spelling), so it must also match the percent-encoded request spelling, which
 // any decoding consumer — a proxied backend, a static asset store, nginx —
@@ -251,6 +266,62 @@ describe("decodedPath", () => {
     expect(decodedPath(plain)).toBe(plain);
     expect(decodedPath("/foo%")).toBe("/foo%");
     expect(decodedPath("/%ZZ")).toBe("/%ZZ");
+  });
+
+  // `%25` nesting is a *pass multiplier*: one level is unwrapped per pass and
+  // every pass rescans the whole string, so a sequentially nested chain cost one
+  // full pass per level — O(n²), ~72 ms of blocking time for a 14 KB path, on a
+  // request that need not match any rule at all. The bound is asserted as a
+  // *pass count* rather than a wall clock: the bound is what regresses, elapsed
+  // time is what flakes.
+  it("unwraps a deeply nested chain in a bounded number of passes", () => {
+    const deep = "/%" + "25".repeat(4000) + "40x";
+    decodePasses.count = 0;
+    expect(decodedPath(deep)).toBe("/@x");
+    expect(decodePasses.count).toBeLessThanOrEqual(12);
+
+    // 4x the depth must not cost 16x the work: the pass count is bounded by a
+    // constant, not by the nesting depth.
+    const deeper = "/%" + "25".repeat(16_000) + "40x";
+    decodePasses.count = 0;
+    expect(decodedPath(deeper)).toBe("/@x");
+    expect(decodePasses.count).toBeLessThanOrEqual(12);
+
+    // Same for a chain that unwraps onto a malformed escape rather than a
+    // decodable one (`%25…25zz` -> `%zz`), which shrinks two chars per pass too.
+    const malformed = "/%" + "25".repeat(4000) + "zz";
+    decodePasses.count = 0;
+    expect(decodedPath(malformed)).toBe("/%zz");
+    expect(decodePasses.count).toBeLessThanOrEqual(12);
+  });
+
+  it("gives a deeply nested spelling the same reading as a shallow one", () => {
+    // Nesting depth is not information: every depth decodes to the same
+    // character, so the reading must not depend on how deep the chain was — a
+    // bound that truncated the unwrapping would show up here.
+    for (const depth of [1, 2, 3, 7, 8, 9, 64, 4000]) {
+      const nest = "%" + "25".repeat(depth);
+      expect(decodedPath(`/a${nest}20b`), `%20 at depth ${depth}`).toBe("/a b");
+      expect(decodedPath(`/${nest}40admin/x`), `%40 at depth ${depth}`).toBe("/@admin/x");
+      // A separator is at its fixpoint from the first pass, at every depth.
+      expect(decodedPath(`/a${nest}2Fb`), `%2F at depth ${depth}`).toBe(`/a${nest}2Fb`);
+      expect(decodedPath(`/a${nest}5Cb`), `%5C at depth ${depth}`).toBe(`/a${nest}5Cb`);
+    }
+  });
+
+  it("gates a spelling nested far past any pass bound", () => {
+    // The security property the bound must not buy performance with: a chain
+    // deeper than the bound may not silently degrade to "no alternate reading",
+    // which would walk the gate. Every depth still resolves the gate.
+    const match = createRouteRulesMatcher(
+      normalizeRouteRules({ "/@admin/**": { basicAuth: AUTH } }),
+    );
+    for (const depth of [1, 7, 8, 9, 64, 4000]) {
+      const path = "/%" + "25".repeat(depth) + "40admin/x";
+      expect(match("GET", path).routeRules.basicAuth?.options, `depth ${depth}`).toMatchObject(
+        AUTH,
+      );
+    }
   });
 });
 

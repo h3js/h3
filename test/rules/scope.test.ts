@@ -84,6 +84,45 @@ describe("isPathInScope", () => {
   it("allows anything for an empty base (catch-all /**)", () => {
     expect(isPathInScope("/anything/here", "")).toBe(true);
   });
+
+  it("rejects traversal at any `%25` nesting depth", () => {
+    // `resolveDotSegments` collapses `%2e`/`%2f` at every depth, so this must
+    // not become depth-dependent when the decode loop is bounded.
+    for (const depth of [1, 3, 8, 9, 4000]) {
+      const nest = "%" + "25".repeat(depth);
+      expect(
+        isPathInScope(`/api/orders/${nest}2e${nest}2e${nest}2fadmin`, "/api/orders"),
+        `depth ${depth}`,
+      ).toBe(false);
+    }
+  });
+
+  it("rejects traversal that only surfaces after repeated decoding", () => {
+    // A dot whose hex digits are themselves encoded (`%25%32%65` -> `%2e` ->
+    // `.`) is out of `resolveDotSegments`' reach on its own, so only
+    // `decodedPath` running to its fixpoint catches it — one pass per layer.
+    // Each layer triples the path's length, so this is the construction that
+    // decides how many passes the loop can ever need; the deep layers here sit
+    // past any small pass bound and must still fail closed.
+    const hexOfHex = (value: string) =>
+      [...value].map((c) => "%" + c.charCodeAt(0).toString(16).padStart(2, "0")).join("");
+    let ladder = "%2e";
+    for (let layers = 1; layers <= 8; layers++) {
+      ladder = hexOfHex(ladder);
+      expect(isPathInScope(`/base/${ladder}${ladder}/secret`, "/base"), `${layers} layers`).toBe(
+        false,
+      );
+    }
+  });
+
+  it("stays in scope through a deeply nested spelling", () => {
+    // The other direction: a bounded decode loop must not start reporting a
+    // benign deep spelling as an escape either.
+    for (const depth of [1, 3, 8, 9, 4000]) {
+      const nest = "%" + "25".repeat(depth);
+      expect(isPathInScope(`/api/orders/a${nest}20b`, "/api/orders"), `depth ${depth}`).toBe(true);
+    }
+  });
 });
 
 // Used to match route rules: encoded separators must be decoded so a request
