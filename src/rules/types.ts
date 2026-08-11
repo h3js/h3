@@ -39,11 +39,28 @@ export interface CacheRuleOptions {
   base?: string | string[];
   /** Only handle conditional headers (304 responses) without caching full responses. */
   headersOnly?: boolean;
-  /** Request header names that vary the cache key (e.g. `["accept-language"]`). */
+  /**
+   * Request header names that vary the cache key (e.g. `["accept-language"]`).
+   *
+   * Each named header also reaches the cached handler — it has to, or the
+   * handler could not produce the per-value response the key promises — and is
+   * merged into the response's `Vary`. `Authorization` is the exception: naming
+   * it here keys entries per credential but does not forward it; see
+   * {@link allowAuthorization}.
+   */
   varies?: string[] | readonly string[];
   /** Allowlist of query parameter names that vary the cache key. */
   allowQuery?: string[] | readonly string[];
-  /** Allowlist of cookie names that participate in caching (default: none). */
+  /**
+   * Allowlist of cookie names that participate in caching (default: none) —
+   * a **request**-side allowlist: only these crumbs key the entry and reach the
+   * cached handler, every other cookie is filtered out of both.
+   *
+   * It grants nothing on the response side: a handler's `Set-Cookie` is
+   * delivered to the request that produced it and never stored in the entry,
+   * allowlisted name or not. Replaying one would hand the first requester's
+   * session to everyone the entry is later served to.
+   */
   allowCookies?: string[] | readonly string[];
   /**
    * Let `Authorization` / `Proxy-Authorization` reach the cached handler

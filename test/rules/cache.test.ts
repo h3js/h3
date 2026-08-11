@@ -1,4 +1,4 @@
-import { H3 } from "../../src/index.ts";
+import { H3, setCookie } from "../../src/index.ts";
 import type { EventHandler } from "../../src/index.ts";
 import { describe, expect, it, vi } from "vitest";
 import { routeRules } from "../../src/rules/middleware.ts";
@@ -318,6 +318,131 @@ describe("cache rule (isolation & credential safety)", () => {
     // server-side caching still applies
     const hit = await app.fetch(new Request("http://test/nocc/a"));
     expect(hit.headers.get("x-cache")).toBe("HIT");
+    // ...and the hit must not advertise it either: ocache honors the flag only
+    // in its serialize step, so a hit is served entirely by the
+    // `handleCacheHeaders` hook, whose `cache-control` set is unconditional.
+    expect(hit.headers.get("cache-control")).toBeNull();
+  });
+
+  it("does not bake a handler's `Set-Cookie` into the shared cache (F15)", async () => {
+    // A cookie is per-requester by definition. ocache's serialize deletes it
+    // from the very Response the *miss* response is rebuilt from, so the
+    // handler's cookie was lost even on the request that ran it — while
+    // `event.res` had already been consumed by h3's `toResponse`. Same move as
+    // the volatile CORS headers: back onto the live `event.res`, never into the
+    // entry.
+    let calls = 0;
+    const app = createApp({ "/sc/**": { swr: 60 } }, createOcacheRuleHandler());
+    app.get("/sc/page", (event) => {
+      setCookie(event, "sid", `s${++calls}`);
+      return { calls };
+    });
+
+    const miss = await app.fetch(new Request("http://test/sc/page"));
+    expect(miss.status).toBe(200);
+    expect(miss.headers.get("x-cache")).toBe("MISS");
+    expect(await miss.json()).toEqual({ calls: 1 });
+    expect(miss.headers.get("set-cookie")).toBe("sid=s1; Path=/");
+
+    // ...and the next requester is served the cached body without inheriting
+    // the first requester's session.
+    const hit = await app.fetch(new Request("http://test/sc/page"));
+    expect(hit.headers.get("x-cache")).toBe("HIT");
+    expect(await hit.json()).toEqual({ calls: 1 });
+    expect(hit.headers.get("set-cookie")).toBeNull();
+  });
+
+  it("does not replay an allowlisted cookie from the cache either (F15)", async () => {
+    // `allowCookies` is a *request*-side allowlist (which cookies key the
+    // entry). ocache additionally keeps a matching `Set-Cookie` in the stored
+    // entry, which replays the first requester's value to everyone sharing that
+    // key — session fixation dressed as a cache hit.
+    let calls = 0;
+    const app = createApp(
+      { "/sc-allow/**": { cache: { maxAge: 60, allowCookies: ["sid"] } } },
+      createOcacheRuleHandler(),
+    );
+    app.get("/sc-allow/page", (event) => {
+      setCookie(event, "sid", `s${++calls}`);
+      return { calls };
+    });
+
+    const miss = await app.fetch(new Request("http://test/sc-allow/page"));
+    expect(miss.headers.get("set-cookie")).toBe("sid=s1; Path=/");
+
+    const hit = await app.fetch(new Request("http://test/sc-allow/page"));
+    expect(hit.headers.get("x-cache")).toBe("HIT");
+    expect(await hit.json()).toEqual({ calls: 1 });
+    expect(hit.headers.get("set-cookie")).toBeNull();
+  });
+
+  it("lets the cached handler read the headers it varies on (F15)", async () => {
+    // ocache filters every `varies` name out of the forwarded request, so a
+    // handler could not read the header its own entry is keyed on: the
+    // docstring's own `["accept-language"]` example produced one entry per
+    // language, each holding the *default* rendering.
+    let calls = 0;
+    const app = createApp(
+      { "/i18n/**": { cache: { maxAge: 60, varies: ["accept-language"] } } },
+      createOcacheRuleHandler(),
+    );
+    app.get("/i18n/page", (event) => ({
+      calls: ++calls,
+      lang: event.req.headers.get("accept-language"),
+    }));
+
+    const fr = await app.fetch(
+      new Request("http://test/i18n/page", { headers: { "accept-language": "fr" } }),
+    );
+    expect(await fr.json()).toEqual({ calls: 1, lang: "fr" });
+    expect(fr.headers.get("vary")).toMatch(/accept-language/i);
+
+    const en = await app.fetch(
+      new Request("http://test/i18n/page", { headers: { "accept-language": "en" } }),
+    );
+    expect(en.headers.get("x-cache")).toBe("MISS");
+    expect(await en.json()).toEqual({ calls: 2, lang: "en" });
+
+    // ...and each language keeps its own entry.
+    const frAgain = await app.fetch(
+      new Request("http://test/i18n/page", { headers: { "accept-language": "fr" } }),
+    );
+    expect(frAgain.headers.get("x-cache")).toBe("HIT");
+    expect(await frAgain.json()).toEqual({ calls: 1, lang: "fr" });
+    expect(calls).toBe(2);
+  });
+
+  it("keeps `Cookie` away from the handler when `allowCookies` filters it (F15)", async () => {
+    // A `varies: ["cookie"]` + `allowCookies` combination is ocache's one
+    // documented exception: the allowlist wins, `cookie` drops out of the key,
+    // and the request keeps only the allowlisted crumbs. Restoring varying
+    // headers must not undo that.
+    const app = createApp(
+      { "/ck/**": { cache: { maxAge: 60, varies: ["cookie"], allowCookies: ["theme"] } } },
+      createOcacheRuleHandler(),
+    );
+    app.get("/ck/page", (event) => ({ cookie: event.req.headers.get("cookie") }));
+
+    const res = await app.fetch(
+      new Request("http://test/ck/page", { headers: { cookie: "theme=dark; sid=secret" } }),
+    );
+    expect(await res.json()).toEqual({ cookie: "theme=dark" });
+  });
+
+  it("still strips `Authorization` when it is listed in `varies` (F15)", async () => {
+    // `allowAuthorization` is the only switch that lets a credential through:
+    // naming it in `varies` keys the entry per credential but must not reopen
+    // the forwarding path the default deliberately closes.
+    const app = createApp(
+      { "/vauth/**": { cache: { maxAge: 60, varies: ["authorization"] } } },
+      createOcacheRuleHandler(),
+    );
+    app.get("/vauth/me", (event) => ({ auth: event.req.headers.get("authorization") }));
+
+    const res = await app.fetch(
+      new Request("http://test/vauth/me", { headers: { authorization: "Bearer alice" } }),
+    );
+    expect(await res.json()).toEqual({ auth: null });
   });
 });
 

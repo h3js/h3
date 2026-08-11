@@ -15,7 +15,7 @@ import type { ServerRequest } from "srvx";
 import { defineCachedHandler as ocacheDefineCachedHandler, setStorage } from "ocache";
 import type { CachedEventHandlerOptions, StorageInterface } from "ocache";
 import { createCacheRuleHandler } from "./handlers/cache.ts";
-import type { RuleHandler } from "./types.ts";
+import type { CacheRuleOptions, RuleHandler } from "./types.ts";
 
 /**
  * Options for the ocache-backed {@link createOcacheRuleHandler}. All fields
@@ -57,19 +57,44 @@ const VOLATILE_CORS_HEADERS = [
   "access-control-allow-credentials",
 ] as const;
 
+/** `Set-Cookie` values of a response, one per cookie. */
+function getSetCookies(headers: Headers): string[] {
+  // Non-standard runtimes may not implement the (comparatively recent)
+  // `getSetCookie`; the joined single value is then the best available reading,
+  // and it is still the right thing to move — worst case one header carries
+  // what should have been several.
+  if (typeof headers.getSetCookie === "function") {
+    return headers.getSetCookie();
+  }
+  const value = headers.get("set-cookie");
+  return value === null ? [] : [value];
+}
+
 /**
- * Move volatile CORS headers off the response that is about to be serialized
- * into the shared cache, back onto the live `event.res.headers`.
+ * Move the per-requester response headers off the response that is about to be
+ * serialized into the shared cache, back onto the live `event.res.headers`.
  *
  * The move (not just a strip) matters: h3's inner `toResponse` above already
- * *consumed* `event.res` (cors's appended headers included) into this
- * response, so the current — cache-miss — request would otherwise lose its
- * own correct CORS headers. Re-set on a fresh `event.res`, h3's outer
- * `prepareResponse` merges them into the 2xx response at send time. Cache
- * *hits* need nothing here: the `cors` rule runs on every request and appends
- * fresh, request-correct headers that `prepareResponse` merges the same way.
+ * *consumed* `event.res` (cors's appended headers and the handler's cookies
+ * included) into this response, so the current — cache-miss — request would
+ * otherwise lose headers it produced itself. Re-set on a fresh `event.res`,
+ * h3's outer `prepareResponse` merges them into the 2xx response at send time.
+ * Cache *hits* need nothing from the CORS side: the `cors` rule runs on every
+ * request and appends fresh, request-correct headers that `prepareResponse`
+ * merges the same way.
+ *
+ * `Set-Cookie` is moved for the opposite reason to the CORS headers: not
+ * because ocache would keep it (its serialize drops any cookie outside
+ * `allowCookies`), but because it drops it from the *same live Response* the
+ * miss reply is rebuilt from — so a handler under a broad rule like
+ * `"/**": { swr: 60 }` silently never set its cookie, not even on the request
+ * that ran it. Moving it restores that, and closes the `allowCookies` case in
+ * the same stroke: an allowlisted cookie was previously stored *in* the entry
+ * and replayed to every later requester sharing the key, handing one visitor's
+ * session to the next. `allowCookies` stays a request-side allowlist — which
+ * cookies key the entry — which is all the response can safely honor.
  */
-function moveVolatileCorsHeaders(res: Response, event: H3Event): Response {
+function moveVolatileHeaders(res: Response, event: H3Event): Response {
   // Only GET/HEAD responses can ever be serialized into the cache — leave the
   // (never-cached) method-bypass path untouched.
   if (event.req.method !== "GET" && event.req.method !== "HEAD") {
@@ -82,22 +107,32 @@ function moveVolatileCorsHeaders(res: Response, event: H3Event): Response {
       moved.push([name, value]);
     }
   }
-  if (moved.length === 0) {
+  const cookies = getSetCookies(res.headers);
+  if (moved.length === 0 && cookies.length === 0) {
     return res;
   }
-  try {
+  const strip = (headers: Headers): void => {
     for (const [name] of moved) {
-      res.headers.delete(name);
+      headers.delete(name);
     }
+    if (cookies.length > 0) {
+      headers.delete("set-cookie");
+    }
+  };
+  try {
+    strip(res.headers);
   } catch {
     // Immutable headers (e.g. a handler-returned `fetch` Response) — rebuild.
     res = new Response(res.body, res);
-    for (const [name] of moved) {
-      res.headers.delete(name);
-    }
+    strip(res.headers);
   }
   for (const [name, value] of moved) {
     event.res.headers.set(name, value);
+  }
+  for (const cookie of cookies) {
+    // Append, never set: `prepareResponse` forwards each `set-cookie` entry
+    // separately, so a handler's multiple cookies survive as multiple headers.
+    event.res.headers.append("set-cookie", cookie);
   }
   return res;
 }
@@ -115,11 +150,11 @@ function moveVolatileCorsHeaders(res: Response, event: H3Event): Response {
 // reach an origin handler in the first place.
 const CREDENTIAL_HEADERS = ["authorization", "proxy-authorization"] as const;
 
-type CredentialValues = (string | null)[];
+type HeaderValues = (string | null)[];
 
 /**
- * Set (or, for `null`, remove) the credential headers on the request the cached
- * handler is about to see.
+ * Set (or, for `null`, remove) `names` on the request the cached handler is
+ * about to see.
  *
  * Rewrites `event.req.headers` in place when the runtime allows it — that keeps
  * srvx's request extras (`runtime`, `ip`, `waitUntil`, …) intact — and falls
@@ -130,19 +165,23 @@ type CredentialValues = (string | null)[];
  * `values`. `false` means neither route worked, so the caller must decide —
  * for a *strip* there is nothing safe left to do but fail the request.
  */
-function setCredentialHeaders(event: H3Event, values: CredentialValues): boolean {
+function setRequestHeaders(
+  event: H3Event,
+  names: readonly string[],
+  values: HeaderValues,
+): boolean {
   const apply = (headers: Headers): void => {
-    for (let i = 0; i < CREDENTIAL_HEADERS.length; i++) {
+    for (let i = 0; i < names.length; i++) {
       const value = values[i];
       if (value == null) {
-        headers.delete(CREDENTIAL_HEADERS[i]!);
+        headers.delete(names[i]!);
       } else {
-        headers.set(CREDENTIAL_HEADERS[i]!, value);
+        headers.set(names[i]!, value);
       }
     }
   };
   const applied = (headers: Headers): boolean =>
-    CREDENTIAL_HEADERS.every((name, i) => headers.get(name) === (values[i] ?? null));
+    names.every((name, i) => headers.get(name) === (values[i] ?? null));
 
   try {
     if (applied(event.req.headers)) {
@@ -175,7 +214,7 @@ function setCredentialHeaders(event: H3Event, values: CredentialValues): boolean
   return applied(event.req.headers);
 }
 
-const savedCredentials = /* @__PURE__ */ new WeakMap<H3Event, CredentialValues>();
+const savedHeaders = /* @__PURE__ */ new WeakMap<H3Event, HeaderValues>();
 
 // `Cache-Control` of the response the handler produced for this event, captured
 // on the way into the cache. See `withPreservedCacheControl`.
@@ -230,13 +269,19 @@ function withPreservedCacheControl(
 
 /**
  * Wrap the dispatched route handler so the request it sees carries exactly the
- * credentials the rule allows.
+ * headers the rule allows: `strip` removed, `restore` put back from the values
+ * captured before ocache's own request filter ran.
  *
- * - default: `authorization`/`proxy-authorization` are removed, so the handler
- *   cannot render user-specific output into a shared entry.
- * - `allowAuthorization`: the values captured before ocache's filter ran are put
- *   back. They are in `varies` (see below), so they are part of the cache key
- *   and of the response's `Vary` — one entry per credential, not one shared one.
+ * - `strip` — `authorization`/`proxy-authorization` unless `allowAuthorization`,
+ *   so the handler cannot render user-specific output into a shared entry.
+ * - `restore` — every header the entry is *keyed* on. ocache filters its
+ *   `varies` names out of the forwarded request, which leaves a handler unable
+ *   to read the very header it varies on: `varies: ["accept-language"]` bought
+ *   one entry per language, each holding the default rendering. Putting the
+ *   values back is safe precisely because they are in the key (and in the
+ *   response's `Vary`) — one entry per value, never a shared one. This is what
+ *   already made `allowAuthorization` work; it applies to every varying header
+ *   for the same reason.
  *
  * Only cacheable methods are touched, matching ocache: a bypassed request
  * (`POST`, …) is never cached and reaches the handler untouched.
@@ -248,24 +293,55 @@ function withPreservedCacheControl(
  * every later caller. Neither alternative is acceptable: a log line in a server
  * process is very likely to go unread, and quietly bypassing the cache would
  * turn an exotic-runtime quirk into a permanent, invisible cache miss.
- * A failed *restore* (`allowAuthorization`) is not an error: the handler merely
- * sees no credential, and the entry is keyed per credential either way.
+ * A failed *restore* is not an error: the handler merely sees the filtered
+ * request it saw before, and the entry is keyed per value either way.
  */
-function withCredentialFilter(handler: EventHandler, allow: boolean): EventHandler {
-  const stripped: CredentialValues = CREDENTIAL_HEADERS.map(() => null);
+function withRequestHeaderFilter(
+  handler: EventHandler,
+  strip: readonly string[],
+  restore: readonly string[],
+): EventHandler {
+  const names = [...strip, ...restore];
+  const stripped: HeaderValues = strip.map(() => null);
   return (event) => {
-    if (event.req.method === "GET" || event.req.method === "HEAD") {
-      const values = allow ? (savedCredentials.get(event) ?? stripped) : stripped;
-      if (!setCredentialHeaders(event, values) && !allow) {
-        throw new HTTPError({
-          status: 500,
-          message:
-            "Cache rule could not strip the credential headers from the request before a cached dispatch.",
-        });
+    if (names.length > 0 && (event.req.method === "GET" || event.req.method === "HEAD")) {
+      const saved = savedHeaders.get(event);
+      const values = saved ? [...stripped, ...saved] : [...stripped, ...restore.map(() => null)];
+      if (!setRequestHeaders(event, names, values)) {
+        // Only a surviving credential is fatal — a restore that did not land
+        // leaves the request no less safe than ocache's own filtering did.
+        for (const name of strip) {
+          if (event.req.headers.get(name) !== null) {
+            throw new HTTPError({
+              status: 500,
+              message:
+                "Cache rule could not strip the credential headers from the request before a cached dispatch.",
+            });
+          }
+        }
       }
     }
     return handler(event);
   };
+}
+
+/**
+ * The header names ocache will key this rule's entries on — its own
+ * `variableHeaderNames` computation, mirrored rather than guessed so the
+ * restore list can never come to mean something the key does not.
+ *
+ * `cookie` drops out of it whenever `allowCookies` is set: ocache then keys on
+ * — and forwards — the allowlisted crumbs only, and that narrowing is the whole
+ * point of the option, so restoring the raw header would undo it.
+ */
+function variableHeaderNames(opts: CacheRuleOptions, allowCredentials: boolean): string[] {
+  const allowsCookies = (opts.allowCookies ?? []).some((name) => name?.trim());
+  const varies = allowCredentials
+    ? [...(opts.varies ?? []), ...CREDENTIAL_HEADERS]
+    : (opts.varies ?? []);
+  return [...new Set(varies.filter(Boolean).map((name) => name.toLowerCase()))].filter(
+    (name) => !(allowsCookies && name === "cookie"),
+  );
 }
 
 /**
@@ -300,13 +376,20 @@ export function createOcacheRuleHandler(opts?: OcacheRuleHandlerOptions): RuleHa
   return createCacheRuleHandler({
     defineCachedHandler: (handler, cachedOpts) => {
       const allowCredentials = cachedOpts.allowAuthorization === true;
+      const strip: readonly string[] = allowCredentials ? [] : CREDENTIAL_HEADERS;
+      const restore = variableHeaderNames(cachedOpts, allowCredentials).filter(
+        // A credential named in `varies` keys the entry per credential but does
+        // not open the forwarding path: `allowAuthorization` stays the single
+        // switch for that, so a rule set cannot let one through by accident.
+        (name) => !strip.includes(name),
+      );
       const ocacheHandler = ocacheDefineCachedHandler(
         // `headersOnly` caches nothing and skips ocache's own request filtering
         // (cookies included), so the request is left exactly as it arrived.
-        cachedOpts.headersOnly ? handler : withCredentialFilter(handler, allowCredentials),
+        cachedOpts.headersOnly ? handler : withRequestHeaderFilter(handler, strip, restore),
         {
           toResponse: async (value, event) => {
-            const res = moveVolatileCorsHeaders(
+            const res = moveVolatileHeaders(
               await toResponse(value, event as H3Event),
               event as H3Event,
             );
@@ -327,18 +410,20 @@ export function createOcacheRuleHandler(opts?: OcacheRuleHandlerOptions): RuleHa
           // allowlisted cookie: they vary the key (ocache hashes every `varies`
           // header into it) and land in the response's `Vary`, so no entry is
           // ever shared between two credentials. ocache strips them from the
-          // forwarded request as part of that — `withCredentialFilter` puts the
-          // captured values back for the handler.
+          // forwarded request as part of that — `withRequestHeaderFilter` puts
+          // the captured values back for the handler.
           ...(allowCredentials && {
             varies: [...(cachedOpts.varies ?? []), ...CREDENTIAL_HEADERS],
           }),
         },
       );
       return defineHandler(async (event) => {
-        if (allowCredentials) {
-          savedCredentials.set(
+        if (restore.length > 0) {
+          // Captured here, outside ocache's resolver: by the time the wrapped
+          // handler runs, ocache has already rebuilt the request without them.
+          savedHeaders.set(
             event,
-            CREDENTIAL_HEADERS.map((name) => event.req.headers.get(name)),
+            restore.map((name) => event.req.headers.get(name)),
           );
         }
         const res = await ocacheHandler(event);
