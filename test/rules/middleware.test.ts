@@ -34,7 +34,7 @@ describe("routeRules() middleware", () => {
     const res = await app.fetch(new Request("http://test/api/users"));
     expect(res.status).toBe(200);
     expect(res.headers.get("x-api")).toBe("1");
-    expect(seen[0]!.headers?.options).toEqual({ "x-api": "1" });
+    expect(seen[0]!.headers).toEqual({ "x-api": "1" });
   });
 
   it("memoizes match results by default (shared result across repeat requests)", async () => {
@@ -163,7 +163,7 @@ describe("routeRules() middleware", () => {
     });
     await app.fetch(new Request("http://test/api/x"));
     expect(Object.keys(seen[0]!)).toEqual(["headers"]);
-    expect(seen[0]!.headers?.options).toEqual({ "x-first": "1" });
+    expect(seen[0]!.headers).toEqual({ "x-first": "1" });
   });
 
   it("a later instance wins per rule name", async () => {
@@ -176,7 +176,7 @@ describe("routeRules() middleware", () => {
       return "ok";
     });
     const res = await app.fetch(new Request("http://test/api/x"));
-    expect(seen[0]!.headers?.options).toEqual({ "x-h": "second" });
+    expect(seen[0]!.headers).toEqual({ "x-h": "second" });
     // Both instances still run their own middleware; the `headers` rule applies
     // after `next()`, so the *outer* (first) instance writes the header last.
     // Only the context map is merged — rule middleware is not deduplicated.

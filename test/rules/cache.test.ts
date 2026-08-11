@@ -38,7 +38,7 @@ describe("cache rule registration", () => {
     const app = new H3();
     app.use(routeRules({ "/cached/**": { swr: 60 } }, { handlers: { cache: undefined } }));
     app.get("/cached/:id", (event) => ({
-      cache: event.context.routeRules?.cache?.options,
+      cache: event.context.routeRules?.cache,
     }));
     const res = await app.fetch(new Request("http://test/cached/a"));
     expect(res.status).toBe(200);

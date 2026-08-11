@@ -16,7 +16,8 @@ import type {
   MatchResult,
   MatchedRouteRule,
   MatchedRouteRules,
-  RouteRules,
+  NormalizedRouteRules,
+  ResolvedRouteRules,
   RuleHandler,
   RuleHandlers,
 } from "./types.ts";
@@ -85,7 +86,7 @@ export type FindRouteRules = (method: string, pathname: string) => RouteRuleLaye
  * registers exactly as before.
  */
 export function createRulesRouter(
-  rules: Record<string, RouteRules>,
+  rules: Record<string, NormalizedRouteRules>,
   handlers: RuleHandlers,
   baseURL?: string,
   preMerge?: boolean,
@@ -206,10 +207,10 @@ export function createRulesRouter(
 
 /**
  * Create a route-rules matcher from a **normalized** rule set (see {@link normalizeRouteRules}).
- * Returns `(method, pathname) => { routeRules, routeRuleMiddleware }`.
+ * Returns `(method, pathname) => { routeRules, matchedRules, routeRuleMiddleware }`.
  */
 export function createRouteRulesMatcher(
-  rules: Record<string, RouteRules>,
+  rules: Record<string, NormalizedRouteRules>,
   opts?: RouteRulesMatcherOptions,
 ): RouteRulesMatcher {
   // `cache`/`proxy` have no default handler (opt-in subpaths so their deps stay
@@ -372,7 +373,7 @@ export function createMatcherFromFind(
 
     if (!rawLayers?.length && !hasAltMatch) {
       // Fresh objects: only memoized results are documented shared/read-only.
-      return { routeRules: {}, routeRuleMiddleware: [] };
+      return { routeRules: {}, matchedRules: {}, routeRuleMiddleware: [] };
     }
 
     // Union the served path's resolution with each alternate reading's: a later
@@ -381,10 +382,37 @@ export function createMatcherFromFind(
     // pattern must never downgrade a narrower rule the served path resolved
     // (encoded-dot escalation). Proxy/redirect still forward the raw
     // `event.url.pathname`.
-    const routeRules = mergeMatchedRouteRules(rawLayers, altLayers, canOverride);
+    const matchedRules = mergeMatchedRouteRules(rawLayers, altLayers, canOverride);
 
-    return { routeRules, routeRuleMiddleware: buildRouteRuleMiddleware(routeRules) };
+    return {
+      routeRules: toRouteRules(matchedRules),
+      matchedRules,
+      routeRuleMiddleware: buildRouteRuleMiddleware(matchedRules),
+    };
   };
+}
+
+/**
+ * Project resolved rules onto their merged options — the map published as
+ * `event.context.routeRules`, where a rule reads as the config it was authored
+ * from (`routeRules.redirect?.to`) rather than through a wrapper. Provenance
+ * stays on the wrappers, which rule handlers are constructed from (see
+ * {@link MatchResult.matchedRules}).
+ *
+ * Null-prototype for the same reason the merge builds one: rule names are
+ * attacker-influenceable config, and a `__proto__` key on a plain object would
+ * retarget the prototype instead of becoming an own property. Built once per
+ * match — a memoized matcher pays for it once per `method + pathname`.
+ *
+ * Not exported from `src/rules/index.ts` — `MatchResult` already carries both
+ * views.
+ */
+function toRouteRules(matchedRules: MatchedRouteRules): ResolvedRouteRules {
+  const routeRules = Object.create(null) as Record<string, unknown>;
+  for (const name in matchedRules) {
+    routeRules[name] = (matchedRules as Record<string, MatchedRouteRule>)[name]!.options;
+  }
+  return routeRules as ResolvedRouteRules;
 }
 
 /**
@@ -398,11 +426,11 @@ export function createMatcherFromFind(
  * ordering stays defined in exactly one place.
  */
 export function buildRouteRuleMiddleware(
-  routeRules: MatchedRouteRules,
+  matchedRules: MatchedRouteRules,
 ): MatchResult["routeRuleMiddleware"] {
   const routeRuleMiddleware: MatchResult["routeRuleMiddleware"] = [];
-  const matchedRules = Object.values(routeRules) as MatchedRouteRule[];
-  const orderedRules = matchedRules.length > 1 ? matchedRules.sort(compareRuleOrder) : matchedRules;
+  const rules = Object.values(matchedRules) as MatchedRouteRule[];
+  const orderedRules = rules.length > 1 ? rules.sort(compareRuleOrder) : rules;
   for (const rule of orderedRules) {
     // merged rule sets never contain `false` options (types.ts: MatchedRouteRule)
     if (!rule.handler) {
@@ -520,7 +548,7 @@ function pushReading(readings: string[], pathname: string, reading: string): voi
 // (otherwise it would silently degrade to data-only). A `false` reset is falsy,
 // so reset-only rule sets don't throw; an own `<name>` key in `handlers` opts out.
 function requireOptInHandler(
-  rules: Record<string, RouteRules>,
+  rules: Record<string, NormalizedRouteRules>,
   handlers: RuleHandlers,
   name: string,
   label: string,

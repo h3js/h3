@@ -5,7 +5,7 @@ import type { RouteRuleEntry } from "../merge.ts";
 import { normalizeRouteRules } from "../normalize.ts";
 import { parseRouteKey } from "../internal/key.ts";
 import type { PreMergedRouteRules } from "../internal/premerge.ts";
-import type { RouteRuleConfig, RouteRules } from "../types.ts";
+import type { NormalizedRouteRules, RouteRuleConfig } from "../types.ts";
 import {
   assertHandlerBinding,
   compileMatcherExport,
@@ -85,7 +85,7 @@ export function compileHandlersImport(
  */
 interface CompileCtx {
   /** Normalized rule set (see the normalization note in {@link resolveCompileCtx}). */
-  rules: Record<string, RouteRules>;
+  rules: Record<string, NormalizedRouteRules>;
   /** Effective preMerge mode — `opts.preMerge` after the fail-safe fallback. */
   preMerge: boolean;
   /**

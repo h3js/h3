@@ -220,6 +220,38 @@ describe("cors rule", () => {
     const res = await app.fetch(new Request("http://test/blog/post"));
     expect(await res.json()).toEqual({ rules: ["headers", "prerender"] });
   });
+
+  it("the context carries the merged rule config itself, not a wrapper", async () => {
+    // The whole contract, built-in and custom side by side: each key holds the
+    // merged options as authored — `rules.redirect.to`, not
+    // `rules.redirect.options.to` — and a custom rule needs exactly one
+    // declaration to get there (see `_augment.ts`; typed in types.test-d.ts).
+    const app = createApp(
+      {
+        "/blog/**": { custom: { audience: "public" }, headers: { "x-a": "1" } },
+        "/blog/:slug": { custom: { tier: "free" }, redirect: { to: "/new", status: 301 } },
+      },
+      { handlers: { redirect: undefined } }, // data-only, so the response is the handler's
+    );
+    app.get("/blog/:slug", (event) => {
+      const rules = event.context.routeRules;
+      return {
+        audience: (rules?.custom as { audience?: string })?.audience,
+        tier: (rules?.custom as { tier?: string })?.tier,
+        header: rules?.headers?.["x-a"],
+        to: rules?.redirect?.to,
+        status: rules?.redirect?.status,
+      };
+    });
+    const res = await app.fetch(new Request("http://test/blog/post"));
+    expect(await res.json()).toEqual({
+      audience: "public",
+      tier: "free",
+      header: "1",
+      to: "/new",
+      status: 301,
+    });
+  });
 });
 
 describe("redirect rule", () => {
@@ -1076,7 +1108,7 @@ describe("matcher options", () => {
 
   it("setting a built-in handler to undefined makes the rule data-only", async () => {
     const app = createApp({ "/x": { redirect: "/y" } }, { handlers: { redirect: undefined } });
-    app.get("/x", (event) => ({ redirect: event.context.routeRules?.redirect?.options }));
+    app.get("/x", (event) => ({ redirect: event.context.routeRules?.redirect }));
     const res = await app.fetch(new Request("http://test/x"));
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ redirect: { to: "/y", status: 307 } });

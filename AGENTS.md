@@ -67,7 +67,7 @@ src/
 │   ├── h3.ts             # App types (H3Config, H3Plugin, H3Route, HTTPMethod)
 │   ├── handler.ts        # Handler types (EventHandler, Middleware)
 │   ├── context.ts        # H3EventContext
-│   ├── route-rules.ts    # RouteRules (matched rules on event.context.routeRules)
+│   ├── route-rules.ts    # RouteRules (shared, augmentable: merged rule options on event.context.routeRules)
 │   └── _utils.ts         # Internal type helpers
 ├── utils/                # ~30 utility modules (public API)
 │   ├── request.ts        # getQuery, getRouterParams, getRequestURL, ...
@@ -97,7 +97,7 @@ src/
 │   ├── normalize.ts      # normalizeRouteRules (config → runtime rules)
 │   ├── match.ts          # createRouteRulesMatcher, createMatcherFromFind, memoize
 │   ├── merge.ts          # mergeMatchedRouteRules (layer merge semantics)
-│   ├── types.ts          # RouteRuleConfig, RouteRules, MatchedRouteRule, RuleHandler
+│   ├── types.ts          # RouteRuleConfig, NormalizedRouteRules, MatchedRouteRule, RuleHandler
 │   ├── cache.ts          # h3/rules/cache — ocache-backed cache handler (optional peer)
 │   ├── proxy.ts          # h3/rules/proxy — proxyRequest-backed proxy handler
 │   ├── compiler.ts       # h3/rules/compiler — build-time codegen

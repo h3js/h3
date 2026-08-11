@@ -81,11 +81,11 @@ describe("preMerge method matrix", () => {
       { preMerge: true, handlers: FIXTURE_HANDLERS },
     );
     const get = matcher("GET", "/api/deep/x");
-    expect(get.routeRules.headers!.options).toEqual({ "x-get": "1" });
-    expect(get.routeRules.cache!.options).toEqual({ swr: true, maxAge: 60 });
+    expect(get.routeRules.headers).toEqual({ "x-get": "1" });
+    expect(get.routeRules.cache).toEqual({ swr: true, maxAge: 60 });
     const post = matcher("POST", "/api/deep/x");
     expect(post.routeRules.headers).toBeUndefined();
-    expect(post.routeRules.cache!.options).toEqual({ swr: true, maxAge: 60 });
+    expect(post.routeRules.cache).toEqual({ swr: true, maxAge: 60 });
   });
 });
 
@@ -134,7 +134,7 @@ describe("preMerge layer selection (findAllRoutes order is not containment order
       snapshotResult(plain("GET", pathname)),
     );
     // Spelled out: the gate registered on the narrower pattern must survive.
-    expect(preMerged("GET", pathname).routeRules.basicAuth?.options).toMatchObject({
+    expect(preMerged("GET", pathname).routeRules.basicAuth).toMatchObject({
       username: "admin",
     });
   });
@@ -195,8 +195,8 @@ describe("preMerge soundness checks", () => {
       }),
       { preMerge: true },
     );
-    expect(matcher("GET", "/a/42").routeRules.headers!.options).toEqual({ a: "narrow" });
-    expect(matcher("GET", "/a/x").routeRules.headers!.options).toEqual({ a: "broad" });
+    expect(matcher("GET", "/a/42").routeRules.headers).toEqual({ a: "narrow" });
+    expect(matcher("GET", "/a/x").routeRules.headers).toEqual({ a: "broad" });
   });
 
   it("compileFindRouteRules is fail-safe on unordered overlaps (warns + falls back)", () => {
@@ -251,8 +251,8 @@ describe("preMerge soundness checks", () => {
       }),
       { preMerge: true },
     );
-    expect(matcher("GET", "/a/x").routeRules.headers!.options).toEqual({ a: "1" });
-    expect(matcher("GET", "/b/x").routeRules.headers!.options).toEqual({ b: "2" });
+    expect(matcher("GET", "/a/x").routeRules.headers).toEqual({ a: "1" });
+    expect(matcher("GET", "/b/x").routeRules.headers).toEqual({ b: "2" });
     expect(matcher("GET", "/c/x").routeRules).toEqual({});
   });
 });

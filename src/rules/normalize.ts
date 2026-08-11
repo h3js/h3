@@ -1,6 +1,12 @@
 import { decodeRoutePattern, formatRouteKey, parseRouteKey } from "./internal/key.ts";
 import { mergeRuleOptions } from "./merge.ts";
-import type { RouteRuleConfig, RouteRules } from "./types.ts";
+import type {
+  CacheRuleOptions,
+  NormalizedRouteRules,
+  ProxyRuleOptions,
+  RedirectRuleOptions,
+  RouteRuleConfig,
+} from "./types.ts";
 
 /**
  * Normalize user route-rule config into runtime rules.
@@ -20,8 +26,8 @@ import type { RouteRuleConfig, RouteRules } from "./types.ts";
  */
 export function normalizeRouteRules(
   config: Record<string, RouteRuleConfig>,
-): Record<string, RouteRules> {
-  const normalizedRules: Record<string, RouteRules> = {};
+): Record<string, NormalizedRouteRules> {
+  const normalizedRules: Record<string, NormalizedRouteRules> = {};
   for (const key in config) {
     const routeConfig = config[key]!;
     const { method, path: rawPath } = parseRouteKey(key);
@@ -37,22 +43,31 @@ export function normalizeRouteRules(
     // normalization is key-order idempotent — the compiler depends on this for
     // byte-identical codegen. Rest-destructure avoids mutating the caller's config.
     const { redirect, proxy, cors, swr, cache, ...rest } = routeConfig;
-    const routeRules: RouteRules = rest;
+    // Written as opaque data, read back as {@link NormalizedRouteRules} at the
+    // end: authored (`RouteRuleConfig`) and merged (`RouteRules`) shapes are two
+    // separately augmentable interfaces, and h3's own sugar is proof that a
+    // key's config type need not equal its normalized one. Each rule below is
+    // built through its concrete option type instead, so nothing here depends on
+    // what a third party declared a key to be.
+    const routeRules: Record<string, unknown> = rest;
 
     if (redirect) {
-      const redirectOptions: { to?: string; status?: number } =
+      const authored: { to?: string; status?: number } =
         typeof redirect === "string" ? { to: redirect } : redirect;
-      routeRules.redirect = { to: "/", status: 307, ...redirectOptions };
+      const redirectOptions: RedirectRuleOptions = { to: "/", status: 307, ...authored };
       if (path.endsWith("/**")) {
-        routeRules.redirect.base = path.slice(0, -3);
+        redirectOptions.base = path.slice(0, -3);
       }
+      routeRules.redirect = redirectOptions;
     }
 
     if (proxy) {
-      routeRules.proxy = typeof proxy === "string" ? { to: proxy } : { ...proxy };
+      const proxyOptions: ProxyRuleOptions =
+        typeof proxy === "string" ? { to: proxy } : { ...proxy };
       if (path.endsWith("/**")) {
-        routeRules.proxy.base = path.slice(0, -3);
+        proxyOptions.base = path.slice(0, -3);
       }
+      routeRules.proxy = proxyOptions;
     }
 
     // `true` → permissive defaults (h3 fills origin/methods/allowHeaders `*`);
@@ -82,9 +97,7 @@ export function normalizeRouteRules(
     // 0 is a valid swr value (serve stale, revalidate immediately) — don't falsy-check.
     if (swr !== undefined && swr !== false) {
       // Copy — `cache` aliases the user's config object here.
-      const cacheOptions: Exclude<RouteRules["cache"], false | undefined> = {
-        ...(cache || undefined),
-      };
+      const cacheOptions: CacheRuleOptions = { ...(cache || undefined) };
       cacheOptions.swr = true;
       if (typeof swr === "number") {
         cacheOptions.maxAge = swr;
@@ -138,7 +151,7 @@ export function normalizeRouteRules(
         existing[name] = mergeRuleOptions(existing[name], options);
       }
     } else {
-      normalizedRules[canonicalKey] = routeRules;
+      normalizedRules[canonicalKey] = routeRules as NormalizedRouteRules;
     }
   }
   return normalizedRules;

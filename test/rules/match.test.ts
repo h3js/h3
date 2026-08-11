@@ -34,7 +34,7 @@ const ESCALATION = "/app/admin/x/%2e%2e/%2e%2e/%2e%2e/y";
 describe("createMatcherFromFind override guard", () => {
   it("guards specificity by default (no broader-pattern downgrade)", () => {
     const matcher = createMatcherFromFind(find);
-    const basicAuth = matcher("GET", ESCALATION).routeRules.basicAuth!;
+    const basicAuth = matcher("GET", ESCALATION).matchedRules.basicAuth!;
     expect(basicAuth.route).toBe("/app/admin/**");
     expect(basicAuth.options).toMatchObject({ username: "admin" });
   });
@@ -45,14 +45,14 @@ describe("createMatcherFromFind override guard", () => {
     const encoded = "/app/admin%2fpanel";
     const upgrade: FindRouteRules = (_method, pathname) =>
       pathname.includes("/admin/") ? [BROAD, ADMIN] : [BROAD];
-    const basicAuth = createMatcherFromFind(upgrade)("GET", encoded).routeRules.basicAuth!;
+    const basicAuth = createMatcherFromFind(upgrade)("GET", encoded).matchedRules.basicAuth!;
     expect(basicAuth.route).toBe("/app/admin/**");
     expect(basicAuth.options).toMatchObject({ username: "admin" });
   });
 
   it("`() => true` opts back into unconditional override", () => {
     const matcher = createMatcherFromFind(find, () => true);
-    const basicAuth = matcher("GET", ESCALATION).routeRules.basicAuth!;
+    const basicAuth = matcher("GET", ESCALATION).matchedRules.basicAuth!;
     expect(basicAuth.route).toBe("/**");
     expect(basicAuth.options).toMatchObject({ username: "guest" });
   });
@@ -125,7 +125,7 @@ describe("createMatcherFromFind override guard", () => {
       seen.push([current, incoming]);
       return false;
     });
-    expect(matcher("GET", ESCALATION).routeRules.basicAuth!.route).toBe("/app/admin/**");
+    expect(matcher("GET", ESCALATION).matchedRules.basicAuth!.route).toBe("/app/admin/**");
     // Exactly one consultation: the predicate's only job is the cross-reading
     // override guard. Ordering the matched layers of a single reading uses their
     // build-time `rank` instead, so it never reaches the predicate — which is
@@ -192,7 +192,7 @@ describe("method-agnostic rules vs node-aliased method-scoped siblings", () => {
     // …including HEAD, which serves the GET-scoped layers too (RFC 9110).
     expect(ruleNames(matcher, "HEAD", path)).toEqual(["basicAuth", "headers"]);
     // The gate's options survive intact (not clobbered by the sibling).
-    expect(matcher("GET", path).routeRules.basicAuth!.options).toEqual({
+    expect(matcher("GET", path).routeRules.basicAuth).toEqual({
       username: "admin",
       password: "s3cret",
     });
@@ -218,12 +218,12 @@ describe("method-agnostic rules vs node-aliased method-scoped siblings", () => {
       "GET /a/:id": { headers: { "x-b": "get" } },
     };
     const matcher = createRouteRulesMatcher(normalizeRouteRules(config));
-    expect(matcher("GET", "/a/b").routeRules.headers!.options).toEqual({ "x-b": "get" });
-    expect(matcher("HEAD", "/a/b").routeRules.headers!.options).toEqual({ "x-b": "get" });
-    expect(matcher("POST", "/a/b").routeRules.headers!.options).toEqual({ "x-b": "all" });
+    expect(matcher("GET", "/a/b").routeRules.headers).toEqual({ "x-b": "get" });
+    expect(matcher("HEAD", "/a/b").routeRules.headers).toEqual({ "x-b": "get" });
+    expect(matcher("POST", "/a/b").routeRules.headers).toEqual({ "x-b": "all" });
     const compiled = evaluateCompiledMatcher(config);
-    expect(compiled("GET", "/a/b").routeRules.headers!.options).toEqual({ "x-b": "get" });
-    expect(compiled("POST", "/a/b").routeRules.headers!.options).toEqual({ "x-b": "all" });
+    expect(compiled("GET", "/a/b").routeRules.headers).toEqual({ "x-b": "get" });
+    expect(compiled("POST", "/a/b").routeRules.headers).toEqual({ "x-b": "all" });
   });
 
   it("layer order between differently-specific spellings stays rou3's", () => {
@@ -239,7 +239,7 @@ describe("method-agnostic rules vs node-aliased method-scoped siblings", () => {
         "/a/:id": { headers: { x: "named" } },
       }),
     );
-    expect(agnosticOnly("GET", "/a/b").routeRules.headers!.options).toEqual({ x: "named" });
+    expect(agnosticOnly("GET", "/a/b").routeRules.headers).toEqual({ x: "named" });
 
     const mixed = createRouteRulesMatcher(
       normalizeRouteRules({
@@ -247,8 +247,8 @@ describe("method-agnostic rules vs node-aliased method-scoped siblings", () => {
         "GET /a/*": { headers: { x: "star" } },
       }),
     );
-    expect(mixed("GET", "/a/b").routeRules.headers!.options).toEqual({ x: "named" });
-    expect(mixed("POST", "/a/b").routeRules.headers!.options).toEqual({ x: "named" });
+    expect(mixed("GET", "/a/b").routeRules.headers).toEqual({ x: "named" });
+    expect(mixed("POST", "/a/b").routeRules.headers).toEqual({ x: "named" });
   });
 
   it("an explicit HEAD rule still overrides the GET-derived one", () => {
@@ -259,8 +259,8 @@ describe("method-agnostic rules vs node-aliased method-scoped siblings", () => {
         "HEAD /a/:id": { headers: { "x-b": "head" } },
       }),
     );
-    expect(matcher("HEAD", "/a/b").routeRules.headers!.options).toEqual({ "x-b": "head" });
-    expect(matcher("GET", "/a/b").routeRules.headers!.options).toEqual({ "x-b": "get" });
+    expect(matcher("HEAD", "/a/b").routeRules.headers).toEqual({ "x-b": "head" });
+    expect(matcher("GET", "/a/b").routeRules.headers).toEqual({ "x-b": "get" });
   });
 
   it("does not leak a method-scoped rule onto another method", () => {

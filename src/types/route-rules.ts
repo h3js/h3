@@ -1,7 +1,18 @@
-import type { MatchedRouteRule } from "../rules/types.ts";
+import type {
+  BasicAuthRuleOptions,
+  CacheRuleOptions,
+  ProxyRuleOptions,
+  RedirectRuleOptions,
+} from "../rules/types.ts";
+import type { CorsOptions } from "../utils/cors.ts";
 
 /**
- * The rule keys `h3/rules` ships a built-in handler for.
+ * The rule keys `h3/rules` ships a built-in handler for, typed as the **merged
+ * rule options** the runtime resolves for them — the same shape the rule was
+ * authored in (`RouteRuleConfig`), minus the input sugar normalization already
+ * expanded (`redirect: "/new"` → `{ to, status }`) and minus the `false` reset
+ * marker, which is applied as a deletion and can therefore never survive into a
+ * merged rule set.
  *
  * Declared on their own interface rather than on {@link RouteRules}, the shared
  * augmentable one. Declaration merging compares a redeclared property by *type
@@ -31,25 +42,25 @@ import type { MatchedRouteRule } from "../rules/types.ts";
  * {@link ResolvedRouteRules} — where nothing is inherited and no assignability
  * check applies at all.
  *
- * Spreading `h3/rules`' `MatchedRouteRules` here instead of listing the keys
- * would contribute a `string` **index signature** (its key union is
- * `RouteRuleName`, i.e. `string`, since `h3/rules`' own `RouteRules` config type
- * stays open). On a shared ecosystem interface that index signature is hostile:
- * it makes every other module's augmentation an error (`TS2411`), whatever key
- * or type it adds.
+ * Adding a `[key: string]: unknown` index signature here (so that a data-only
+ * rule reads off the context without being declared) is equally out: on a shared
+ * ecosystem interface an index signature makes every other module's augmentation
+ * an error (`TS2411`), whatever key or type it adds. A custom rule is declared
+ * once, on {@link RouteRules}.
  */
 export interface BuiltinRouteRules {
-  headers?: MatchedRouteRule<"headers">;
-  redirect?: MatchedRouteRule<"redirect">;
-  proxy?: MatchedRouteRule<"proxy">;
-  cache?: MatchedRouteRule<"cache">;
-  basicAuth?: MatchedRouteRule<"basicAuth">;
-  cors?: MatchedRouteRule<"cors">;
+  headers?: Record<string, string>;
+  redirect?: RedirectRuleOptions;
+  proxy?: ProxyRuleOptions;
+  cache?: CacheRuleOptions;
+  basicAuth?: BasicAuthRuleOptions;
+  cors?: CorsOptions;
 }
 
 /**
- * Rules matched for the current route — the canonical extension point for route
- * rules in the h3 ecosystem.
+ * The rules matched for the current route, **keyed by rule name and holding the
+ * merged rule options directly** (`rules.redirect.to`, `rules.headers["x-a"]`) —
+ * the canonical extension point for route rules in the h3 ecosystem.
  *
  * Intentionally **empty and unconstrained**: modules that implement or consume
  * route rules (such as Nitro) augment it via declaration merging, so that a
@@ -62,27 +73,26 @@ export interface BuiltinRouteRules {
  * commonly memoized, so a matched object can be shared between requests and must
  * not be mutated in place.
  *
- * Declare the shape *whoever populates the context actually writes*. Under
- * `h3/rules`' own `routeRules()` middleware that is the matched wrapper, so a
- * custom key mirrors its built-in neighbours. A framework that populates
- * `event.context.routeRules` itself declares whatever it writes instead —
- * raw values included, which is why nothing here constrains the shape.
- *
- * Note this is a *different* interface from `h3/rules`' `RouteRules`, which
- * types the normalized rule **options**. A custom rule needs both: the option
- * shape there, the matched shape here.
+ * This is the **one** `RouteRules` interface: `h3/rules` re-exports it, so a
+ * custom rule is declared once, in one shape, and is then typed on both the
+ * matched result and the context. (Its authored counterpart, `RouteRuleConfig`,
+ * stays a separate closed interface — that is what makes a typo a compile
+ * error.) Per-rule provenance — which pattern contributed the options, its
+ * params, the handler — is deliberately *not* here; it is passed to rule
+ * handlers as a `MatchedRouteRule` and available as `MatchResult.matchedRules`.
  *
  * @example
  * ```ts
- * import type { MatchedRouteRule } from "h3/rules";
- *
- * declare module "h3" {
+ * declare module "h3/rules" {
+ *   interface RouteRuleConfig {
+ *     audience?: "public" | "internal";
+ *   }
  *   interface RouteRules {
- *     audience?: MatchedRouteRule<"audience">;
+ *     audience?: "public" | "internal";
  *   }
  * }
  *
- * // event.context.routeRules.audience?.options -> the merged value
+ * // event.context.routeRules.audience -> "public" | "internal" | undefined
  * ```
  */
 export interface RouteRules {}
@@ -92,10 +102,9 @@ export interface RouteRules {}
  * {@link RouteRules}, plus a built-in for every key nobody claimed.
  *
  * `Omit` — not `&` — so that an augmenter's redeclaration *replaces* h3's
- * built-in rather than intersecting with it; intersecting
- * `MatchedRouteRule<"redirect">` with `string | { to: string }` would yield a
- * type no value inhabits. Keys left to h3 keep their exact
- * `MatchedRouteRule<K>`, so `rules.redirect?.options` and `.route` read without
+ * built-in rather than intersecting with it; intersecting `RedirectRuleOptions`
+ * with `string | { to: string }` would yield a type no value inhabits. Keys left
+ * to h3 keep their exact option type, so `rules.redirect?.to` reads without
  * narrowing.
  */
 export type ResolvedRouteRules = RouteRules & Omit<BuiltinRouteRules, keyof RouteRules>;

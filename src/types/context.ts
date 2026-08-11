@@ -20,7 +20,7 @@ export interface H3EventContext extends ServerRequestContext {
   /* Cached session data */
   sessions?: Record<string, Session>;
 
-  /* Rules matched for the current route */
+  /* Merged rule options for the current route, keyed by rule name */
   routeRules?: Readonly<ResolvedRouteRules>;
 
   /* Trusted IP Address of client */

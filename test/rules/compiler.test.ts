@@ -88,7 +88,7 @@ describe("compiler parity", () => {
       "/api/**": { headers: { "x-b": "all" } },
       "GET /api/**": { headers: { "x-b": "get" } },
     });
-    expect(compiled("GET", "/api/x").routeRules.headers!.options).toEqual({ "x-b": "get" });
+    expect(compiled("GET", "/api/x").routeRules.headers).toEqual({ "x-b": "get" });
     expect(snapshotResult(compiled("GET", "/api/x"))).toEqual(
       snapshotResult(runtime("GET", "/api/x")),
     );
@@ -138,11 +138,9 @@ describe("compiler parity", () => {
     });
     const compiled = evaluateModule(compileRouteRules(config, { matcher: true }));
     const payload = "/app/admin/x/%2e%2e/%2e%2e/%2e%2e/y";
-    const basicAuth = compiled("GET", payload).routeRules.basicAuth as {
-      options: { username: string };
-    };
+    const basicAuth = compiled("GET", payload).routeRules.basicAuth as { username: string };
     // The strict admin gate survives — not downgraded to guest:guest.
-    expect(basicAuth.options.username).toBe("admin");
+    expect(basicAuth.username).toBe("admin");
     expect(snapshotResult(compiled("GET", payload))).toEqual(
       snapshotResult(runtime("GET", payload)),
     );
@@ -219,7 +217,7 @@ describe("generated code shape", () => {
       expect(snapshotResult(compiled("GET", pathname))).toEqual(
         snapshotResult(runtime("GET", pathname)),
       );
-      expect(compiled("GET", pathname).routeRules.basicAuth?.options, pathname).toMatchObject({
+      expect(compiled("GET", pathname).routeRules.basicAuth, pathname).toMatchObject({
         username: "admin",
       });
     }
@@ -267,7 +265,7 @@ describe("generated code shape", () => {
     expect(mod.code).not.toContain("import");
     expect(mod.body.startsWith("export const findRouteRules = ")).toBe(true);
     const matcher = createMatcherFromFind(evaluateFind(compileFindRouteRules(rules)));
-    expect(matcher("GET", "/a").routeRules.prerender!.options).toBe(true);
+    expect(matcher("GET", "/a").routeRules.prerender).toBe(true);
   });
 
   it("is parameterized on the handler binding prefix and per-rule source", () => {
@@ -667,7 +665,7 @@ describe("input normalization", () => {
     expect(code).toContain('name:"cors"');
     expect(code).not.toContain('name:"swr"');
     const matcher = createMatcherFromFind(evaluateFind(code));
-    expect(matcher("GET", "/old/x").routeRules.redirect!.options).toEqual({
+    expect(matcher("GET", "/old/x").routeRules.redirect).toEqual({
       to: "/new/**",
       status: 307,
       base: "/old",

@@ -12,11 +12,11 @@ import type { ResolvedRouteRules as ContextRouteRules } from "../../src/types/ro
 import type {
   BasicAuthRuleOptions,
   CacheRuleOptions,
-  MatchedRouteRule,
+  MatchResult,
   MatchedRouteRules,
+  NormalizedRouteRules,
   RedirectRuleOptions,
   RouteRuleConfig,
-  RouteRules,
   RuleHandler,
 } from "../../src/rules/types.ts";
 
@@ -90,10 +90,18 @@ compileRouteRules(normalizeRouteRules({ "/api/**": { swr: 60 } }));
 
 // --- Custom keys are re-enabled via module augmentation ---
 
+// A custom rule is declared **once, in one shape**, on the two interfaces that
+// describe its two ends: `RouteRuleConfig` (what is authored) and `RouteRules`
+// (what the merge resolves). The merged value *is* the config value, so the two
+// declarations are identical — there is no second, wrapper-shaped one. Each is
+// augmented in the module that declares it.
 declare module "../../src/rules/types.ts" {
   interface RouteRuleConfig {
     myPlugin?: { mode: "a" | "b" };
   }
+}
+
+declare module "../../src/types/route-rules.ts" {
   interface RouteRules {
     myPlugin?: { mode: "a" | "b" };
   }
@@ -110,18 +118,27 @@ normalizeRouteRules({ "/x": { myPlugin: { mode: "b" } } });
 const augmentedBad: RouteRuleConfig = { myPlugin: { mode: "c" } };
 void augmentedBad;
 
-// ...and readable off the normalized `RouteRules` shape as the augmented type.
-declare const normalized: RouteRules;
+// ...and readable off the normalized rules as the augmented type. Normalization
+// only expands sugar, so a rule's normalized type is its declared one (plus the
+// `false` reset marker where the authored config admits one — not here).
+declare const normalized: NormalizedRouteRules;
 expectTypeOf(normalized.myPlugin).toEqualTypeOf<{ mode: "a" | "b" } | undefined>();
 
-// It is also accessible off the matched-rule map. `MatchedRouteRules` stays
-// intentionally open (its key domain is `string`, since `RouteRules` carries an
-// index signature for arbitrary data-only rules), so a matched rule's `options`
-// widen to `unknown` — augmented or not; the key is reachable without a cast.
-declare const matched: MatchedRouteRules;
-expectTypeOf(matched.myPlugin?.options).toEqualTypeOf<unknown>();
+// The **whole point** of the single declaration: the merged rule reads as the
+// config it was authored from, off the matched result and off the event context
+// alike — no `.options` hop, no second augmentation.
+declare const result: MatchResult;
+expectTypeOf(result.routeRules.myPlugin).toEqualTypeOf<{ mode: "a" | "b" } | undefined>();
+declare const onContext: Readonly<ContextRouteRules>;
+expectTypeOf(onContext.myPlugin).toEqualTypeOf<{ mode: "a" | "b" } | undefined>();
 
-// --- h3's context `RouteRules` stays augmentable for its own built-in keys ---
+// Provenance is still typed, on the matched-rule wrappers the handlers get.
+declare const matched: MatchedRouteRules;
+expectTypeOf(matched.myPlugin?.options).toEqualTypeOf<{ mode: "a" | "b" } | undefined>();
+expectTypeOf(matched.myPlugin?.route).toEqualTypeOf<string | undefined>();
+expectTypeOf<MatchResult["matchedRules"]>().toEqualTypeOf<MatchedRouteRules>();
+
+// --- The shared `RouteRules` stays augmentable for h3's own built-in keys ---
 
 // Third-party rule modules (Nitro, the standalone `h3-rules` package) have long
 // declared the built-in keys on h3's shared `RouteRules` interface with their
@@ -141,8 +158,8 @@ expectTypeOf(matched.myPlugin?.options).toEqualTypeOf<unknown>();
 // The augmentation below is that exact scenario, expressed against the source
 // module (typecheck runs over `src/`, not the built `h3` package). It uses
 // `proxy` rather than `redirect` only because module augmentation is
-// program-global: the runtime suites read `routeRules.redirect?.options` and
-// `routeRules.cache?.options` off the context, and re-typing those keys here
+// program-global: the runtime suites read `routeRules.redirect` and
+// `routeRules.cache` off the context, and re-typing those keys here
 // would re-type them for every file in the program. It deliberately carries
 // both arms the inherited design rejected: a bare `string` (the shape h3's own
 // `@example` shipped, and `nitropack`'s `redirect`) and `false` (h3's reset
@@ -161,11 +178,12 @@ expectTypeOf(contextRules.proxy).toEqualTypeOf<
   string | { to: string; status?: number } | false | undefined
 >();
 
-// A built-in nobody augmented is exactly the `h3/rules` wrapper — no
-// escape-hatch widening, so members read without narrowing.
-expectTypeOf(contextRules.redirect).toEqualTypeOf<MatchedRouteRule<"redirect"> | undefined>();
-expectTypeOf<NonNullable<ContextRouteRules["redirect"]>["route"]>().toEqualTypeOf<string>();
-expectTypeOf(contextRules.redirect?.options).toEqualTypeOf<RedirectRuleOptions | undefined>();
+// A built-in nobody augmented is exactly its merged option type — no wrapper and
+// no escape-hatch widening, so members read without narrowing.
+expectTypeOf(contextRules.redirect).toEqualTypeOf<RedirectRuleOptions | undefined>();
+expectTypeOf<NonNullable<ContextRouteRules["redirect"]>["to"]>().toEqualTypeOf<string>();
+expectTypeOf(contextRules.redirect?.status).toEqualTypeOf<number | undefined>();
+expectTypeOf(contextRules.headers).toEqualTypeOf<Record<string, string> | undefined>();
 
 // ...and the resolved type is still closed: an undeclared key is a compile error.
 // @ts-expect-error - unknown rule key on the context `RouteRules`
@@ -199,7 +217,7 @@ const basicAuthReset: RouteRuleConfig = { basicAuth: false };
 void basicAuthReset;
 
 // The same shape is required on the normalized rules.
-declare const normalizedAuth: RouteRules;
+declare const normalizedAuth: NormalizedRouteRules;
 expectTypeOf(normalizedAuth.basicAuth).toEqualTypeOf<BasicAuthRuleOptions | false | undefined>();
 
 // Rule options stay usable with h3's own `requireBasicAuth`/`basicAuth`.

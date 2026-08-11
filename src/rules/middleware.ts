@@ -15,9 +15,10 @@ import type {
 import { normalizeRouteRules } from "./normalize.ts";
 import type { MatchResult, RouteRuleConfig } from "./types.ts";
 
-// The built-in rules are declared on h3's own `RouteRules` interface (the type
-// behind `event.context.routeRules`) in `src/types/route-rules.ts`, since rules
-// now ship inside h3 — see the note there for why each key is named explicitly.
+// The built-in rules are declared in `src/types/route-rules.ts`, since rules now
+// ship inside h3: on `BuiltinRouteRules`, composed into the shared (augmentable)
+// `RouteRules` that types both the matched result and `event.context.routeRules`
+// — see the note there for why they are not named on `RouteRules` itself.
 
 /** Options for the plug-and-play {@link routeRules} middleware. */
 export interface RouteRulesOptions extends RouteRulesMatcherOptions {
@@ -35,9 +36,9 @@ export interface RouteRulesOptions extends RouteRulesMatcherOptions {
 
 /**
  * Plug-and-play H3 middleware: matches route rules for each request, exposes the
- * merged rule map as `event.context.routeRules`, and runs matched rule
- * middleware (redirect, proxy, headers, basic auth, cache, …) before the route
- * handler.
+ * merged rule options as `event.context.routeRules` (`routeRules.redirect?.to`),
+ * and runs matched rule middleware (redirect, proxy, headers, basic auth, cache,
+ * …) before the route handler.
  *
  * Match results are memoized by default (see {@link RouteRulesOptions.memoize});
  * treat `event.context.routeRules` as read-only, or pass `memoize: false`.
@@ -146,17 +147,25 @@ function liftPreflightCors(
   if (method === "OPTIONS") {
     return matched; // same layer the primary lookup already resolved
   }
-  const cors = match(method, pathname).routeRules.cors;
-  if (!cors || cors === matched.routeRules.cors) {
+  // The *matched* rule (not the published options) — the chain rebuild below
+  // needs its handler, and identity comparison against the primary lookup is
+  // exactly "same resolved layer".
+  const cors = match(method, pathname).matchedRules.cors;
+  if (!cors || cors === matched.matchedRules.cors) {
     return matched;
   }
-  // Fresh map (memoized results are shared and read-only) with only `cors`
+  // Fresh maps (memoized results are shared and read-only) with only `cors`
   // replaced; the chain is rebuilt through the shared builder so handler
   // ordering stays defined in exactly one place.
+  const matchedRules = Object.assign(
+    Object.create(null) as MatchResult["matchedRules"],
+    matched.matchedRules,
+    { cors },
+  );
   const routeRules = Object.assign(
     Object.create(null) as MatchResult["routeRules"],
     matched.routeRules,
-    { cors },
+    { cors: cors.options },
   );
-  return { routeRules, routeRuleMiddleware: buildRouteRuleMiddleware(routeRules) };
+  return { routeRules, matchedRules, routeRuleMiddleware: buildRouteRuleMiddleware(matchedRules) };
 }

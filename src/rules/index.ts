@@ -37,7 +37,13 @@ export type { CacheRuleHandlerOptions, DefineCachedHandler } from "./handlers/ca
 
 export type {
   RouteRuleConfig,
+  // Re-exported from h3's core types (src/types/route-rules.ts) — one interface,
+  // so `declare module "h3/rules"` and `declare module "h3"` merge into the same
+  // declaration and a custom rule is declared once.
   RouteRules,
+  ResolvedRouteRules,
+  BuiltinRouteRules,
+  NormalizedRouteRules,
   CacheRuleOptions,
   RedirectRuleOptions,
   ProxyRuleOptions,

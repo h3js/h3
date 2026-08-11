@@ -7,7 +7,7 @@ import {
 } from "../../src/rules/match.ts";
 import type { RouteRuleLayer } from "../../src/rules/merge.ts";
 import { normalizeRouteRules } from "../../src/rules/normalize.ts";
-import type { RouteRuleConfig } from "../../src/rules/types.ts";
+import type { MatchedRouteRules, RouteRuleConfig, RouteRuleName } from "../../src/rules/types.ts";
 
 const RULES: Record<string, RouteRuleConfig> = {
   "/**": { headers: { "x-catch": "all" } },
@@ -31,10 +31,10 @@ describe("memoizeRouteRulesMatcher", () => {
       const a = plain(method, path);
       const b = memoized(method, path);
       expect(Object.keys(b.routeRules)).toEqual(Object.keys(a.routeRules));
-      for (const name of Object.keys(a.routeRules)) {
-        expect(b.routeRules[name]!.options).toEqual(a.routeRules[name]!.options);
-        expect(b.routeRules[name]!.params).toEqual(a.routeRules[name]!.params);
-        expect(b.routeRules[name]!.route).toBe(a.routeRules[name]!.route);
+      for (const name of Object.keys(a.routeRules) as RouteRuleName[]) {
+        expect(b.routeRules[name]).toEqual(a.routeRules[name]);
+        expect(b.matchedRules[name]!.params).toEqual(a.matchedRules[name]!.params);
+        expect(b.matchedRules[name]!.route).toBe(a.matchedRules[name]!.route);
       }
       expect(b.routeRuleMiddleware).toHaveLength(a.routeRuleMiddleware.length);
     }
@@ -83,7 +83,7 @@ describe("memoizeRouteRulesMatcher", () => {
   it("evicts FIFO past the entry cap and re-resolves evicted paths", () => {
     let calls = 0;
     const memoized = memoizeRouteRulesMatcher(
-      () => (calls++, { routeRules: {}, routeRuleMiddleware: [] }),
+      () => (calls++, { routeRules: {}, matchedRules: {}, routeRuleMiddleware: [] }),
       { max: 2 },
     );
     memoized("GET", "/1"); // calls=1
@@ -99,7 +99,7 @@ describe("memoizeRouteRulesMatcher", () => {
   it("defaults the entry cap to 1024", () => {
     let calls = 0;
     const memoized = memoizeRouteRulesMatcher(
-      () => (calls++, { routeRules: {}, routeRuleMiddleware: [] }),
+      () => (calls++, { routeRules: {}, matchedRules: {}, routeRuleMiddleware: [] }),
     );
     for (let i = 0; i < 1024; i++) memoized("GET", `/p/${i}`);
     expect(calls).toBe(1024);
@@ -114,7 +114,7 @@ describe("memoizeRouteRulesMatcher", () => {
     for (const max of [0, -1]) {
       let calls = 0;
       const memoized = memoizeRouteRulesMatcher(
-        () => (calls++, { routeRules: {}, routeRuleMiddleware: [] }),
+        () => (calls++, { routeRules: {}, matchedRules: {}, routeRuleMiddleware: [] }),
         { max },
       );
       memoized("GET", "/a");
@@ -126,16 +126,19 @@ describe("memoizeRouteRulesMatcher", () => {
   it("works end-to-end with a memoized matcher composed into middleware", async () => {
     const app = new H3();
     const matcher = memoizeRouteRulesMatcher(createRouteRulesMatcher(normalizeRouteRules(RULES)));
+    // Per-rule provenance (which pattern matched, its params) is not on the
+    // context — it rides the matched rules, which a hand-rolled integration
+    // keeps hold of exactly like `routeRules()` does.
+    let matchedRules: MatchedRouteRules | undefined;
     app.use((event, next) => {
-      const { routeRules, routeRuleMiddleware } = matcher(event.req.method, event.url.pathname);
-      event.context.routeRules = routeRules;
-      return routeRuleMiddleware.length > 0
-        ? callMiddleware(event, routeRuleMiddleware, () => next())
+      const matched = matcher(event.req.method, event.url.pathname);
+      event.context.routeRules = matched.routeRules;
+      matchedRules = matched.matchedRules;
+      return matched.routeRuleMiddleware.length > 0
+        ? callMiddleware(event, matched.routeRuleMiddleware, () => next())
         : next();
     });
-    app.get("/api/:section/:id", (event) => ({
-      params: event.context.routeRules?.custom?.params,
-    }));
+    app.get("/api/:section/:id", () => ({ params: matchedRules?.custom?.params }));
     for (let i = 0; i < 3; i++) {
       const res = await app.fetch(new Request("http://test/api/users/42"));
       expect(await res.json()).toEqual({ params: { section: "users", id: "42" } });

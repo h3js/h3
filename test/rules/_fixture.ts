@@ -118,8 +118,12 @@ export interface MatchSnapshot {
 // order only — the runtime matcher's cache handler is instance-scoped, so
 // identity intentionally differs from the compiled registry reference).
 export function snapshotResult(result: ReturnType<RouteRulesMatcher>): MatchSnapshot {
+  // Snapshot the *matched* rules: the published `routeRules` map carries only
+  // the merged options, so a parity check built on it could not see the
+  // provenance (route/params) or the handler binding the three execution modes
+  // must agree on.
   const rules = Object.fromEntries(
-    Object.entries(result.routeRules).map(([name, rule]) => {
+    Object.entries(result.matchedRules).map(([name, rule]) => {
       const r = rule as MatchedRouteRule;
       return [
         name,

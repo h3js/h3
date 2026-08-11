@@ -1,7 +1,24 @@
 import type { Middleware } from "../types/handler.ts";
+import type { ResolvedRouteRules } from "../types/route-rules.ts";
 import type { BasicAuthOptions } from "../utils/auth.ts";
 import type { CorsOptions } from "../utils/cors.ts";
 import type { ProxyOptions } from "../utils/proxy.ts";
+
+/**
+ * Re-exported from h3's core types so that `h3/rules` and `h3` name the **same**
+ * interface. `RouteRules` is the merged rule set (options keyed by rule name);
+ * a custom rule declared on it — alongside its {@link RouteRuleConfig} entry, in
+ * the same shape — is typed on the matched result and on
+ * `event.context.routeRules` alike.
+ *
+ * For a consumer of the published package, augmenting `"h3"` or `"h3/rules"`
+ * both merge into that one declaration — every public entry re-exports it and
+ * the module declaring it is not reachable. In *this* tree it is, and TypeScript
+ * resolves an augmentation through an alias unreliably once another one targets
+ * the declaring module, so in-tree augmentations name `src/types/route-rules.ts`
+ * directly (see `test/rules/_augment.ts`).
+ */
+export type { BuiltinRouteRules, ResolvedRouteRules, RouteRules } from "../types/route-rules.ts";
 
 /** Valid HTTP status code (100–599). Kept loose (`number`) for portability. */
 export type HTTPStatus = number;
@@ -155,21 +172,30 @@ export interface RouteRuleConfig {
 }
 
 /**
- * Normalized route rules used at runtime after shortcut resolution.
+ * One pattern's rules after normalization (output of {@link normalizeRouteRules},
+ * input to the matcher) — {@link RouteRules} plus the two things a *layer* can
+ * carry that a *merged* rule set cannot: the `false` reset marker (applied as a
+ * deletion, so it never survives the merge), and arbitrary rule names.
  *
- * Unlike {@link RouteRuleConfig}, stays **open** (`[key: string]: unknown`) — the
- * runtime handles arbitrary rule names; augment alongside `RouteRuleConfig` for
- * custom rules (see "Extending Rule Types" in the route rules guide).
+ * Stays **open** (`[key: string]: unknown`) unlike `RouteRules`: this is a type
+ * alias, not the shared augmentable interface, so an index signature here costs
+ * no one their augmentation (see {@link BuiltinRouteRules}) while keeping the
+ * runtime's "any rule name is data" contract expressible.
+ *
+ * Normalization only expands sugar, so its output is still valid authored
+ * config — `compileRouteRules(normalizeRouteRules(config))` type-checks, and the
+ * pass is idempotent. That holds only if `false` is admitted exactly where the
+ * closed {@link RouteRuleConfig} admits it (a `headers: false` is a config error
+ * either way), hence {@link RuleReset} rather than a blanket `| false`.
  */
-export interface RouteRules {
-  headers?: Record<string, string>;
-  redirect?: RedirectRuleOptions | false;
-  proxy?: ProxyRuleOptions | false;
-  cache?: CacheRuleOptions | false;
-  basicAuth?: BasicAuthRuleOptions | false;
-  cors?: CorsOptions | false;
-  [key: string]: unknown;
-}
+export type NormalizedRouteRules = {
+  [K in RouteRuleName]?: ResolvedRouteRules[K] | RuleReset<K>;
+} & { [key: string]: unknown };
+
+/** The `false` reset marker for rule `K`, when its authored config admits one. */
+type RuleReset<K extends RouteRuleName> = K extends keyof RouteRuleConfig
+  ? Extract<RouteRuleConfig[K], false>
+  : false;
 
 /**
  * `basicAuth` rule options — h3's {@link BasicAuthOptions} restricted to what a
@@ -207,11 +233,23 @@ export type ProxyRuleOptions = {
   base?: string;
 } & ProxyOptions;
 
-/** A rule name (string keys of {@link RouteRules}). */
-export type RouteRuleName = Extract<keyof RouteRules, string>;
+/**
+ * A rule name — a string key of the resolved rule set: h3's built-ins plus
+ * whatever any module declared on {@link RouteRules}. A rule name the runtime
+ * carries but nobody declared (a data-only rule) is outside this union by
+ * design; declaring it is what types it, here and on the context.
+ */
+export type RouteRuleName = Extract<keyof ResolvedRouteRules, string>;
 
 /**
- * A single rule resolved for a matched request, one per rule name.
+ * A single rule resolved for a matched request, one per rule name: the merged
+ * options **plus the provenance** the options alone cannot carry.
+ *
+ * This is the merge pipeline's internal currency and the value a
+ * {@link RuleHandler} is constructed from — not the published shape.
+ * `event.context.routeRules` exposes the merged options directly
+ * (`ResolvedRouteRules`), because that is the shape consumers act on; the
+ * wrappers stay reachable as {@link MatchResult.matchedRules}.
  *
  * The rule name is the key in {@link MatchedRouteRules}, so it is not repeated
  * here; nor is the pattern's method scope (a merged rule can combine a
@@ -220,8 +258,8 @@ export type RouteRuleName = Extract<keyof RouteRules, string>;
  * contributes).
  */
 export interface MatchedRouteRule<K extends RouteRuleName = RouteRuleName> {
-  /** The rule options (never `false` after merge resolution). */
-  options: Exclude<RouteRules[K], false>;
+  /** The merged rule options (never `false` — a reset deletes the rule instead). */
+  options: NonNullable<ResolvedRouteRules[K]>;
   /**
    * The most specific pattern that contributed to this rule (e.g. `/api/**`).
    * Broader patterns may also have contributed options; this is the one whose
@@ -237,7 +275,11 @@ export interface MatchedRouteRule<K extends RouteRuleName = RouteRuleName> {
   handler?: RuleHandler<K>;
 }
 
-/** The full set of rules resolved for a matched request, keyed by rule name. */
+/**
+ * The full set of rules resolved for a matched request **with their
+ * provenance**, keyed by rule name — the merge pipeline's own view.
+ * `ResolvedRouteRules` is the same set projected onto its merged options.
+ */
 export type MatchedRouteRules = {
   [K in RouteRuleName]?: MatchedRouteRule<K>;
 };
@@ -282,8 +324,22 @@ export type RuleHandlers = Record<string, RuleHandler<any> | undefined>;
 
 /** Result of matching a request against the rule set. */
 export interface MatchResult {
-  /** Merged rule map, exposed as `event.context.routeRules`. */
-  routeRules: MatchedRouteRules;
+  /**
+   * Merged rule options keyed by rule name — the map exposed as
+   * `event.context.routeRules`, so `routeRules.redirect?.to` reads directly.
+   */
+  routeRules: ResolvedRouteRules;
+  /**
+   * The same rules with their provenance: which pattern contributed the merged
+   * options, its rou3 params, and the rule's handler. Same keys as
+   * {@link routeRules}, one {@link MatchedRouteRule} per entry.
+   *
+   * Kept out of `event.context.routeRules` — consumers act on the options, and
+   * a wrapper there costs every reader a `.options` hop — but published here for
+   * the two things that need provenance after resolution: rule handlers (which
+   * receive their own wrapper) and anything rebuilding the middleware chain.
+   */
+  matchedRules: MatchedRouteRules;
   /** Ordered middleware to run before the route handler. */
   routeRuleMiddleware: Middleware[];
 }

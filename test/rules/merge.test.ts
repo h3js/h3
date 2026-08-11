@@ -17,8 +17,8 @@ describe("merge algorithm", () => {
       "/api/**": { headers: { "x-a": "broad" } },
       "/api/x": { headers: { "x-a": "narrow" } },
     });
-    expect(match("GET", "/api/x").routeRules.headers!.options).toEqual({ "x-a": "narrow" });
-    expect(match("GET", "/api/y").routeRules.headers!.options).toEqual({ "x-a": "broad" });
+    expect(match("GET", "/api/x").routeRules.headers).toEqual({ "x-a": "narrow" });
+    expect(match("GET", "/api/y").routeRules.headers).toEqual({ "x-a": "broad" });
   });
 
   // rou3's `findAllRoutes` order is containment order for plain patterns but not
@@ -41,7 +41,7 @@ describe("merge algorithm", () => {
         { [narrow]: { headers: { who: "narrow" } }, [broad]: { headers: { who: "broad" } } },
         { [broad]: { headers: { who: "broad" } }, [narrow]: { headers: { who: "narrow" } } },
       ]) {
-        const rule = matcher(config)("GET", pathname).routeRules.headers!;
+        const rule = matcher(config)("GET", pathname).matchedRules.headers!;
         expect(rule.options, JSON.stringify(config)).toEqual({ who: "narrow" });
         expect(rule.route).toBe(narrow);
       }
@@ -56,7 +56,7 @@ describe("merge algorithm", () => {
         { [b]: reset, [n]: gate },
       ]) {
         const { routeRules } = matcher(config)("GET", pathname);
-        expect(routeRules.basicAuth?.options, JSON.stringify(config)).toMatchObject({
+        expect(routeRules.basicAuth, JSON.stringify(config)).toMatchObject({
           username: "admin",
         });
       }
@@ -76,7 +76,7 @@ describe("merge algorithm", () => {
       "/api/**": { headers: { "x-a": "1", "x-b": "1" } },
       "/api/x": { headers: { "x-b": "2", "x-c": "2" } },
     });
-    expect(match("GET", "/api/x").routeRules.headers!.options).toEqual({
+    expect(match("GET", "/api/x").routeRules.headers).toEqual({
       "x-a": "1",
       "x-b": "2",
       "x-c": "2",
@@ -88,7 +88,7 @@ describe("merge algorithm", () => {
       "/api/**": { custom: { nested: true } },
       "/api/x": { custom: "flat" },
     });
-    expect(match("GET", "/api/x").routeRules.custom!.options).toBe("flat");
+    expect(match("GET", "/api/x").routeRules.custom).toBe("flat");
   });
 
   it("`null` options override an inherited object (typeof null quirk)", () => {
@@ -98,8 +98,8 @@ describe("merge algorithm", () => {
       "/api/**": { custom: { x: 1 } },
       "/api/x": { custom: null },
     });
-    expect(match("GET", "/api/x").routeRules.custom!.options).toBe(null);
-    expect(match("GET", "/api/y").routeRules.custom!.options).toEqual({ x: 1 });
+    expect(match("GET", "/api/x").routeRules.custom).toBe(null);
+    expect(match("GET", "/api/y").routeRules.custom).toEqual({ x: 1 });
   });
 
   it("`redirect: false` / `proxy: false` reset inherited rules", () => {
@@ -123,7 +123,7 @@ describe("merge algorithm", () => {
       "/a": { headers: { x: "agnostic" } },
       "GET /a": { headers: { x: "get" } },
     });
-    const rule = match("GET", "/a").routeRules.headers!;
+    const rule = match("GET", "/a").matchedRules.headers!;
     expect(rule.options).toEqual({ x: "get" });
     expect(rule.params).toBeUndefined();
   });
@@ -137,13 +137,13 @@ describe("merge algorithm", () => {
       "/rules/_/cached/**": { swr: true },
     });
     // `cache: false` on the subtree resets, the more specific rule re-adds
-    expect(match("GET", "/rules/_/noncached/cached").routeRules.cache!.options).toEqual({
+    expect(match("GET", "/rules/_/noncached/cached").routeRules.cache).toEqual({
       swr: true,
     });
     expect(match("GET", "/rules/_/noncached/other").routeRules.cache).toBeUndefined();
     // inherited cache reset by a more specific `false`
     expect(match("GET", "/rules/_/cached/noncached").routeRules.cache).toBeUndefined();
-    expect(match("GET", "/rules/_/cached/other").routeRules.cache!.options).toEqual({
+    expect(match("GET", "/rules/_/cached/other").routeRules.cache).toEqual({
       swr: true,
     });
   });
@@ -155,7 +155,7 @@ describe("merge algorithm", () => {
       "/**": { swr: 3600 },
       "/api/test": { swr: false },
     });
-    expect(match("GET", "/api/other").routeRules.cache!.options).toMatchObject({
+    expect(match("GET", "/api/other").routeRules.cache).toMatchObject({
       swr: true,
       maxAge: 3600,
     });
@@ -180,10 +180,10 @@ describe("merge algorithm", () => {
       "/api/:section/**": { custom: { a: 1 } },
       "/api/:section/:id": { custom: { b: 2 } },
     });
-    const { routeRules } = match("GET", "/api/users/42");
-    expect(routeRules.custom!.route).toBe("/api/:section/:id");
-    expect(routeRules.custom!.params).toMatchObject({ section: "users", id: "42" });
-    expect(routeRules.custom!.options).toEqual({ a: 1, b: 2 });
+    const { routeRules, matchedRules } = match("GET", "/api/users/42");
+    expect(matchedRules.custom!.route).toBe("/api/:section/:id");
+    expect(matchedRules.custom!.params).toMatchObject({ section: "users", id: "42" });
+    expect(routeRules.custom).toEqual({ a: 1, b: 2 });
   });
 
   it("a matched rule carries no `name`/`method` (key is the name; scope is not one field)", () => {
@@ -199,7 +199,7 @@ describe("merge algorithm", () => {
         handlers: FIXTURE_HANDLERS,
         preMerge,
       });
-      const rule = match("POST", "/api/x").routeRules.custom!;
+      const rule = match("POST", "/api/x").matchedRules.custom!;
       expect(Object.keys(rule).sort()).toEqual(["handler", "options", "params", "route"]);
       expect(rule.options).toEqual({ x: 1, y: 2 });
     }
@@ -209,10 +209,10 @@ describe("merge algorithm", () => {
     const match = matcher({
       "/app/**": { redirect: "/login", basicAuth: { username: "u", password: "p" } },
     });
-    const { routeRules, routeRuleMiddleware } = match("GET", "/app/x");
+    const { matchedRules, routeRuleMiddleware } = match("GET", "/app/x");
     expect(routeRuleMiddleware).toHaveLength(2);
     // basicAuth has order -2 (outer to headers at -1): its middleware comes first
-    expect(routeRules.basicAuth!.handler!.order).toBe(-2);
+    expect(matchedRules.basicAuth!.handler!.order).toBe(-2);
     expect(routeRuleMiddleware[0]).toBe(
       routeRuleMiddleware.find((mw) => mw.name === "authRouteRule"),
     );
@@ -252,8 +252,8 @@ describe("merge algorithm", () => {
       "/blog/**": { prerender: true, isr: 60 },
     });
     const { routeRules, routeRuleMiddleware } = match("GET", "/blog/post");
-    expect(routeRules.prerender!.options).toBe(true);
-    expect(routeRules.isr!.options).toBe(60);
+    expect(routeRules.prerender).toBe(true);
+    expect(routeRules.isr).toBe(60);
     expect(routeRuleMiddleware).toHaveLength(0);
   });
 });
@@ -263,7 +263,7 @@ describe("method-scoped rules", () => {
     const match = matcher({
       "GET /api/**": { headers: { "x-m": "get" } },
     });
-    expect(match("GET", "/api/x").routeRules.headers!.options).toEqual({ "x-m": "get" });
+    expect(match("GET", "/api/x").routeRules.headers).toEqual({ "x-m": "get" });
     expect(match("POST", "/api/x").routeRules.headers).toBeUndefined();
   });
 
@@ -273,12 +273,12 @@ describe("method-scoped rules", () => {
       "GET /api/**": { headers: { "x-b": "get" } },
     });
     // GET: agnostic merges first, method-scoped overrides on top
-    expect(match("GET", "/api/x").routeRules.headers!.options).toEqual({
+    expect(match("GET", "/api/x").routeRules.headers).toEqual({
       "x-a": "all",
       "x-b": "get",
     });
     // Other methods: agnostic rule only
-    expect(match("POST", "/api/x").routeRules.headers!.options).toEqual({
+    expect(match("POST", "/api/x").routeRules.headers).toEqual({
       "x-a": "all",
       "x-b": "all",
     });
@@ -298,7 +298,7 @@ describe("method-scoped rules", () => {
       "/api/**": { headers: { "x-a": "1" } },
     });
     for (const method of ["GET", "POST", "PUT", "DELETE", ""]) {
-      expect(match(method, "/api/x").routeRules.headers!.options).toEqual({ "x-a": "1" });
+      expect(match(method, "/api/x").routeRules.headers).toEqual({ "x-a": "1" });
     }
   });
 });
@@ -312,8 +312,8 @@ describe("dual-path union (Nitro #4396)", () => {
       "/app/admin/**": { basicAuth: { username: "admin", password: "secret" } },
     });
     const { routeRules } = match("GET", "/app/admin%2fpanel");
-    expect(routeRules.headers!.options).toEqual({ "x-app": "1" });
-    expect(routeRules.basicAuth!.options).toMatchObject({ username: "admin" });
+    expect(routeRules.headers).toEqual({ "x-app": "1" });
+    expect(routeRules.basicAuth).toMatchObject({ username: "admin" });
   });
 
   it("a %5c separator is canonicalized at the matcher level too", () => {
@@ -325,8 +325,8 @@ describe("dual-path union (Nitro #4396)", () => {
       "/app/admin/**": { basicAuth: { username: "admin", password: "secret" } },
     });
     const { routeRules } = match("GET", "/app/admin%5cpanel");
-    expect(routeRules.headers!.options).toEqual({ "x-app": "1" });
-    expect(routeRules.basicAuth!.options).toMatchObject({ username: "admin" });
+    expect(routeRules.headers).toEqual({ "x-app": "1" });
+    expect(routeRules.basicAuth).toMatchObject({ username: "admin" });
   });
 
   it("canonical rule overrides raw on overlap (more specific wins)", () => {
@@ -341,7 +341,7 @@ describe("dual-path union (Nitro #4396)", () => {
       },
     });
     const { routeRules } = match("GET", "/rules/ba-nested/admin%2fpanel");
-    expect(routeRules.basicAuth!.options).toMatchObject({ realm: "Admin Area" });
+    expect(routeRules.basicAuth).toMatchObject({ realm: "Admin Area" });
   });
 
   it("a single-segment `false` cannot dodge auth once decoded to multiple segments", () => {
@@ -358,7 +358,7 @@ describe("dual-path union (Nitro #4396)", () => {
     expect(match("GET", "/rules/ba-off/a").routeRules.basicAuth).toBeUndefined();
     // encoded separator: canonical two-segment path re-enables auth
     const { routeRules } = match("GET", "/rules/ba-off/a%2fb");
-    expect(routeRules.basicAuth!.options).toMatchObject({ realm: "Off Area" });
+    expect(routeRules.basicAuth).toMatchObject({ realm: "Off Area" });
   });
 
   it("a `false` reset on the canonical path never strips a rule the raw path resolved", () => {
@@ -372,7 +372,7 @@ describe("dual-path union (Nitro #4396)", () => {
       "/rules/ba-strip/off/**": { basicAuth: false },
     });
     const { routeRules } = match("GET", "/rules/ba-strip/off%2fx");
-    expect(routeRules.basicAuth!.options).toMatchObject({ realm: "Strip Area" });
+    expect(routeRules.basicAuth).toMatchObject({ realm: "Strip Area" });
     // genuine two-segment path: auth disabled as configured
     expect(match("GET", "/rules/ba-strip/off/x").routeRules.basicAuth).toBeUndefined();
   });
@@ -411,9 +411,9 @@ describe("dual-path union (Nitro #4396)", () => {
     ]) {
       const { routeRules } = match("GET", payload);
       expect(routeRules.basicAuth, payload).toBeDefined();
-      expect(routeRules.basicAuth!.options, payload).toMatchObject({ username: "admin" });
+      expect(routeRules.basicAuth, payload).toMatchObject({ username: "admin" });
       // union-only: the broad rule the raw path resolved is never stripped.
-      expect(routeRules.headers!.options, payload).toEqual({ "x-app": "1" });
+      expect(routeRules.headers, payload).toEqual({ "x-app": "1" });
     }
   });
 
@@ -429,7 +429,7 @@ describe("dual-path union (Nitro #4396)", () => {
     // Raw path stays a single opaque segment under `/api/**`; the merged reading
     // (`/api/off/x`) hits the reset but union-only must keep the broad rule.
     const { routeRules } = match("GET", "/api/off%2f%2fx");
-    expect(routeRules.basicAuth!.options).toMatchObject({ realm: "Broad" });
+    expect(routeRules.basicAuth).toMatchObject({ realm: "Broad" });
   });
 
   it("a SIBLING-scope `false` reading never strips a gate the served (raw) path resolved", () => {
@@ -460,7 +460,7 @@ describe("dual-path union (Nitro #4396)", () => {
       "/app/admin/x/%2e%2e/%2e%2e/public/y", // deeper climb
     ]) {
       const { routeRules } = match("GET", payload);
-      expect(routeRules.basicAuth?.options, payload).toMatchObject({ username: "admin" });
+      expect(routeRules.basicAuth, payload).toMatchObject({ username: "admin" });
     }
     // Control: a request genuinely served under the sibling is disabled.
     expect(match("GET", "/app/public/x").routeRules.basicAuth).toBeUndefined();
@@ -477,7 +477,7 @@ describe("dual-path union (Nitro #4396)", () => {
     });
     for (const payload of ["/app/api/%2e%2e/open/x", "/app/api/%252e%252e/open/x"]) {
       const { routeRules } = match("GET", payload);
-      expect(routeRules.cors?.options, payload).toMatchObject({
+      expect(routeRules.cors, payload).toMatchObject({
         origin: ["https://trusted.example"],
       });
     }
@@ -514,7 +514,7 @@ describe("dual-path union (Nitro #4396)", () => {
       "/app/admin/off%2f..%2fpanel", // brushes `off` then climbs back out — still admin
     ]) {
       const { routeRules } = match("GET", payload);
-      expect(routeRules.basicAuth?.options, payload).toMatchObject({ username: "admin" });
+      expect(routeRules.basicAuth, payload).toMatchObject({ username: "admin" });
     }
     // Control: a path that genuinely resolves into the `off` subtree is disabled,
     // proving the matrix above passes because the paths stay admin — not because
@@ -556,7 +556,7 @@ describe("dual-path union (Nitro #4396)", () => {
       "/app/gate/*": { basicAuth: false },
     });
     expect(match("GET", "/app/gate/a").routeRules.basicAuth).toBeUndefined();
-    expect(match("GET", "/app/gate/a%2fb").routeRules.basicAuth!.options).toMatchObject({
+    expect(match("GET", "/app/gate/a%2fb").routeRules.basicAuth).toMatchObject({
       username: "admin",
     });
   });
@@ -569,7 +569,7 @@ describe("dual-path union (Nitro #4396)", () => {
       "/app/**": { cors: false },
       "/app/ok/**": { cors: { origin: ["https://ok.example"] } },
     });
-    expect(match("GET", "/app/ok/x").routeRules.cors!.options).toMatchObject({
+    expect(match("GET", "/app/ok/x").routeRules.cors).toMatchObject({
       origin: ["https://ok.example"],
     });
   });
@@ -590,7 +590,7 @@ describe("dual-path union (Nitro #4396)", () => {
     });
     const { routeRules } = match("GET", "/app/admin/x/%2e%2e/%2e%2e/%2e%2e/y");
     // Strict admin credentials must survive — not be shallow-merged down to guest.
-    expect(routeRules.basicAuth!.options).toMatchObject({
+    expect(routeRules.basicAuth).toMatchObject({
       username: "admin",
       password: "s3cret",
     });
@@ -605,8 +605,8 @@ describe("dual-path union (Nitro #4396)", () => {
       "/app/admin/**": { basicAuth: { username: "admin", password: "secret" } },
     });
     const { routeRules } = match("GET", "/app/admin%2fpanel");
-    expect(routeRules.basicAuth!.options).toMatchObject({ username: "admin" });
-    expect(routeRules.headers!.options).toEqual({ "x-app": "1" });
+    expect(routeRules.basicAuth).toMatchObject({ username: "admin" });
+    expect(routeRules.headers).toEqual({ "x-app": "1" });
   });
 
   it("a single-wildcard rule still applies to a raw path with an encoded separator", () => {
@@ -616,7 +616,7 @@ describe("dual-path union (Nitro #4396)", () => {
       "/single-headers/*": { headers: { "x-single": "single" } },
     });
     const { routeRules } = match("GET", "/single-headers/a%2fb");
-    expect(routeRules.headers!.options).toEqual({ "x-single": "single" });
+    expect(routeRules.headers).toEqual({ "x-single": "single" });
   });
 
   it("skips the second lookup when canonical === raw (fast path)", () => {

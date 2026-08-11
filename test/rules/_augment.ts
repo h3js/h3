@@ -7,8 +7,17 @@
 //
 // Runtime behavior is unchanged: unknown keys still flow through
 // normalize/match/merge as data-only rules — augmentation only re-opens typing.
-import type { MatchedRouteRule } from "../../src/rules/types.ts";
-
+//
+// The two interfaces carry the **same shape**: `RouteRuleConfig` (`h3/rules`)
+// types what is authored, `RouteRules` (h3 core, the single shared one) what the
+// merge resolves — and the merged value *is* the config value. Declaring
+// `RouteRules` is therefore all it takes to type a custom rule on
+// `event.context.routeRules`; there is no second, wrapper-shaped declaration.
+//
+// Each interface is augmented in the module that **declares** it. Augmenting
+// through a re-export does merge, but only reliably so when nothing else in the
+// program augments the declaring module — which is exactly what the sibling
+// type tests do.
 export {};
 
 declare module "../../src/rules/types.ts" {
@@ -24,13 +33,13 @@ declare module "../../src/rules/types.ts" {
   }
 }
 
-// A custom rule also has to be declared on h3's `RouteRules` to be readable off
-// `event.context.routeRules`, since `src/types/route-rules.ts` names the
-// built-ins explicitly rather than contributing an index signature (which would
-// break every other module's augmentation of that shared interface). Only the
-// fixture keys actually read off the context need this.
 declare module "../../src/types/route-rules.ts" {
   interface RouteRules {
-    custom?: MatchedRouteRule<"custom">;
+    isr?: number | boolean;
+    prerender?: boolean;
+    custom?: unknown;
+    tags?: unknown;
+    shout?: unknown;
+    "my-rule"?: unknown;
   }
 }

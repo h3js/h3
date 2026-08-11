@@ -65,16 +65,16 @@ describe("encoded reserved characters cannot dodge a rule", () => {
     const match = createRouteRulesMatcher(
       normalizeRouteRules({ [`/${raw}admin/**`]: { basicAuth: AUTH } }),
     );
-    expect(match("GET", `/${raw}admin/data`).routeRules.basicAuth?.options).toMatchObject(AUTH);
-    expect(match("GET", `/${encoded}admin/data`).routeRules.basicAuth?.options).toMatchObject(AUTH);
+    expect(match("GET", `/${raw}admin/data`).routeRules.basicAuth).toMatchObject(AUTH);
+    expect(match("GET", `/${encoded}admin/data`).routeRules.basicAuth).toMatchObject(AUTH);
   });
 
   it.each(ENCODABLE)("`%s` written encoded in the pattern still gates the raw path", (raw, enc) => {
     const match = createRouteRulesMatcher(
       normalizeRouteRules({ [`/${enc}admin/**`]: { basicAuth: AUTH } }),
     );
-    expect(match("GET", `/${enc}admin/data`).routeRules.basicAuth?.options).toMatchObject(AUTH);
-    expect(match("GET", `/${raw}admin/data`).routeRules.basicAuth?.options).toMatchObject(AUTH);
+    expect(match("GET", `/${enc}admin/data`).routeRules.basicAuth).toMatchObject(AUTH);
+    expect(match("GET", `/${raw}admin/data`).routeRules.basicAuth).toMatchObject(AUTH);
   });
 
   // The escapes h3 serves opaque are the ones only the matcher can catch: nothing
@@ -146,7 +146,7 @@ describe("encoded reserved characters cannot dodge a rule", () => {
     );
     // Both spellings resolve the *narrow* gate, not the broad one.
     for (const path of ["/@admin/x", "/%40admin/x"]) {
-      expect(match("GET", path).routeRules.basicAuth, path).toMatchObject({
+      expect(match("GET", path).matchedRules.basicAuth, path).toMatchObject({
         route: "/@admin/**",
         options: AUTH,
       });
@@ -161,8 +161,8 @@ describe("encoded reserved characters cannot dodge a rule", () => {
     const match = createRouteRulesMatcher(
       normalizeRouteRules({ "/@admin/**": { basicAuth: AUTH } }),
     );
-    expect(match("GET", "/%2540admin/x").routeRules.basicAuth?.options).toMatchObject(AUTH);
-    expect(match("GET", "/%25252540admin/x").routeRules.basicAuth?.options).toMatchObject(AUTH);
+    expect(match("GET", "/%2540admin/x").routeRules.basicAuth).toMatchObject(AUTH);
+    expect(match("GET", "/%25252540admin/x").routeRules.basicAuth).toMatchObject(AUTH);
   });
 
   it("a `false` reset still applies through the encoded spelling", () => {
@@ -318,9 +318,7 @@ describe("decodedPath", () => {
     );
     for (const depth of [1, 7, 8, 9, 64, 4000]) {
       const path = "/%" + "25".repeat(depth) + "40admin/x";
-      expect(match("GET", path).routeRules.basicAuth?.options, `depth ${depth}`).toMatchObject(
-        AUTH,
-      );
+      expect(match("GET", path).routeRules.basicAuth, `depth ${depth}`).toMatchObject(AUTH);
     }
   });
 });
