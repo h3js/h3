@@ -46,6 +46,281 @@ describe("cache rule registration", () => {
   });
 });
 
+// NOTE: keep this describe *before* the storage test at the end of the
+// ocache-backed block — that test swaps ocache's process-global storage.
+describe("cache rule (isolation & credential safety)", () => {
+  it("never serves one app's cached body to another app (F2, shared `cache` export)", async () => {
+    // The `cache` export of `h3/rules/cache` is module-scoped: every app in the
+    // process registers the same handler instance. Identical rule pattern +
+    // identical matched route must NOT resolve to the same storage entry —
+    // `integrity` cannot save us (ohash serializes a function by source, so two
+    // apps whose route handlers share a source text hash identically), and with
+    // `swr` a mismatch serves the *stale* — i.e. the other app's — body anyway.
+    const mkApp = (secret: string) => {
+      const app = new H3();
+      app.use(routeRules({ "/leak/**": { swr: 60 } }, { handlers: { cache } }));
+      app.get("/leak/me", () => ({ secret }));
+      return app;
+    };
+
+    const a = await mkApp("APP-A-SECRET").fetch(new Request("http://test/leak/me"));
+    expect(await a.json()).toEqual({ secret: "APP-A-SECRET" });
+
+    const b = await mkApp("APP-B-SECRET").fetch(new Request("http://test/leak/me"));
+    expect(b.headers.get("x-cache")).toBe("MISS");
+    expect(await b.json()).toEqual({ secret: "APP-B-SECRET" });
+  });
+
+  it("never shares cache entries between two handler instances (F2, per-instance)", async () => {
+    const mkApp = (secret: string) => {
+      const app = new H3();
+      app.use(
+        routeRules(
+          { "/leak-inst/**": { cache: { maxAge: 60 } } },
+          { handlers: { cache: createOcacheRuleHandler() } },
+        ),
+      );
+      app.get("/leak-inst/me", () => ({ secret }));
+      return app;
+    };
+
+    const a = await mkApp("INST-A").fetch(new Request("http://test/leak-inst/me"));
+    expect(await a.json()).toEqual({ secret: "INST-A" });
+
+    const b = await mkApp("INST-B").fetch(new Request("http://test/leak-inst/me"));
+    expect(b.headers.get("x-cache")).toBe("MISS");
+    expect(await b.json()).toEqual({ secret: "INST-B" });
+  });
+
+  it("shares entries again when an explicit `id` opts into a stable key (F2)", async () => {
+    // Escape hatch for persistent storage: an explicit `id` makes the key stable
+    // across handler instances (and processes). Two instances with the same `id`
+    // are declared to serve the same app, so they may share.
+    let calls = 0;
+    const mkApp = () => {
+      const app = new H3();
+      app.use(
+        routeRules(
+          { "/leak-id/**": { cache: { maxAge: 60 } } },
+          { handlers: { cache: createOcacheRuleHandler({ id: "stable-app-id" }) } },
+        ),
+      );
+      app.get("/leak-id/me", () => ({ calls: ++calls }));
+      return app;
+    };
+
+    expect(await (await mkApp().fetch(new Request("http://test/leak-id/me"))).json()).toEqual({
+      calls: 1,
+    });
+    const second = await mkApp().fetch(new Request("http://test/leak-id/me"));
+    expect(second.headers.get("x-cache")).toBe("HIT");
+    expect(await second.json()).toEqual({ calls: 1 });
+  });
+
+  it("does not let a HEAD request poison the GET cache entry (F3)", async () => {
+    // h3 serves HEAD from the GET route and h3's `toResponse` strips the body
+    // for HEAD — so a HEAD-first request would serialize a *body-less* entry
+    // that ocache's `validate` accepts (`""` is not `undefined`) and that a
+    // method-free cache key then serves to every subsequent GET.
+    let calls = 0;
+    const app = createApp({ "/article/**": { swr: 3600 } }, createOcacheRuleHandler());
+    app.get("/article/:id", () => ({ calls: ++calls }));
+
+    const head = await app.fetch(new Request("http://test/article/hello", { method: "HEAD" }));
+    expect(head.status).toBe(200);
+    expect(await head.text()).toBe("");
+
+    // The GET is a genuine miss (the HEAD entry is not its entry) and gets a body.
+    const get = await app.fetch(new Request("http://test/article/hello"));
+    expect(get.status).toBe(200);
+    expect(get.headers.get("x-cache")).toBe("MISS");
+    expect(await get.text()).toBe(JSON.stringify({ calls: 2 }));
+
+    // ...and it is the GET entry that later GETs are served from.
+    const get2 = await app.fetch(new Request("http://test/article/hello"));
+    expect(get2.headers.get("x-cache")).toBe("HIT");
+    expect(await get2.text()).toBe(JSON.stringify({ calls: 2 }));
+
+    // HEAD keeps its own (body-less) entry.
+    const head2 = await app.fetch(new Request("http://test/article/hello", { method: "HEAD" }));
+    expect(head2.headers.get("x-cache")).toBe("HIT");
+    expect(await head2.text()).toBe("");
+    expect(calls).toBe(2);
+  });
+
+  it("strips `Authorization` from the cached dispatch by default (F8)", async () => {
+    // ocache strips `Cookie` (and never keys on it) but forwards `Authorization`
+    // untouched while keying on neither — so a per-user response would be cached
+    // and served to everyone, and advertised `public, s-maxage=N` to CDNs.
+    let calls = 0;
+    const app = createApp({ "/priv/**": { cache: { maxAge: 60 } } }, createOcacheRuleHandler());
+    app.get("/priv/me", (event) => ({
+      calls: ++calls,
+      auth: event.req.headers.get("authorization"),
+      proxyAuth: event.req.headers.get("proxy-authorization"),
+    }));
+
+    const alice = await app.fetch(
+      new Request("http://test/priv/me", {
+        headers: { authorization: "Bearer alice-token", "proxy-authorization": "Basic zzz" },
+      }),
+    );
+    expect(await alice.json()).toEqual({ calls: 1, auth: null, proxyAuth: null });
+
+    const anon = await app.fetch(new Request("http://test/priv/me"));
+    expect(await anon.json()).toEqual({ calls: 1, auth: null, proxyAuth: null });
+  });
+
+  it("forwards `Authorization` only with an explicit `allowAuthorization` (F8)", async () => {
+    let calls = 0;
+    const app = createApp(
+      { "/priv-opt/**": { cache: { maxAge: 60, allowAuthorization: true } } },
+      createOcacheRuleHandler(),
+    );
+    app.get("/priv-opt/me", (event) => ({
+      calls: ++calls,
+      auth: event.req.headers.get("authorization"),
+    }));
+
+    const alice = await app.fetch(
+      new Request("http://test/priv-opt/me", { headers: { authorization: "Bearer alice" } }),
+    );
+    expect(await alice.json()).toEqual({ calls: 1, auth: "Bearer alice" });
+    // ...and the credential participates in caching, like an allowlisted cookie:
+    // its own entry, and a `Vary` telling shared caches the same.
+    expect(alice.headers.get("vary")).toMatch(/authorization/i);
+
+    const aliceAgain = await app.fetch(
+      new Request("http://test/priv-opt/me", { headers: { authorization: "Bearer alice" } }),
+    );
+    expect(aliceAgain.headers.get("x-cache")).toBe("HIT");
+    expect(await aliceAgain.json()).toEqual({ calls: 1, auth: "Bearer alice" });
+
+    const bob = await app.fetch(
+      new Request("http://test/priv-opt/me", { headers: { authorization: "Bearer bob" } }),
+    );
+    expect(bob.headers.get("x-cache")).toBe("MISS");
+    expect(await bob.json()).toEqual({ calls: 2, auth: "Bearer bob" });
+
+    const anon = await app.fetch(new Request("http://test/priv-opt/me"));
+    expect(anon.headers.get("x-cache")).toBe("MISS");
+    expect(await anon.json()).toEqual({ calls: 3, auth: null });
+  });
+
+  it("fails the request closed when the credential strip cannot be applied (F8)", async () => {
+    // Force *both* routes out: request headers that throw on mutation (the
+    // in-place rewrite) and an unparseable `req.url` (the replacement
+    // `Request`). h3 parses `event.url` in the event constructor, before this
+    // middleware runs, so routing and the cache key are unaffected.
+    class ImmutableHeaders extends Headers {
+      override delete(): never {
+        throw new TypeError("immutable headers");
+      }
+      override set(): never {
+        throw new TypeError("immutable headers");
+      }
+    }
+    // ocache's own request filter hits the same unparseable URL and logs.
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    let calls = 0;
+    const app = new H3();
+    app.use((event, next) => {
+      const req = event.req;
+      const headers = new ImmutableHeaders(req.headers);
+      Object.defineProperty(req, "headers", { get: () => headers, configurable: true });
+      Object.defineProperty(req, "url", { get: () => "::: not a url :::", configurable: true });
+      return next();
+    });
+    app.use(
+      routeRules(
+        { "/failclosed/**": { cache: { maxAge: 60 } } },
+        { handlers: { cache: createOcacheRuleHandler() } },
+      ),
+    );
+    app.get("/failclosed/me", () => ({ calls: ++calls }));
+
+    try {
+      const res = await app.fetch(
+        new Request("http://test/failclosed/me", {
+          headers: { authorization: "Bearer alice" },
+        }),
+      );
+      // A credential we cannot strip must never reach a handler whose response
+      // is stored under a credential-free key.
+      expect(res.status).toBe(500);
+      expect(calls).toBe(0);
+      expect((await res.json()).message).toMatch(/strip the credential headers/);
+
+      // ...and only that case fails closed: nothing to strip is a success, even
+      // though the request is exactly as hostile.
+      const anon = await app.fetch(new Request("http://test/failclosed/me"));
+      expect(anon.status).toBe(200);
+      expect(await anon.json()).toEqual({ calls: 1 });
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+
+  it("does not send `Authorization` to a bypassed (non-GET) request (F8)", async () => {
+    const app = createApp(
+      { "/priv-post/**": { cache: { maxAge: 60 } } },
+      createOcacheRuleHandler(),
+    );
+    app.post("/priv-post/me", (event) => ({ auth: event.req.headers.get("authorization") }));
+    const res = await app.fetch(
+      new Request("http://test/priv-post/me", {
+        method: "POST",
+        headers: { authorization: "Bearer alice" },
+      }),
+    );
+    // Non-cacheable methods bypass the cache entirely and must reach the handler
+    // with their request untouched (same contract ocache applies to `Cookie`).
+    expect(await res.json()).toEqual({ auth: "Bearer alice" });
+  });
+
+  it("keeps a handler's `private, no-store` cache-control intact (F9)", async () => {
+    const app = createApp({ "/pv/**": { cache: { maxAge: 60 } } }, createOcacheRuleHandler());
+    app.get("/pv/dashboard", (event) => {
+      event.res.headers.set("cache-control", "private, no-store");
+      return { balance: 1234 };
+    });
+
+    const res = await app.fetch(new Request("http://test/pv/dashboard"));
+    expect(res.status).toBe(200);
+    expect(res.headers.get("cache-control")).toBe("private, no-store");
+    expect(await res.json()).toEqual({ balance: 1234 });
+  });
+
+  it("keeps `private` on a handler-returned Response (F9)", async () => {
+    const app = createApp({ "/pv2/**": { swr: 60 } }, createOcacheRuleHandler());
+    app.get(
+      "/pv2/dashboard",
+      () =>
+        new Response(JSON.stringify({ secret: 1 }), {
+          headers: { "cache-control": "private", "content-type": "application/json" },
+        }),
+    );
+
+    const res = await app.fetch(new Request("http://test/pv2/dashboard"));
+    expect(res.headers.get("cache-control")).toBe("private");
+    expect(await res.json()).toEqual({ secret: 1 });
+  });
+
+  it("does not advertise cache-control when `sendCacheControl` is false (F9)", async () => {
+    const app = createApp(
+      { "/nocc/**": { cache: { maxAge: 60, sendCacheControl: false } } },
+      createOcacheRuleHandler(),
+    );
+    app.get("/nocc/a", () => ({ ok: true }));
+    const res = await app.fetch(new Request("http://test/nocc/a"));
+    expect(res.headers.get("cache-control")).toBeNull();
+    // server-side caching still applies
+    const hit = await app.fetch(new Request("http://test/nocc/a"));
+    expect(hit.headers.get("x-cache")).toBe("HIT");
+  });
+});
+
 describe("cache rule (ocache-backed, h3/rules/cache)", () => {
   it("caches the matched route handler end-to-end", async () => {
     let calls = 0;

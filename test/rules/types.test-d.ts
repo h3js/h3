@@ -36,8 +36,12 @@ routeRules({}, { baseURL: "/app", preMerge: true, memoize: true });
 // Every field must remain assignable to ocache's `CachedEventHandlerOptions` —
 // the `h3/rules/cache` glue spreads rule options straight into ocache options.
 expectTypeOf<Required<CacheRuleOptions>>().toMatchTypeOf<CachedEventHandlerOptions>();
-// ...and its key set must not drift outside ocache's option names.
-expectTypeOf<keyof CacheRuleOptions>().toMatchTypeOf<keyof CachedEventHandlerOptions>();
+// ...and its key set must not drift outside ocache's option names — except for
+// `allowAuthorization`, an h3-rules-level credential switch ocache has no
+// counterpart for (it forwards `Authorization` untouched and never keys on it).
+expectTypeOf<Exclude<keyof CacheRuleOptions, "allowAuthorization">>().toMatchTypeOf<
+  keyof CachedEventHandlerOptions
+>();
 
 // --- `RouteRuleConfig` is a closed interface: typos are compile errors ---
 

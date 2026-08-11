@@ -14,7 +14,16 @@ export type HTTPStatus = number;
  * handler factory's `defaults`, or augment this interface (see "Extending Rule Types" in the route rules guide).
  */
 export interface CacheRuleOptions {
-  /** Cache name, part of the cache key. Defaults to `<rulePattern>:<matchedRoute>`. */
+  /**
+   * Cache name, part of the cache key. Defaults to
+   * `<handlerScope>:<method>:<rulePattern>:<matchedRoute>`.
+   *
+   * ⚠️ Setting it replaces all four parts, including the per-handler scope that
+   * keeps two apps (or two matchers) from reading each other's entries and the
+   * method that keeps a body-less `HEAD` response out of the `GET` entry. Set it
+   * only for a key you have scoped yourself; prefer the cache handler's `id`
+   * option when all you need is a key that is stable across processes.
+   */
   name?: string;
   /** Cache key group prefix. Defaults to `"h3/route-rules"`. */
   group?: string;
@@ -36,6 +45,31 @@ export interface CacheRuleOptions {
   allowQuery?: string[] | readonly string[];
   /** Allowlist of cookie names that participate in caching (default: none). */
   allowCookies?: string[] | readonly string[];
+  /**
+   * Let `Authorization` / `Proxy-Authorization` reach the cached handler
+   * (default: `false` — they are stripped, like `Cookie`).
+   *
+   * The auto-generated cache key is built from the path, the {@link varies}
+   * headers and the {@link allowCookies} cookies — never from a credential. A
+   * handler that rendered per-user content from a bearer token would therefore
+   * have that response stored under an anonymous key, served to every later
+   * caller, and (with the synthesized `public, s-maxage=N`) propagated to shared
+   * CDN caches. Stripping the headers makes such a handler fail safe — it sees
+   * an anonymous request and can only produce a shareable response — exactly as
+   * a cookie-authenticated one already does.
+   *
+   * ⚠️ When enabled, the credential **participates in caching**: it is hashed
+   * into the cache key and merged into the response's `Vary`, so each distinct
+   * credential gets its own entry (concurrent requests with the *same*
+   * credential are still coalesced into one handler call and share its
+   * response). Enable it for handlers whose output legitimately depends on the
+   * token — and keep in mind that per-credential entries multiply cache
+   * cardinality; `maxAge` and storage size should be sized for it.
+   *
+   * Honored by the `h3/rules/cache` handler. A custom `defineCachedHandler`
+   * implementation is responsible for its own credential handling.
+   */
+  allowAuthorization?: boolean;
   /** Whether to synthesize a `Cache-Control` response header (default `true`). */
   sendCacheControl?: boolean;
   /** Cache-status response header: `true` (`X-Cache`), a custom name, or `false`. */
