@@ -3,6 +3,7 @@ import type { RouterContext } from "rou3";
 import { parseRouteKey } from "./internal/key.ts";
 import { mergeMatchedRouteRules } from "./merge.ts";
 import type { RouteOverridePredicate, RouteRuleEntry, RouteRuleLayer } from "./merge.ts";
+import { sharedNodeMethods } from "./internal/nodes.ts";
 import { preMergeRuleLayers, routeContainmentRanks } from "./internal/premerge.ts";
 import type { PreMergedRouteRules } from "./internal/premerge.ts";
 import { ruleHandlers } from "./handlers/index.ts";
@@ -72,17 +73,15 @@ export type FindRouteRules = (method: string, pathname: string) => RouteRuleLaye
  * innocuous `GET /users/:id: { headers }` next to `/users/*: { basicAuth }`
  * would silently delete the auth gate for GET.
  *
- * So agnostic entries are materialized onto **every method used anywhere in the
- * rule set** — the same `method × path` matrix `preMergeRuleLayers` builds
- * (which is why preMerge never had this hole) — in a first pass, so that on a
- * shared node the agnostic layers are registered ahead of the method-scoped
- * ones and method-scoped rules still merge (override), never shadow.
- * Canonicalizing the pattern text into a node-equivalent bucket key is
- * deliberately *not* used: it would have to mirror rou3's node keying exactly
- * (partial/regex segments included) and would drift out of sync with it.
+ * So agnostic entries are materialized onto every method scoped on a node they
+ * share (`sharedNodeMethods`, keyed by rou3's own `routeNodeKeys` so the bucket
+ * ids cannot drift from rou3's node keying) in a first pass, so that on a shared
+ * node the agnostic layers are registered ahead of the method-scoped ones and
+ * method-scoped rules still merge (override), never shadow.
  *
- * Cost: one extra copy of each agnostic entry per used method (and `HEAD`
- * counts, see below). A rule set with no method-scoped keys — the common case —
+ * Cost: one extra copy of an agnostic entry per method scoped on a node it
+ * shares (and `HEAD` counts, see below) — nothing for the patterns no scoped
+ * key can reach. A rule set with no method-scoped keys — the common case —
  * registers exactly as before.
  */
 export function createRulesRouter(
@@ -151,8 +150,10 @@ export function createRulesRouter(
   // wrong order lets a broader pattern's options or its `false` reset beat a
   // narrower pattern's gate. Stamped per pattern (not per registration) so it
   // survives the duplication below: the agnostic array is registered by reference
-  // under `""` and every used method, and the HEAD materialization above shares
-  // the GET entries — every copy is the same pattern, hence the same rank.
+  // under `""` and each method materialized for it, and the HEAD materialization
+  // above shares the GET entries — every copy is a registration *of the same
+  // pattern* under another method, never of another pattern, so the rank a copy
+  // carries is still its own pattern's containment depth.
   // preMerge returned above: there the chain is resolved at build time and the
   // rank lives on the pre-merged layer (`PreMergedRouteRules.rank`) instead.
   for (const [path, rank] of routeContainmentRanks([...byPath.keys()])) {
@@ -165,32 +166,26 @@ export function createRulesRouter(
       }
     }
   }
-  // Every method named anywhere in the rule set (HEAD included — materialized
-  // above), i.e. every method for which some node may carry a method-scoped
-  // registration that would otherwise hide the agnostic ones sharing that node.
-  const methodsUsed = new Set<string>();
-  for (const methods of byPath.values()) {
-    for (const method of methods.keys()) {
-      if (method) {
-        methodsUsed.add(method);
-      }
-    }
-  }
-  // Pass 1 — agnostic entries, on `""` (the fallback for unused methods) and on
-  // each used method. Registering them first keeps them ahead of the
-  // method-scoped layers of *any* pattern that shares their node: rou3 pushes
-  // same-node/same-method registrations in insertion order and its specificity
-  // sort is stable, so an equally-specific method-scoped rule still overrides.
-  // Between *differently*-specific spellings on one node (`/a/*` vs `/a/:id`)
-  // rou3's own sort decides, exactly as it does for two agnostic patterns —
-  // method scope does not re-rank patterns, it only selects which are matched.
+  // Per pattern, the methods scoped on a node it shares — the only methods for
+  // which a registration could hide its agnostic entries (HEAD included, having
+  // been materialized above).
+  const sharedMethods = sharedNodeMethods(byPath);
+  // Pass 1 — agnostic entries, on `""` (the fallback for every method with no
+  // registration on the node) and on each of those methods. Registering them
+  // first keeps them ahead of the method-scoped layers of *any* pattern that
+  // shares their node: rou3 pushes same-node/same-method registrations in
+  // insertion order and its specificity sort is stable, so an equally-specific
+  // method-scoped rule still overrides. Between *differently*-specific spellings
+  // on one node (`/a/*` vs `/a/:id`) rou3's own sort decides, exactly as it does
+  // for two agnostic patterns — method scope does not re-rank patterns, it only
+  // selects which are matched.
   for (const [path, methods] of byPath) {
     const agnostic = methods.get("");
     if (!agnostic) {
       continue;
     }
     addRoute(router, "", base + path, agnostic);
-    for (const method of methodsUsed) {
+    for (const method of sharedMethods.get(path) || []) {
       addRoute(router, method, base + path, agnostic);
     }
   }

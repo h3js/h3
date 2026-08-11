@@ -162,6 +162,21 @@ describe("compiler parity", () => {
     expect(mod.code).not.toContain("compareRoutes");
   });
 
+  it("carries a `__proto__` route param as data, like the runtime matcher", () => {
+    // Regression (rou3 0.9.2): the compiled params object used to be emitted as
+    // a `{__proto__: …}` literal — the prototype-setter production, not a data
+    // property — so a `:__proto__` param silently vanished from the compiled
+    // matcher's params while the runtime matcher carried it.
+    const rules = normalizeRouteRules({ "/u/:__proto__": { headers: { "x-a": "1" } } });
+    const runtimeProto = createRouteRulesMatcher(rules);
+    const compiledProto = createMatcherFromFind(evaluateFind(compileFindRouteRules(rules)));
+    const params = compiledProto("GET", "/u/v").matchedRules.headers!.params!;
+    expect(Object.hasOwn(params, "__proto__")).toBe(true);
+    expect(snapshotResult(compiledProto("GET", "/u/v"))).toEqual(
+      snapshotResult(runtimeProto("GET", "/u/v")),
+    );
+  });
+
   it("compiled matcher works with baseURL", () => {
     // Already-normalized input is equally valid compiler input (idempotent
     // normalization) — the runtime matcher requires it either way.

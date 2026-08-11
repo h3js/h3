@@ -281,6 +281,63 @@ describe("method-agnostic rules vs node-aliased method-scoped siblings", () => {
     expect(before).not.toContain('m==="GET"');
   });
 
+  it("materializes an agnostic rule only onto methods scoped on a node it shares", () => {
+    // `/a/**` and `/b/**` land on different radix nodes, so the POST-scoped key
+    // cannot hide the agnostic one and must not buy it a POST copy. Only the
+    // `/b/**` branch may be method-guarded.
+    const code = compileFindRouteRules({
+      "/a/**": { headers: { "x-a": "1" } },
+      "POST /b/**": { headers: { "x-b": "1" } },
+    });
+    expect(code.match(/m===/g)).toHaveLength(1);
+    expect(code).toContain('m==="POST"');
+    // `$0` is the agnostic pattern's entry array: declared once, pushed once —
+    // no second, method-scoped registration of it.
+    expect(code.match(/data:\$0/g)).toHaveLength(1);
+    // …while a shared node does buy that copy (`/a/*` aliasing `/a/:id`): the
+    // agnostic layer is pushed from the POST branch as well as the fallback one.
+    const shared = compileFindRouteRules({
+      "/a/*": { headers: { "x-a": "1" } },
+      "POST /a/:id": { headers: { "x-b": "1" } },
+    });
+    expect(shared.match(/data:\$0/g)).toHaveLength(2);
+  });
+
+  it("keeps agnostic rules on every node an optional pattern spans", () => {
+    // `/a/:x?` registers on *two* nodes (`/a` and `/a/*`), and `GET /a/:id`
+    // scopes GET on the second — so the agnostic layers on **both** nodes need
+    // a GET copy: `/a/:x?`'s own (or `GET /a/:id` hides it on `/a/*`) and
+    // `/a`'s (because `/a/:x?`'s GET copy lands on `/a` too and would hide the
+    // gate there). Grouping shared nodes transitively is what covers both; a
+    // per-node grouping drops one or the other, fail-open either way.
+    const config: Record<string, RouteRuleConfig> = {
+      "/a": { basicAuth: { username: "admin", password: "s3cret" } },
+      "/a/:x?": { headers: { "x-opt": "1" } },
+      "GET /a/:id": { headers: { "x-get": "1" } },
+    };
+    const matcher = createRouteRulesMatcher(normalizeRouteRules(config));
+    const compiled = evaluateCompiledMatcher(config);
+    for (const method of ["GET", "HEAD", "POST"]) {
+      expect(ruleNames(matcher, method, "/a"), method).toContain("basicAuth");
+      expect(matcher(method, "/a/b").routeRules.headers, method).toMatchObject({ "x-opt": "1" });
+      expect(ruleNames(compiled, method, "/a"), `compiled ${method}`).toEqual(
+        ruleNames(matcher, method, "/a"),
+      );
+      expect(compiled(method, "/a/b").routeRules.headers, `compiled ${method}`).toEqual(
+        matcher(method, "/a/b").routeRules.headers,
+      );
+    }
+    // The scoped sibling still applies on its own method (GET, and HEAD from it).
+    expect(matcher("GET", "/a/b").routeRules.headers).toEqual({ "x-opt": "1", "x-get": "1" });
+    expect(matcher("POST", "/a/b").routeRules.headers).toEqual({ "x-opt": "1" });
+  });
+
+  it("reports an unparseable rule pattern as an h3 rules error", () => {
+    expect(() =>
+      createRouteRulesMatcher(normalizeRouteRules({ "/a/:x(": { headers: {} } })),
+    ).toThrow(/^\[h3\] rules: invalid route pattern `\/a\/:x\(`:/);
+  });
+
   it("app-level: an unauthenticated request cannot bypass the gate (basicAuth)", async () => {
     const app = new H3();
     app.use(

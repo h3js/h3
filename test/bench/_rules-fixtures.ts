@@ -111,7 +111,10 @@ export const PROBES: readonly (readonly [string, string])[] = [
 
 /** Shape of a match result as read back from a bundle (handlers opaque). */
 export interface MatchResultLike {
-  routeRules: Record<
+  /** Merged options per rule name — what `event.context.routeRules` publishes. */
+  routeRules: Record<string, unknown>;
+  /** The matched rules with their provenance (pattern, params, handler). */
+  matchedRules: Record<
     string,
     {
       route?: string;
@@ -134,6 +137,8 @@ export interface MatchSnapshot {
       order: number | undefined;
     }
   >;
+  /** Merged options per rule name, as published on the event context. */
+  options: Record<string, unknown>;
   middlewareCount: number;
 }
 
@@ -142,11 +147,17 @@ export interface MatchSnapshot {
  * functions are compared by presence + `order` only (a compiled bundle
  * references the imported handler, a runtime matcher its own registry entry, so
  * identity intentionally differs).
+ *
+ * Snapshots the *matched* rules, not the published `routeRules` map: the latter
+ * carries only the merged options, so a parity check built on it cannot see the
+ * provenance (pattern, params) or the handler binding the execution modes have
+ * to agree on — it would compare all-`undefined` fields and pass vacuously.
+ * `routeRules` is snapshotted alongside, as the resolved options themselves.
  */
 export function snapshotMatch(result: MatchResultLike): MatchSnapshot {
   return {
     rules: Object.fromEntries(
-      Object.entries(result.routeRules).map(([name, rule]) => [
+      Object.entries(result.matchedRules).map(([name, rule]) => [
         name,
         {
           route: rule.route,
@@ -157,6 +168,7 @@ export function snapshotMatch(result: MatchResultLike): MatchSnapshot {
         },
       ]),
     ),
+    options: { ...result.routeRules },
     middlewareCount: result.routeRuleMiddleware.length,
   };
 }
