@@ -4,6 +4,7 @@ import {
   redirectBack,
   withBase,
   assertMethod,
+  isMethod,
   getQuery,
   getRequestURL,
   getRequestHost,
@@ -550,6 +551,74 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
       expect(new Set(res405.headers.get("Allow")?.split(/\s*,\s*/))).toEqual(
         new Set(["GET", "POST"]),
       );
+    });
+
+    // Regression: `assertMethod` compared a raw `event.req.method` against the
+    // expected method, so a request that spelled the method in any other case
+    // was rejected with a spurious 405. `new Request()` only normalizes the
+    // fetch spec's fixed token list (DELETE/GET/HEAD/OPTIONS/POST/PUT), so
+    // `patch` reaches handlers verbatim through `app.fetch()` on every runtime.
+    //
+    // `t.app.request()` instead of `t.fetch()`: in node mode the latter goes
+    // over a real socket, and llhttp rejects an unknown-cased method token with
+    // a 400 before h3 sees it. The in-process path is the one actually reachable.
+    for (const method of ["PATCH", "patch", "PaTcH"]) {
+      it(`allows a PATCH assertion for a request spelled ${method}`, async () => {
+        t.app.all("/patch", (event) => {
+          assertMethod(event, "PATCH");
+          return "ok";
+        });
+        const res = await t.app.request("http://localhost/patch", { method });
+        expect(res.status).toBe(200);
+        expect(await res.text()).toBe("ok");
+      });
+    }
+
+    it("still rejects a genuinely different method", async () => {
+      t.app.all("/patch", (event) => {
+        assertMethod(event, "PATCH");
+        return "ok";
+      });
+      for (const method of ["POST", "post"]) {
+        const res = await t.app.request("http://localhost/patch", { method });
+        expect(res.status, method).toBe(405);
+      }
+    });
+  });
+
+  describe("isMethod", () => {
+    for (const method of ["QUERY", "query", "QuErY"]) {
+      it(`matches a QUERY expectation for a request spelled ${method}`, async () => {
+        t.app.all("/query", (event) => String(isMethod(event, "QUERY")));
+        const res = await t.app.request("http://localhost/query", { method });
+        expect(await res.text()).toBe("true");
+      });
+    }
+
+    it("matches a lowercase method within a list of expected methods", async () => {
+      t.app.all("/list", (event) => String(isMethod(event, ["PATCH", "QUERY"])));
+      const res = await t.app.request("http://localhost/list", { method: "patch" });
+      expect(await res.text()).toBe("true");
+    });
+
+    it("allows an unnormalized `head` token when allowHead is set", async () => {
+      let matched: boolean | undefined;
+      t.app.all("/head", (event) => {
+        matched = isMethod(event, "GET", true);
+        return "ok";
+      });
+      // `new Request()` normalizes `head` to `HEAD`; force the token back to
+      // model a runtime that hands h3 the method as it arrived on the wire.
+      const req = new Request("http://localhost/head", { method: "HEAD" });
+      Object.defineProperty(req, "method", { value: "head", configurable: true });
+      await t.app.request(req);
+      expect(matched).toBe(true);
+    });
+
+    it("does not match a different method", async () => {
+      t.app.all("/other", (event) => String(isMethod(event, "PATCH")));
+      const res = await t.app.request("http://localhost/other", { method: "post" });
+      expect(await res.text()).toBe("false");
     });
   });
 
