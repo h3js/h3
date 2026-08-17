@@ -25,11 +25,7 @@ export function serializePreMergedRouteRules(
   )}}`;
 }
 
-/**
- * Serialize the rule entries registered for one pattern (one rou3 layer's
- * `.data`). Options must be JSON-serializable; anything JSON cannot
- * round-trip throws (see `assertSerializableOptions`).
- */
+/** Serialize one route layer; throws when options are not JSON-serializable. */
 export function serializeRouteRuleEntries(
   entries: (RouteRuleEntry & { paramRoutes?: string[] })[],
   ns: string,
@@ -64,11 +60,7 @@ export function serializeRouteRuleEntries(
 /** Default export name for the optional matcher export (`matcher: true`). */
 const DEFAULT_MATCHER_EXPORT_NAME = "matcher";
 
-/**
- * Resolve `matcher` into the infra import + export-declaration source, or
- * `null` if none requested. Wraps the `findRouteRules` binding the module
- * declares.
- */
+/** Generate the optional matcher import and export source. */
 export function compileMatcherExport(
   matcher: MatcherExport | undefined,
   overridePredicate: string,
@@ -102,15 +94,8 @@ export function compileMatcherExport(
 }
 
 /**
- * Emit the dual-path override predicate passed to `createMatcherFromFind` —
- * the compiled counterpart of the runtime `canOverrideRoute` guard: incoming
- * may override an already-resolved rule of the same name only if its pattern
- * is equal to, or strictly more specific than, the current one.
- *
- * `compareRoutes` runs here at build time (never in the emitted output),
- * baking the containment relation into a static table so rou3 stays out of
- * the runtime bundle. `routes` are the registered pattern strings, sorted for
- * deterministic output.
+ * Generate a static route-specificity predicate so compiled matchers do not
+ * import rou3 at runtime.
  */
 export function compileOverridePredicate(routes: string[]): string {
   // current → incoming allowed when compareRoutes is "superset" or "equal";
@@ -142,10 +127,7 @@ export function compileOverridePredicate(routes: string[]): string {
   return `/* @__PURE__ */ (() => { const t = new Map([${entries}]); return (a, b) => a === b || (t.get(a)?.has(b) ?? false); })()`;
 }
 
-/**
- * Validates every binding name the compiler emits — a non-identifier would
- * otherwise surface as a parse error in the consumer's generated module.
- */
+/** Validate a JavaScript binding name used in generated code. */
 export function assertHandlerBinding(name: string, what: string): void {
   if (!JS_IDENTIFIER_RE.test(name)) {
     throw new Error(
@@ -153,8 +135,6 @@ export function assertHandlerBinding(name: string, what: string): void {
     );
   }
 }
-
-// ---- Internal ----
 
 const JS_IDENTIFIER_RE = /^[A-Za-z_$][\w$]*$/;
 

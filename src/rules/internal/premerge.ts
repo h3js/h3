@@ -75,9 +75,8 @@ export function routeContainmentRanks(paths: string[]): Map<string, number> {
       try {
         rel = compareRoutes(a, b);
       } catch {
-        continue; // Unanalyzable pattern: no provable order, so assert none.
+        continue;
       }
-      // `disjoint`/`partial`/`equal` add depth to neither side.
       if (rel === "superset") {
         ranks.set(b, ranks.get(b)! + 1);
       } else if (rel === "subset") {
@@ -103,7 +102,6 @@ export function preMergeRuleLayers(
 ): Map<string, Map<string, PreMergedRouteRules>> {
   const paths = [...byPath.keys()];
 
-  // Validate chain-cleanness and collect each path's subsumers.
   const subsumers = new Map<string, string[]>(paths.map((path) => [path, []]));
   for (let i = 0; i < paths.length; i++) {
     for (let j = i + 1; j < paths.length; j++) {
@@ -145,11 +143,6 @@ export function preMergeRuleLayers(
 
   const result = new Map<string, Map<string, PreMergedRouteRules>>();
   for (const path of paths) {
-    // Containment is a strict total order in-chain, and containment depth (a
-    // pattern's subsumer count) is a consistent numeric key for it — broad →
-    // narrow, self last. Depth is also what each layer carries as its `rank`, so
-    // the chain order merged here and the layer picked at match time are decided
-    // by the same measure (`findAllRoutes` position is not, see `rank`).
     const chainSubsumers = subsumers.get(path)!;
     const chain = [...chainSubsumers]
       .sort((a, b) => subsumers.get(a)!.length - subsumers.get(b)!.length)
@@ -157,8 +150,6 @@ export function preMergeRuleLayers(
 
     const registrations = new Map<string, PreMergedRouteRules>();
     for (const method of ["", ...methodsUsed]) {
-      // Only needed when some chain member has rules for this method — otherwise
-      // rou3's `methods[""]` fallback already resolves to the identical chain.
       if (method && !chain.some((route) => byPath.get(route)!.has(method))) {
         continue;
       }
@@ -166,14 +157,12 @@ export function preMergeRuleLayers(
       const resets = new Set<string>();
       for (const route of chain) {
         const methods = byPath.get(route)!;
-        // Same precedence as plain registration: agnostic first, then method-scoped overrides.
         const agnostic = methods.get("") || [];
         const scoped = (method && methods.get(method)) || [];
         for (const entry of [...agnostic, ...scoped]) {
           mergeChainRule(merged, entry, resets);
         }
       }
-      // Register even when empty — an all-`false` resolution is itself the result.
       registrations.set(method, {
         route: path,
         rank: chainSubsumers.length,
@@ -182,7 +171,6 @@ export function preMergeRuleLayers(
             ? rule
             : { ...rule, paramRoutes },
         ),
-        // A name reset then re-added later in the chain is resolved, not reset.
         ...(resets.size > 0 && { resets: [...resets].filter((name) => !merged.has(name)) }),
       });
     }
@@ -191,7 +179,6 @@ export function preMergeRuleLayers(
   return result;
 }
 
-// Chain-time equivalent of `mergeRouteRule`, additionally tracking which patterns contributed (for exact per-rule params).
 function mergeChainRule(
   merged: Map<string, ChainRule>,
   entry: RouteRuleEntry,

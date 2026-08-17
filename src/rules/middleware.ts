@@ -15,60 +15,27 @@ import type {
 import { normalizeRouteRules } from "./normalize.ts";
 import type { MatchResult, RouteRuleConfig } from "./types.ts";
 
-// The built-in rules are declared in `src/types/route-rules.ts`, since rules now
-// ship inside h3: on `BuiltinRouteRules`, composed into the shared (augmentable)
-// `RouteRules` that types both the matched result and `event.context.routeRules`
-// — see the note there for why they are not named on `RouteRules` itself.
-
 /** Options for the plug-and-play {@link routeRules} middleware. */
 export interface RouteRulesOptions extends RouteRulesMatcherOptions {
   /**
-   * Memoize match results per `method + pathname` (composes
-   * {@link memoizeRouteRulesMatcher}) — **enabled by default**, FIFO-capped at
-   * 1024 entries. Memoized results are shared across requests: treat
-   * `event.context.routeRules` and its rule options as read-only. Pass `false`
-   * to resolve every request from scratch (each request gets fresh result
-   * objects), or an options object to tune the entry cap.
+   * Memoize matches by method and pathname. Enabled by default with a 1024-entry
+   * FIFO cap; shared results must be treated as read-only.
    * @default true
    */
   memoize?: boolean | MatcherMemoizeOptions;
 }
 
 /**
- * Plug-and-play H3 middleware: matches route rules for each request, exposes the
- * merged rule options as `event.context.routeRules` (`routeRules.redirect?.to`),
- * and runs matched rule middleware (redirect, proxy, headers, basic auth, cache,
- * …) before the route handler.
+ * Match route rules, expose merged options on `event.context.routeRules`, and
+ * run their middleware before the route handler.
  *
- * Match results are memoized by default (see {@link RouteRulesOptions.memoize});
- * treat `event.context.routeRules` as read-only, or pass `memoize: false`.
- *
- * @example
- * ```ts
- * import { H3, serve } from "h3";
- * import { routeRules } from "h3/rules";
- * import { cache } from "h3/rules/cache"; // needed for cache/swr rules (ocache peer)
- *
- * const app = new H3();
- * app.use(
- *   routeRules(
- *     {
- *       "/blog/**": { swr: 60 },
- *       "/old/**": { redirect: { to: "/new/**", status: 301 } },
- *       "/api/**": { cors: true },
- *     },
- *     { handlers: { cache } },
- *   ),
- * );
- * ```
+ * Results are memoized and shared by default; treat exposed rule options as
+ * read-only or disable memoization.
  */
 export function routeRules(
   config: Record<string, RouteRuleConfig>,
   opts?: RouteRulesOptions,
 ): Middleware {
-  // Composed here (not in createRouteRulesMatcher, which stays memoize-free so
-  // matcher-only bundles can tree-shake the wrapper away) since this module
-  // already imports the full core.
   const memoize = opts?.memoize ?? true;
   const matcher = createRouteRulesMatcher(normalizeRouteRules(config), opts);
   const match = memoize
@@ -76,30 +43,14 @@ export function routeRules(
     : matcher;
   return function routeRulesMiddleware(event, next) {
     const pathname = event.url.pathname;
-    // Uppercase before the lookup: rule keys are uppercased at parse time
-    // (internal/key.ts), and rou3 resolves `methods[method] || methods[""]` — a
-    // method-scoped rule never populates `methods[""]`, so a case mismatch is a
-    // *total* miss that fails OPEN (unlike a method-scoped route, which 404s).
-    // A lowercase method is reachable everywhere: the Fetch spec only
-    // byte-uppercases DELETE/GET/HEAD/OPTIONS/POST/PUT, so `patch`/`query` pass
-    // through `app.fetch()` verbatim, and raw-socket parsers that forward the
-    // method token expose the well-known six too. Normalizing here also keeps the
-    // matcher's memo keyed on one spelling per method.
+    // Method-scoped rule keys are normalized to uppercase.
     const method = event.req.method.toUpperCase();
     let matched = match(method, pathname);
-    // Method check first: it keeps every non-`OPTIONS` request off the header reads.
     if (method === "OPTIONS" && isPreflightRequest(event)) {
       matched = liftPreflightCors(matched, match, event, pathname);
     }
     const { routeRules, routeRuleMiddleware } = matched;
-    // Merge over a previous `routeRules()` instance instead of replacing it: two
-    // middleware instances (e.g. framework-level + app-level) each own a rule
-    // set, and a plain assignment — including the `{}` of a miss — would erase
-    // the earlier one. Later instances win per rule name. The merged map is a
-    // fresh (null-prototype, like the matcher's own) object: memoized results
-    // are shared across requests and must never be mutated. With a single
-    // instance the matcher's object is exposed as-is, so its identity (and the
-    // memoization it comes from) is preserved.
+    // Compose multiple instances without mutating memoized match results.
     const prev = event.context.routeRules;
     event.context.routeRules = prev
       ? Object.assign(Object.create(null) as NonNullable<typeof prev>, prev, routeRules)
@@ -110,28 +61,11 @@ export function routeRules(
   };
 }
 
-// A single method token — anything else is not a preflight this can resolve
-// (and would only pollute the matcher's memo with junk keys).
 const METHOD_TOKEN_RE = /^[A-Za-z]+$/;
 
 /**
- * A CORS preflight arrives as `OPTIONS`, so a `cors` rule scoped to the method
- * the browser is asking about (`PUT /api/**`) is invisible to the primary
- * lookup and the preflight goes unanswered. Resolve the requested method
- * (`Access-Control-Request-Method`) and lift **only** its `cors` rule.
- *
- * Nothing else may be lifted: browsers send preflights without credentials, so
- * applying a method-scoped auth rule (or any other gate) from that lookup
- * would reject every preflight and break CORS entirely. Since the matcher
- * prepends method-agnostic entries to each method-scoped registration, the
- * requested-method lookup already subsumes the agnostic `cors` layers; a lookup
- * without a `cors` rule (including one reset by `cors: false`) leaves the
- * primary result untouched, so an `OPTIONS`-scoped rule still applies.
- *
- * Kept here rather than behind a widened `RouteRulesMatcher` signature: the
- * matcher resolves `(method, pathname)` and has no access to request headers,
- * while the preflight protocol (which header, which rule may be lifted) is
- * request-level knowledge the middleware already owns.
+ * Lift only the requested method's CORS rule for preflight; lifting auth or
+ * other method-scoped rules would incorrectly reject credentialless preflights.
  */
 function liftPreflightCors(
   matched: MatchResult,
@@ -145,18 +79,12 @@ function liftPreflightCors(
   }
   const method = requested.toUpperCase();
   if (method === "OPTIONS") {
-    return matched; // same layer the primary lookup already resolved
+    return matched;
   }
-  // The *matched* rule (not the published options) — the chain rebuild below
-  // needs its handler, and identity comparison against the primary lookup is
-  // exactly "same resolved layer".
   const cors = match(method, pathname).matchedRules.cors;
   if (!cors || cors === matched.matchedRules.cors) {
     return matched;
   }
-  // Fresh maps (memoized results are shared and read-only) with only `cors`
-  // replaced; the chain is rebuilt through the shared builder so handler
-  // ordering stays defined in exactly one place.
   const matchedRules = Object.assign(
     Object.create(null) as MatchResult["matchedRules"],
     matched.matchedRules,

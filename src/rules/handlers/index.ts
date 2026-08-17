@@ -7,12 +7,8 @@ import { redirect } from "./redirect.ts";
 // adding rules, and export the handler from src/rules/index.ts.
 
 /**
- * Default rule handler registry (base for runtime matchers). `cache` and
- * `proxy` are deliberately absent — opt-in subpath exports (`h3/rules/cache`,
- * `h3/rules/proxy`) so their deps stay out of bundles that don't use them.
- * `createRouteRulesMatcher` throws if a rule set uses either without a
- * registered handler (pass `handlers: { cache: undefined }` / `{ proxy: undefined }`
- * to opt into data-only).
+ * Default handler registry. Cache and proxy handlers are opt-in from their
+ * subpath exports; set either to `undefined` explicitly for data-only rules.
  */
 export const ruleHandlers: RuleHandlers = {
   headers,

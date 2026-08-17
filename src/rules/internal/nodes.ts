@@ -40,7 +40,6 @@ import type { RouteRuleEntry } from "../merge.ts";
 export function sharedNodeMethods(
   byPath: Map<string, Map<string, RouteRuleEntry[]>>,
 ): Map<string, Set<string>> {
-  // Union-find over node keys; a pattern joins the groups of all its own keys.
   const parents = new Map<string, string>();
   const find = (key: string): string => {
     let root = key;
@@ -67,8 +66,6 @@ export function sharedNodeMethods(
     }
   }
 
-  // Every method scoped anywhere in a group (`HEAD` included — it is
-  // materialized into `byPath` before this runs).
   const groupMethods = new Map<string, Set<string>>();
   for (const [path, methods] of byPath) {
     for (const method of methods.keys()) {
@@ -84,7 +81,6 @@ export function sharedNodeMethods(
     }
   }
   if (groupMethods.size === 0) {
-    // No method-scoped key anywhere — nothing can shadow, nothing to duplicate.
     return new Map();
   }
 
@@ -113,8 +109,5 @@ function nodeKeys(path: string): string[] {
       cause: error,
     });
   }
-  // `routeNodeKeys` always names at least the pattern's own terminal node; the
-  // fallback keeps a pattern that ever came back unkeyed in a group of its own
-  // rather than crashing the walk above.
   return keys.length > 0 ? keys : [path];
 }

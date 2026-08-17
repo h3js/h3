@@ -30,20 +30,15 @@ export interface CompileRouteRulesOptions {
 }
 
 /**
- * Optional matcher export appended alongside `findRouteRules`; `true`/string
- * wraps it in `createMatcherFromFind` (optionally renamed). `memoize` bakes in
- * `memoizeRouteRulesMatcher`, imported only when set — an un-memoized export
- * still tree-shakes it away.
+ * Optional generated matcher export. A string sets its name; object form can
+ * also enable memoization.
  */
 export type MatcherExport =
   | boolean
   | string
   | { name?: string; memoize?: boolean | MatcherMemoizeOptions };
 
-/**
- * {@link compileRouteRules} options — base options plus the whole-module-only
- * `matcher` knob (meaningless for the single-fragment entrypoints).
- */
+/** Options for compiling a complete route-rules module. */
 export interface CompileModuleOptions extends CompileRouteRulesOptions {
   /**
    * Also emit a ready-to-use matcher export. See {@link MatcherExport}.
@@ -52,11 +47,7 @@ export interface CompileModuleOptions extends CompileRouteRulesOptions {
   matcher?: MatcherExport;
 }
 
-/**
- * Compiled `findRouteRules` module split into composable parts: take the
- * whole module ({@link code}) or weave {@link imports}/{@link body} into a
- * larger one without re-parsing.
- */
+/** Compiled module source, also split into composable imports and body. */
 export interface CompiledRouteRules {
   /**
    * Handler import statements ({@link compileHandlersImport} output); empty

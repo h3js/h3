@@ -76,8 +76,6 @@ export function compileHandlersImport(
   return emitHandlersImport(resolveCompileCtx(config, opts));
 }
 
-// ---- Internal ----
-
 /**
  * Everything the fragment emitters need, resolved once per entrypoint call.
  * Both emitters read the same context, so handler references and the

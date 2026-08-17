@@ -36,12 +36,8 @@ export interface RouteRulesMatcherOptions {
    */
   handlers?: RuleHandlers;
   /**
-   * Pre-merge each pattern's subsumption chain at startup so per-request
-   * resolution takes only the most specific matched layer instead of merging
-   * all layers. Exact — but requires a **chain-clean** rule set: throws at
-   * startup if two patterns partially overlap (e.g. `/a/*​/c` vs `/a/b/*`) or
-   * use patterns that cannot be analyzed (regex params).
-   * Composes with {@link memoizeRouteRulesMatcher}.
+   * Pre-merge compatible pattern chains at startup. Throws for partial overlaps
+   * or patterns that cannot be analyzed, such as regex parameters.
    */
   preMerge?: boolean;
 }
@@ -61,23 +57,8 @@ export type RouteRulesMatcher = (method: string, pathname: string) => MatchResul
 export type FindRouteRules = (method: string, pathname: string) => RouteRuleLayer[];
 
 /**
- * Explode a normalized rule set into per-rule entries and register them on a
- * rou3 router (method `""` = all methods).
- *
- * rou3 resolves `methods[method] || methods[""]` **per node**, so a single
- * method-scoped registration hides *every* method-agnostic registration on the
- * node it lands on — and nodes are shared by patterns that do not look alike
- * (`*` / `:id`, `**` / `**:rest`, `/admin` / `/admin/`), so prepending agnostic
- * entries per pattern text is not enough. Agnostic entries are therefore also
- * materialized onto every method scoped on a node they share, in a first pass,
- * so that method-scoped rules merge (override) and never shadow. See
- * {@link sharedNodeMethods} for the node-identity argument, the transitive
- * grouping, and why over-approximating is the fail-closed direction.
- *
- * Cost: one extra copy of an agnostic entry per method scoped on a node it
- * shares (and `HEAD` counts, see below) — nothing for the patterns no scoped
- * key can reach. A rule set with no method-scoped keys — the common case —
- * registers exactly as before.
+ * Register normalized rules in a rou3 router. Method-agnostic rules are merged
+ * with method-scoped rules, and `GET` rules also apply to `HEAD`.
  */
 export function createRulesRouter(
   rules: Record<string, NormalizedRouteRules>,
@@ -265,31 +246,9 @@ const CONCRETE_SEGMENT_RE = /^[^:*()\\]+$/;
 const ZERO_MATCHABLE_SEGMENT_RE = /^:.*[?*]$/;
 
 /**
- * Dependency-free default for {@link createMatcherFromFind}: the same
- * fail-closed question as {@link canOverrideRoute} ("is every path matching
- * `incomingRoute` also matched by `currentRoute`?") decided by comparing
- * pattern shapes instead of calling rou3's `compareRoutes`.
- *
- * Why not `compareRoutes`: a compiled matcher (`h3/rules/compiler`) exists to
- * keep the rou3 router out of the runtime bundle, and referencing
- * `compareRoutes` from the default would drag ~6 KB of rou3 back into every
- * compiled bundle (pinned by `test/rules/treeshake.test.ts`). The runtime
- * matcher — which already carries rou3 — injects the exact predicate, and
- * `compileRouteRules({ matcher })` bakes the exact relation as a static table,
- * so both keep full precision.
- *
- * **Sound, deliberately conservative**: it allows only containment it can
- * prove, so it can never permit an override `compareRoutes` would reject
- * (verified against rou3 as an oracle in `test/rules/match.test.ts`). Where it
- * cannot decide — a named catch-all (`**:rest`), a regex/partial param, an
- * empty (`//`, trailing-slash) segment, a `**` with nothing to absorb, or a
- * zero-matchable modifier param (`:x?`, `:x*`) under a `**` — it keeps the rule
- * the served path resolved, which is the pre-guard status quo for that pair.
- * Being only a subset of the exact relation, it still resolves *fewer*
- * overrides than the runtime matcher: `compileRouteRules({ matcher })` bakes
- * the exact table for parity.
- *
- * Exported for the soundness test only — not part of the `h3/rules` surface.
+ * Conservatively test route containment without importing rou3. Ambiguous
+ * pattern shapes return `false` so alternate path readings cannot weaken rules.
+ * @internal
  */
 export const canOverrideRouteShape: RouteOverridePredicate = (currentRoute, incomingRoute) => {
   if (currentRoute === incomingRoute) {
@@ -332,21 +291,11 @@ export const canOverrideRouteShape: RouteOverridePredicate = (currentRoute, inco
 };
 
 /**
- * Create a matcher from a `findAllRoutes`-compatible lookup — the integration
- * point for compiled matchers (`h3/rules/compiler`), sharing this exact code
- * path with the runtime matcher for identical results.
+ * Create a matcher from a `findAllRoutes`-compatible lookup, typically generated
+ * by `h3/rules/compiler`.
  *
- * Memoization is **not** wired in here — compose {@link memoizeRouteRulesMatcher}
- * explicitly so an un-memoized bundle can tree-shake it away.
- *
- * `canOverride` gates the dual-path union's override step (see
- * {@link mergeMatchedRouteRules}) so a broader canonical pattern can never
- * downgrade a narrower rule the served path resolved. It **defaults to a
- * specificity guard** — the dependency-free `canOverrideRouteShape`, since a
- * compiled matcher must not pull rou3 back in; `createRouteRulesMatcher`
- * injects the exact `compareRoutes`-based one, and `compileRouteRules({ matcher })`
- * bakes the exact relation as a static table. Pass `() => true` to opt back
- * into the historical unconditional override.
+ * Results are not memoized. The default override guard fails closed when route
+ * specificity is ambiguous.
  */
 export function createMatcherFromFind(
   findRouteRules: FindRouteRules,
@@ -378,12 +327,7 @@ export function createMatcherFromFind(
       return { routeRules: {}, matchedRules: {}, routeRuleMiddleware: [] };
     }
 
-    // Union the served path's resolution with each alternate reading's: a later
-    // reading may add or override (never delete) a rule an earlier one resolved,
-    // and override only when `canOverride` allows it — a broader alternate
-    // pattern must never downgrade a narrower rule the served path resolved
-    // (encoded-dot escalation). Proxy/redirect still forward the raw
-    // `event.url.pathname`.
+    // Broader alternate readings must not override narrower served-path rules.
     const matchedRules = mergeMatchedRouteRules(rawLayers, altLayers, canOverride);
 
     return {
@@ -394,21 +338,7 @@ export function createMatcherFromFind(
   };
 }
 
-/**
- * Project resolved rules onto their merged options — the map published as
- * `event.context.routeRules`, where a rule reads as the config it was authored
- * from (`routeRules.redirect?.to`) rather than through a wrapper. Provenance
- * stays on the wrappers, which rule handlers are constructed from (see
- * {@link MatchResult.matchedRules}).
- *
- * Null-prototype for the same reason the merge builds one: rule names are
- * attacker-influenceable config, and a `__proto__` key on a plain object would
- * retarget the prototype instead of becoming an own property. Built once per
- * match — a memoized matcher pays for it once per `method + pathname`.
- *
- * Not exported from `src/rules/index.ts` — `MatchResult` already carries both
- * views.
- */
+/** Project matched rules to their public options map using a pollution-safe prototype. */
 function toRouteRules(matchedRules: MatchedRouteRules): ResolvedRouteRules {
   const routeRules = Object.create(null) as Record<string, unknown>;
   for (const name in matchedRules) {
@@ -417,16 +347,7 @@ function toRouteRules(matchedRules: MatchedRouteRules): ResolvedRouteRules {
   return routeRules as ResolvedRouteRules;
 }
 
-/**
- * Build the ordered middleware chain for a merged rule map: handlers run sorted
- * by `order` ascending (cors -3, headers -1, so a preflight is answered before
- * anything else, a custom gate at -2 runs before redirect/proxy, and headers
- * wrap the response). Skips sorting for 0/1 rules.
- *
- * Not part of the public `h3/rules` surface — shared with the `routeRules()`
- * middleware, which rebuilds the chain when it lifts a preflight `cors` rule so
- * ordering stays defined in exactly one place.
- */
+/** Build middleware ordered by handler `order` ascending. */
 export function buildRouteRuleMiddleware(
   matchedRules: MatchedRouteRules,
 ): MatchResult["routeRuleMiddleware"] {
@@ -434,7 +355,6 @@ export function buildRouteRuleMiddleware(
   const rules = Object.values(matchedRules) as MatchedRouteRule[];
   const orderedRules = rules.length > 1 ? rules.sort(compareRuleOrder) : rules;
   for (const rule of orderedRules) {
-    // merged rule sets never contain `false` options (types.ts: MatchedRouteRule)
     if (!rule.handler) {
       continue;
     }
@@ -444,12 +364,8 @@ export function buildRouteRuleMiddleware(
 }
 
 /**
- * Memoize a matcher per `method + pathname`. Exact — the merged result (params
- * included) is fully deterministic per path.
- *
- * Memoized results are **shared across requests**: treat the returned
- * `routeRules` map and middleware array as immutable. Entries are FIFO-capped
- * (default 1024) — an evicted path is simply re-resolved on its next hit.
+ * Memoize matches by method and pathname with a 1024-entry FIFO cap by default.
+ * Returned objects are shared and must be treated as immutable.
  */
 export function memoizeRouteRulesMatcher(
   matcher: RouteRulesMatcher,
@@ -457,7 +373,6 @@ export function memoizeRouteRulesMatcher(
 ): RouteRulesMatcher {
   const max = opts?.max ?? 1024;
   if (max <= 0) {
-    // A non-positive cap means no caching, not a cap of 1.
     return matcher;
   }
   const memo = new Map<string, MatchResult>();
@@ -474,10 +389,6 @@ export function memoizeRouteRulesMatcher(
     return result;
   };
 }
-
-// ------------------------------------------------------------------------
-// Internal
-// ------------------------------------------------------------------------
 
 /**
  * Every spelling of `pathname` a rule must also be matched against, deduped and
@@ -515,13 +426,9 @@ export function memoizeRouteRulesMatcher(
 function alternateReadings(pathname: string): string[] | undefined {
   const decoded = decodedPath(pathname);
   if (decoded === pathname && !needsCanonicalPasses(pathname)) {
-    return; // Fast path: nothing to decode, and already canonical.
+    return;
   }
   const readings: string[] = [];
-  // The same treatment for each spelling: a spelling that is already canonical
-  // is a reading in itself; one that is not contributes what it resolves to,
-  // never the intermediate. A path that fails the guard pays both resolves —
-  // see `mergedCanonicalPath` for why neither can be cheaply skipped.
   for (const spelling of decoded === pathname ? [pathname] : [pathname, decoded]) {
     if (!needsCanonicalPasses(spelling)) {
       pushReading(readings, pathname, spelling);
@@ -529,7 +436,6 @@ function alternateReadings(pathname: string): string[] | undefined {
     }
     const canonical = canonicalPath(spelling);
     pushReading(readings, pathname, canonical);
-    // `undefined` when the merged reading agrees with `canonical`.
     const merged = mergedCanonicalPath(spelling, canonical);
     if (merged !== undefined) {
       pushReading(readings, pathname, merged);
@@ -538,17 +444,13 @@ function alternateReadings(pathname: string): string[] | undefined {
   return readings.length > 0 ? readings : undefined;
 }
 
-// Skip a reading that is the served path itself (already resolved) or a
-// duplicate of one already queued — each costs a router lookup.
 function pushReading(readings: string[], pathname: string, reading: string): void {
   if (reading !== pathname && !readings.includes(reading)) {
     readings.push(reading);
   }
 }
 
-// Fail loudly when an opt-in rule (`cache`/`proxy`) has no registered handler
-// (otherwise it would silently degrade to data-only). A `false` reset is falsy,
-// so reset-only rule sets don't throw; an own `<name>` key in `handlers` opts out.
+// Opt-in rules must not silently degrade to data-only rules.
 function requireOptInHandler(
   rules: Record<string, NormalizedRouteRules>,
   handlers: RuleHandlers,
@@ -568,9 +470,6 @@ function requireOptInHandler(
   }
 }
 
-// Sort by handler `order` ascending (default 0; built-ins occupy the negative
-// band: cors -3, headers -1). Module-scope so it's not
-// re-allocated per request.
 const compareRuleOrder = (a: MatchedRouteRule, b: MatchedRouteRule): number =>
   orderWeight(a.handler) - orderWeight(b.handler);
 
@@ -578,9 +477,6 @@ function orderWeight(handler: RuleHandler | undefined): number {
   return handler?.order ?? 0;
 }
 
-// The redirect/proxy scope check runs against the full request path (including
-// baseURL), so compose baseURL into `base` here (fresh object — never mutate
-// the normalized rule set).
 function withScopeBase(name: string, options: unknown, baseURL: string): unknown {
   if (
     (name === "redirect" || name === "proxy") &&

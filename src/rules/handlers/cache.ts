@@ -2,14 +2,7 @@ import { HTTPResponse } from "../../response.ts";
 import type { EventHandler } from "../../types/handler.ts";
 import type { CacheRuleOptions, RuleHandler } from "../types.ts";
 
-/**
- * Wraps an event handler so its responses are cached. Core injection point —
- * `h3/rules` ships no caching implementation itself; the ocache-backed one
- * lives in `h3/rules/cache`, and consumers with their own conventions (e.g.
- * Nitro's unstorage) inject theirs here instead.
- *
- * `opts` is the merged rule options plus the generated `group`/`name` key.
- */
+/** Wrap an event handler with an injected cache implementation. */
 export type DefineCachedHandler = (handler: EventHandler, opts: CacheRuleOptions) => EventHandler;
 
 /** Options for {@link createCacheRuleHandler}. */
@@ -19,21 +12,8 @@ export interface CacheRuleHandlerOptions {
   /** Default options merged into every cache rule (rule options win). */
   defaults?: CacheRuleOptions;
   /**
-   * Stable cache-key scope for this handler instance.
-   *
-   * By default every wrapped route handler gets a **fresh, process-unique**
-   * scope, so two apps — or two matchers — can never resolve to the same cache
-   * entry, not even when they share one handler instance (the module-scoped
-   * `cache` export of `h3/rules/cache`) and register the same rule pattern for
-   * the same route path. That isolation is what makes the default safe; its
-   * cost is that keys are not stable across processes, so a **persistent**
-   * storage backend (Redis, KV, …) is repopulated per process and never shared
-   * between workers or across restarts.
-   *
-   * Set `id` to opt into stable keys: the scope becomes exactly this string, so
-   * every instance configured with it shares entries. Only do that when the
-   * instances provably serve the **same** application — the id is the only
-   * thing separating one app's response bodies from another's.
+   * Stable cache-key scope. By default, a process-unique scope isolates apps
+   * but prevents persistent cache sharing across processes.
    */
   id?: string;
 }
@@ -45,29 +25,11 @@ const CACHE_GROUP = "h3/route-rules";
 let scopeCounter = 0;
 
 /**
- * Create the `cache` rule handler for a matcher instance from an injected
- * `defineCachedHandler`. Memoization is instance-scoped (a closure `WeakMap`
- * keyed by the dispatched route handler, then by method + rule + route pattern),
- * so each matcher wraps a given route exactly once across requests. Keying by
- * handler identity keeps same-path routes of different methods — and same-path
- * routes of different apps sharing one handler instance, such as the
- * module-scoped `cache` export of `h3/rules/cache` — from resolving to each
- * other's wrapper.
+ * Create a `cache` rule handler from an injected cache wrapper.
  *
- * The generated cache `name` carries a per-(instance, route handler) scope on
- * top of that, so the *storage* entries are isolated too: wrapper isolation
- * alone would still let two apps with the same rule pattern and route path read
- * and write one another's cached bodies. See {@link CacheRuleHandlerOptions.id}
- * for the stable-key opt-out. An explicit `name` in the rule options (or in
- * `defaults`) replaces the generated one and therefore opts out of both the
- * scope and the method separation.
- *
- * The rule dispatches the route's **composed** handler (per-route
- * `middleware: [...]` plus the handler) and returns its result, so it never calls
- * `next()`. Consequence: global middleware registered *after* `routeRules()` does
- * not run for a route a cache rule matches — register `routeRules()` last.
- *
- * For the ready-made ocache-backed handler, use `h3/rules/cache` instead.
+ * Cache keys are isolated by handler, method, and route unless `id` or an
+ * explicit cache `name` opts into sharing. Register `routeRules()` after global
+ * middleware because a cache hit does not call downstream middleware.
  */
 export function createCacheRuleHandler(opts: CacheRuleHandlerOptions): RuleHandler<"cache"> {
   const defineCached = opts.defineCachedHandler;

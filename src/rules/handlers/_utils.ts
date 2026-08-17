@@ -28,27 +28,8 @@ const DYNAMIC_PATTERN_RE = /[:*()\\]/;
 const UNCOUNTABLE_PATTERN_RE = /(?:^|\/)\*\*/;
 
 /**
- * Prepare the target resolver for a `redirect`/`proxy` rule, or `undefined`
- * when the rule has no target. Static `to`/`base`-derived work happens once
- * per handler closure; the returned resolver does only the request-dependent
- * part (scope checks, query forwarding).
- *
- * For `/**` wildcard targets, the resolver forwards `event.url.pathname`
- * exactly as h3 served it (an encoded `%2f` stays opaque — like nginx
- * `proxy_pass $request_uri`), and the scope check canonicalizes to reject
- * traversal that only surfaces once a downstream decodes that separator.
- *
- * `base` is the rule *key* minus `/**` (see {@link RedirectRuleOptions.base}),
- * i.e. **pattern text** — `/:lang/old` for `/:lang/old/**` — which no request
- * path can ever equal literally. rou3's `:param`/`*` (and regex/partial params)
- * each match exactly one segment, so for a dynamic prefix the effective base is
- * the matched path's own leading segments, taken by count at request time.
- * A fully static prefix keeps the literal string: faster, and a stricter check.
- *
- * For non-wildcard targets, the raw request query string is forwarded with
- * full fidelity (no URLSearchParams round-trip, which would collapse
- * duplicate keys and re-encode values); the target's own query params come
- * first, the request's are appended after.
+ * Prepare a redirect or proxy target resolver. Wildcard tails and query strings
+ * are forwarded while canonical scope checks prevent traversal.
  */
 export function prepareRuleTarget(
   options: RedirectRuleOptions | ProxyRuleOptions | undefined,
@@ -145,10 +126,6 @@ export function prepareRuleTarget(
     return targetBase + joiner + search.slice(1) + targetHash;
   };
 }
-
-// ------------------------------------------------------------------------
-// Internal
-// ------------------------------------------------------------------------
 
 /**
  * Scope check for the **final joined** target path against the target's own

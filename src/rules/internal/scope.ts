@@ -1,28 +1,10 @@
 import { isCanonicalPath, resolveDotSegments } from "../../utils/path.ts";
 import { decodePreservingSeparators } from "../../utils/internal/path.ts";
 
-// The two canonical readings a security check has to consider, kept here as the
-// single place that knows what h3 decodes. `isCanonicalPath` is h3's own
-// fast-path guard (`src/utils/path.ts`), so `needsCanonicalPasses` cannot desync
-// from the resolver the way a local copy of the decode set would.
-//
-// `decodeSlashes` closes the separator gap in h3's served pathname
-// (`ResolveDotSegmentsOptions` documents the full input contract): h3 already resolves
-// dot-segment traversals and leaves `%2f`/`%5c` opaque, so decoding them here too
-// makes the reading match what a downstream that collapses them back to `/`
-// resolves. Other encodings round-trip unchanged.
+// Security checks include the encoded-separator reading a downstream may resolve.
 const CANONICAL_OPTS = { decodeSlashes: true } as const;
 
-// `mergeSlashes` adds the *maximal-traversal* reading — the path a slash-merging
-// downstream (nginx `merge_slashes`) resolves, where a `..` is no longer shielded
-// by an empty `//` segment. It inherits `decodeSlashes`'s separator set, so the
-// `%25`-nesting boundary stays defined in exactly one place upstream.
-//
-// That nesting (`%252f` …) is defense-in-depth for a double-decoding downstream
-// (proxy decodes, backend decodes again) — not purely fail-closed, since the
-// dual-path union may override with a narrower, weaker rule a double-decoding
-// downstream would actually resolve to. Tightening it belongs in
-// `resolveDotSegments` (`src/utils/path.ts`), not here.
+// Also model downstream slash merging, where `//` no longer shields `..`.
 const MERGED_OPTS = { decodeSlashes: true, mergeSlashes: true } as const;
 
 /**
@@ -80,10 +62,7 @@ export function decodedPath(pathname: string): string {
     if (pass >= MAX_PASSES) {
       return decoded;
     }
-    // Past the exact window, take the nesting out of the chain in one linear
-    // scan instead of one pass per level. Only the passes a real double/triple
-    // decoding consumer can reach run unaccelerated, so nothing that resolves
-    // within the window can observe this.
+    // Flatten deep nesting to keep adversarial input linear.
     const input = pass < EXACT_PASSES ? decoded : flattenNesting(decoded);
     let next: string;
     try {
@@ -99,30 +78,12 @@ export function decodedPath(pathname: string): string {
   return decoded;
 }
 
-// Passes that run exactly as they always have — one `%25` level per pass, no
-// acceleration. It covers every depth a decoding consumer can actually resolve
-// (a proxy decodes, a backend decodes again, and five more), so any path whose
-// decoding converges — or aborts on a malformed escape — within the window is
-// byte-identical to the unbounded loop, abort semantics included. Past it the
-// depth is no longer information a consumer can act on, only passes to burn.
+// Preserve ordinary multi-decoder behavior before accelerating deep nesting.
 const EXACT_PASSES = 8;
 
-// Absolute ceiling on the loop, so the work is O(n) whatever the input. Past
-// `EXACT_PASSES` every pass first collapses all `%25` nesting, leaving only one
-// construction that still needs another pass — an escape whose own hex digits
-// are escaped (`%25%32%66` → `%2f`), which triples in length per level, so the
-// passes here are logarithmic in the path length: the deepest such chain a 1 MB
-// path can carry needs 13. Reaching the ceiling would return the most decoded
-// reading found so far, the same partial-reading contract a malformed escape
-// already has.
+// Absolute ceiling for malformed or adversarial encodings.
 const MAX_PASSES = 24;
 
-// `hasDecodableEscape`/`flattenNesting` (end of file) each need one fact about
-// the pass they bracket: `%2f`/`%5c` at any `%25` nesting depth are held back at
-// *every* pass, so such a chain is already at its fixpoint
-// (`decodePreservingSeparators`). It is the only upstream detail duplicated
-// here; getting it wrong can only cost a pass or leave a separator chain
-// untouched, never decode one into a real separator.
 const CHAR_2 = 50;
 const CHAR_5 = 53;
 
@@ -204,10 +165,7 @@ export function isPathInScope(pathname: string, base: string): boolean {
   return decoded === pathname || isEveryCanonicalReadingInScope(decoded, base);
 }
 
-// Both canonical readings (empty-segment-preserving and slash-merged) of one
-// spelling of the path.
 function isEveryCanonicalReadingInScope(pathname: string, base: string): boolean {
-  // Already canonical under both readings: one check on `pathname` itself.
   if (!needsCanonicalPasses(pathname)) {
     return isCanonicalInScope(pathname, base);
   }
@@ -257,11 +215,11 @@ function flattenNesting(path: string): string {
   for (let i = path.indexOf("%"); i !== -1; i = path.indexOf("%", i + 1)) {
     const end = nestingEnd(path, i);
     if (end === i + 1) {
-      continue; // not a nesting chain
+      continue;
     }
     const byte = escapeByte(path, end);
     if (byte === 0x2f || byte === 0x5c) {
-      continue; // separator chain: already at its fixpoint, at every depth
+      continue;
     }
     flat += path.slice(last, i) + (byte === -1 ? "%25" : "%");
     last = end;
@@ -287,13 +245,13 @@ function escapeByte(value: string, index: number): number {
 
 function hexDigit(code: number): number {
   if (code >= 48 && code <= 57) {
-    return code - 48; // 0-9
+    return code - 48;
   }
   if (code >= 97 && code <= 102) {
-    return code - 87; // a-f
+    return code - 87;
   }
   if (code >= 65 && code <= 70) {
-    return code - 55; // A-F
+    return code - 55;
   }
   return -1;
 }

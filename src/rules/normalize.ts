@@ -9,20 +9,8 @@ import type {
 } from "./types.ts";
 
 /**
- * Normalize user route-rule config into runtime rules.
- *
- * Expands the `swr` shortcut, normalizes `cors` (`true` → permissive options)
- * and `redirect`/`proxy` string forms, and attaches a first-class `base` field
- * to `/**` redirect/proxy rules — the rule key's *pattern* prefix, which the
- * runtime resolves per request when it carries dynamic segments (see
- * `prepareRuleTarget`). Keys may carry a `"METHOD /path"` prefix (see
- * {@link parseRouteKey}); the result is re-keyed in canonical form. Unknown/
- * custom keys pass through untouched (data-only rules).
- *
- * Config-time validation (fail fast at startup/build rather than per request):
- * a falsy non-`false` value for a built-in rule, a credentialed wildcard `cors`
- * origin, a reserved rule name, and top-level array options are all rejected
- * here.
+ * Normalize authored route rules by expanding shortcuts, canonicalizing keys,
+ * and validating built-in options. Custom rules pass through unchanged.
  */
 export function normalizeRouteRules(
   config: Record<string, RouteRuleConfig>,
@@ -39,16 +27,8 @@ export function normalizeRouteRules(
 
     validateBuiltinRules(routeConfig, canonicalKey);
 
-    // Re-added below in this same fixed order (redirect, proxy, cors, cache) so
-    // normalization is key-order idempotent — the compiler depends on this for
-    // byte-identical codegen. Rest-destructure avoids mutating the caller's config.
+    // Fixed reconstruction order keeps compiler output deterministic.
     const { redirect, proxy, cors, swr, cache, ...rest } = routeConfig;
-    // Written as opaque data, read back as {@link NormalizedRouteRules} at the
-    // end: authored (`RouteRuleConfig`) and merged (`RouteRules`) shapes are two
-    // separately augmentable interfaces, and h3's own sugar is proof that a
-    // key's config type need not equal its normalized one. Each rule below is
-    // built through its concrete option type instead, so nothing here depends on
-    // what a third party declared a key to be.
     const routeRules: Record<string, unknown> = rest;
 
     if (redirect) {
@@ -70,17 +50,9 @@ export function normalizeRouteRules(
       routeRules.proxy = proxyOptions;
     }
 
-    // `true` → permissive defaults (h3 fills origin/methods/allowHeaders `*`);
-    // `false` is handled with the other reset markers below.
     if (cors !== undefined && cors !== false) {
       const corsOptions = cors === true ? {} : { ...cors };
-      // `Access-Control-Allow-Origin: *` is invalid for credentialed requests
-      // (Fetch spec) — reject at normalize time. A function `origin` can't be
-      // checked statically, so it passes (as does h3's literal `"null"`).
-      // The falsy test mirrors h3's own emission condition (`!originOption`,
-      // `utils/cors.ts`) exactly: a defined-but-falsy origin (`null`, `""`) is
-      // a wildcard there too, so anything narrower here would let the
-      // credentialed-wildcard pair ship anyway.
+      // Credentialed CORS forbids wildcard origins; falsy origins emit as wildcards too.
       if (
         corsOptions.credentials === true &&
         (!corsOptions.origin ||
@@ -94,9 +66,8 @@ export function normalizeRouteRules(
       routeRules.cors = corsOptions;
     }
 
-    // 0 is a valid swr value (serve stale, revalidate immediately) — don't falsy-check.
+    // `swr: 0` means revalidate immediately.
     if (swr !== undefined && swr !== false) {
-      // Copy — `cache` aliases the user's config object here.
       const cacheOptions: CacheRuleOptions = { ...(cache || undefined) };
       cacheOptions.swr = true;
       if (typeof swr === "number") {
@@ -104,14 +75,11 @@ export function normalizeRouteRules(
       }
       routeRules.cache = cacheOptions;
     } else if (swr === false && cache === undefined) {
-      // Bare `swr: false` (no explicit `cache`) resets cache like `cache: false`;
-      // an explicit `cache` alongside it wins instead (branch below).
       routeRules.cache = false;
     } else if (cache !== undefined && cache !== false) {
       routeRules.cache = cache;
     }
 
-    // `false` reset markers (delete an inherited rule at runtime merge)
     if (cache === false) {
       routeRules.cache = false;
     }
@@ -125,11 +93,7 @@ export function normalizeRouteRules(
       routeRules.cors = false;
     }
 
-    // Reserved keys (`__proto__`/`constructor`/`prototype`) would shadow the
-    // prototype at match time — reject at config time (`for..in` also catches
-    // an own `__proto__` from JSON-sourced config).
-    // Top-level arrays have no defined merge (shallow-spread would splice them
-    // into an index-keyed object) — reject rather than silently corrupt.
+    // Reject prototype-polluting names and values with ambiguous merge semantics.
     for (const name in routeRules) {
       if (name === "__proto__" || name === "constructor" || name === "prototype") {
         throw new Error(
@@ -143,8 +107,7 @@ export function normalizeRouteRules(
       }
     }
 
-    // Distinct config keys can collide once canonicalized (`"get /x"` vs
-    // `"GET /x"`) — merge per rule name instead of dropping the earlier rule.
+    // Canonical keys may collide (`"get /x"` and `"GET /x"`).
     const existing = normalizedRules[canonicalKey];
     if (existing) {
       for (const [name, options] of Object.entries(routeRules)) {
@@ -157,13 +120,6 @@ export function normalizeRouteRules(
   return normalizedRules;
 }
 
-// ------------------------------------------------------------------------
-// Internal
-// ------------------------------------------------------------------------
-
-// Every rule name this module gives meaning to. Custom/data-only keys are
-// deliberately excluded from the checks below: their values are opaque data,
-// where `null`/`""`/`0` are legitimate.
 const BUILTIN_RULE_NAMES: readonly (keyof RouteRuleConfig)[] = [
   "cache",
   "headers",
@@ -188,7 +144,6 @@ function validateBuiltinRules(routeConfig: RouteRuleConfig, canonicalKey: string
     if (value || value === undefined || value === false) {
       continue;
     }
-    // `swr: 0` is a real value (serve stale, revalidate immediately).
     if (name === "swr" && value === 0) {
       continue;
     }
