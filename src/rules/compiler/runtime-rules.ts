@@ -12,11 +12,6 @@ export const DEFAULT_RUNTIME_RULES: Readonly<Record<string, RuntimeRuleImport>> 
   cors: "h3/rules",
 });
 
-/** Rule names with a built-in runtime handler ({@link DEFAULT_RUNTIME_RULES} keys). */
-export const RUNTIME_RULE_NAMES: readonly string[] = Object.freeze(
-  Object.keys(DEFAULT_RUNTIME_RULES),
-);
-
 /**
  * Where a runtime rule's handler is imported from: a bare module id (`source`
  * **must** have a named export whose identifier equals the rule key) or

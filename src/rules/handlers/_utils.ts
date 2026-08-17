@@ -146,18 +146,6 @@ export function prepareRuleTarget(
   };
 }
 
-/**
- * Resolve the target URL for a `redirect`/`proxy` rule, or `undefined` when the
- * rule has no target. One-shot convenience over {@link prepareRuleTarget} —
- * rule handlers prepare once per closure instead.
- */
-export function resolveRuleTarget(
-  event: H3Event,
-  options: RedirectRuleOptions | ProxyRuleOptions | undefined,
-): string | undefined {
-  return prepareRuleTarget(options)?.(event);
-}
-
 // ------------------------------------------------------------------------
 // Internal
 // ------------------------------------------------------------------------

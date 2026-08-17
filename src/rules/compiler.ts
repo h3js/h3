@@ -13,7 +13,6 @@ export type {
 
 export {
   DEFAULT_RUNTIME_RULES,
-  RUNTIME_RULE_NAMES,
   type RuntimeRuleImport,
   type RuntimeRuleImportSpec,
 } from "./compiler/runtime-rules.ts";

@@ -8,7 +8,8 @@ import type { RouteRuleLayer } from "../../src/rules/merge.ts";
 import { normalizeRouteRules } from "../../src/rules/normalize.ts";
 import { decodeRoutePattern } from "../../src/rules/internal/key.ts";
 import { decodedPath, isPathInScope } from "../../src/rules/internal/scope.ts";
-import { resolveRuleTarget } from "../../src/rules/handlers/_utils.ts";
+import { prepareRuleTarget } from "../../src/rules/handlers/_utils.ts";
+import type { RuleTargetResolver } from "../../src/rules/handlers/_utils.ts";
 import { canonicalPathname } from "../../src/utils/internal/path.ts";
 import type { ProxyRuleOptions } from "../../src/rules/types.ts";
 
@@ -333,8 +334,8 @@ describe("proxy/redirect base stripping through the encoded spelling", () => {
   // from normalization, exactly as the handler receives it.
   const target = (path: string, to: string) => {
     const options = normalizeRouteRules({ "/@admin/**": { proxy: to } })["/@admin/**"]!.proxy;
-    const event = { url: new URL("http://test" + path) } as Parameters<typeof resolveRuleTarget>[0];
-    return resolveRuleTarget(event, options as ProxyRuleOptions);
+    const event = { url: new URL("http://test" + path) } as Parameters<RuleTargetResolver>[0];
+    return prepareRuleTarget(options as ProxyRuleOptions)?.(event);
   };
 
   it("strips the rule's base from the encoded spelling, forwarding raw bytes", () => {

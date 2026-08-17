@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   DEFAULT_RUNTIME_RULES,
-  RUNTIME_RULE_NAMES,
   compileFindRouteRules,
   compileHandlersImport,
   compileRouteRules,
@@ -299,11 +298,10 @@ describe("generated code shape", () => {
   });
 
   it("DEFAULT_RUNTIME_RULES presets every built-in to its h3/rules source", () => {
-    expect(Object.keys(DEFAULT_RUNTIME_RULES).sort()).toEqual([...RUNTIME_RULE_NAMES].sort());
     // `cache`/`proxy` live in their own subpaths so their deps (ocache, h3's
     // `proxyRequest`) only enter a compiled bundle when the rule is used.
     const subpath: Record<string, string> = { cache: "h3/rules/cache", proxy: "h3/rules/proxy" };
-    for (const name of RUNTIME_RULE_NAMES) {
+    for (const name of Object.keys(DEFAULT_RUNTIME_RULES)) {
       expect(DEFAULT_RUNTIME_RULES[name]).toBe(subpath[name] ?? "h3/rules");
     }
   });
@@ -469,10 +467,10 @@ describe("generated code shape", () => {
     }
   });
 
-  it("default RUNTIME_RULE_NAMES matches the ruleHandlers registry plus the subpath handlers", () => {
+  it("DEFAULT_RUNTIME_RULES matches the ruleHandlers registry plus the subpath handlers", () => {
     // `cache` and `proxy` have a runtime handler but no registry entry — they are
     // the `h3/rules/cache` / `h3/rules/proxy` subpath exports instead.
-    expect([...RUNTIME_RULE_NAMES].sort()).toEqual(
+    expect(Object.keys(DEFAULT_RUNTIME_RULES).sort()).toEqual(
       [...Object.keys(ruleHandlers), "cache", "proxy"].sort(),
     );
   });
@@ -481,7 +479,7 @@ describe("generated code shape", () => {
     // Generated named imports must resolve to the exact handler each source
     // module exports: the registry handlers from "h3/rules", `cache` from
     // "h3/rules/cache", `proxy` from "h3/rules/proxy".
-    for (const name of RUNTIME_RULE_NAMES) {
+    for (const name of Object.keys(DEFAULT_RUNTIME_RULES)) {
       if (name === "cache") {
         expect(h3RulesCache.cache, name).toBe(FIXTURE_HANDLERS.cache);
       } else if (name === "proxy") {

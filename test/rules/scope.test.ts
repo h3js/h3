@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { resolveRuleTarget } from "../../src/rules/handlers/_utils.ts";
+import { prepareRuleTarget } from "../../src/rules/handlers/_utils.ts";
+import type { RuleTargetResolver } from "../../src/rules/handlers/_utils.ts";
 import {
   canonicalPath,
   isPathInScope,
@@ -318,9 +319,9 @@ describe("mergedCanonicalPath / needsCanonicalPasses", () => {
 // can never equal a request path literally.
 describe("rule target scope (prepareRuleTarget)", () => {
   const evt = (raw: string) =>
-    ({ url: new URL("http://localhost" + raw) }) as Parameters<typeof resolveRuleTarget>[0];
+    ({ url: new URL("http://localhost" + raw) }) as Parameters<RuleTargetResolver>[0];
   const resolve = (raw: string, options: RedirectRuleOptions) =>
-    resolveRuleTarget(evt(raw), options);
+    prepareRuleTarget(options)?.(evt(raw));
   const blocked = (raw: string, options: RedirectRuleOptions) => {
     try {
       resolve(raw, options);

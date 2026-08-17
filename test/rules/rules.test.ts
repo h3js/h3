@@ -3,7 +3,8 @@ import { describe, expect, it } from "vitest";
 import { routeRules } from "../../src/rules/middleware.ts";
 import { canonicalPath, isPathInScope } from "../../src/rules/internal/scope.ts";
 import { proxy } from "../../src/rules/proxy.ts";
-import { resolveRuleTarget } from "../../src/rules/handlers/_utils.ts";
+import { prepareRuleTarget } from "../../src/rules/handlers/_utils.ts";
+import type { RuleTargetResolver } from "../../src/rules/handlers/_utils.ts";
 import type { RouteRuleConfig } from "../../src/rules/types.ts";
 import type { RouteRulesMatcherOptions } from "../../src/rules/match.ts";
 
@@ -437,7 +438,7 @@ describe("proxy rule", () => {
     // A leading `//` after the wildcard prefix must not be forwarded verbatim
     // to the upstream (protocol-relative URL). With a `base`, the collapse
     // comes from h3's internal `withoutBase`/`joinURL`; the base-less branch of
-    // `resolveRuleTarget` is pinned separately below.
+    // `prepareRuleTarget` is pinned separately below.
     const app = createApp({ "/rules/proxy/legacy/**": { proxy: "/api/wildcard/**" } });
     app.get("/api/wildcard/**", (event) => event.context.params?._ ?? "");
     const res = await app.fetch(new Request("http://test/rules/proxy/legacy//evil.com"));
@@ -446,14 +447,12 @@ describe("proxy rule", () => {
   });
 
   it("collapses a leading `//` for base-less wildcard targets (shared branch)", () => {
-    // `resolveRuleTarget` is shared by redirect and proxy; a catch-all proxy
+    // `prepareRuleTarget` is shared by redirect and proxy; a catch-all proxy
     // rule cannot be exercised end-to-end without proxying to itself, so pin
     // the base-less `//` collapse branch directly.
-    const event = { url: new URL("http://test//evil.com") } as Parameters<
-      typeof resolveRuleTarget
-    >[0];
-    expect(resolveRuleTarget(event, { to: "/upstream/**" })).toBe("/upstream/evil.com");
-    expect(resolveRuleTarget(event, { to: "/**" })).toBe("/evil.com");
+    const event = { url: new URL("http://test//evil.com") } as Parameters<RuleTargetResolver>[0];
+    expect(prepareRuleTarget({ to: "/upstream/**" })?.(event)).toBe("/upstream/evil.com");
+    expect(prepareRuleTarget({ to: "/**" })?.(event)).toBe("/evil.com");
   });
 });
 
@@ -609,11 +608,11 @@ describe("encoded-separator hardening", () => {
 // resolved target — after the base is stripped and the remainder rejoined — so
 // equivalent inputs (repeated/leading slashes, `/./`, mixed-case or
 // double-encoded separators) cannot diverge from what actually gets forwarded.
-describe("resolveRuleTarget final-target scope", () => {
+describe("prepareRuleTarget final-target scope", () => {
   const opts = { to: "http://upstream/orders/**", base: "/api/orders" };
   const evt = (raw: string) =>
-    ({ url: new URL("http://localhost" + raw) }) as Parameters<typeof resolveRuleTarget>[0];
-  const resolve = (raw: string) => resolveRuleTarget(evt(raw), opts);
+    ({ url: new URL("http://localhost" + raw) }) as Parameters<RuleTargetResolver>[0];
+  const resolve = (raw: string) => prepareRuleTarget(opts)?.(evt(raw));
   const blocked = (raw: string) => {
     try {
       resolve(raw);

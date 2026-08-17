@@ -3,7 +3,7 @@ import { cors } from "./cors.ts";
 import { headers } from "./headers.ts";
 import { redirect } from "./redirect.ts";
 
-// Keep RUNTIME_RULE_NAMES (src/rules/compiler/runtime-rules.ts) in sync when
+// Keep DEFAULT_RUNTIME_RULES (src/rules/compiler/runtime-rules.ts) in sync when
 // adding rules, and export the handler from src/rules/index.ts.
 
 /**
