@@ -215,12 +215,13 @@ describe("generated code shape", () => {
 
   it("a compiled matcher with no override predicate still keeps a subsumed rule", () => {
     // The divergence this pins: `createMatcherFromFind`'s dependency-free default
-    // predicate (`canOverrideRouteShape`) is not exact for modifier params —
-    // it reports `/mod/reset/*​/**` as subsuming the `/mod/reset/*​/:path*` that
-    // actually subsumes IT. Ordering matched layers must therefore never consult
-    // a predicate, or the compiled default fails open: the broader pattern's
-    // `cors: false` lands last and deletes the narrower rule. `evaluateCompiled`
-    // builds exactly that predicate-less matcher.
+    // predicate (`canOverrideRouteShape`) is not exact for modifier params — it
+    // cannot prove either direction between `/mod/reset/*​/**` and the
+    // `/mod/reset/*​/:path*` that actually subsumes it. Ordering matched layers
+    // must therefore never consult a predicate, or the compiled default falls
+    // back on arrival order and fails open: the broader pattern's `cors: false`
+    // lands last and deletes the narrower rule. `evaluateCompiled` builds
+    // exactly that predicate-less matcher.
     const config: Record<string, RouteRuleConfig> = {
       "/mod/reset/*/**": { cors: { origin: ["https://admin.example"] } },
       "/mod/reset/*/:path*": { cors: false },

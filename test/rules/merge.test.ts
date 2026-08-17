@@ -626,9 +626,11 @@ describe("mergeMatchedRouteRules (pure)", () => {
   it("orders matched layers by `rank`, with no override predicate involved", () => {
     // Layer ordering must be decided by the build-time rank alone: the only
     // predicate a compiled matcher has by default is `canOverrideRouteShape`,
-    // which is *not* exact for modifier params (it reports `/api/*​/**` as
-    // subsuming the `/api/*​/:path*` that subsumes it), so a predicate-driven
-    // order fails open exactly here. No `canOverride` is passed below.
+    // which is conservative but *not* exact for modifier params (it cannot see
+    // that `/api/*​/:path*` subsumes the `/api/*​/**` it appears to sit under, so
+    // it decides neither direction), leaving a predicate-driven order to fall
+    // back on arrival order — which fails open exactly here. No `canOverride`
+    // is passed below.
     const narrow = {
       data: [{ name: "cors", route: "/api/*/**", options: { origin: ["https://a"] }, rank: 1 }],
     };

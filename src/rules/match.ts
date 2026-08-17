@@ -266,6 +266,11 @@ const OPAQUE_SEGMENT_RE = /[()\\]/;
 // single-segment param contains it.
 const CONCRETE_SEGMENT_RE = /^[^:*()\\]+$/;
 
+// A param that can match *zero* segments (`:x?`, `:x*`). rou3 reads such a
+// pattern as broader than the `**` that appears to absorb it (`/a/*​/:path*`
+// matches `/a/x`, which `/a/*​/**` does not), so it must never be absorbed.
+const ZERO_MATCHABLE_SEGMENT_RE = /^:.*[?*]$/;
+
 /**
  * Dependency-free default for {@link createMatcherFromFind}: the same
  * fail-closed question as {@link canOverrideRoute} ("is every path matching
@@ -284,9 +289,12 @@ const CONCRETE_SEGMENT_RE = /^[^:*()\\]+$/;
  * prove, so it can never permit an override `compareRoutes` would reject
  * (verified against rou3 as an oracle in `test/rules/match.test.ts`). Where it
  * cannot decide — a named catch-all (`**:rest`), a regex/partial param, an
- * empty (`//`, trailing-slash) segment, or a `**` with nothing to absorb — it
- * keeps the rule the served path resolved, which is the pre-guard status quo
- * for that pair.
+ * empty (`//`, trailing-slash) segment, a `**` with nothing to absorb, or a
+ * zero-matchable modifier param (`:x?`, `:x*`) under a `**` — it keeps the rule
+ * the served path resolved, which is the pre-guard status quo for that pair.
+ * Being only a subset of the exact relation, it still resolves *fewer*
+ * overrides than the runtime matcher: `compileRouteRules({ matcher })` bakes
+ * the exact table for parity.
  *
  * Exported for the soundness test only — not part of the `h3/rules` surface.
  */
@@ -301,8 +309,14 @@ export const canOverrideRouteShape: RouteOverridePredicate = (currentRoute, inco
     if (cur === "**") {
       // A trailing catch-all absorbs every remaining incoming segment — but
       // only when there is at least one to absorb (rou3 does not consistently
-      // treat `x/**` as containing `x` itself, so that pair fails closed).
-      return i === current.length - 1 && incoming.length > i;
+      // treat `x/**` as containing `x` itself, so that pair fails closed), and
+      // only when none of them can match zero segments (which would make the
+      // incoming pattern the broader one).
+      return (
+        i === current.length - 1 &&
+        incoming.length > i &&
+        !incoming.slice(i).some((segment) => ZERO_MATCHABLE_SEGMENT_RE.test(segment))
+      );
     }
     const inc = incoming[i];
     if (inc === undefined) {

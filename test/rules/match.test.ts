@@ -96,6 +96,16 @@ describe("createMatcherFromFind override guard", () => {
       "/a/**:rest",
       "/a/*/**",
       "/",
+      // Modifier params: a `:x?`/`:x*` segment can match zero segments, so rou3
+      // reads it as *broader* than the `**` that appears to absorb it — the one
+      // shape where deciding containment from shape alone used to fail open.
+      "/admin/:page?",
+      "/a/:id?",
+      "/a/:id*",
+      "/a/:id+",
+      "/a/:x?/**",
+      "/a/*/:path*",
+      "/a/*/:path+",
     ];
     const unsound: string[] = [];
     for (const current of routes) {
@@ -117,6 +127,10 @@ describe("createMatcherFromFind override guard", () => {
     expect(canOverrideRouteShape("/params/:section/**", "/params/:section/:id")).toBe(true);
     expect(canOverrideRouteShape("/admin/**", "/**")).toBe(false);
     expect(canOverrideRouteShape("/admin/**", "/public/**")).toBe(false);
+    // …and the modifier-param shape fails closed in the direction rou3 orders
+    // it: `/a/*​/:path*` matches `/a/x`, which `/a/*​/**` does not, so the
+    // catch-all is the *narrower* pattern and must not absorb it.
+    expect(canOverrideRouteShape("/a/*/**", "/a/*/:path*")).toBe(false);
   });
 
   it("an explicit predicate still overrides the default", () => {
