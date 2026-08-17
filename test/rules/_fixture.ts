@@ -13,7 +13,7 @@ export const FIXTURE_HANDLERS: RuleHandlers = { ...ruleHandlers, cache, proxy };
 // Shared parity-grid fixture for compiler.test.ts and premerge.test.ts
 // (chain-clean by construction so it is valid under `preMerge` too).
 // Representative rule set exercising merging, cascades, wildcards, method
-// scoping, auth ordering, named params, and data-only rules (mined from the
+// scoping, rule ordering, named params, and data-only rules (mined from the
 // Nitro fixture).
 export const FIXTURE: Record<string, RouteRuleConfig> = {
   "/rules/headers": { headers: { "cache-control": "s-maxage=60" } },
@@ -28,17 +28,17 @@ export const FIXTURE: Record<string, RouteRuleConfig> = {
   "/rules/_/cached/noncached": { cache: false, swr: false, isr: false },
   "/rules/_/cached/**": { swr: true },
   "/api/proxy/**": { proxy: "/api/echo" },
-  "/rules/basic-auth/**": {
-    basicAuth: { username: "admin", password: "secret", realm: "Secure Area" },
-  },
-  "/rules/basic-auth/no-auth/**": { basicAuth: false },
-  "/rules/ba-nested/**": { basicAuth: { username: "broad", password: "s", realm: "Broad" } },
-  "/rules/ba-nested/admin/**": { basicAuth: { username: "admin", password: "s", realm: "Admin" } },
-  "/rules/ba-off/**": { basicAuth: { username: "admin", password: "s", realm: "Off" } },
-  "/rules/ba-off/*": { basicAuth: false },
+  // `cors` carries both an options object and the `false` reset marker, so the
+  // cascade/reset shapes below are spelled with it.
+  "/policy/**": { cors: { origin: ["https://secure.example"] } },
+  "/policy/open/**": { cors: false },
+  "/policy-nested/**": { cors: { origin: ["https://broad.example"] } },
+  "/policy-nested/admin/**": { cors: { origin: ["https://admin.example"] } },
+  "/policy-off/**": { cors: { origin: ["https://off.example"] } },
+  "/policy-off/*": { cors: false },
   // Reserved character in the pattern: matched through the decoded reading when
   // the request spells it `%40` (see encoding.test.ts).
-  "/@handles/**": { basicAuth: { username: "admin", password: "s", realm: "Handles" } },
+  "/@handles/**": { cors: { origin: ["https://handles.example"] } },
   "/blog/**": { prerender: true, isr: 60 },
   "GET /api/cached/**": { swr: 60 },
   "/api/cached/**": { headers: { "x-all": "1" } },
@@ -46,15 +46,16 @@ export const FIXTURE: Record<string, RouteRuleConfig> = {
   "/params/:section/:id": { custom: { b: 2 } },
   // Modifier params: rou3 returns these layers out of containment order —
   // `/mod/opt/:page?` subsumes `/mod/opt` yet comes back after it, and
-  // `/mod/rep/*/:path*` subsumes `/mod/rep/*/**`. The gate sits on the NARROWER
-  // pattern, so a layer-order regression drops it.
-  "/mod/opt": { basicAuth: { username: "admin", password: "s", realm: "Opt" } },
+  // `/mod/rep/*/:path*` subsumes `/mod/rep/*/**`. The narrower pattern's rule is
+  // the one a layer-order regression drops, so that is where it sits.
+  "/mod/opt": { cors: { origin: ["https://opt.example"] } },
   "/mod/opt/:page?": { headers: { "x-mod-opt": "1" } },
-  "/mod/rep/*/**": { basicAuth: { username: "admin", password: "s", realm: "Rep" } },
+  "/mod/rep/*/**": { cors: { origin: ["https://rep.example"] } },
   "/mod/rep/*/:path*": { headers: { "x-mod-rep": "1" } },
-  // …and the security-relevant shape: a broader modifier pattern resetting a gate.
-  "/mod/reset/*/**": { basicAuth: { username: "admin", password: "s", realm: "Reset" } },
-  "/mod/reset/*/:path*": { basicAuth: false },
+  // …and the shape that decides a reset: a broader modifier pattern resetting
+  // the narrower pattern's rule.
+  "/mod/reset/*/**": { cors: { origin: ["https://reset.example"] } },
+  "/mod/reset/*/:path*": { cors: false },
   "/**": { headers: { "x-catch": "all" } },
 };
 
@@ -73,11 +74,11 @@ export const PROBES: Array<[string, string]> = [
   ["GET", "/rules/_/cached/noncached"],
   ["GET", "/rules/_/cached/other"],
   ["POST", "/api/proxy/hello"],
-  ["GET", "/rules/basic-auth/test"],
-  ["GET", "/rules/basic-auth/no-auth/x"],
-  ["GET", "/rules/ba-nested/admin%2fpanel"],
-  ["GET", "/rules/ba-off/a"],
-  ["GET", "/rules/ba-off/a%2fb"],
+  ["GET", "/policy/test"],
+  ["GET", "/policy/open/x"],
+  ["GET", "/policy-nested/admin%2fpanel"],
+  ["GET", "/policy-off/a"],
+  ["GET", "/policy-off/a%2fb"],
   ["GET", "/@handles/pooya"],
   ["GET", "/%40handles/pooya"],
   ["GET", "/blog/post"],

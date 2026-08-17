@@ -28,10 +28,11 @@ function safeCorsOptions(options: CorsOptions): CorsOptions {
   return options;
 }
 
-// order: -3, outer to `basicAuth` (-2): a CORS preflight (`OPTIONS` + `Origin` +
-// `Access-Control-Request-Method`) is answered directly, before auth — browsers
-// send preflights without credentials, and the response carries only policy
-// headers, no protected data. Do not reorder inside auth.
+// order: -3, outermost: a CORS preflight (`OPTIONS` + `Origin` +
+// `Access-Control-Request-Method`) is answered directly, before any custom gate
+// rule (the free `-2` slot) — browsers send preflights without credentials, and
+// the response carries only policy headers, no protected data. Do not reorder
+// inside such a gate.
 //
 // For a normal request `handleCors` appends CORS headers and returns `false`;
 // a user `headers` rule (`.set`) still wins over these `.append`ed ones.

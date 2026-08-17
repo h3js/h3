@@ -3,7 +3,7 @@ import { createMatcherFromFind, createRouteRulesMatcher } from "../../src/rules/
 import { mergeMatchedRouteRules } from "../../src/rules/merge.ts";
 import type { RouteRuleLayer } from "../../src/rules/merge.ts";
 import { normalizeRouteRules } from "../../src/rules/normalize.ts";
-import type { RouteRuleConfig } from "../../src/rules/types.ts";
+import type { RouteRuleConfig, RuleHandler } from "../../src/rules/types.ts";
 import { FIXTURE_HANDLERS } from "./_fixture.ts";
 
 // The cascades below include cache/swr rules; register the fixture handler set
@@ -47,17 +47,17 @@ describe("merge algorithm", () => {
       }
     });
 
-    const gate = { basicAuth: { username: "admin", password: "s3cret" } } satisfies RouteRuleConfig;
-    const reset = { basicAuth: false } satisfies RouteRuleConfig;
+    const policy = { cors: { origin: ["https://a.example"] } } satisfies RouteRuleConfig;
+    const reset = { cors: false } satisfies RouteRuleConfig;
 
-    it.each(SHAPES)("%s: a broader `false` never resets a narrower gate", (_l, n, b, pathname) => {
+    it.each(SHAPES)("%s: a broader `false` never resets the narrower rule", (_l, n, b, path) => {
       for (const config of [
-        { [n]: gate, [b]: reset },
-        { [b]: reset, [n]: gate },
+        { [n]: policy, [b]: reset },
+        { [b]: reset, [n]: policy },
       ]) {
-        const { routeRules } = matcher(config)("GET", pathname);
-        expect(routeRules.basicAuth, JSON.stringify(config)).toMatchObject({
-          username: "admin",
+        const { routeRules } = matcher(config)("GET", path);
+        expect(routeRules.cors, JSON.stringify(config)).toMatchObject({
+          origin: ["https://a.example"],
         });
       }
     });
@@ -65,9 +65,7 @@ describe("merge algorithm", () => {
     it.each(SHAPES)("%s: a narrower `false` still resets a broader rule", (_l, n, b, pathname) => {
       // The other direction must keep working: reordering may not turn a
       // legitimate narrow reset into a no-op.
-      expect(
-        matcher({ [b]: gate, [n]: reset })("GET", pathname).routeRules.basicAuth,
-      ).toBeUndefined();
+      expect(matcher({ [b]: policy, [n]: reset })("GET", pathname).routeRules.cors).toBeUndefined();
     });
   });
 
@@ -164,14 +162,14 @@ describe("merge algorithm", () => {
 
   it("`false` on the most specific layer yields no middleware for that rule", () => {
     const match = matcher({
-      "/rules/basic-auth/**": { basicAuth: { username: "admin", password: "secret" } },
-      "/rules/basic-auth/no-auth/**": { basicAuth: false },
+      "/policy/**": { cors: { origin: ["https://a.example"] } },
+      "/policy/open/**": { cors: false },
     });
-    const on = match("GET", "/rules/basic-auth/test");
-    expect(on.routeRules.basicAuth).toBeDefined();
+    const on = match("GET", "/policy/test");
+    expect(on.routeRules.cors).toBeDefined();
     expect(on.routeRuleMiddleware).toHaveLength(1);
-    const off = match("GET", "/rules/basic-auth/no-auth/x");
-    expect(off.routeRules.basicAuth).toBeUndefined();
+    const off = match("GET", "/policy/open/x");
+    expect(off.routeRules.cors).toBeUndefined();
     expect(off.routeRuleMiddleware).toHaveLength(0);
   });
 
@@ -205,16 +203,17 @@ describe("merge algorithm", () => {
     }
   });
 
-  it("middleware is sorted by handler order (basicAuth first)", () => {
+  it("middleware is sorted by handler order (cors first)", () => {
     const match = matcher({
-      "/app/**": { redirect: "/login", basicAuth: { username: "u", password: "p" } },
+      "/app/**": { redirect: "/login", cors: true },
     });
     const { matchedRules, routeRuleMiddleware } = match("GET", "/app/x");
     expect(routeRuleMiddleware).toHaveLength(2);
-    // basicAuth has order -2 (outer to headers at -1): its middleware comes first
-    expect(matchedRules.basicAuth!.handler!.order).toBe(-2);
+    // cors has order -3 (outermost): its middleware comes first, so a preflight
+    // is answered before the redirect at the default 0.
+    expect(matchedRules.cors!.handler!.order).toBe(-3);
     expect(routeRuleMiddleware[0]).toBe(
-      routeRuleMiddleware.find((mw) => mw.name === "authRouteRule"),
+      routeRuleMiddleware.find((mw) => mw.name === "corsRouteRule"),
     );
   });
 
@@ -286,11 +285,11 @@ describe("method-scoped rules", () => {
 
   it("method-scoped `false` resets an agnostic rule for that method only", () => {
     const match = matcher({
-      "/api/**": { basicAuth: { username: "u", password: "p" } },
-      "GET /api/**": { basicAuth: false },
+      "/api/**": { cors: { origin: ["https://a.example"] } },
+      "GET /api/**": { cors: false },
     });
-    expect(match("GET", "/api/x").routeRules.basicAuth).toBeUndefined();
-    expect(match("POST", "/api/x").routeRules.basicAuth).toBeDefined();
+    expect(match("GET", "/api/x").routeRules.cors).toBeUndefined();
+    expect(match("POST", "/api/x").routeRules.cors).toBeDefined();
   });
 
   it("method-agnostic-only rule sets behave identically for all methods", () => {
@@ -306,14 +305,14 @@ describe("method-scoped rules", () => {
 describe("dual-path union (Nitro #4396)", () => {
   it("canonical-path match adds a rule the raw path missed", () => {
     // `/app/admin%2fpanel` is served by the broad rule on the raw path but
-    // canonicalizes to `/app/admin/panel`, which the auth rule guards.
+    // canonicalizes to `/app/admin/panel`, where the narrower rule lives.
     const match = matcher({
       "/app/**": { headers: { "x-app": "1" } },
-      "/app/admin/**": { basicAuth: { username: "admin", password: "secret" } },
+      "/app/admin/**": { cors: { origin: ["https://admin.example"] } },
     });
     const { routeRules } = match("GET", "/app/admin%2fpanel");
     expect(routeRules.headers).toEqual({ "x-app": "1" });
-    expect(routeRules.basicAuth).toMatchObject({ username: "admin" });
+    expect(routeRules.cors).toMatchObject({ origin: ["https://admin.example"] });
   });
 
   it("a %5c separator is canonicalized at the matcher level too", () => {
@@ -322,66 +321,43 @@ describe("dual-path union (Nitro #4396)", () => {
     // here at the matcher level too, since `h3/rules` is usable standalone.
     const match = matcher({
       "/app/**": { headers: { "x-app": "1" } },
-      "/app/admin/**": { basicAuth: { username: "admin", password: "secret" } },
+      "/app/admin/**": { cors: { origin: ["https://admin.example"] } },
     });
     const { routeRules } = match("GET", "/app/admin%5cpanel");
     expect(routeRules.headers).toEqual({ "x-app": "1" });
-    expect(routeRules.basicAuth).toMatchObject({ username: "admin" });
+    expect(routeRules.cors).toMatchObject({ origin: ["https://admin.example"] });
   });
 
   it("canonical rule overrides raw on overlap (more specific wins)", () => {
-    // Mirrors `/rules/ba-nested/**` (Broad Area) + `/rules/ba-nested/admin/**`
-    // (Admin Area): the narrower canonical realm must win.
+    // Mirrors `/policy-nested/**` + `/policy-nested/admin/**`: the narrower
+    // canonical policy must win.
     const match = matcher({
-      "/rules/ba-nested/**": {
-        basicAuth: { username: "broad", password: "secret", realm: "Broad Area" },
-      },
-      "/rules/ba-nested/admin/**": {
-        basicAuth: { username: "admin", password: "secret", realm: "Admin Area" },
-      },
+      "/policy-nested/**": { cors: { origin: ["https://broad.example"] } },
+      "/policy-nested/admin/**": { cors: { origin: ["https://admin.example"] } },
     });
-    const { routeRules } = match("GET", "/rules/ba-nested/admin%2fpanel");
-    expect(routeRules.basicAuth).toMatchObject({ realm: "Admin Area" });
-  });
-
-  it("a single-segment `false` cannot dodge auth once decoded to multiple segments", () => {
-    // Mirrors `/rules/ba-off/*` + `/rules/ba-off/**`: the `false` reset applies
-    // to the served path's own resolution, but the canonical path still enables
-    // auth.
-    const match = matcher({
-      "/rules/ba-off/**": {
-        basicAuth: { username: "admin", password: "secret", realm: "Off Area" },
-      },
-      "/rules/ba-off/*": { basicAuth: false },
-    });
-    // genuine single segment: auth disabled
-    expect(match("GET", "/rules/ba-off/a").routeRules.basicAuth).toBeUndefined();
-    // encoded separator: canonical two-segment path re-enables auth
-    const { routeRules } = match("GET", "/rules/ba-off/a%2fb");
-    expect(routeRules.basicAuth).toMatchObject({ realm: "Off Area" });
+    const { routeRules } = match("GET", "/policy-nested/admin%2fpanel");
+    expect(routeRules.cors).toMatchObject({ origin: ["https://admin.example"] });
   });
 
   it("a `false` reset on the canonical path never strips a rule the raw path resolved", () => {
-    // Mirrors `/rules/ba-strip/**` + `/rules/ba-strip/off/**`: the served path
-    // (single opaque segment) matches the broad auth rule; the canonical path's
+    // Mirrors `/policy-strip/**` + `/policy-strip/off/**`: the served path
+    // (single opaque segment) matches the broad rule; the canonical path's
     // `false` (targeting the two-segment subtree) must not delete it.
     const match = matcher({
-      "/rules/ba-strip/**": {
-        basicAuth: { username: "admin", password: "secret", realm: "Strip Area" },
-      },
-      "/rules/ba-strip/off/**": { basicAuth: false },
+      "/policy-strip/**": { cors: { origin: ["https://strip.example"] } },
+      "/policy-strip/off/**": { cors: false },
     });
-    const { routeRules } = match("GET", "/rules/ba-strip/off%2fx");
-    expect(routeRules.basicAuth).toMatchObject({ realm: "Strip Area" });
-    // genuine two-segment path: auth disabled as configured
-    expect(match("GET", "/rules/ba-strip/off/x").routeRules.basicAuth).toBeUndefined();
+    const { routeRules } = match("GET", "/policy-strip/off%2fx");
+    expect(routeRules.cors).toMatchObject({ origin: ["https://strip.example"] });
+    // genuine two-segment path: the rule is reset as configured
+    expect(match("GET", "/policy-strip/off/x").routeRules.cors).toBeUndefined();
   });
 
-  it("a `..` next to an encoded separator cannot dodge a narrower gate on a slash-merging downstream", () => {
+  it("a `..` next to an encoded separator cannot dodge a narrower rule on a slash-merging downstream", () => {
     // Report vuln-12006 (HackerOne #3721382): h3's canonical form keeps the
     // empty segment a `..` adjacent to an encoded separator produces
     // (`/api/foo/%2e%2e/%2fadmin/secret` → `/api//admin/secret`), so rou3's
-    // per-segment match misses `/api/admin/**` and `basicAuth` never runs — yet a
+    // per-segment match misses `/api/admin/**` and its rule never runs — yet a
     // downstream that decodes `%2f` then merges slashes resolves it to
     // `/api/admin/secret`. The matcher must also match the slash-merged canonical
     // reading (`/api/admin/secret`), like `isPathInScope` already does for scope.
@@ -395,12 +371,12 @@ describe("dual-path union (Nitro #4396)", () => {
     // it is the part that makes the bypass real; see `test/h3-decode.test.ts`.
     const match = matcher({
       "/api/**": { headers: { "x-app": "1" } },
-      "/api/admin/**": { basicAuth: { username: "admin", password: "secret" } },
+      "/api/admin/**": { cors: { origin: ["https://admin.example"] } },
     });
     // Baseline: the raw and canonical-only variants already fire.
-    expect(match("GET", "/api/admin/secret").routeRules.basicAuth).toBeDefined();
-    expect(match("GET", "/api/foo/%2e%2e%2fadmin/secret").routeRules.basicAuth).toBeDefined();
-    expect(match("GET", "/api/foo/..%2fadmin/secret").routeRules.basicAuth).toBeDefined();
+    expect(match("GET", "/api/admin/secret").routeRules.cors).toBeDefined();
+    expect(match("GET", "/api/foo/%2e%2e%2fadmin/secret").routeRules.cors).toBeDefined();
+    expect(match("GET", "/api/foo/..%2fadmin/secret").routeRules.cors).toBeDefined();
     // The surviving bypass: `..` separated from `%2f` by a literal `/`.
     for (const payload of [
       "/api/foo/%2e%2e/%2fadmin/secret",
@@ -410,8 +386,8 @@ describe("dual-path union (Nitro #4396)", () => {
       "/api/foo/%252e%252e/%252fadmin/secret",
     ]) {
       const { routeRules } = match("GET", payload);
-      expect(routeRules.basicAuth, payload).toBeDefined();
-      expect(routeRules.basicAuth, payload).toMatchObject({ username: "admin" });
+      expect(routeRules.cors, payload).toBeDefined();
+      expect(routeRules.cors, payload).toMatchObject({ origin: ["https://admin.example"] });
       // union-only: the broad rule the raw path resolved is never stripped.
       expect(routeRules.headers, payload).toEqual({ "x-app": "1" });
     }
@@ -421,25 +397,25 @@ describe("dual-path union (Nitro #4396)", () => {
     // A benign doubled slash whose merged canonical form lands on a `false`-reset
     // subtree must not delete the rule the served path resolved.
     const match = matcher({
-      "/api/**": {
-        basicAuth: { username: "admin", password: "secret", realm: "Broad" },
-      },
-      "/api/off/**": { basicAuth: false },
+      "/api/**": { cors: { origin: ["https://broad.example"] } },
+      "/api/off/**": { cors: false },
     });
     // Raw path stays a single opaque segment under `/api/**`; the merged reading
     // (`/api/off/x`) hits the reset but union-only must keep the broad rule.
     const { routeRules } = match("GET", "/api/off%2f%2fx");
-    expect(routeRules.basicAuth).toMatchObject({ realm: "Broad" });
+    expect(routeRules.cors).toMatchObject({ origin: ["https://broad.example"] });
   });
 
-  it("a SIBLING-scope `false` reading never strips a gate the served (raw) path resolved", () => {
+  it("a SIBLING-scope `false` reading never strips a rule the served (raw) path resolved", () => {
     // The mutation-tight strip case: unlike an ancestor `false` (which deletes
     // within its own reading before the union, so it can't test cross-reading
     // leakage), a *sibling* `false` is matched ONLY by the crafted canonical
     // reading — no co-matching protector deletes it first. `/app/admin/**`
     // matches the payload as given, while its canonical reading `/app/public/x`
-    // matches only the `basicAuth: false` sibling. The union must NOT let that
-    // sibling `false` delete the admin gate.
+    // matches only the `cors: false` sibling. The union must NOT let that
+    // sibling `false` delete the rule the served path resolved. (The delete
+    // branch keys off `options === false`, never the rule name, so this holds
+    // for every rule.)
     //
     // SYNTHETIC INPUT — defense-in-depth for non-h3 callers of the exported
     // matchers (compiled matchers, other frameworks), NOT h3 traffic. h3 decodes
@@ -449,10 +425,8 @@ describe("dual-path union (Nitro #4396)", () => {
     // encoded `..` does NOT stay opaque in dispatch. Feeding the pre-decode wire
     // form directly is what makes the `%2e` climb testable at all here.
     const match = matcher({
-      "/app/admin/**": {
-        basicAuth: { username: "admin", password: "s3cret", realm: "Admin" },
-      },
-      "/app/public/**": { basicAuth: false },
+      "/app/admin/**": { cors: { origin: ["https://trusted.example"] } },
+      "/app/public/**": { cors: false },
     });
     for (const payload of [
       "/app/admin/%2e%2e/public/x", // encoded `..` climbs to the sibling
@@ -460,48 +434,27 @@ describe("dual-path union (Nitro #4396)", () => {
       "/app/admin/x/%2e%2e/%2e%2e/public/y", // deeper climb
     ]) {
       const { routeRules } = match("GET", payload);
-      expect(routeRules.basicAuth, payload).toMatchObject({ username: "admin" });
+      expect(routeRules.cors, payload).toMatchObject({ origin: ["https://trusted.example"] });
     }
-    // Control: a request genuinely served under the sibling is disabled.
-    expect(match("GET", "/app/public/x").routeRules.basicAuth).toBeUndefined();
+    // Control: a request genuinely served under the sibling is reset.
+    expect(match("GET", "/app/public/x").routeRules.cors).toBeUndefined();
   });
 
-  it("a non-basicAuth disabling value (`cors: false`) also never leaks across readings", () => {
-    // The `false`-reset invariant is value-agnostic — the delete branch keys off
-    // `options === false`, not the rule name. A sibling `cors: false` reached only
-    // via a decoded reading must not strip the `cors` policy the served (raw) path
-    // resolved, exactly as with `basicAuth`.
-    const match = matcher({
-      "/app/api/**": { cors: { origin: ["https://trusted.example"] } },
-      "/app/open/**": { cors: false },
-    });
-    for (const payload of ["/app/api/%2e%2e/open/x", "/app/api/%252e%252e/open/x"]) {
-      const { routeRules } = match("GET", payload);
-      expect(routeRules.cors, payload).toMatchObject({
-        origin: ["https://trusted.example"],
-      });
-    }
-    // Control: genuinely served under the sibling — cors disabled as configured.
-    expect(match("GET", "/app/open/x").routeRules.cors).toBeUndefined();
-  });
-
-  it("no encoding of a protected path ever weakens or drops its gate (over-decode invariant)", () => {
+  it("no encoding of a path ever weakens or drops its narrowest rule (over-decode invariant)", () => {
     // The core safety property behind pessimistic decoding, stated adversarially:
-    // for ANY alternate reading of a genuinely-admin path, the resolved gate must
-    // be at least as strong as the raw reading — never the broad `guest` rule,
-    // never absent, never the sibling `off` reset. Encodes the fan-out an
+    // for ANY alternate reading of a genuinely-admin path, the resolved rule must
+    // be at least as specific as the raw reading — never the broad `/app/**`
+    // policy, never absent, never the sibling `off` reset. Encodes the fan-out an
     // attacker controls (encoded separators/dots at any nesting, empty segments,
     // no-op `..`) as an enumerated matrix so a regression in any single reading
     // (canonical, merged, or the union direction) trips this.
     const match = matcher({
-      "/app/**": { basicAuth: { username: "guest", password: "guest" } },
-      "/app/admin/**": {
-        basicAuth: { username: "admin", password: "s3cret", realm: "Admin" },
-      },
-      "/app/admin/off/**": { basicAuth: false },
+      "/app/**": { cors: { origin: ["https://broad.example"] } },
+      "/app/admin/**": { cors: { origin: ["https://admin.example"] } },
+      "/app/admin/off/**": { cors: false },
     });
     // Every payload below is an encoding of the genuinely-admin `/app/admin/panel`
-    // — none resolves into the `off` subtree — so all must stay admin-gated.
+    // — none resolves into the `off` subtree — so all must keep the admin policy.
     for (const payload of [
       "/app/admin/panel", // baseline
       "/app/admin%2fpanel", // encoded separator
@@ -514,12 +467,12 @@ describe("dual-path union (Nitro #4396)", () => {
       "/app/admin/off%2f..%2fpanel", // brushes `off` then climbs back out — still admin
     ]) {
       const { routeRules } = match("GET", payload);
-      expect(routeRules.basicAuth, payload).toMatchObject({ username: "admin" });
+      expect(routeRules.cors, payload).toMatchObject({ origin: ["https://admin.example"] });
     }
-    // Control: a path that genuinely resolves into the `off` subtree is disabled,
+    // Control: a path that genuinely resolves into the `off` subtree is reset,
     // proving the matrix above passes because the paths stay admin — not because
     // the reset is inert.
-    expect(match("GET", "/app/admin/off/x").routeRules.basicAuth).toBeUndefined();
+    expect(match("GET", "/app/admin/off/x").routeRules.cors).toBeUndefined();
   });
 
   // A `false` reset is implemented as a `delete`, so a reset rule would otherwise
@@ -531,13 +484,12 @@ describe("dual-path union (Nitro #4396)", () => {
   // makes the private response cross-origin readable.
   //
   // Gating the ADD on `canOverride(resetRoute, incomingRoute)` cannot fix this:
-  // this config is isomorphic (under pattern containment) to the
-  // `/rules/ba-off/**` + `/rules/ba-off/*` pair three tests above, where the
-  // re-add is exactly what keeps the auth gate — both are `{broad B, narrow N
-  // carrying the reset}` with the served path matching `{B, N}` and the alternate
-  // reading matching `{B}` only. What separates them is the *rule*, not the
-  // patterns: re-adding a gate is fail-closed, re-adding a permission undoes the
-  // exemption. Hence `RuleHandler.restricting`.
+  // this config is isomorphic (under pattern containment) to the `restricting`
+  // one in the next test — both are `{broad B, narrow N carrying the reset}` with
+  // the served path matching `{B, N}` and the alternate reading matching `{B}`
+  // only. What separates them is the *rule*, not the patterns: re-adding a
+  // restriction is fail-closed, re-adding a permission undoes the exemption.
+  // Hence `RuleHandler.restricting`.
   it("an alternate reading never RESURRECTS a permission the served path reset", () => {
     const match = matcher({
       "/**": { cors: { origin: "*" } },
@@ -548,17 +500,24 @@ describe("dual-path union (Nitro #4396)", () => {
     expect(match("GET", "/app/private/x%2f..%2f..%2fy").routeRules.cors).toBeUndefined();
   });
 
-  it("…but a restriction is still re-added, so a reset cannot dodge a gate", () => {
-    // The isomorphic counterpart: `basicAuth` is `restricting`, so the exemption
-    // written for a single segment does not survive into a reading with two.
-    const match = matcher({
-      "/app/gate/**": { basicAuth: { username: "admin", password: "s3cret" } },
-      "/app/gate/*": { basicAuth: false },
-    });
-    expect(match("GET", "/app/gate/a").routeRules.basicAuth).toBeUndefined();
-    expect(match("GET", "/app/gate/a%2fb").routeRules.basicAuth).toMatchObject({
-      username: "admin",
-    });
+  it("…but a `restricting` rule is still re-added, so a reset cannot widen itself", () => {
+    // The isomorphic counterpart. No built-in rule is `restricting` — it is the
+    // extension point for a custom rule that can only ever *tighten* a response,
+    // where re-adding is fail-closed — so this uses one: the exemption written
+    // for a single segment must not survive into a reading with two.
+    const restricted: RuleHandler<"restricted"> = {
+      restricting: true,
+      handler: () => (_event, next) => next(),
+    };
+    const match = createRouteRulesMatcher(
+      normalizeRouteRules({
+        "/app/r/**": { restricted: { label: "strict" } },
+        "/app/r/*": { restricted: false },
+      }),
+      { handlers: { restricted } },
+    );
+    expect(match("GET", "/app/r/a").routeRules.restricted).toBeUndefined();
+    expect(match("GET", "/app/r/a%2fb").routeRules.restricted).toMatchObject({ label: "strict" });
   });
 
   it("a reset re-resolved later in the same reading is not treated as a reset", () => {
@@ -576,36 +535,31 @@ describe("dual-path union (Nitro #4396)", () => {
 
   it("a broader canonical rule never DOWNGRADES a narrower rule the served path resolved", () => {
     // Encoded-dot escalation: a crafted `%2e%2e` path is served (raw) under a
-    // strict narrow gate but canonicalizes *up* to a broad weak rule. The union
-    // may only override with an equal-or-more-specific pattern, so the broad rule
-    // must NOT weaken the strict gate the served admin path hits.
+    // strict narrow rule but canonicalizes *up* to a broad lax one. The union may
+    // only override with an equal-or-more-specific pattern, so the broad rule must
+    // NOT replace the strict policy the served admin path hits.
     // Raw `/app/admin/x/%2e%2e/%2e%2e/%2e%2e/y` matches `/app/admin/**` (h3 serves
     // the admin handler on this literal path); canonical collapses to `/y`, which
     // matches only `/**`.
     const match = matcher({
-      "/**": { basicAuth: { username: "guest", password: "guest" } },
-      "/app/admin/**": {
-        basicAuth: { username: "admin", password: "s3cret", realm: "Admin" },
-      },
+      "/**": { cors: { origin: "*" } },
+      "/app/admin/**": { cors: { origin: ["https://admin.example"] } },
     });
     const { routeRules } = match("GET", "/app/admin/x/%2e%2e/%2e%2e/%2e%2e/y");
-    // Strict admin credentials must survive — not be shallow-merged down to guest.
-    expect(routeRules.basicAuth).toMatchObject({
-      username: "admin",
-      password: "s3cret",
-    });
+    // The strict allowlist must survive — not be shallow-merged down to `*`.
+    expect(routeRules.cors).toMatchObject({ origin: ["https://admin.example"] });
   });
 
-  it("a narrower canonical gate still OVERRIDES a broader raw rule (strengthen path intact)", () => {
-    // Guard the other direction: the specificity gate must not block a legitimate
+  it("a narrower canonical rule still OVERRIDES a broader raw rule (strengthen path intact)", () => {
+    // Guard the other direction: the specificity check must not block a legitimate
     // strengthen. `/app/admin%2fpanel` is served under `/app/**` (headers) on the
-    // raw path; the canonical `/app/admin/panel` reveals the narrower auth gate.
+    // raw path; the canonical `/app/admin/panel` reveals the narrower rule.
     const match = matcher({
       "/app/**": { headers: { "x-app": "1" } },
-      "/app/admin/**": { basicAuth: { username: "admin", password: "secret" } },
+      "/app/admin/**": { cors: { origin: ["https://admin.example"] } },
     });
     const { routeRules } = match("GET", "/app/admin%2fpanel");
-    expect(routeRules.basicAuth).toMatchObject({ username: "admin" });
+    expect(routeRules.cors).toMatchObject({ origin: ["https://admin.example"] });
     expect(routeRules.headers).toEqual({ "x-app": "1" });
   });
 
@@ -658,7 +612,7 @@ describe("mergeMatchedRouteRules (pure)", () => {
           layer("/a/**", [{ name: "headers", options: { a: "raw" } }]),
           layer("/a/b/**", [
             { name: "headers", options: false },
-            { name: "basicAuth", options: { username: "u" } },
+            { name: "cors", options: { origin: ["https://a.example"] } },
           ]),
         ],
       ],
@@ -666,7 +620,7 @@ describe("mergeMatchedRouteRules (pure)", () => {
     // canonical `false` resolved within its own pass deletes there, but the
     // union can never delete what the raw path resolved
     expect(merged.headers!.options).toEqual({ a: "raw" });
-    expect(merged.basicAuth!.options).toEqual({ username: "u" });
+    expect(merged.cors!.options).toEqual({ origin: ["https://a.example"] });
   });
 
   it("orders matched layers by `rank`, with no override predicate involved", () => {
@@ -675,29 +629,27 @@ describe("mergeMatchedRouteRules (pure)", () => {
     // which is *not* exact for modifier params (it reports `/api/*​/**` as
     // subsuming the `/api/*​/:path*` that subsumes it), so a predicate-driven
     // order fails open exactly here. No `canOverride` is passed below.
-    const gate = {
-      data: [{ name: "basicAuth", route: "/api/*/**", options: { username: "admin" }, rank: 1 }],
+    const narrow = {
+      data: [{ name: "cors", route: "/api/*/**", options: { origin: ["https://a"] }, rank: 1 }],
     };
     const reset = {
-      data: [{ name: "basicAuth", route: "/api/*/:path*", options: false, rank: 0 }],
+      data: [{ name: "cors", route: "/api/*/:path*", options: false, rank: 0 }],
     };
     // Either arrival order — rou3 hands the broader `:path*` layer over last.
     for (const layers of [
-      [gate, reset],
-      [reset, gate],
+      [narrow, reset],
+      [reset, narrow],
     ]) {
-      expect(mergeMatchedRouteRules(layers).basicAuth!.options).toEqual({ username: "admin" });
+      expect(mergeMatchedRouteRules(layers).cors!.options).toEqual({ origin: ["https://a"] });
     }
     // The legitimate direction is untouched: a *narrower* `false` still resets.
-    const broadGate = {
-      data: [
-        { name: "basicAuth", route: "/api/*/:path*", options: { username: "admin" }, rank: 0 },
-      ],
+    const broad = {
+      data: [{ name: "cors", route: "/api/*/:path*", options: { origin: ["https://a"] }, rank: 0 }],
     };
     const narrowReset = {
-      data: [{ name: "basicAuth", route: "/api/*/**", options: false, rank: 1 }],
+      data: [{ name: "cors", route: "/api/*/**", options: false, rank: 1 }],
     };
-    expect(mergeMatchedRouteRules([narrowReset, broadGate]).basicAuth).toBeUndefined();
+    expect(mergeMatchedRouteRules([narrowReset, broad]).cors).toBeUndefined();
   });
 
   it("returns empty map for no layers", () => {

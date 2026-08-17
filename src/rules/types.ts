@@ -1,6 +1,5 @@
 import type { Middleware } from "../types/handler.ts";
 import type { ResolvedRouteRules } from "../types/route-rules.ts";
-import type { BasicAuthOptions } from "../utils/auth.ts";
 import type { CorsOptions } from "../utils/cors.ts";
 import type { ProxyOptions } from "../utils/proxy.ts";
 
@@ -150,13 +149,10 @@ export interface RouteRuleConfig {
    */
   proxy?: string | ({ to: string } & ProxyOptions) | false;
 
-  /** HTTP Basic Auth; `false` disables auth inherited from a less-specific pattern. */
-  basicAuth?: BasicAuthRuleOptions | false;
-
   /**
    * CORS via h3's `handleCors`; `true` applies permissive defaults (`*`), or pass
-   * {@link CorsOptions}. A preflight is answered (204) before any other rule,
-   * including `basicAuth`. `false` disables CORS inherited from a less-specific pattern.
+   * {@link CorsOptions}. A preflight is answered (204) before any other rule.
+   * `false` disables CORS inherited from a less-specific pattern.
    */
   cors?: CorsOptions | boolean;
 
@@ -196,20 +192,6 @@ export type NormalizedRouteRules = {
 type RuleReset<K extends RouteRuleName> = K extends keyof RouteRuleConfig
   ? Extract<RouteRuleConfig[K], false>
   : false;
-
-/**
- * `basicAuth` rule options — h3's {@link BasicAuthOptions} restricted to what a
- * declarative (and compilable) rule can express.
- *
- * `validate` is deliberately **not** a rule option: a function has no place in
- * serialized/compiled rule config. h3's own `BasicAuthOptions` is
- * `Partial<...> & ({ validate } | { password })`, i.e. a credential is
- * mandatory; dropping `validate` therefore makes `password` **required**.
- * A plain `Pick<>` of `BasicAuthOptions` silently erased that union, so a rule
- * with only a `username` type-checked and then failed with a 500 at runtime.
- */
-export type BasicAuthRuleOptions = Required<Pick<BasicAuthOptions, "password">> &
-  Pick<BasicAuthOptions, "username" | "realm">;
 
 /** Normalized `redirect` rule options. */
 export interface RedirectRuleOptions {
@@ -289,10 +271,12 @@ export type MatchedRouteRules = {
  * execution order (lower runs first, default `0`).
  *
  * Built-ins occupy the negative band, outermost first:
- * - `cors`: `-3` (preflight before the auth gate)
- * - `basicAuth`: `-2` (gates before headers/cache/redirect/proxy)
+ * - `cors`: `-3` (preflight before anything else)
  * - `headers`: `-1`
  * - everything else: `0`
+ *
+ * `-2` is deliberately left free for a custom gate (auth and the like), so it
+ * runs after a preflight is answered but before headers/cache/redirect/proxy.
  */
 export interface RuleHandler<K extends RouteRuleName = RouteRuleName> {
   order?: number;
@@ -309,10 +293,11 @@ export interface RuleHandler<K extends RouteRuleName = RouteRuleName> {
    * on a response h3 still serves from the private handler).
    *
    * Re-adding a restriction is fail-closed, so it stays allowed: that is what
-   * keeps a single-segment `basicAuth: false` exemption from covering a path
-   * that only decodes to multiple segments. Re-adding anything else is refused.
-   * Defaults to `false` — mark a custom rule `true` only when applying it more
-   * broadly can never weaken a response.
+   * keeps a single-segment `<gate>: false` exemption from covering a path that
+   * only decodes to multiple segments. Re-adding anything else is refused.
+   * No built-in rule is `restricting`; it defaults to `false` — mark a custom
+   * rule (an auth gate, a rate limit) `true` only when applying it more broadly
+   * can never weaken a response.
    */
   restricting?: boolean;
   handler: (matched: MatchedRouteRule<K>) => Middleware;

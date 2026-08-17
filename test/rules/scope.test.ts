@@ -126,8 +126,8 @@ describe("isPathInScope", () => {
 });
 
 // Used to match route rules: encoded separators must be decoded so a request
-// cannot dodge a narrower rule (e.g. a `basicAuth` gate) that a broader rule
-// would still serve once the downstream decodes them back to `/`.
+// cannot dodge a narrower rule that a broader rule would still serve once the
+// downstream decodes them back to `/`.
 describe("canonicalPath", () => {
   it("decodes encoded path separators", () => {
     expect(canonicalPath("/app/admin%2fpanel")).toBe("/app/admin/panel");

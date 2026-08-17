@@ -25,6 +25,8 @@ declare module "../../src/rules/types.ts" {
     /** Nitro-style build-time rules (data-only here). */
     isr?: number | boolean;
     prerender?: boolean;
+    /** A custom rule marked `restricting` — h3 ships no built-in one (merge.test.ts). */
+    restricted?: { label: string } | false;
     /** Generic custom / data-only keys used across the fixtures. */
     custom?: unknown;
     tags?: unknown;
@@ -37,6 +39,7 @@ declare module "../../src/types/route-rules.ts" {
   interface RouteRules {
     isr?: number | boolean;
     prerender?: boolean;
+    restricted?: { label: string };
     custom?: unknown;
     tags?: unknown;
     shout?: unknown;

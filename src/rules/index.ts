@@ -27,7 +27,6 @@ export type { RouteRuleEntry, RouteRuleLayer } from "./merge.ts";
 export { ruleHandlers } from "./handlers/index.ts";
 export { headers } from "./handlers/headers.ts";
 export { redirect } from "./handlers/redirect.ts";
-export { basicAuth } from "./handlers/basic-auth.ts";
 export { cors } from "./handlers/cors.ts";
 // `proxy`/`cache` handlers are opt-in subpaths (h3/rules/proxy, h3/rules/cache)
 // so proxyRequest/ocache stay out of bundles that don't use them; this factory

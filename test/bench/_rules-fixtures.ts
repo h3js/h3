@@ -4,7 +4,7 @@
  * Deliberately built from `headers` and data-only rules: the target is the
  * *core* of route rules (codegen, router build, layer merge, override guard,
  * bundle cost), not any individual handler's implementation. A handler with
- * real logic (cache/proxy/basicAuth) would dominate both the generated code and
+ * real logic (cache/proxy) would dominate both the generated code and
  * the bundle and hide the thing under audit.
  */
 

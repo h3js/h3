@@ -1,9 +1,4 @@
-import type {
-  BasicAuthRuleOptions,
-  CacheRuleOptions,
-  ProxyRuleOptions,
-  RedirectRuleOptions,
-} from "../rules/types.ts";
+import type { CacheRuleOptions, ProxyRuleOptions, RedirectRuleOptions } from "../rules/types.ts";
 import type { CorsOptions } from "../utils/cors.ts";
 
 /**
@@ -53,7 +48,6 @@ export interface BuiltinRouteRules {
   redirect?: RedirectRuleOptions;
   proxy?: ProxyRuleOptions;
   cache?: CacheRuleOptions;
-  basicAuth?: BasicAuthRuleOptions;
   cors?: CorsOptions;
 }
 

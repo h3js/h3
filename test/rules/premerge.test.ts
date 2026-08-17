@@ -94,17 +94,16 @@ describe("preMerge method matrix", () => {
 // modifier pattern comes back AFTER the narrower pattern it subsumes. preMerge
 // must therefore pick the most specific matched layer by its build-time
 // containment rank, never by position — "take the last layer" silently dropped
-// the narrower pattern's whole chain (its `basicAuth` gate included), and the
-// chain-cleanliness validator can't catch it because these pairs are `subset`,
-// not `partial`.
+// the narrower pattern's whole chain, and the chain-cleanliness validator can't
+// catch it because these pairs are `subset`, not `partial`.
 describe("preMerge layer selection (findAllRoutes order is not containment order)", () => {
   const OPTIONAL = {
-    "/admin": { basicAuth: { username: "admin", password: "s3cret" } },
+    "/admin": { cors: { origin: ["https://admin.example"] } },
     "/admin/:page?": { headers: { "x-a": "1" } },
   } satisfies Record<string, RouteRuleConfig>;
 
   const REPEAT = {
-    "/api/*/**": { basicAuth: { username: "admin", password: "s3cret" } },
+    "/api/*/**": { cors: { origin: ["https://admin.example"] } },
     "/api/*/:path*": { headers: { "x-a": "1" } },
   } satisfies Record<string, RouteRuleConfig>;
 
@@ -133,9 +132,9 @@ describe("preMerge layer selection (findAllRoutes order is not containment order
     expect(snapshotResult(preMerged("GET", pathname))).toEqual(
       snapshotResult(plain("GET", pathname)),
     );
-    // Spelled out: the gate registered on the narrower pattern must survive.
-    expect(preMerged("GET", pathname).routeRules.basicAuth).toMatchObject({
-      username: "admin",
+    // Spelled out: the rule registered on the narrower pattern must survive.
+    expect(preMerged("GET", pathname).routeRules.cors).toMatchObject({
+      origin: ["https://admin.example"],
     });
   });
 

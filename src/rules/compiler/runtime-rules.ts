@@ -9,7 +9,6 @@ export const DEFAULT_RUNTIME_RULES: Readonly<Record<string, RuntimeRuleImport>> 
   redirect: "h3/rules",
   proxy: "h3/rules/proxy",
   cache: "h3/rules/cache",
-  basicAuth: "h3/rules",
   cors: "h3/rules",
 });
 

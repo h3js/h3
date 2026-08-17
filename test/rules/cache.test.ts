@@ -517,39 +517,46 @@ describe("cache rule (ocache-backed, h3/rules/cache)", () => {
     expect(calls).toBe(1);
   });
 
-  it("never caches or serves cached bodies to unauthorized requests (basicAuth order -1)", async () => {
+  it("an outer rule still short-circuits ahead of the cache, hit or miss", async () => {
+    // Ordering is what keeps a rule an app layers *outside* the cache (anything
+    // in the negative band — h3 ships no such built-in beyond `cors`/`headers`)
+    // from being skipped once an entry exists: a cached response must never be
+    // served past a rule that would have rejected the request.
+    const blocked: RuleHandler<"restricted"> = {
+      order: -2,
+      handler: () => (event, next) =>
+        event.req.headers.get("x-pass") === "1" ? next() : new Response("blocked", { status: 403 }),
+    };
     let calls = 0;
-    const app = createApp(
-      {
-        "/cached-auth/**": {
-          cache: { maxAge: 60 },
-          basicAuth: { username: "u", password: "p", realm: "R" },
-        },
-      },
-      createOcacheRuleHandler(),
+    const app = new H3();
+    app.use(
+      routeRules(
+        { "/cached-outer/**": { cache: { maxAge: 60 }, restricted: { label: "x" } } },
+        { handlers: { cache: createOcacheRuleHandler(), restricted: blocked } },
+      ),
     );
-    app.get("/cached-auth/:id", () => ({ calls: ++calls }));
+    app.get("/cached-outer/:id", () => ({ calls: ++calls }));
 
-    // unauthorized before anything is cached: 401, handler never runs
-    const unauth = await app.fetch(new Request("http://test/cached-auth/a"));
-    expect(unauth.status).toBe(401);
+    // rejected before anything is cached: the handler never runs
+    const first = await app.fetch(new Request("http://test/cached-outer/a"));
+    expect(first.status).toBe(403);
     expect(calls).toBe(0);
 
-    // authorized: handler runs, response is cached
-    const auth = { Authorization: "Basic " + btoa("u:p") };
-    const ok = await app.fetch(new Request("http://test/cached-auth/a", { headers: auth }));
-    expect(ok.status).toBe(200);
+    // allowed: handler runs, response is cached
+    const pass = { "x-pass": "1" };
+    const ok = await app.fetch(new Request("http://test/cached-outer/a", { headers: pass }));
     expect(await ok.json()).toEqual({ calls: 1 });
 
-    // entry is cached now — an unauthorized request must still 401,
+    // entry is cached now — a rejected request must still get 403,
     // never be served the cached body
-    const unauthAfter = await app.fetch(new Request("http://test/cached-auth/a"));
-    expect(unauthAfter.status).toBe(401);
+    const after = await app.fetch(new Request("http://test/cached-outer/a"));
+    expect(after.status).toBe(403);
+    expect(await after.text()).toBe("blocked");
     expect(calls).toBe(1);
 
-    // and the cache still serves authorized requests
-    const okAgain = await app.fetch(new Request("http://test/cached-auth/a", { headers: auth }));
-    expect(await okAgain.json()).toEqual({ calls: 1 });
+    // and the cache still serves allowed requests
+    const again = await app.fetch(new Request("http://test/cached-outer/a", { headers: pass }));
+    expect(await again.json()).toEqual({ calls: 1 });
   });
 
   it("never bakes reflected CORS headers into the shared cache (cors + swr)", async () => {

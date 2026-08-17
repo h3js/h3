@@ -10,8 +10,8 @@ import type { RouteRuleEntry } from "../merge.ts";
  * onto `node.param`, `**` and `**:rest` onto `node.wildcard`, `/admin` and
  * `/admin/` onto the same terminal node. So a single method-scoped registration
  * on a node hides *every* method-agnostic registration sharing that node — an
- * innocuous `GET /users/:id: { headers }` next to `/users/*: { basicAuth }`
- * silently deleted the auth gate for GET.
+ * innocuous `GET /users/:id: { headers }` next to `/users/*: { auth }` (a
+ * custom gate rule) silently deleted that gate for GET.
  *
  * `routeNodeKeys` makes that node identity observable (`routeNodeKeys(a)` and
  * `routeNodeKeys(b)` intersect iff `a` and `b` share a node), so the agnostic

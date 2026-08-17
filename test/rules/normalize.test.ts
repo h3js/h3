@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { parseRouteKey } from "../../src/rules/internal/key.ts";
 import { routeRules } from "../../src/rules/middleware.ts";
 import { normalizeRouteRules } from "../../src/rules/normalize.ts";
-import type { BasicAuthRuleOptions, RouteRuleConfig } from "../../src/rules/types.ts";
+import type { RouteRuleConfig } from "../../src/rules/types.ts";
 import type { CorsOptions } from "../../src/utils/cors.ts";
 import { FIXTURE } from "./_fixture.ts";
 
@@ -73,7 +73,7 @@ describe("normalizeRouteRules - redirect", () => {
   });
 
   it("redirect: false passes through as a reset marker", () => {
-    // Same runtime-merge semantics as `cache: false`/`basicAuth: false`:
+    // Same runtime-merge semantics as `cache: false`/`cors: false`:
     // a more specific pattern can disable an inherited redirect.
     const rules = normalizeRouteRules({ "/old/**": { redirect: false } });
     expect(rules["/old/**"]!.redirect).toBe(false);
@@ -400,17 +400,16 @@ describe("normalizeRouteRules - reserved rule names rejected", () => {
 
 // D3: `false` is the *only* reset marker. Any other falsy value for a built-in
 // rule is a config mistake — normalization would otherwise silently drop the
-// rule, or hand a handler falsy options it cannot act on (`basicAuth` failed
-// *open* on exactly this shape).
+// rule, or hand a handler falsy options it cannot act on.
 describe("normalizeRouteRules - falsy rule values rejected", () => {
-  it("throws on `basicAuth: null` (only `false` disables a rule)", () => {
-    expect(() =>
-      normalizeRouteRules({ "/admin/**": { basicAuth: null as unknown as false } }),
-    ).toThrow(/`basicAuth` rule for `\/admin\/\*\*`/);
+  it("throws on `cors: null` (only `false` disables a rule)", () => {
+    expect(() => normalizeRouteRules({ "/admin/**": { cors: null as unknown as false } })).toThrow(
+      /`cors` rule for `\/admin\/\*\*`/,
+    );
   });
 
   it("throws on every falsy non-`false` value, for every built-in rule", () => {
-    for (const name of ["cache", "headers", "redirect", "proxy", "basicAuth", "cors"]) {
+    for (const name of ["cache", "headers", "redirect", "proxy", "cors"]) {
       for (const value of [null, "", 0, Number.NaN]) {
         expect(() => normalizeRouteRules({ "/x": { [name]: value } as RouteRuleConfig })).toThrow(
           new RegExp(`\\\`${name}\\\` rule for \\\`/x\\\``),
@@ -427,14 +426,13 @@ describe("normalizeRouteRules - falsy rule values rejected", () => {
 
   it("keeps `false` itself as a reset marker", () => {
     const rules = normalizeRouteRules({
-      "/x": { redirect: false, proxy: false, cors: false, cache: false, basicAuth: false },
+      "/x": { redirect: false, proxy: false, cors: false, cache: false },
     });
     expect(rules["/x"]).toEqual({
       redirect: false,
       proxy: false,
       cors: false,
       cache: false,
-      basicAuth: false,
     });
   });
 
@@ -454,50 +452,8 @@ describe("normalizeRouteRules - falsy rule values rejected", () => {
   });
 
   it("rejects at app setup through `routeRules()`", () => {
-    expect(() => routeRules({ "/admin/**": { basicAuth: null as unknown as false } })).toThrow(
-      /`basicAuth` rule for `\/admin\/\*\*`/,
-    );
-  });
-});
-
-// F13 config half: `validate` is deliberately not a rule option, so `password`
-// is the only credential a rule can carry. Without it `requireBasicAuth` throws
-// a 500 on every request to the guarded route — catch it once, at config time.
-describe("normalizeRouteRules - basicAuth requires a password", () => {
-  it("throws when a basicAuth rule has no password", () => {
-    expect(() =>
-      normalizeRouteRules({
-        "/admin/**": { basicAuth: { username: "admin" } as unknown as BasicAuthRuleOptions },
-      }),
-    ).toThrow(/`basicAuth` rule for `\/admin\/\*\*`.*`password`/);
-  });
-
-  it("throws on an empty-string password (h3 rejects it at runtime too)", () => {
-    expect(() => normalizeRouteRules({ "/admin/**": { basicAuth: { password: "" } } })).toThrow(
-      /`password`/,
-    );
-  });
-
-  it("names the required shape", () => {
-    expect(() => normalizeRouteRules({ "GET /a": { basicAuth: { realm: "x" } as never } })).toThrow(
-      /`basicAuth` rule for `GET \/a`.*\{ password/,
-    );
-  });
-
-  it("passes with a password and keeps the options untouched", () => {
-    const rules = normalizeRouteRules({
-      "/admin/**": { basicAuth: { username: "admin", password: "s3cret", realm: "Secure" } },
-    });
-    expect(rules["/admin/**"]!.basicAuth).toEqual({
-      username: "admin",
-      password: "s3cret",
-      realm: "Secure",
-    });
-  });
-
-  it("leaves `basicAuth: false` alone (reset marker, no credential needed)", () => {
-    expect(normalizeRouteRules({ "/admin/**": { basicAuth: false } })["/admin/**"]!.basicAuth).toBe(
-      false,
+    expect(() => routeRules({ "/admin/**": { cors: null as unknown as false } })).toThrow(
+      /`cors` rule for `\/admin\/\*\*`/,
     );
   });
 });

@@ -97,14 +97,14 @@ describe("compiler parity", () => {
     );
   });
 
-  it("compiled matcher closes the slash-merged auth bypass (matches runtime)", () => {
+  it("compiled matcher closes the slash-merged rule bypass (matches runtime)", () => {
     // The compiler only codegens the route lookup; the raw/canonical/merged
     // readings live in the shared `createMatcherFromFind`, so the compiled
     // matcher must reject the same `..`-next-to-encoded-separator bypass
     // (report vuln-12006) that the runtime matcher does.
     const config = {
       "/api/**": { headers: { "x-app": "1" } },
-      "/api/admin/**": { basicAuth: { username: "admin", password: "secret" } },
+      "/api/admin/**": { cors: { origin: ["https://admin.example"] } },
     };
     const runtime = createRouteRulesMatcher(normalizeRouteRules(config), {
       handlers: FIXTURE_HANDLERS,
@@ -115,32 +115,32 @@ describe("compiler parity", () => {
       "/api/foo/..%2f%2fadmin/secret",
       "/api/foo/%2e%2e%2f%2fadmin/secret",
     ]) {
-      expect(compiled("GET", payload).routeRules.basicAuth, payload).toBeDefined();
+      expect(compiled("GET", payload).routeRules.cors, payload).toBeDefined();
       expect(snapshotResult(compiled("GET", payload)), payload).toEqual(
         snapshotResult(runtime("GET", payload)),
       );
     }
   });
 
-  it("compiled matcher export blocks broader-pattern auth downgrade (matches runtime)", () => {
+  it("compiled matcher export blocks broader-pattern downgrade (matches runtime)", () => {
     // The runtime guard against a broader canonical/merged pattern DOWNGRADING a
     // narrower rule the served path resolved lives in `createRouteRulesMatcher`
     // (injected `canOverride`). The compiled `matcher` export must reach parity by
     // baking that predicate — otherwise a crafted `%2e%2e` path that canonicalizes
-    // *up* to the broad `/**` rule would replace the strict admin credentials with
-    // the site-wide guest ones.
-    const config = {
-      "/**": { basicAuth: { username: "guest", password: "guest" } },
-      "/app/admin/**": { basicAuth: { username: "admin", password: "s3cret", realm: "Admin" } },
+    // *up* to the broad `/**` rule would replace the strict admin policy with the
+    // site-wide permissive one.
+    const config: Record<string, RouteRuleConfig> = {
+      "/**": { cors: { origin: "*" } },
+      "/app/admin/**": { cors: { origin: ["https://admin.example"] } },
     };
     const runtime = createRouteRulesMatcher(normalizeRouteRules(config), {
       handlers: FIXTURE_HANDLERS,
     });
     const compiled = evaluateModule(compileRouteRules(config, { matcher: true }));
     const payload = "/app/admin/x/%2e%2e/%2e%2e/%2e%2e/y";
-    const basicAuth = compiled("GET", payload).routeRules.basicAuth as { username: string };
-    // The strict admin gate survives — not downgraded to guest:guest.
-    expect(basicAuth.username).toBe("admin");
+    const cors = compiled("GET", payload).routeRules.cors as { origin: string[] };
+    // The strict admin allowlist survives — not downgraded to the wildcard.
+    expect(cors.origin).toEqual(["https://admin.example"]);
     expect(snapshotResult(compiled("GET", payload))).toEqual(
       snapshotResult(runtime("GET", payload)),
     );
@@ -152,8 +152,8 @@ describe("compiler parity", () => {
     // emitted source (the containment relation is a build-time static table).
     const mod = compileRouteRules(
       {
-        "/**": { basicAuth: { username: "guest", password: "guest" } },
-        "/app/admin/**": { basicAuth: { username: "admin", password: "s3cret" } },
+        "/**": { cors: { origin: "*" } },
+        "/app/admin/**": { cors: { origin: ["https://admin.example"] } },
       },
       { matcher: true },
     );
@@ -206,25 +206,25 @@ describe("generated code shape", () => {
     // that merged layers in `findAllRoutes` order would lose gates the runtime
     // matcher keeps. `0` is the default and stays implicit.
     const code = compileFindRouteRules({
-      "/mod/reset/*/**": { basicAuth: { username: "admin", password: "s" } },
-      "/mod/reset/*/:path*": { basicAuth: false },
+      "/mod/reset/*/**": { cors: { origin: ["https://admin.example"] } },
+      "/mod/reset/*/:path*": { cors: false },
     });
     expect(code).toContain("rank:1"); // `/mod/reset/*/**`, subsumed by the `:path*` one
     expect([...code.matchAll(/rank:/g)]).toHaveLength(1);
     expect(compileFindRouteRules({ "/a/**": { headers: { a: "1" } } })).not.toContain("rank:");
   });
 
-  it("a compiled matcher with no override predicate still keeps a subsumed gate", () => {
+  it("a compiled matcher with no override predicate still keeps a subsumed rule", () => {
     // The divergence this pins: `createMatcherFromFind`'s dependency-free default
     // predicate (`canOverrideRouteShape`) is not exact for modifier params —
     // it reports `/mod/reset/*​/**` as subsuming the `/mod/reset/*​/:path*` that
     // actually subsumes IT. Ordering matched layers must therefore never consult
     // a predicate, or the compiled default fails open: the broader pattern's
-    // `basicAuth: false` lands last and deletes the gate. `evaluateCompiled`
+    // `cors: false` lands last and deletes the narrower rule. `evaluateCompiled`
     // builds exactly that predicate-less matcher.
     const config: Record<string, RouteRuleConfig> = {
-      "/mod/reset/*/**": { basicAuth: { username: "admin", password: "s" } },
-      "/mod/reset/*/:path*": { basicAuth: false },
+      "/mod/reset/*/**": { cors: { origin: ["https://admin.example"] } },
+      "/mod/reset/*/:path*": { cors: false },
     };
     const compiled = evaluateCompiled(config);
     const runtime = createRouteRulesMatcher(normalizeRouteRules(config));
@@ -232,8 +232,8 @@ describe("generated code shape", () => {
       expect(snapshotResult(compiled("GET", pathname))).toEqual(
         snapshotResult(runtime("GET", pathname)),
       );
-      expect(compiled("GET", pathname).routeRules.basicAuth, pathname).toMatchObject({
-        username: "admin",
+      expect(compiled("GET", pathname).routeRules.cors, pathname).toMatchObject({
+        origin: ["https://admin.example"],
       });
     }
   });
@@ -265,10 +265,10 @@ describe("generated code shape", () => {
       "/a/**": { redirect: "/b", prerender: true },
       "/b/**": { headers: { a: "1" } },
       // `false` resets are serialized with their handler — they count as used.
-      "/b/off": { basicAuth: false },
+      "/b/off": { cors: false },
     };
     expect(compileHandlersImport(rules)).toBe(
-      'import { basicAuth as __ruleHandlers__$basicAuth, headers as __ruleHandlers__$headers, redirect as __ruleHandlers__$redirect } from "h3/rules";',
+      'import { cors as __ruleHandlers__$cors, headers as __ruleHandlers__$headers, redirect as __ruleHandlers__$redirect } from "h3/rules";',
     );
   });
 
@@ -496,26 +496,26 @@ describe("generated code shape", () => {
     // preMerge applies `false` resets at compile time, so they never appear in
     // (or reference a handler from) the generated entries.
     const rules: Record<string, RouteRuleConfig> = {
-      "/a/**": { basicAuth: false, headers: { a: "1" } },
+      "/a/**": { cors: false, headers: { a: "1" } },
     };
     expect(compileHandlersImport(rules)).toBe(
-      'import { basicAuth as __ruleHandlers__$basicAuth, headers as __ruleHandlers__$headers } from "h3/rules";',
+      'import { cors as __ruleHandlers__$cors, headers as __ruleHandlers__$headers } from "h3/rules";',
     );
     expect(compileHandlersImport(rules, { preMerge: true })).toBe(
       'import { headers as __ruleHandlers__$headers } from "h3/rules";',
     );
-    expect(compileFindRouteRules(rules, { preMerge: true })).not.toContain("$basicAuth");
+    expect(compileFindRouteRules(rules, { preMerge: true })).not.toContain("$cors");
   });
 });
 
 describe("fail-safe preMerge", () => {
   // A non-chain-clean rule set (partial overlap) with a `false` reset on a
-  // runtime rule: preMerge would resolve the reset away (no `$basicAuth`), plain
-  // mode serializes it with its handler. If the fallback desynced find codegen
-  // from the handlers import, generated code would reference an un-imported
-  // binding — so this fixture also guards the import/reference contract.
+  // runtime rule: preMerge would resolve the reset away (no `$cors`), plain mode
+  // serializes it with its handler. If the fallback desynced find codegen from
+  // the handlers import, generated code would reference an un-imported binding —
+  // so this fixture also guards the import/reference contract.
   const NON_CHAIN_CLEAN = {
-    "/a/*/c": { headers: { a: "1" }, basicAuth: false },
+    "/a/*/c": { headers: { a: "1" }, cors: false },
     "/a/b/*": { headers: { b: "2" } },
   } as const;
 
@@ -523,10 +523,10 @@ describe("fail-safe preMerge", () => {
     const rules = normalizeRouteRules(NON_CHAIN_CLEAN);
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
-      // preMerge requested but not applicable → plain mode → `basicAuth: false`
-      // is serialized with its handler, so its import must be present.
+      // preMerge requested but not applicable → plain mode → `cors: false` is
+      // serialized with its handler, so its import must be present.
       expect(compileHandlersImport(rules, { preMerge: true })).toBe(
-        'import { basicAuth as __ruleHandlers__$basicAuth, headers as __ruleHandlers__$headers } from "h3/rules";',
+        'import { cors as __ruleHandlers__$cors, headers as __ruleHandlers__$headers } from "h3/rules";',
       );
       expect(warn).toHaveBeenCalledWith(expect.stringMatching(/preMerge.*falling back/s));
     } finally {
@@ -542,8 +542,8 @@ describe("fail-safe preMerge", () => {
       const bindings = (source: string) =>
         [...new Set([...source.matchAll(/__ruleHandlers__\$(\w+)/g)].map((m) => m[1]!))].sort();
       expect(bindings(code)).toEqual(bindings(compileHandlersImport(rules, { preMerge: true })));
-      // The fallback emits the plain `$basicAuth` handler for the reset.
-      expect(bindings(code)).toContain("basicAuth");
+      // The fallback emits the plain `$cors` handler for the reset.
+      expect(bindings(code)).toContain("cors");
     } finally {
       warn.mockRestore();
     }
@@ -557,7 +557,7 @@ describe("fail-safe preMerge", () => {
       // Resolved once up front, not once per sub-call.
       expect(warn).toHaveBeenCalledTimes(1);
       // Import and codegen agree: the module evaluates without a ReferenceError.
-      expect(mod.code).toContain("__ruleHandlers__$basicAuth");
+      expect(mod.code).toContain("__ruleHandlers__$cors");
       const findSrc = mod.body
         .slice(mod.body.indexOf("=") + 1)
         .trim()

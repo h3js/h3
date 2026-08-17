@@ -121,7 +121,7 @@ const METHOD_TOKEN_RE = /^[A-Za-z]+$/;
  * (`Access-Control-Request-Method`) and lift **only** its `cors` rule.
  *
  * Nothing else may be lifted: browsers send preflights without credentials, so
- * applying a method-scoped `basicAuth` (or any other gate) from that lookup
+ * applying a method-scoped auth rule (or any other gate) from that lookup
  * would reject every preflight and break CORS entirely. Since the matcher
  * prepends method-agnostic entries to each method-scoped registration, the
  * requested-method lookup already subsumes the agnostic `cors` layers; a lookup

@@ -56,8 +56,8 @@ describe("routeRules() middleware", () => {
   });
 
   it("default memoization stays keyed on the raw pathname (no canonical collapse)", async () => {
-    // `/x/off/a` (auth reset by `/x/off/**`) and `/x/off%2fa` (raw single opaque
-    // segment: the reset must not strip the broad auth rule) canonicalize to the
+    // `/x/off/a` (rule reset by `/x/off/**`) and `/x/off%2fa` (raw single opaque
+    // segment, so the reset must not strip the broad rule) canonicalize to the
     // same path but must keep resolving differently — in either warm-up order.
     for (const order of [
       ["/x/off/a", "/x/off%2fa"],
@@ -66,14 +66,20 @@ describe("routeRules() middleware", () => {
       const app = new H3();
       app.use(
         routeRules({
-          "/x/**": { basicAuth: { username: "u", password: "p" } },
-          "/x/off/**": { basicAuth: false },
+          "/x/**": { cors: { origin: ["https://ok.example"] } },
+          "/x/off/**": { cors: false },
         }),
       );
       app.get("/x/**", () => "ok");
-      for (const path of order) await app.fetch(new Request(`http://test${path}`)); // warm the memo
-      expect((await app.fetch(new Request("http://test/x/off/a"))).status).toBe(200);
-      expect((await app.fetch(new Request("http://test/x/off%2fa"))).status).toBe(401);
+      const get = (path: string) =>
+        app.fetch(new Request(`http://test${path}`, { headers: { origin: "https://ok.example" } }));
+      for (const path of order) await get(path); // warm the memo
+      // reset by the more specific pattern: no policy headers
+      expect((await get("/x/off/a")).headers.get("access-control-allow-origin")).toBeNull();
+      // raw single opaque segment: the broad rule still applies
+      expect((await get("/x/off%2fa")).headers.get("access-control-allow-origin")).toBe(
+        "https://ok.example",
+      );
     }
   });
 

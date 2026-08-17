@@ -4,8 +4,7 @@ import { routeRules } from "../../src/rules/middleware.ts";
 import { canonicalPath, isPathInScope } from "../../src/rules/internal/scope.ts";
 import { proxy } from "../../src/rules/proxy.ts";
 import { resolveRuleTarget } from "../../src/rules/handlers/_utils.ts";
-import { basicAuth as basicAuthRule } from "../../src/rules/handlers/basic-auth.ts";
-import type { MatchedRouteRule, RouteRuleConfig } from "../../src/rules/types.ts";
+import type { RouteRuleConfig } from "../../src/rules/types.ts";
 import type { RouteRulesMatcherOptions } from "../../src/rules/match.ts";
 
 // `proxy` is an opt-in subpath handler (`h3/rules/proxy`) — register it by
@@ -15,8 +14,6 @@ const createApp = (config: Record<string, RouteRuleConfig>, opts?: RouteRulesMat
   app.use(routeRules(config, { ...opts, handlers: { proxy, ...opts?.handlers } }));
   return app;
 };
-
-const basic = (user: string, pass: string) => "Basic " + btoa(`${user}:${pass}`);
 
 describe("headers rule", () => {
   it("sets response headers", async () => {
@@ -79,26 +76,6 @@ describe("headers rule on error responses", () => {
   });
 });
 
-describe("basicAuth rule fail-closed", () => {
-  // Built straight from the handler: a falsy non-`false` options value must
-  // reject, never fall through to the route. (`false` is the reset marker and is
-  // resolved away by the merge, so it never reaches the handler.)
-  const appWithOptions = (options: unknown) => {
-    const app = new H3({ silent: true });
-    app.use(basicAuthRule.handler({ options, route: "/**" } as MatchedRouteRule<"basicAuth">));
-    app.get("/**", () => "leaked");
-    return app;
-  };
-
-  it("rejects a falsy non-`false` options value instead of passing through", async () => {
-    for (const options of [null, undefined, "", 0]) {
-      const res = await appWithOptions(options).fetch(new Request("http://test/secret"));
-      expect(res.status).toBe(500);
-      expect(await res.text()).not.toContain("leaked");
-    }
-  });
-});
-
 describe("cors rule", () => {
   it("answers a preflight request with 204 + policy headers", async () => {
     const app = createApp({ "/api/**": { cors: true } });
@@ -130,12 +107,13 @@ describe("cors rule", () => {
     expect(denied.headers.get("access-control-allow-origin")).toBe(null);
   });
 
-  it("preflight short-circuits before basicAuth (browsers send no credentials)", async () => {
+  it("preflight short-circuits before the rest of the chain (cors is outermost)", async () => {
     const app = createApp({
-      "/api/**": { cors: true, basicAuth: { username: "u", password: "p" } },
+      "/api/**": { cors: true, redirect: "/elsewhere" },
     });
     app.get("/api/x", () => "ok");
-    // Preflight OPTIONS: answered by cors (204), never hitting the auth gate.
+    // Preflight OPTIONS: answered by cors (order -3) with 204, so the redirect
+    // rule at the default 0 never runs.
     const preflight = await app.fetch(
       new Request("http://test/api/x", {
         method: "OPTIONS",
@@ -143,11 +121,13 @@ describe("cors rule", () => {
       }),
     );
     expect(preflight.status).toBe(204);
-    // A real (non-preflight) request is still gated by basicAuth.
-    const guarded = await app.fetch(
+    expect(preflight.headers.get("location")).toBeNull();
+    // A real (non-preflight) request runs the inner rule as usual.
+    const real = await app.fetch(
       new Request("http://test/api/x", { headers: { origin: "https://example.com" } }),
     );
-    expect(guarded.status).toBe(401);
+    expect(real.status).toBe(307);
+    expect(real.headers.get("location")).toBe("/elsewhere");
   });
 
   it("drops credentials when a merge re-forms wildcard-origin + credentials", async () => {
@@ -477,202 +457,73 @@ describe("proxy rule", () => {
   });
 });
 
-describe("basicAuth rule", () => {
-  const AUTH_RULES: Record<string, RouteRuleConfig> = {
-    "/rules/basic-auth/**": {
-      basicAuth: { username: "admin", password: "secret", realm: "Secure Area" },
-    },
-    "/rules/basic-auth/no-auth/**": { basicAuth: false },
-  };
-
-  it("rejects requests without credentials", async () => {
-    const app = createApp(AUTH_RULES);
-    app.get("/rules/basic-auth/**", () => "ok");
-    const res = await app.fetch(new Request("http://test/rules/basic-auth/test"));
-    expect(res.status).toBe(401);
-    // h3 only echoes the realm once credentials were presented
-    expect(res.headers.get("www-authenticate")).toMatch(/^Basic realm=/);
-  });
-
-  it("rejects requests with bad creds", async () => {
-    const app = createApp(AUTH_RULES);
-    app.get("/rules/basic-auth/**", () => "ok");
-    const res = await app.fetch(
-      new Request("http://test/rules/basic-auth/test", {
-        headers: { Authorization: basic("user", "wrongpass") },
-      }),
-    );
-    expect(res.status).toBe(401);
-    // Prefix-matched, not exact: the realm is what these tests are about, while the
-    // rest of the challenge belongs to h3's `basicAuth` (rc.26 appended RFC 7617
-    // `charset="UTF-8"`), so don't pin h3's exact header formatting here.
-    expect(res.headers.get("www-authenticate")).toMatch(/^Basic realm="Secure Area"/);
-  });
-
-  it("allows request with correct password", async () => {
-    const app = createApp(AUTH_RULES);
-    app.get("/rules/basic-auth/**", () => "ok");
-    const res = await app.fetch(
-      new Request("http://test/rules/basic-auth/test", {
-        headers: { Authorization: basic("admin", "secret") },
-      }),
-    );
-    expect(res.status).toBe(200);
-  });
-
-  it("disabled basic-auth for sub-rules", async () => {
-    const app = createApp(AUTH_RULES);
-    app.get("/rules/basic-auth/**", () => "ok");
-    const res = await app.fetch(new Request("http://test/rules/basic-auth/no-auth/x"));
-    expect(res.status).toBe(200);
-  });
-
-  it("runs before a redirect rule from a less specific layer", async () => {
-    const app = createApp({
-      "/rules/ba-redirect/**": { redirect: "/base" },
-      "/rules/ba-redirect/secure/**": {
-        basicAuth: { username: "admin", password: "secret", realm: "Secure Area" },
-      },
-    });
-    const res = await app.fetch(
-      new Request("http://test/rules/ba-redirect/secure/page", {
-        headers: { Authorization: basic("user", "wrongpass") },
-      }),
-    );
-    expect(res.status).toBe(401);
-    expect(res.headers.get("www-authenticate")).toMatch(/^Basic realm="Secure Area"/);
-    expect(res.headers.get("location")).toBeNull();
-  });
-
-  it("runs before a proxy rule from a less specific layer", async () => {
-    const app = createApp({
-      "/rules/ba-proxy/**": { proxy: "/api/echo" },
-      "/rules/ba-proxy/secure/**": {
-        basicAuth: { username: "admin", password: "secret", realm: "Secure Area" },
-      },
-    });
-    app.get("/api/echo", () => "leaked");
-    const res = await app.fetch(
-      new Request("http://test/rules/ba-proxy/secure/page", {
-        headers: { Authorization: basic("user", "wrongpass") },
-      }),
-    );
-    expect(res.status).toBe(401);
-    expect(res.headers.get("www-authenticate")).toMatch(/^Basic realm="Secure Area"/);
-  });
-});
-
 describe("encoded-separator hardening", () => {
-  it("auth is not bypassed by a percent-encoded path separator", async () => {
-    // `secure%2fpage` must still match the `/rules/ba-proxy/secure/**` auth
-    // rule, otherwise the request is forwarded by the broader proxy rule with
-    // no credentials and the downstream decodes `%2f` back to `/`.
+  it("a narrower rule is not bypassed by a percent-encoded path separator", async () => {
+    // `secure%2fpage` must still match the `/rules/enc-proxy/secure/**` rule,
+    // otherwise the request is forwarded by the broader proxy rule and the
+    // downstream decodes `%2f` back to `/`.
     const app = createApp({
-      "/rules/ba-proxy/**": { proxy: "/api/echo" },
-      "/rules/ba-proxy/secure/**": {
-        basicAuth: { username: "admin", password: "secret", realm: "Secure Area" },
-      },
+      "/rules/enc-proxy/**": { proxy: "/api/echo" },
+      "/rules/enc-proxy/secure/**": { headers: { "x-narrow": "1" } },
     });
-    app.get("/api/echo", () => "leaked");
-    const res = await app.fetch(
-      new Request("http://test/rules/ba-proxy/secure%2fpage", {
-        headers: { Authorization: basic("user", "wrongpass") },
-      }),
-    );
-    expect(res.status).toBe(401);
-    expect(res.headers.get("www-authenticate")).toMatch(/^Basic realm="Secure Area"/);
+    app.get("/api/echo", () => "from the upstream");
+    const res = await app.fetch(new Request("http://test/rules/enc-proxy/secure%2fpage"));
+    expect(res.headers.get("x-narrow")).toBe("1");
   });
 
-  it("a single-wildcard auth rule is not bypassed by an encoded separator", async () => {
-    // h3 routes on the raw path, so `/ba-single/a%2fb` is a single opaque
-    // segment there and matches the `/ba-single/*` auth rule — even though it
-    // canonicalizes to the two-segment `/ba-single/a/b`.
-    const app = createApp({
-      "/ba-single/*": {
-        basicAuth: { username: "admin", password: "secret", realm: "Secure Area" },
-      },
-    });
-    app.get("/ba-single/:id", () => "ok");
-    const res = await app.fetch(
-      new Request("http://test/ba-single/a%2fb", {
-        headers: { Authorization: basic("user", "wrongpass") },
-      }),
-    );
-    expect(res.status).toBe(401);
-    expect(res.headers.get("www-authenticate")).toMatch(/^Basic realm="Secure Area"/);
+  it("a single-wildcard rule is not bypassed by an encoded separator", async () => {
+    // h3 routes on the raw path, so `/enc-single/a%2fb` is a single opaque
+    // segment there and matches the `/enc-single/*` rule — even though it
+    // canonicalizes to the two-segment `/enc-single/a/b`.
+    const app = createApp({ "/enc-single/*": { redirect: "/elsewhere" } });
+    app.get("/enc-single/:id", () => "ok");
+    const res = await app.fetch(new Request("http://test/enc-single/a%2fb"));
+    expect(res.status).toBe(307);
   });
 
-  it("a more specific auth rule revealed by decoding overrides a broader one", async () => {
+  it("a more specific rule revealed by decoding overrides a broader one", async () => {
     const app = createApp({
-      "/rules/ba-nested/**": {
-        basicAuth: { username: "broad", password: "secret", realm: "Broad Area" },
-      },
-      "/rules/ba-nested/admin/**": {
-        basicAuth: { username: "admin", password: "secret", realm: "Admin Area" },
-      },
+      "/rules/enc-nested/**": { redirect: "/broad" },
+      "/rules/enc-nested/admin/**": { redirect: "/admin" },
     });
-    app.get("/rules/ba-nested/**", () => "ok");
-    const res = await app.fetch(
-      new Request("http://test/rules/ba-nested/admin%2fpanel", {
-        headers: { Authorization: basic("broad", "secret") },
-      }),
-    );
-    expect(res.status).toBe(401);
-    expect(res.headers.get("www-authenticate")).toMatch(/^Basic realm="Admin Area"/);
+    app.get("/rules/enc-nested/**", () => "ok");
+    const res = await app.fetch(new Request("http://test/rules/enc-nested/admin%2fpanel"));
+    expect(res.status).toBe(307);
+    expect(res.headers.get("location")).toBe("/admin");
   });
 
-  it("a single-segment `false` cannot dodge auth once decoded to multiple segments", async () => {
+  it("a `false` reset on a deeper subtree does not strip a rule from the served path", async () => {
     const app = createApp({
-      "/rules/ba-off/**": {
-        basicAuth: { username: "admin", password: "secret", realm: "Off Area" },
-      },
-      "/rules/ba-off/*": { basicAuth: false },
+      "/rules/enc-strip/**": { redirect: "/broad" },
+      "/rules/enc-strip/off/**": { redirect: false },
     });
-    app.get("/rules/ba-off/**", () => "ok");
-    const res = await app.fetch(
-      new Request("http://test/rules/ba-off/a%2fb", {
-        headers: { Authorization: basic("user", "wrongpass") },
-      }),
-    );
-    expect(res.status).toBe(401);
-    expect(res.headers.get("www-authenticate")).toMatch(/^Basic realm="Off Area"/);
+    app.get("/rules/enc-strip/**", () => "ok");
+    // Raw single opaque segment: the broad rule still applies…
+    const opaque = await app.fetch(new Request("http://test/rules/enc-strip/off%2fx"));
+    expect(opaque.status).toBe(307);
+    expect(opaque.headers.get("location")).toBe("/broad");
+    // …while the genuine two-segment path is reset as configured.
+    const reset = await app.fetch(new Request("http://test/rules/enc-strip/off/x"));
+    expect(reset.status).toBe(200);
   });
 
-  it("a `false` reset on a deeper subtree does not strip auth from the served path", async () => {
-    const app = createApp({
-      "/rules/ba-strip/**": {
-        basicAuth: { username: "admin", password: "secret", realm: "Strip Area" },
-      },
-      "/rules/ba-strip/off/**": { basicAuth: false },
-    });
-    app.get("/rules/ba-strip/**", () => "ok");
-    const res = await app.fetch(
-      new Request("http://test/rules/ba-strip/off%2fx", {
-        headers: { Authorization: basic("user", "wrongpass") },
-      }),
-    );
-    expect(res.status).toBe(401);
-    expect(res.headers.get("www-authenticate")).toMatch(/^Basic realm="Strip Area"/);
-  });
-
-  it("a %5c separator variant is guarded too", async () => {
+  it("a %5c separator variant is covered too", async () => {
     // `%5c` stays opaque in `event.url.pathname` (canonicalization never decodes
     // a separator), so this reaches the matcher as `/app/admin%5cpanel` — raw
-    // matching sees only `/app/**`, and the guard comes from the dual-path
-    // reading (`decodeSlashes` resolves it to `/app/admin/panel`). A downstream
-    // that decodes the backslash would otherwise reach the admin area ungated.
+    // matching sees only `/app/**`, and the narrower rule comes from the
+    // dual-path reading (`decodeSlashes` resolves it to `/app/admin/panel`). A
+    // downstream that decodes the backslash reaches the admin area otherwise.
     const app = createApp({
       "/app/**": { headers: { "x-app": "1" } },
-      "/app/admin/**": {
-        basicAuth: { username: "admin", password: "secret", realm: "Admin" },
-      },
+      "/app/admin/**": { redirect: "/admin" },
     });
     app.get("/app/**", () => "ok");
     const res = await app.fetch(new Request("http://test/app/admin%5cpanel"));
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(307);
+    expect(res.headers.get("location")).toBe("/admin");
   });
 
-  it("a single-wildcard non-auth rule still applies to an encoded separator", async () => {
+  it("a single-wildcard headers rule still applies to an encoded separator", async () => {
     const app = createApp({ "/single-headers/*": { headers: { "x-single": "single" } } });
     app.get("/single-headers/:id", () => "ok");
     const res = await app.fetch(new Request("http://test/single-headers/a%2fb"));
@@ -829,22 +680,20 @@ describe("method-scoped rules (end-to-end)", () => {
     expect(post.headers.get("x-m")).toBeNull();
   });
 
-  it("a GET-scoped auth gate is not bypassable with HEAD", async () => {
+  it("a GET-scoped short-circuiting rule is not bypassable with HEAD", async () => {
     // h3 serves HEAD from the GET route (`~findRoute` falls back, RFC 9110), so
     // a GET-scoped rule must apply to HEAD too — otherwise the handler runs
-    // ungated (headers, and any side effect it performs, still reach the client).
-    const app = createApp({
-      "GET /admin/**": { basicAuth: { username: "admin", password: "secret" } },
-    });
+    // unruled (headers, and any side effect it performs, still reach the client).
+    const app = createApp({ "GET /admin/**": { redirect: "/elsewhere" } });
     app.get("/admin/x", (event) => {
       event.res.headers.set("x-ran", "1");
-      return "secret";
+      return "from the handler";
     });
     const head = await app.fetch(new Request("http://test/admin/x", { method: "HEAD" }));
-    expect(head.status).toBe(401);
+    expect(head.status).toBe(307);
     expect(head.headers.get("x-ran")).toBeNull();
     const get = await app.fetch(new Request("http://test/admin/x"));
-    expect(get.status).toBe(401);
+    expect(get.status).toBe(307);
   });
 
   it("GET-scoped rules apply to HEAD, and HEAD-scoped rules still override them", async () => {
@@ -865,23 +714,16 @@ describe("method-scoped rules (end-to-end)", () => {
     // matrix, so the HEAD registration must exist before that analysis runs.
     const app = createApp(
       {
-        "GET /admin/**": { basicAuth: { username: "admin", password: "secret" } },
+        "GET /admin/**": { redirect: "/elsewhere" },
         "/admin/**": { headers: { "x-all": "1" } },
       },
       { preMerge: true },
     );
-    app.get("/admin/x", () => "secret");
+    app.get("/admin/x", () => "from the handler");
     const head = await app.fetch(new Request("http://test/admin/x", { method: "HEAD" }));
-    expect(head.status).toBe(401);
+    expect(head.status).toBe(307);
     // …and the method-agnostic layer still merges into the HEAD registration.
-    const authed = await app.fetch(
-      new Request("http://test/admin/x", {
-        method: "HEAD",
-        headers: { Authorization: basic("admin", "secret") },
-      }),
-    );
-    expect(authed.status).toBe(200);
-    expect(authed.headers.get("x-all")).toBe("1");
+    expect(head.headers.get("x-all")).toBe("1");
   });
 
   it("only GET falls back — other method-scoped rules stay scoped for HEAD", async () => {
@@ -891,7 +733,7 @@ describe("method-scoped rules (end-to-end)", () => {
     expect(head.headers.get("x-m")).toBeNull();
   });
 
-  it("a method-scoped auth gate is not bypassable with a lowercase/mixed-case method", async () => {
+  it("a method-scoped rule is not bypassable with a lowercase/mixed-case method", async () => {
     // Rule keys are uppercased at parse time (internal/key.ts), so the lookup
     // method must be too: rou3 resolves `methods[method] || methods[""]` and a
     // method-scoped rule never populates `methods[""]`, making a case mismatch a
@@ -902,29 +744,21 @@ describe("method-scoped rules (end-to-end)", () => {
     // DELETE/GET/HEAD/OPTIONS/POST/PUT, so `patch`/`query` reach the app
     // verbatim (raw-socket parsers that forward the token expose the six too).
     const app = createApp({
-      "PATCH /admin/**": { basicAuth: { username: "admin", password: "secret" } },
-      "QUERY /admin/**": { basicAuth: { username: "admin", password: "secret" } },
+      "PATCH /admin/**": { redirect: "/elsewhere" },
+      "QUERY /admin/**": { redirect: "/elsewhere" },
     });
     let ran = 0;
     app.all("/admin/**", () => {
       ran++;
-      return "secret";
+      return "from the handler";
     });
     for (const method of ["PATCH", "patch", "PaTcH", "QUERY", "query", "QuErY"]) {
       const res = await app.fetch(new Request("http://test/admin/x", { method }));
-      expect([method, res.status, ran]).toEqual([method, 401, 0]);
+      expect([method, res.status, ran]).toEqual([method, 307, 0]);
     }
-    // …and the gate still opens on valid credentials, in either spelling.
-    for (const method of ["PATCH", "patch"]) {
-      const res = await app.fetch(
-        new Request("http://test/admin/x", {
-          method,
-          headers: { Authorization: basic("admin", "secret") },
-        }),
-      );
-      expect([method, res.status]).toEqual([method, 200]);
-    }
-    expect(ran).toBe(2);
+    // …and a method the rule is not scoped to still reaches the handler.
+    const post = await app.fetch(new Request("http://test/admin/x", { method: "POST" }));
+    expect([post.status, ran]).toEqual([200, 1]);
   });
 
   it("a lowercase method resolves the same layers as its canonical spelling", async () => {
@@ -946,17 +780,15 @@ describe("method-scoped rules (end-to-end)", () => {
     }
   });
 
-  it("path-only rules gate every method spelling", async () => {
+  it("path-only rules apply to every method spelling", async () => {
     // Unaffected by the method lookup (they live under rou3's `methods[""]`) —
     // pinned so a normalization regression cannot go unnoticed here either.
-    const app = createApp({
-      "/admin/**": { basicAuth: { username: "admin", password: "secret" } },
-    });
+    const app = createApp({ "/admin/**": { redirect: "/elsewhere" } });
     let ran = 0;
-    app.all("/admin/**", () => (ran++, "secret"));
+    app.all("/admin/**", () => (ran++, "from the handler"));
     for (const method of ["GET", "PATCH", "patch", "query"]) {
       const res = await app.fetch(new Request("http://test/admin/x", { method }));
-      expect([method, res.status]).toEqual([method, 401]);
+      expect([method, res.status]).toEqual([method, 307]);
     }
     expect(ran).toBe(0);
   });
@@ -983,14 +815,14 @@ describe("method-scoped cors preflight", () => {
     expect(res.headers.get("access-control-allow-origin")).toBe("https://example.com");
   });
 
-  it("lifts only `cors` from the preflight lookup (never a gate)", async () => {
-    // Browsers send preflights without credentials, so lifting a method-scoped
-    // `basicAuth` (or any other rule) out of that lookup would 401 every
-    // preflight and break CORS entirely.
+  it("lifts only `cors` from the preflight lookup (no other rule)", async () => {
+    // Browsers send preflights without credentials, so lifting any other
+    // method-scoped rule out of that lookup — a redirect, a gate an app layers on
+    // top — would answer the preflight with it and break CORS entirely.
     const app = createApp({
       "PUT /api/**": {
         cors: { origin: ["https://example.com"] },
-        basicAuth: { username: "u", password: "p" },
+        redirect: "/elsewhere",
         headers: { "x-lifted": "1" },
       },
     });
@@ -998,11 +830,13 @@ describe("method-scoped cors preflight", () => {
     const res = await app.fetch(preflight("/api/x"));
     expect(res.status).toBe(204);
     expect(res.headers.get("x-lifted")).toBeNull();
-    // …while the real PUT is still gated.
+    expect(res.headers.get("location")).toBeNull();
+    // …while the real PUT still runs the method-scoped rules.
     const real = await app.fetch(
       new Request("http://test/api/x", { method: "PUT", headers: { origin: "https://a" } }),
     );
-    expect(real.status).toBe(401);
+    expect(real.status).toBe(307);
+    expect(real.headers.get("x-lifted")).toBe("1");
   });
 
   it("prefers the requested method's cors policy over an OPTIONS-visible one", async () => {

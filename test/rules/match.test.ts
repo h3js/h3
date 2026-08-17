@@ -16,13 +16,13 @@ import type { RouteRuleConfig } from "../../src/rules/types.ts";
 // Layers as rou3 would hand them over (least → most specific), for a hand-built
 // `findRouteRules` — the compiled-fragment integration point.
 const layer = (route: string, options: unknown): RouteRuleLayer => ({
-  data: [{ name: "basicAuth", route, options }],
+  data: [{ name: "cors", route, options }],
 });
 
-const BROAD = layer("/**", { username: "guest", password: "guest" });
-const ADMIN = layer("/app/admin/**", { username: "admin", password: "s3cret" });
+const BROAD = layer("/**", { origin: "*" });
+const ADMIN = layer("/app/admin/**", { origin: ["https://admin.example"] });
 
-// The served (raw) path resolves the narrow admin gate; every other reading —
+// The served (raw) path resolves the narrow admin rule; every other reading —
 // here the `%2e%2e` canonicalization, which walks *up* out of /app/admin —
 // resolves only the broad one.
 const find: FindRouteRules = (_method, pathname) =>
@@ -34,27 +34,27 @@ const ESCALATION = "/app/admin/x/%2e%2e/%2e%2e/%2e%2e/y";
 describe("createMatcherFromFind override guard", () => {
   it("guards specificity by default (no broader-pattern downgrade)", () => {
     const matcher = createMatcherFromFind(find);
-    const basicAuth = matcher("GET", ESCALATION).matchedRules.basicAuth!;
-    expect(basicAuth.route).toBe("/app/admin/**");
-    expect(basicAuth.options).toMatchObject({ username: "admin" });
+    const cors = matcher("GET", ESCALATION).matchedRules.cors!;
+    expect(cors.route).toBe("/app/admin/**");
+    expect(cors.options).toMatchObject({ origin: ["https://admin.example"] });
   });
 
   it("still lets a narrower reading upgrade a broader resolved rule", () => {
     // `%2f` keeps the raw path a single opaque segment (broad rule only); the
-    // canonical reading reveals the narrower admin gate, which must win.
+    // canonical reading reveals the narrower admin rule, which must win.
     const encoded = "/app/admin%2fpanel";
     const upgrade: FindRouteRules = (_method, pathname) =>
       pathname.includes("/admin/") ? [BROAD, ADMIN] : [BROAD];
-    const basicAuth = createMatcherFromFind(upgrade)("GET", encoded).matchedRules.basicAuth!;
-    expect(basicAuth.route).toBe("/app/admin/**");
-    expect(basicAuth.options).toMatchObject({ username: "admin" });
+    const cors = createMatcherFromFind(upgrade)("GET", encoded).matchedRules.cors!;
+    expect(cors.route).toBe("/app/admin/**");
+    expect(cors.options).toMatchObject({ origin: ["https://admin.example"] });
   });
 
   it("`() => true` opts back into unconditional override", () => {
     const matcher = createMatcherFromFind(find, () => true);
-    const basicAuth = matcher("GET", ESCALATION).matchedRules.basicAuth!;
-    expect(basicAuth.route).toBe("/**");
-    expect(basicAuth.options).toMatchObject({ username: "guest" });
+    const cors = matcher("GET", ESCALATION).matchedRules.cors!;
+    expect(cors.route).toBe("/**");
+    expect(cors.options).toMatchObject({ origin: "*" });
   });
 
   it("the default guard never allows what rou3 `compareRoutes` forbids", () => {
@@ -125,11 +125,11 @@ describe("createMatcherFromFind override guard", () => {
       seen.push([current, incoming]);
       return false;
     });
-    expect(matcher("GET", ESCALATION).matchedRules.basicAuth!.route).toBe("/app/admin/**");
+    expect(matcher("GET", ESCALATION).matchedRules.cors!.route).toBe("/app/admin/**");
     // Exactly one consultation: the predicate's only job is the cross-reading
     // override guard. Ordering the matched layers of a single reading uses their
     // build-time `rank` instead, so it never reaches the predicate — which is
-    // what keeps a compiled matcher's conservative default out of gate retention.
+    // what keeps a compiled matcher's conservative default out of rule retention.
     expect(seen).toEqual([["/app/admin/**", "/**"]]);
   });
 });
@@ -145,9 +145,10 @@ describe("createMatcherFromFind override guard", () => {
 // differently from a method-agnostic one on the same node used to hide it
 // outright: the agnostic gate was never returned for that method.
 //
-// Each pair below is [agnostic gate, method-scoped sibling, probe path]. The
-// gate must survive on *every* method; the scoped rule appears only on GET/HEAD.
-const ALIASED_PAIRS: Array<[gate: string, scoped: string, path: string]> = [
+// Each pair below is [agnostic rule, method-scoped sibling, probe path]. The
+// agnostic rule must survive on *every* method; the scoped one appears only on
+// GET/HEAD.
+const ALIASED_PAIRS: Array<[agnostic: string, scoped: string, path: string]> = [
   ["/a/*", "GET /a/:id", "/a/b"],
   ["/a/:id", "GET /a/:userId", "/a/b"],
   ["/a/**", "GET /a/**:rest", "/a/b"],
@@ -160,8 +161,8 @@ const ALIASED_PAIRS: Array<[gate: string, scoped: string, path: string]> = [
   ["/a/b", "GET /a/b", "/a/b"],
 ];
 
-const aliasConfig = (gate: string, scoped: string): Record<string, RouteRuleConfig> => ({
-  [gate]: { basicAuth: { username: "admin", password: "s3cret" } },
+const aliasConfig = (agnostic: string, scoped: string): Record<string, RouteRuleConfig> => ({
+  [agnostic]: { cors: { origin: ["https://admin.example"] } },
   [scoped]: { headers: { "cache-control": "max-age=60" } },
 });
 
@@ -175,7 +176,7 @@ function evaluateCompiledMatcher(config: Record<string, RouteRuleConfig>): Route
   const code = compileFindRouteRules(config);
   // eslint-disable-next-line no-new-func
   const find = new Function(
-    "__ruleHandlers__$basicAuth",
+    "__ruleHandlers__$cors",
     "__ruleHandlers__$headers",
     `return (${code});`,
   )(undefined, undefined) as FindRouteRules;
@@ -183,23 +184,23 @@ function evaluateCompiledMatcher(config: Record<string, RouteRuleConfig>): Route
 }
 
 describe("method-agnostic rules vs node-aliased method-scoped siblings", () => {
-  it.each(ALIASED_PAIRS)("keeps the agnostic gate for %s alongside %s", (gate, scoped, path) => {
-    const matcher = createRouteRulesMatcher(normalizeRouteRules(aliasConfig(gate, scoped)));
-    // The gate is method-agnostic — it must be matched on every method…
-    expect(ruleNames(matcher, "GET", path)).toEqual(["basicAuth", "headers"]);
-    expect(ruleNames(matcher, "POST", path)).toEqual(["basicAuth"]);
-    expect(ruleNames(matcher, "DELETE", path)).toEqual(["basicAuth"]);
-    // …including HEAD, which serves the GET-scoped layers too (RFC 9110).
-    expect(ruleNames(matcher, "HEAD", path)).toEqual(["basicAuth", "headers"]);
-    // The gate's options survive intact (not clobbered by the sibling).
-    expect(matcher("GET", path).routeRules.basicAuth).toEqual({
-      username: "admin",
-      password: "s3cret",
-    });
-  });
+  it.each(ALIASED_PAIRS)(
+    "keeps the agnostic rule for %s alongside %s",
+    (agnostic, scoped, path) => {
+      const matcher = createRouteRulesMatcher(normalizeRouteRules(aliasConfig(agnostic, scoped)));
+      // The rule is method-agnostic — it must be matched on every method…
+      expect(ruleNames(matcher, "GET", path)).toEqual(["cors", "headers"]);
+      expect(ruleNames(matcher, "POST", path)).toEqual(["cors"]);
+      expect(ruleNames(matcher, "DELETE", path)).toEqual(["cors"]);
+      // …including HEAD, which serves the GET-scoped layers too (RFC 9110).
+      expect(ruleNames(matcher, "HEAD", path)).toEqual(["cors", "headers"]);
+      // Its options survive intact (not clobbered by the sibling).
+      expect(matcher("GET", path).routeRules.cors).toEqual({ origin: ["https://admin.example"] });
+    },
+  );
 
-  it.each(ALIASED_PAIRS)("compiled matcher matches runtime for %s + %s", (gate, scoped, path) => {
-    const config = aliasConfig(gate, scoped);
+  it.each(ALIASED_PAIRS)("compiled matcher matches runtime for %s + %s", (agn, scoped, path) => {
+    const config = aliasConfig(agn, scoped);
     const runtime = createRouteRulesMatcher(normalizeRouteRules(config));
     const compiled = evaluateCompiledMatcher(config);
     for (const method of ["GET", "HEAD", "POST", "DELETE"]) {
@@ -266,13 +267,13 @@ describe("method-agnostic rules vs node-aliased method-scoped siblings", () => {
   it("does not leak a method-scoped rule onto another method", () => {
     const matcher = createRouteRulesMatcher(
       normalizeRouteRules({
-        "/a/*": { basicAuth: { username: "admin", password: "s3cret" } },
+        "/a/*": { cors: { origin: ["https://admin.example"] } },
         "POST /a/:id": { headers: { "x-b": "post" } },
       }),
     );
-    expect(ruleNames(matcher, "POST", "/a/b")).toEqual(["basicAuth", "headers"]);
-    expect(ruleNames(matcher, "GET", "/a/b")).toEqual(["basicAuth"]);
-    expect(ruleNames(matcher, "HEAD", "/a/b")).toEqual(["basicAuth"]);
+    expect(ruleNames(matcher, "POST", "/a/b")).toEqual(["cors", "headers"]);
+    expect(ruleNames(matcher, "GET", "/a/b")).toEqual(["cors"]);
+    expect(ruleNames(matcher, "HEAD", "/a/b")).toEqual(["cors"]);
   });
 
   it("does not register agnostic-only rule sets per method", () => {
@@ -308,17 +309,17 @@ describe("method-agnostic rules vs node-aliased method-scoped siblings", () => {
     // scopes GET on the second — so the agnostic layers on **both** nodes need
     // a GET copy: `/a/:x?`'s own (or `GET /a/:id` hides it on `/a/*`) and
     // `/a`'s (because `/a/:x?`'s GET copy lands on `/a` too and would hide the
-    // gate there). Grouping shared nodes transitively is what covers both; a
+    // rule there). Grouping shared nodes transitively is what covers both; a
     // per-node grouping drops one or the other, fail-open either way.
     const config: Record<string, RouteRuleConfig> = {
-      "/a": { basicAuth: { username: "admin", password: "s3cret" } },
+      "/a": { cors: { origin: ["https://admin.example"] } },
       "/a/:x?": { headers: { "x-opt": "1" } },
       "GET /a/:id": { headers: { "x-get": "1" } },
     };
     const matcher = createRouteRulesMatcher(normalizeRouteRules(config));
     const compiled = evaluateCompiledMatcher(config);
     for (const method of ["GET", "HEAD", "POST"]) {
-      expect(ruleNames(matcher, method, "/a"), method).toContain("basicAuth");
+      expect(ruleNames(matcher, method, "/a"), method).toContain("cors");
       expect(matcher(method, "/a/b").routeRules.headers, method).toMatchObject({ "x-opt": "1" });
       expect(ruleNames(compiled, method, "/a"), `compiled ${method}`).toEqual(
         ruleNames(matcher, method, "/a"),
@@ -338,35 +339,37 @@ describe("method-agnostic rules vs node-aliased method-scoped siblings", () => {
     ).toThrow(/^\[h3\] rules: invalid route pattern `\/a\/:x\(`:/);
   });
 
-  it("app-level: an unauthenticated request cannot bypass the gate (basicAuth)", async () => {
+  it("app-level: a dropped agnostic layer is observable on every method", async () => {
+    // End-to-end shape of the node-aliasing bug, with a rule that short-circuits:
+    // if `GET /users/:id` hid the agnostic `/users/*` registration, the route
+    // handler would run instead of the redirect — on GET and, via the fallback,
+    // on HEAD.
     const app = new H3();
     app.use(
       routeRules({
-        "/users/*": { basicAuth: { username: "admin", password: "s3cret" } },
+        "/users/*": { redirect: "/elsewhere" },
         "GET /users/:id": { headers: { "cache-control": "max-age=60" } },
       }),
     );
     let handlerRuns = 0;
     app.all("/users/**", () => {
       handlerRuns++;
-      return "PII";
+      return "from the handler";
     });
 
     for (const method of ["GET", "HEAD", "POST", "DELETE"]) {
       const res = await app.fetch(new Request("http://test/users/42", { method }));
-      expect(res.status, `${method} without credentials`).toBe(401);
+      expect([method, res.status, res.headers.get("location")]).toEqual([
+        method,
+        307,
+        "/elsewhere",
+      ]);
     }
     expect(handlerRuns).toBe(0);
-
-    const authorized = await app.fetch(
-      new Request("http://test/users/42", {
-        headers: { authorization: "Basic " + btoa("admin:s3cret") },
-      }),
-    );
-    expect(authorized.status).toBe(200);
-    expect(await authorized.text()).toBe("PII");
-    // The sibling rule still applies on GET.
-    expect(authorized.headers.get("cache-control")).toBe("max-age=60");
-    expect(handlerRuns).toBe(1);
+    // The sibling rule still applies on GET (and on the HEAD it falls back to).
+    const get = await app.fetch(new Request("http://test/users/42"));
+    expect(get.headers.get("cache-control")).toBe("max-age=60");
+    const post = await app.fetch(new Request("http://test/users/42", { method: "POST" }));
+    expect(post.headers.get("cache-control")).toBeNull();
   });
 });

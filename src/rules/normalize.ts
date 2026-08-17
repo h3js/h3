@@ -20,9 +20,9 @@ import type {
  * custom keys pass through untouched (data-only rules).
  *
  * Config-time validation (fail fast at startup/build rather than per request):
- * a falsy non-`false` value for a built-in rule, a `basicAuth` rule with no
- * `password`, a credentialed wildcard `cors` origin, a reserved rule name, and
- * top-level array options are all rejected here.
+ * a falsy non-`false` value for a built-in rule, a credentialed wildcard `cors`
+ * origin, a reserved rule name, and top-level array options are all rejected
+ * here.
  */
 export function normalizeRouteRules(
   config: Record<string, RouteRuleConfig>,
@@ -169,7 +169,6 @@ const BUILTIN_RULE_NAMES: readonly (keyof RouteRuleConfig)[] = [
   "headers",
   "redirect",
   "proxy",
-  "basicAuth",
   "cors",
   "swr",
 ];
@@ -177,14 +176,11 @@ const BUILTIN_RULE_NAMES: readonly (keyof RouteRuleConfig)[] = [
 /**
  * Reject built-in rule shapes that can only misbehave at runtime.
  *
- * - **Falsy non-`false` value.** `false` is the one reset marker (it deletes an
- *   inherited rule at merge time). Any other falsy value is a config mistake:
- *   normalization would silently drop the rule (`redirect: null`), or hand a
- *   handler options it cannot act on — `basicAuth: null` used to fail *open*
- *   and serve the guarded route unauthenticated.
- * - **`basicAuth` with no `password`.** `validate` is deliberately not a rule
- *   option (see `BasicAuthRuleOptions`), so `password` is the only credential a
- *   rule can carry; without it `requireBasicAuth` throws a 500 on every request.
+ * **Falsy non-`false` value.** `false` is the one reset marker (it deletes an
+ * inherited rule at merge time). Any other falsy value is a config mistake:
+ * normalization would silently drop the rule (`redirect: null`), or hand a
+ * handler options it cannot act on — for a gate-shaped custom rule, one that
+ * fails *open* and serves the guarded route ungated.
  */
 function validateBuiltinRules(routeConfig: RouteRuleConfig, canonicalKey: string): void {
   for (const name of BUILTIN_RULE_NAMES) {
@@ -198,13 +194,6 @@ function validateBuiltinRules(routeConfig: RouteRuleConfig, canonicalKey: string
     }
     throw new Error(
       `[h3] rules: \`${name}\` rule for \`${canonicalKey}\` is \`${String(value)}\` — use \`false\` to disable a rule inherited from a less-specific pattern, or provide options`,
-    );
-  }
-
-  const { basicAuth } = routeConfig;
-  if (basicAuth && !basicAuth.password) {
-    throw new Error(
-      `[h3] rules: \`basicAuth\` rule for \`${canonicalKey}\` has no \`password\` — provide \`{ password, username?, realm? }\`, or \`false\` to disable auth inherited from a less-specific pattern`,
     );
   }
 }

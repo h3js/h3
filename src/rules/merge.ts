@@ -117,7 +117,7 @@ function unionLayers(
       // Reset by an earlier reading, and re-adding this rule could only loosen
       // the response — honor the exemption. A restriction is fail-closed and
       // still re-added (see `RuleHandler.restricting`), which is what keeps a
-      // single-segment `basicAuth: false` from covering a path that decodes to
+      // single-segment `<gate>: false` from covering a path that decodes to
       // more segments than the pattern granting it.
       continue;
     }

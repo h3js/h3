@@ -32,7 +32,11 @@ vi.mock("../../src/utils/internal/path.ts", async (importOriginal) => {
 // any decoding consumer — a proxied backend, a static asset store, nginx —
 // resolves back to it. The matcher owns that: it resolves each path against its
 // decoded reading (`decodedPath`) as well as the served one.
-const AUTH = { username: "admin", password: "s3cr3t", realm: "Admin" } as const;
+//
+// Spelled with `redirect`: it short-circuits, so "the rule matched" is observable
+// end to end as a 307 the route handler never got to answer.
+const RULE = { redirect: "/elsewhere" } as const;
+const MATCHED = { to: "/elsewhere", status: 307 } as const;
 
 // Escapes h3 *still serves opaque*: those the URL serializer would re-add, so
 // `canonicalPathname` leaves them alone (`src/utils/internal/path.ts`). These are
@@ -61,76 +65,67 @@ const CANONICALIZED_ENCODABLE: Array<[raw: string, encoded: string]> = [
 const ENCODABLE = [...OPAQUE_ENCODABLE, ...CANONICALIZED_ENCODABLE];
 
 describe("encoded reserved characters cannot dodge a rule", () => {
-  it.each(ENCODABLE)("`%s` written raw in the pattern still gates `%s`", (raw, encoded) => {
-    const match = createRouteRulesMatcher(
-      normalizeRouteRules({ [`/${raw}admin/**`]: { basicAuth: AUTH } }),
-    );
-    expect(match("GET", `/${raw}admin/data`).routeRules.basicAuth).toMatchObject(AUTH);
-    expect(match("GET", `/${encoded}admin/data`).routeRules.basicAuth).toMatchObject(AUTH);
+  it.each(ENCODABLE)("`%s` written raw in the pattern still matches `%s`", (raw, encoded) => {
+    const match = createRouteRulesMatcher(normalizeRouteRules({ [`/${raw}admin/**`]: RULE }));
+    expect(match("GET", `/${raw}admin/data`).routeRules.redirect).toMatchObject(MATCHED);
+    expect(match("GET", `/${encoded}admin/data`).routeRules.redirect).toMatchObject(MATCHED);
   });
 
-  it.each(ENCODABLE)("`%s` written encoded in the pattern still gates the raw path", (raw, enc) => {
-    const match = createRouteRulesMatcher(
-      normalizeRouteRules({ [`/${enc}admin/**`]: { basicAuth: AUTH } }),
-    );
-    expect(match("GET", `/${enc}admin/data`).routeRules.basicAuth).toMatchObject(AUTH);
-    expect(match("GET", `/${raw}admin/data`).routeRules.basicAuth).toMatchObject(AUTH);
-  });
+  it.each(ENCODABLE)(
+    "`%s` written encoded in the pattern still matches the raw path",
+    (raw, enc) => {
+      const match = createRouteRulesMatcher(normalizeRouteRules({ [`/${enc}admin/**`]: RULE }));
+      expect(match("GET", `/${enc}admin/data`).routeRules.redirect).toMatchObject(MATCHED);
+      expect(match("GET", `/${raw}admin/data`).routeRules.redirect).toMatchObject(MATCHED);
+    },
+  );
 
   // The escapes h3 serves opaque are the ones only the matcher can catch: nothing
-  // upstream decodes them, so without the decoded reading these walk past the gate
+  // upstream decodes them, so without the decoded reading these walk past the rule
   // and a proxied backend serves them as the raw spelling.
   it.each(OPAQUE_ENCODABLE)(
-    "`%s` gates `%s` end to end, unaided by canonicalization",
+    "`%s` matches `%s` end to end, unaided by canonicalization",
     async (raw, encoded) => {
       const app = new H3();
-      app.use(routeRules({ [`/${raw}admin/**`]: { basicAuth: AUTH } }));
-      app.all("/**", () => "secret");
+      app.use(routeRules({ [`/${raw}admin/**`]: RULE }));
+      app.all("/**", () => "from the handler");
       // Pin that h3 really did leave it encoded — otherwise this asserts nothing.
       app.get("/probe" + encoded, (event) => event.url.pathname);
       const probe = await app.fetch(new Request(`http://test/probe${encoded}`));
       expect(await probe.text()).toBe(`/probe${encoded}`);
 
       const res = await app.fetch(new Request(`http://test/${encoded}admin/data`));
-      expect(res.status).toBe(401);
+      expect(res.status).toBe(307);
     },
   );
 
-  it("gates a `%25`-nested spelling end to end", async () => {
+  it("matches a `%25`-nested spelling end to end", async () => {
     // `%2520` survives canonicalization (`%25` is never decoded), and only
     // `decodedPath`'s fixpoint unwraps it to the space the pattern is written with.
     const app = new H3();
-    app.use(routeRules({ "/a admin/**": { basicAuth: AUTH } }));
-    app.all("/**", () => "secret");
+    app.use(routeRules({ "/a admin/**": RULE }));
+    app.all("/**", () => "from the handler");
     const res = await app.fetch(new Request("http://test/a%2520admin/data"));
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(307);
   });
 
-  it("gates the encoded spelling end to end, for every method", async () => {
+  it("matches the encoded spelling end to end, for every method", async () => {
     const app = new H3();
-    app.use(routeRules({ "/@admin/**": { basicAuth: AUTH } }));
-    app.all("/**", () => "secret");
+    app.use(routeRules({ "/@admin/**": RULE }));
+    app.all("/**", () => "from the handler");
 
     for (const path of ["/@admin/data", "/%40admin/data", "/%40admin/x/y"]) {
       const res = await app.fetch(new Request("http://test" + path));
-      expect(res.status, path).toBe(401);
-      expect(res.headers.get("www-authenticate"), path).toContain("Basic");
+      expect(res.status, path).toBe(307);
+      expect(res.headers.get("location"), path).toBe("/elsewhere");
     }
     const post = await app.fetch(new Request("http://test/%40admin/action", { method: "POST" }));
-    expect(post.status).toBe(401);
-
-    // …and credentials still work through the encoded spelling.
-    const ok = await app.fetch(
-      new Request("http://test/%40admin/data", {
-        headers: { authorization: "Basic " + btoa("admin:s3cr3t") },
-      }),
-    );
-    expect(await ok.text()).toBe("secret");
+    expect(post.status).toBe(307);
   });
 
-  it("does not gate a path that merely decodes to a different route", async () => {
+  it("does not match a path that merely decodes to a different route", async () => {
     const app = new H3();
-    app.use(routeRules({ "/@admin/**": { basicAuth: AUTH } }));
+    app.use(routeRules({ "/@admin/**": RULE }));
     app.all("/**", () => "public");
     // `%40admin` only matters as the first segment here.
     const res = await app.fetch(new Request("http://test/public/%40admin"));
@@ -140,40 +135,38 @@ describe("encoded reserved characters cannot dodge a rule", () => {
   it("an encoded reading may add a rule but never downgrade a narrower one", () => {
     const match = createRouteRulesMatcher(
       normalizeRouteRules({
-        "/**": { basicAuth: { username: "guest", password: "guest" } },
-        "/@admin/**": { basicAuth: AUTH },
+        "/**": { redirect: "/broad" },
+        "/@admin/**": RULE,
       }),
     );
-    // Both spellings resolve the *narrow* gate, not the broad one.
+    // Both spellings resolve the *narrow* rule, not the broad one.
     for (const path of ["/@admin/x", "/%40admin/x"]) {
-      expect(match("GET", path).matchedRules.basicAuth, path).toMatchObject({
+      expect(match("GET", path).matchedRules.redirect, path).toMatchObject({
         route: "/@admin/**",
-        options: AUTH,
+        options: MATCHED,
       });
     }
   });
 
-  it("gates a `%25`-nested spelling a double-decoding downstream resolves", () => {
+  it("matches a `%25`-nested spelling a double-decoding downstream resolves", () => {
     // `%2540admin` survives h3's own decode as `%2540admin`; a proxy that decodes
     // and a backend that decodes again land on `/@admin`. The dot/separator
     // machinery already covers every `%25` depth (`%252e`, `%252f`), so the
     // decoded reading has to as well or the two disagree.
-    const match = createRouteRulesMatcher(
-      normalizeRouteRules({ "/@admin/**": { basicAuth: AUTH } }),
-    );
-    expect(match("GET", "/%2540admin/x").routeRules.basicAuth).toMatchObject(AUTH);
-    expect(match("GET", "/%25252540admin/x").routeRules.basicAuth).toMatchObject(AUTH);
+    const match = createRouteRulesMatcher(normalizeRouteRules({ "/@admin/**": RULE }));
+    expect(match("GET", "/%2540admin/x").routeRules.redirect).toMatchObject(MATCHED);
+    expect(match("GET", "/%25252540admin/x").routeRules.redirect).toMatchObject(MATCHED);
   });
 
   it("a `false` reset still applies through the encoded spelling", () => {
     const match = createRouteRulesMatcher(
       normalizeRouteRules({
-        "/@admin/**": { basicAuth: AUTH },
-        "/@admin/public/**": { basicAuth: false },
+        "/@admin/**": RULE,
+        "/@admin/public/**": { redirect: false },
       }),
     );
-    expect(match("GET", "/%40admin/public/x").routeRules.basicAuth).toBeUndefined();
-    expect(match("GET", "/%40admin/private/x").routeRules.basicAuth).toBeDefined();
+    expect(match("GET", "/%40admin/public/x").routeRules.redirect).toBeUndefined();
+    expect(match("GET", "/%40admin/private/x").routeRules.redirect).toBeDefined();
   });
 });
 
@@ -309,16 +302,14 @@ describe("decodedPath", () => {
     }
   });
 
-  it("gates a spelling nested far past any pass bound", () => {
+  it("matches a spelling nested far past any pass bound", () => {
     // The security property the bound must not buy performance with: a chain
     // deeper than the bound may not silently degrade to "no alternate reading",
-    // which would walk the gate. Every depth still resolves the gate.
-    const match = createRouteRulesMatcher(
-      normalizeRouteRules({ "/@admin/**": { basicAuth: AUTH } }),
-    );
+    // which would walk past the rule. Every depth still resolves it.
+    const match = createRouteRulesMatcher(normalizeRouteRules({ "/@admin/**": RULE }));
     for (const depth of [1, 7, 8, 9, 64, 4000]) {
       const path = "/%" + "25".repeat(depth) + "40admin/x";
-      expect(match("GET", path).routeRules.basicAuth, `depth ${depth}`).toMatchObject(AUTH);
+      expect(match("GET", path).routeRules.redirect, `depth ${depth}`).toMatchObject(MATCHED);
     }
   });
 });

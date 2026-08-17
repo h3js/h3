@@ -101,7 +101,7 @@ src/
 │   ├── cache.ts          # h3/rules/cache — ocache-backed cache handler (optional peer)
 │   ├── proxy.ts          # h3/rules/proxy — proxyRequest-backed proxy handler
 │   ├── compiler.ts       # h3/rules/compiler — build-time codegen
-│   ├── handlers/         # Built-in rule handlers (headers, redirect, basicAuth, cors, cache)
+│   ├── handlers/         # Built-in rule handlers (headers, redirect, cors, cache)
 │   ├── compiler/         # Codegen internals (compile, codegen, runtime-rules, options)
 │   └── internal/         # key parsing, scope checks, node-key bucketing, pre-merge analysis
 ├── _entries/             # Platform-specific entry points

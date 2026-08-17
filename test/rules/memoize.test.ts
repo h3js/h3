@@ -13,7 +13,7 @@ const RULES: Record<string, RouteRuleConfig> = {
   "/**": { headers: { "x-catch": "all" } },
   "/api/**": { cors: true },
   "/api/:section/:id": { custom: { a: 1 } },
-  "/admin/**": { basicAuth: { username: "a", password: "b" } },
+  "/admin/**": { redirect: "/elsewhere" },
 };
 
 describe("memoizeRouteRulesMatcher", () => {
@@ -54,15 +54,14 @@ describe("memoizeRouteRulesMatcher", () => {
   });
 
   it("memo entries are keyed on the raw pathname, never the canonical one", () => {
-    // `/x/off/a` (auth reset by `/x/off/**`) and `/x/off%2fa` (raw single
-    // opaque segment: the canonical `false` may not strip the broad auth rule)
+    // `/x/off/a` (rule reset by `/x/off/**`) and `/x/off%2fa` (raw single opaque
+    // segment, so the canonical reading's `false` may not strip the broad rule)
     // canonicalize to the same path but must resolve differently. Keying the
     // memo on the canonical path collapses them into one entry: whichever is
-    // requested first wins — an auth bypass for the encoded path in one order,
-    // a spurious 401 for the legitimately auth-free path in the other.
+    // requested first wins, and the other path gets the wrong rule set.
     const rules = normalizeRouteRules({
-      "/x/**": { basicAuth: { username: "a", password: "b" } },
-      "/x/off/**": { basicAuth: false },
+      "/x/**": { cors: { origin: ["https://a.example"] } },
+      "/x/off/**": { cors: false },
     });
     for (const order of [
       ["/x/off/a", "/x/off%2fa"],
@@ -70,8 +69,8 @@ describe("memoizeRouteRulesMatcher", () => {
     ]) {
       const memoized = memoizeRouteRulesMatcher(createRouteRulesMatcher(rules));
       for (const path of order) memoized("GET", path);
-      expect(memoized("GET", "/x/off/a").routeRules.basicAuth).toBeUndefined();
-      expect(memoized("GET", "/x/off%2fa").routeRules.basicAuth).toBeDefined();
+      expect(memoized("GET", "/x/off/a").routeRules.cors).toBeUndefined();
+      expect(memoized("GET", "/x/off%2fa").routeRules.cors).toBeDefined();
     }
   });
 
@@ -145,10 +144,10 @@ describe("memoizeRouteRulesMatcher", () => {
       // the `cors` rule (h3 handleCors) sets the permissive origin
       expect(res.headers.get("access-control-allow-origin")).toBe("*");
     }
-    // encoded separator still hits the canonical auth gate when memoized
-    const guarded = await app.fetch(new Request("http://test/admin%2fpanel"));
-    expect(guarded.status).toBe(401);
-    const guardedAgain = await app.fetch(new Request("http://test/admin%2fpanel"));
-    expect(guardedAgain.status).toBe(401);
+    // encoded separator still resolves the canonical `/admin/**` rule when memoized
+    const canonical = await app.fetch(new Request("http://test/admin%2fpanel"));
+    expect(canonical.status).toBe(307);
+    const canonicalAgain = await app.fetch(new Request("http://test/admin%2fpanel"));
+    expect(canonicalAgain.status).toBe(307);
   });
 });

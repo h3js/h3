@@ -30,7 +30,7 @@ export interface RouteRulesMatcherOptions {
   baseURL?: string;
   /**
    * Add or override rule handler constructors by name.
-   * Registry defaults are `headers`, `redirect`, `basicAuth`, `cors`; `cache` and
+   * Registry defaults are `headers`, `redirect`, `cors`; `cache` and
    * `proxy` are opt-in (register them from `h3/rules/cache` / `h3/rules/proxy`).
    * Setting a name to `undefined` makes that rule data-only.
    */
@@ -70,8 +70,8 @@ export type FindRouteRules = (method: string, pathname: string) => RouteRuleLaye
  * `*`, `:id` and `:userId` all collapse onto `node.param`, `**` and `**:rest`
  * onto `node.wildcard`, `/admin` and `/admin/` onto the same terminal node.
  * Prepending agnostic entries per pattern text is therefore not enough: an
- * innocuous `GET /users/:id: { headers }` next to `/users/*: { basicAuth }`
- * would silently delete the auth gate for GET.
+ * innocuous `GET /users/:id: { headers }` next to `/users/*: { auth }` (a
+ * custom gate rule) would silently delete that gate for GET.
  *
  * So agnostic entries are materialized onto every method scoped on a node they
  * share (`sharedNodeMethods`, keyed by rou3's own `routeNodeKeys` so the bucket
@@ -122,7 +122,7 @@ export function createRulesRouter(
   // HEAD is served by the GET handler (RFC 9110) — h3 falls back to the GET
   // route in `~findRoute` and its middleware matcher treats GET-scoped as
   // HEAD-matching — so GET-scoped rules must also register on HEAD, otherwise a
-  // method-scoped gate (e.g. `GET /admin/**: { basicAuth }`) is bypassable with
+  // method-scoped gate (e.g. `GET /admin/**: { auth }`) is bypassable with
   // a HEAD request that still reaches the handler. Materialized here (rather
   // than as a lookup-time method rewrite) so the layers stay ordered by
   // specificity, explicit `HEAD /...` rules keep overriding the GET ones, and
@@ -412,8 +412,8 @@ function toRouteRules(matchedRules: MatchedRouteRules): ResolvedRouteRules {
 
 /**
  * Build the ordered middleware chain for a merged rule map: handlers run sorted
- * by `order` ascending (cors -3, basicAuth -2, headers -1, so a preflight is
- * answered before auth gates, auth gates before redirect/proxy, and headers
+ * by `order` ascending (cors -3, headers -1, so a preflight is answered before
+ * anything else, a custom gate at -2 runs before redirect/proxy, and headers
  * wrap the response). Skips sorting for 0/1 rules.
  *
  * Not part of the public `h3/rules` surface — shared with the `routeRules()`
@@ -562,7 +562,7 @@ function requireOptInHandler(
 }
 
 // Sort by handler `order` ascending (default 0; built-ins occupy the negative
-// band: cors -3, basicAuth -2, headers -1). Module-scope so it's not
+// band: cors -3, headers -1). Module-scope so it's not
 // re-allocated per request.
 const compareRuleOrder = (a: MatchedRouteRule, b: MatchedRouteRule): number =>
   orderWeight(a.handler) - orderWeight(b.handler);
