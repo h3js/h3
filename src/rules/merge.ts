@@ -29,15 +29,33 @@ export interface RouteRuleEntry {
    * Specificity rank of {@link route}: how many patterns of the rule set strictly
    * subsume it (`routeContainmentRanks`, stamped at router-build time and emitted
    * by the compiler). Absent means `0` — nothing subsumes it, or the registration
-   * predates ranking.
+   * predates ranking. Every entry of a layer shares one pattern, so they all
+   * carry the same rank.
    *
-   * Matched layers are merged in ascending rank, **not** in the order
-   * `findAllRoutes` returned them: that order is containment order for plain
-   * patterns but not for modifier params (rou3's documented optional-syntax
-   * carve-out — see `preMergeRuleLayers`), and merging a chain out of order lets
-   * a broader pattern's options — or its `false` reset — beat a narrower
-   * pattern's (see {@link RouteRuleLayer} and `PreMergedRouteRules.rank`). Every
-   * entry of a layer shares one pattern, so they all carry the same rank.
+   * **Canonical note on layer ordering — the rest of `src/rules` points here.**
+   * Matched layers are resolved in ascending rank, *never* in the order
+   * `findAllRoutes` returned them. That order is containment order for plain
+   * patterns, but **not** for rou3's modifier params: `GET /admin` against
+   * `{"/admin", "/admin/:page?"}` yields the *broader* `:page?` layer last (both
+   * weigh 0 in rou3's `pushSorted`, so config order survives), and
+   * `/api/*​/:path*` comes back after the `/api/*​/**` it subsumes whatever the
+   * registration order. Resolved in that order, the broader pattern is applied
+   * last and wins — its options override the narrower pattern's, and its `false`
+   * reset deletes the narrower pattern's rule outright, so an auth gate written
+   * on the narrower pattern simply disappears.
+   *
+   * This is rou3's documented behavior, not a bug to wait out: its README
+   * "Result ordering" scopes subsumption consistency to patterns *without*
+   * optional syntax, and carves out `:name?` / `:name*` / `{...}?` explicitly —
+   * such a pattern registers one entry per expansion, and results are ordered by
+   * the specificity of the entry that *matched*, not by the breadth of the whole
+   * pattern. The carve-out closes by telling consumers who need a pattern-level
+   * containment order to re-sort the result with `compareRoutes` themselves,
+   * which is exactly what ranking does — once, at build time.
+   *
+   * Consumers: {@link orderedLayers} (plain mode, per reading),
+   * `PreMergedRouteRules.rank` (preMerge mode, where the highest matched rank is
+   * the whole result) and `serializeRouteRuleEntries` (which must emit it).
    */
   rank?: number;
 }
@@ -126,13 +144,8 @@ function unionLayers(
 }
 
 // Resolve one path's matched layers into a rule set; called per reading so a
-// `false` reset doesn't leak across readings.
-//
-// Layers are re-ordered broad → narrow first (see {@link orderedLayers}) —
-// `findAllRoutes` hands them over in *its* order, which is containment order for
-// plain patterns but not for modifier params, and merging a chain out of order
-// lets a broader pattern's options (or its `false` reset) win over a narrower
-// pattern's.
+// `false` reset doesn't leak across readings. Layers are re-ordered broad →
+// narrow first (see {@link orderedLayers}).
 function resolveLayers(
   layers: RouteRuleLayer[] | undefined,
   resets?: Set<string>,
@@ -190,16 +203,9 @@ export function mergeRuleOptions(current: unknown, incoming: unknown): unknown {
 
 /**
  * Re-order a reading's matched layers broad → narrow, so resolution does not
- * depend on the order `findAllRoutes` happened to produce.
- *
- * That order is containment order for plain patterns, but **not** for rou3's
- * modifier params: `/api/*​/:path*` comes back after the `/api/*​/**` it subsumes
- * whatever the registration order, and `/admin/:page?` vs `/admin` gets no
- * specificity sort at all (both weigh 0 in rou3's `pushSorted`, so config order
- * survives). Merged in that order, the broader pattern is applied last and wins
- * — its options override the narrower pattern's, and its `false` reset deletes
- * the narrower pattern's rule outright (an auth gate written on the narrower
- * pattern simply disappears).
+ * depend on the order `findAllRoutes` happened to produce — that order is not
+ * containment order for modifier params, and merging out of order drops gates
+ * (see {@link RouteRuleEntry.rank}).
  *
  * A stable insertion sort on the entries' build-time {@link RouteRuleEntry.rank}
  * (containment depth, ascending). Deliberately **not** a containment predicate
@@ -249,12 +255,10 @@ function layerRank(layer: RouteRuleLayer): number {
 // pattern contributed to that rule (`paramRoutes`).
 //
 // The complete result is the *most specific* matched layer, which is the
-// highest-ranked one — `findAllRoutes` does not always return layers in
-// containment order (see {@link orderedLayers}), so taking the last layer
-// silently dropped whole chains, gates included. Sorting by rank (rather than
-// scanning for the maximum) also puts the per-rule `params` merge below in
-// broad → narrow order, so a narrower contributor's params win. See
-// `PreMergedRouteRules.rank`.
+// highest-ranked one and not necessarily the last one (`PreMergedRouteRules.rank`,
+// and {@link RouteRuleEntry.rank} for why position is unusable). Sorting by rank
+// (rather than scanning for the maximum) also puts the per-rule `params` merge
+// below in broad → narrow order, so a narrower contributor's params win.
 function resolvePreMergedLayers(
   rawLayers: RouteRuleLayer[],
   resets?: Set<string>,

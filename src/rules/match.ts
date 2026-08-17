@@ -65,19 +65,14 @@ export type FindRouteRules = (method: string, pathname: string) => RouteRuleLaye
  * rou3 router (method `""` = all methods).
  *
  * rou3 resolves `methods[method] || methods[""]` **per node**, so a single
- * method-scoped registration on a node hides *every* method-agnostic
- * registration on that node — and rou3 buckets by node, not by pattern text:
- * `*`, `:id` and `:userId` all collapse onto `node.param`, `**` and `**:rest`
- * onto `node.wildcard`, `/admin` and `/admin/` onto the same terminal node.
- * Prepending agnostic entries per pattern text is therefore not enough: an
- * innocuous `GET /users/:id: { headers }` next to `/users/*: { auth }` (a
- * custom gate rule) would silently delete that gate for GET.
- *
- * So agnostic entries are materialized onto every method scoped on a node they
- * share (`sharedNodeMethods`, keyed by rou3's own `routeNodeKeys` so the bucket
- * ids cannot drift from rou3's node keying) in a first pass, so that on a shared
- * node the agnostic layers are registered ahead of the method-scoped ones and
- * method-scoped rules still merge (override), never shadow.
+ * method-scoped registration hides *every* method-agnostic registration on the
+ * node it lands on — and nodes are shared by patterns that do not look alike
+ * (`*` / `:id`, `**` / `**:rest`, `/admin` / `/admin/`), so prepending agnostic
+ * entries per pattern text is not enough. Agnostic entries are therefore also
+ * materialized onto every method scoped on a node they share, in a first pass,
+ * so that method-scoped rules merge (override) and never shadow. See
+ * {@link sharedNodeMethods} for the node-identity argument, the transitive
+ * grouping, and why over-approximating is the fail-closed direction.
  *
  * Cost: one extra copy of an agnostic entry per method scoped on a node it
  * shares (and `HEAD` counts, see below) — nothing for the patterns no scoped
@@ -145,15 +140,13 @@ export function createRulesRouter(
   }
   // Specificity rank of each pattern, stamped onto its entries so `resolveLayers`
   // can merge matched layers broad → narrow without asking rou3 (or any
-  // containment predicate) anything per request — `findAllRoutes` returns layers
-  // in containment order for plain patterns but not for modifier params, and the
-  // wrong order lets a broader pattern's options or its `false` reset beat a
-  // narrower pattern's gate. Stamped per pattern (not per registration) so it
-  // survives the duplication below: the agnostic array is registered by reference
-  // under `""` and each method materialized for it, and the HEAD materialization
-  // above shares the GET entries — every copy is a registration *of the same
-  // pattern* under another method, never of another pattern, so the rank a copy
-  // carries is still its own pattern's containment depth.
+  // containment predicate) anything per request (see `RouteRuleEntry.rank`).
+  // Stamped per pattern (not per registration) so it survives the duplication
+  // below: the agnostic array is registered by reference under `""` and each
+  // method materialized for it, and the HEAD materialization above shares the
+  // GET entries — every copy is a registration *of the same pattern* under
+  // another method, never of another pattern, so the rank a copy carries is
+  // still its own pattern's containment depth.
   // preMerge returned above: there the chain is resolved at build time and the
   // rank lives on the pre-merged layer (`PreMergedRouteRules.rank`) instead.
   for (const [path, rank] of routeContainmentRanks([...byPath.keys()])) {

@@ -19,24 +19,11 @@ export interface PreMergedRouteRules {
    * of `a` also subsumes `b`, plus `a` itself — so the most specific matched
    * layer is the one with the highest rank.
    *
-   * Layer *position* cannot be used for this: rou3's `findAllRoutes` returns
-   * layers in containment order only for plain patterns, not for modifier
-   * params — `GET /admin` against `{"/admin", "/admin/:page?"}` yields the
-   * *broader* `:page?` layer last, and `findAllRoutes(GET /api/v1/x)` likewise
-   * returns `/api/*​/:path*` after the `/api/*​/**` it subsumes. Taking the last
-   * layer therefore dropped the narrower pattern's entire chain, gates included,
-   * and the chain-cleanliness check below cannot catch it (those pairs are
-   * `subset`, not `partial`, so nothing throws and the compiler's fail-safe
-   * fallback never fires).
-   *
-   * This is rou3's documented behavior, not a bug to wait out: its README
-   * "Result ordering" scopes subsumption consistency to patterns *without*
-   * optional syntax, and carves out `:name?` / `:name*` / `{...}?` explicitly —
-   * such a pattern registers one entry per expansion, and results are ordered by
-   * the specificity of the entry that *matched*, not by the breadth of the whole
-   * pattern. The carve-out closes by telling consumers who need a pattern-level
-   * containment order to re-sort the result with `compareRoutes` themselves,
-   * which is exactly what ranking does here.
+   * Layer *position* cannot be used for this — see {@link RouteRuleEntry.rank}
+   * for rou3's documented optional-syntax carve-out and what taking the last
+   * layer costs. The chain-cleanliness check below cannot catch that case
+   * either: those pairs are `subset`, not `partial`, so nothing throws and the
+   * compiler's fail-safe fallback never fires.
    */
   rank: number;
   rules: PreMergedRouteRuleEntry[];

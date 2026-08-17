@@ -11,9 +11,9 @@ export function serializePreMergedRouteRules(
   runtimeRules: Record<string, RuntimeRuleImport>,
 ): string {
   // `rank` is load-bearing, not metadata: it is how the runtime picks the most
-  // specific matched layer (see `PreMergedRouteRules.rank`) — dropping it here
-  // would make compiled preMerge fall back to layer position and silently lose
-  // rules whose pattern rou3 returns out of containment order.
+  // specific matched layer (`PreMergedRouteRules.rank`, and `RouteRuleEntry.rank`
+  // for why layer position cannot stand in for it), so dropping it here would
+  // make compiled preMerge silently lose rules.
   // `resets` likewise: the reset was applied at build time, so the resolved
   // `rules` cannot show it, and the cross-reading union needs it to tell an
   // explicit exemption apart from a rule that never matched.
