@@ -51,15 +51,38 @@ function queryId(type, query) {
 const page = html`<!doctype html>
   <title>H3 QUERY Demo</title>
   <style>
-    body { font: 16px system-ui, sans-serif; max-width: 44rem; margin: 2rem auto; padding: 0 1rem; }
-    textarea { width: 100%; font-family: monospace; padding: 0.5rem; box-sizing: border-box; }
-    pre { background: #f4f4f5; padding: 1rem; border-radius: 6px; overflow: auto; }
-    .row { display: flex; gap: 0.5rem; align-items: center; margin: 0.5rem 0; }
+    body {
+      font:
+        16px system-ui,
+        sans-serif;
+      max-width: 44rem;
+      margin: 2rem auto;
+      padding: 0 1rem;
+    }
+    textarea {
+      width: 100%;
+      font-family: monospace;
+      padding: 0.5rem;
+      box-sizing: border-box;
+    }
+    pre {
+      background: #f4f4f5;
+      padding: 1rem;
+      border-radius: 6px;
+      overflow: auto;
+    }
+    .row {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+      margin: 0.5rem 0;
+    }
   </style>
   <h1>H3 QUERY Demo</h1>
   <p>Send a query to <code>/books</code> using the HTTP <code>QUERY</code> method.</p>
   <div class="row">
-    <label>Format:
+    <label
+      >Format:
       <select id="format">
         <option value="application/sql">application/sql</option>
         <option value="application/jsonpath">application/jsonpath</option>
