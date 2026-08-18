@@ -6,3 +6,4 @@ allowBuilds:
 minimumReleaseAgeExclude:
   - mermaid-compact*
   - undocs-nightly*
+  - md4x@0.0.29
