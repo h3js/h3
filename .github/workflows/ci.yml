@@ -11,9 +11,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions: { contents: read }
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: npm i -g --force corepack && corepack enable
-      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with: { node-version: lts/*, cache: pnpm }
       - run: pnpm install
       - run: pnpm lint
@@ -27,11 +27,14 @@ jobs:
     permissions: { contents: read }
     timeout-minutes: 10
     needs: tests
+    # Preview publishing must never gate the nightly npm release in `publish.yml`,
+    # which is triggered by the `ci` workflow concluding successfully.
+    continue-on-error: true
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: { fetch-depth: 0 }
       - run: npm i -fg corepack && corepack enable
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with: { node-version: lts/*, cache: "pnpm" }
       - run: pnpm install
       - run: pnpm build
