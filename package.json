@@ -90,6 +90,7 @@
     "oxc-parser": "^0.144.0",
     "oxfmt": "^0.63.0",
     "oxlint": "^1.78.0",
+    "pkg-pr-new": "^0.0.88",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "typescript": "^7.0.2",

@@ -4,45 +4,35 @@ on:
   push: { branches: [main] }
   pull_request: { branches: [main] }
 
+permissions: {}
+
 jobs:
   tests:
     runs-on: ubuntu-latest
+    permissions: { contents: read }
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - run: npm i -g --force corepack && corepack enable
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with: { node-version: lts/*, cache: pnpm }
       - run: pnpm install
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm build
       - run: pnpm vitest --coverage
-      - uses: codecov/codecov-action@v3
+      - uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
         with: { token: "${{ secrets.CODECOV_TOKEN }}" }
-  publish:
-    runs-on: ubuntu-latest
-    permissions: { id-token: write, contents: read }
-    needs: tests
-    if: contains('refs/heads/main', github.ref) && github.event_name == 'push'
-    steps:
-      - uses: actions/checkout@v5
-        with: { fetch-depth: 0 }
-      - run: npm i -fg corepack && corepack enable
-      - uses: actions/setup-node@v5
-        with: { node-version: lts/*, cache: "pnpm" }
-      - run: pnpm install
-      - run: pnpm changelogen --bump -r 2.0.0 --canary nightly
-      - run: npm i -g npm@latest && npm publish --tag latest
   publish-pkg-pr-new:
     runs-on: ubuntu-latest
+    permissions: { contents: read }
     timeout-minutes: 10
     needs: tests
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with: { fetch-depth: 0 }
       - run: npm i -fg corepack && corepack enable
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with: { node-version: lts/*, cache: "pnpm" }
       - run: pnpm install
       - run: pnpm build
-      - run: pnpm dlx pkg-pr-new publish || true
+      - run: pnpm exec pkg-pr-new publish || true

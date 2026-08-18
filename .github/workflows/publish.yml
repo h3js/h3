@@ -1,0 +1,32 @@
+name: publish
+
+# Split from `ci.yml` so npm trusted publishing (OIDC) trusts a workflow file
+# that contains nothing but the publish job. `workflow_run` is used instead of
+# `workflow_call` on purpose: npm validates the entry-point workflow filename,
+# so a reusable workflow would keep the trust bound to `ci.yml`.
+#
+# The npm trusted publisher must be configured with `publish.yml`.
+on:
+  workflow_run:
+    workflows: [ci]
+    types: [completed]
+    branches: [main]
+
+permissions: {}
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions: { id-token: write, contents: read }
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push'
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with: { fetch-depth: 0, ref: "${{ github.event.workflow_run.head_sha }}" }
+      - run: npm i -fg corepack && corepack enable
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with: { node-version: lts/*, cache: "pnpm" }
+      - run: pnpm install
+      - run: pnpm changelogen --bump -r 2.0.0 --canary nightly
+      - run: npm i -g npm@latest && npm publish --tag latest
