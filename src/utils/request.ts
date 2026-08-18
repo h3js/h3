@@ -351,15 +351,21 @@ export function isMethod(
   expected: HTTPMethod | HTTPMethod[],
   allowHead?: boolean,
 ): boolean {
-  if (allowHead && event.req.method === "HEAD") {
+  // `expected` is typed uppercase, but a request method arrives as sent:
+  // `new Request()` only normalizes the fetch spec's fixed token list
+  // (DELETE/GET/HEAD/OPTIONS/POST/PUT), so `patch` stays `patch`. Comparing raw
+  // would report a mismatch for a method the request actually used.
+  const method = event.req.method.toUpperCase();
+
+  if (allowHead && method === "HEAD") {
     return true;
   }
 
   if (typeof expected === "string") {
-    if (event.req.method === expected) {
+    if (method === expected) {
       return true;
     }
-  } else if (expected.includes(event.req.method as HTTPMethod)) {
+  } else if (expected.includes(method as HTTPMethod)) {
     return true;
   }
 
