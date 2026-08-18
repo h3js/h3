@@ -1,6 +1,6 @@
 import type { H3Event } from "../event.ts";
 import { HTTPError } from "../error.ts";
-import { withoutTrailingSlash } from "./internal/path.ts";
+import { decodePreservingSeparators, withoutTrailingSlash } from "./internal/path.ts";
 import { resolveDotSegments } from "./path.ts";
 import { getType, getExtension } from "./internal/mime.ts";
 import { isCacheMatch } from "./internal/cache.ts";
@@ -18,21 +18,20 @@ export interface ServeStaticOptions {
   /**
    * This function should resolve asset meta.
    *
-   * **Security:** The `id` keeps encoded separators percent-encoded: `%2f`
-   * (encoded `/`) always survives, and a double-encoded backslash arrives as a
-   * literal `%5c` (a single-encoded `%5c` is decoded to `\` and normalized away
-   * by `serveStatic`). Path traversal safety depends on this backend **not**
-   * decoding them — a decode would re-introduce separators and defeat the
-   * traversal normalization done by `serveStatic`. See {@link serveStatic}.
+   * **Security:** The `id` keeps encoded separators percent-encoded — `%2f`
+   * (encoded `/`) and `%5c` (encoded `\`) both always survive. Path traversal
+   * safety depends on this backend **not** decoding them — a decode would
+   * re-introduce separators and defeat the traversal normalization done by
+   * `serveStatic`. See {@link serveStatic}.
    */
   getMeta: (id: string) => StaticAssetMeta | undefined | Promise<StaticAssetMeta | undefined>;
 
   /**
    * This function should resolve asset content.
    *
-   * **Security:** As with `getMeta`, the `id` keeps encoded separators (`%2f`,
-   * and a double-encoded `%5c`) percent-encoded and this backend must not decode
-   * them before resolving the asset. See {@link serveStatic}.
+   * **Security:** As with `getMeta`, the `id` keeps encoded separators (`%2f`
+   * and `%5c`) percent-encoded and this backend must not decode them before
+   * resolving the asset. See {@link serveStatic}.
    */
   getContents: (id: string) => BodyInit | null | undefined | Promise<BodyInit | null | undefined>;
 
@@ -75,12 +74,20 @@ export interface ServeStaticOptions {
  * **Security — path traversal:** `serveStatic` resolves `.`/`..` segments and
  * normalizes the request path, but deliberately keeps encoded separators
  * **percent-encoded** in the `id` it passes to `getMeta`/`getContents`: `%2f`
- * (encoded `/`) always survives, and a double-encoded backslash arrives as a
- * literal `%5c` (a single-encoded `%5c` is decoded to `\` and normalized away).
+ * (encoded `/`) and `%5c` (encoded `\`) both always survive, exactly as they do
+ * in `event.url.pathname`. So the `id` has the same segment structure the router
+ * and pathname-scoped `use()` guards matched on — `/private%5cx` stays one opaque
+ * segment and cannot be served as `/private/x` past a `use("/private/**")` guard.
  * Traversal safety therefore depends on those backends **not** decoding the `id`:
  * a backend that percent-decodes it (e.g. an extra `decodeURIComponent`, or a
  * lookup layer that decodes) re-introduces separators and **re-opens the
  * traversal hole**. Resolve the `id` against your asset root as an opaque string.
+ *
+ * Everything else is decoded once for the on-disk lookup, so a file's real name
+ * reaches the backend: `/50%25.png` → `/50%.png`, `/a%20b` → `/a b`, and one
+ * `%25` level is peeled off a nested separator (`/a%252fb` → `/a%2fb`, still a
+ * literal `%2f`, never a boundary). RFC 3986's reserved set stays encoded, so an
+ * `id` can never grow a `?` or `#` that would truncate it in a URL.
  *
  * When implementing custom `getMeta`/`getContents` over a real filesystem, the
  * integrator is also responsible for two things `serveStatic` cannot enforce.
@@ -115,15 +122,34 @@ export async function serveStatic(
 
   // Resolve traversal first, then peel one `%25` level for the on-disk lookup
   // (guarded: malformed `%` falls back to the safe traversal-resolved value).
-  // The peel itself decodes separators the first resolve had to treat as opaque
-  // (`%5c` -> `\`, and one `%25` level off `%252e`), so resolve again on the
-  // decoded form — otherwise `/..%5c..%5cwin.ini` reaches the backend as
-  // `/..\..\win.ini`, a traversal above the root on a backslash-aware backend.
+  //
+  // The peel must never turn an encoded separator into a real one. `decodeURI`
+  // alone holds back `%2f` (RFC 3986 reserved) but *not* `%5c`, which it decodes
+  // to `\` — and `resolveDotSegments` then normalizes that to `/`. The id would
+  // gain a segment boundary the router never matched on: `/private%5cx` is one
+  // opaque segment to `~findRoute` and to a `use("/private/**")` guard, but would
+  // reach the backend as `/private/x`, serving a guarded asset unauthenticated
+  // (and giving every asset a second, cache- and WAF-invisible spelling).
+  // `decodePreservingSeparators` keeps both separators encoded, so the id keeps
+  // the exact segment structure routing and middleware matched on.
+  //
+  // `nested: false` because this is a single decode: one `%25` level off `%252f`
+  // leaves a literal `%2f`, which is not a separator either, and a file whose
+  // name really contains `%2f` must stay addressable. `decodeURI` (not
+  // `decodeURIComponent`) keeps `%23`/`%3f` encoded, so an id handed to a
+  // URL-composing backend cannot grow a `#`/`?` that truncates it.
+  //
+  // The second `resolveDotSegments` still runs: the peel can reveal a dot segment
+  // (one `%25` level off `%252e`), which must not reach the backend as a bare `..`.
   const resolvedId = withoutTrailingSlash(resolveDotSegments(event.url.pathname));
   let originalId = resolvedId;
   if (resolvedId.includes("%")) {
     try {
-      originalId = withoutTrailingSlash(resolveDotSegments(decodeURI(resolvedId)));
+      originalId = withoutTrailingSlash(
+        resolveDotSegments(
+          decodePreservingSeparators(resolvedId, { decode: decodeURI, nested: false }),
+        ),
+      );
     } catch {
       // Malformed escape (e.g. `%` at the end): fall back to the traversal-resolved,
       // still-encoded `resolvedId` already assigned to `originalId` above.

@@ -247,10 +247,42 @@ export function decodePathname(pathname: string): string | undefined {
   }
 }
 
-// Percent-encoded path separators (`%2f` → `/`, `%5c` → `\`) at any `%25`-nesting
-// depth (`%2f`, `%252f`, ...). Module-scope and reset before each use — the
-// `g` flag is only there to walk every occurrence.
+// Percent-encoded path separators (`%2f` → `/`, `%5c` → `\`). The `nested`
+// form also matches every `%25`-nesting depth (`%252f`, ...); the flat one only
+// the bare escape, for a consumer that decodes exactly once (see
+// {@link DecodePreservingSeparatorsOptions.nested}). Module-scope and reset
+// before each use — the `g` flag is only there to walk every occurrence.
 const ENCODED_SEP_RE_G = /%(?:25)*(?:2f|5c)/gi;
+const ENCODED_SEP_FLAT_RE_G = /%(?:2f|5c)/gi;
+
+export interface DecodePreservingSeparatorsOptions {
+  /**
+   * Decoder applied to everything between the held-back separators.
+   *
+   * Defaults to `decodeURIComponent`. Pass `decodeURI` for a consumer that must
+   * also keep RFC 3986's reserved set encoded (`%23`, `%3f`, ...) — `serveStatic`
+   * does, so an id it hands a URL-composing backend cannot grow a `?`/`#`.
+   *
+   * @default decodeURIComponent
+   */
+  decode?: (input: string) => string;
+
+  /**
+   * Hold the separator back at every `%25`-nesting depth (`%252f`, `%25252f`, ...),
+   * not just the bare `%2f`/`%5c`.
+   *
+   * Keep this on for a consumer whose value may be decoded again downstream — one
+   * more decode is exactly what unwraps a nested form into a real separator.
+   *
+   * Turn it off for a strictly *single*-decode consumer: peeling one `%25` level
+   * off `%252f` yields a literal `%2f`, which is still not a separator, and
+   * withholding it instead would break the on-disk lookup of a file whose name
+   * genuinely contains `%2f`.
+   *
+   * @default true
+   */
+  nested?: boolean;
+}
 
 /**
  * `decodeURIComponent` a path (or a single path segment), but never let an
@@ -261,9 +293,10 @@ const ENCODED_SEP_RE_G = /%(?:25)*(?:2f|5c)/gi;
  * desync / smuggling vector. So the encoded separators are kept in their
  * encoded form while every other escape decodes normally.
  *
- * `%25`-nested forms (`%252f`, ...) are held back at every depth, which is what
- * a second decode would otherwise unwrap. {@link canonicalPathname} never
- * decodes `%25` either — and can itself *produce* a nested form, turning
+ * `%25`-nested forms (`%252f`, ...) are held back at every depth by default,
+ * which is what a second decode would otherwise unwrap
+ * (see {@link DecodePreservingSeparatorsOptions.nested}). {@link canonicalPathname}
+ * never decodes `%25` either — and can itself *produce* a nested form, turning
  * `%25%32%66` into `%252f`.
  *
  * What still decodes here that canonicalization leaves alone: `%20`, non-ASCII
@@ -274,23 +307,31 @@ const ENCODED_SEP_RE_G = /%(?:25)*(?:2f|5c)/gi;
  *
  * Throws on malformed percent-encoding, like `decodeURIComponent` itself.
  *
- * Shared by {@link import("../request.ts").getRouterParams}'s `decode: true`
- * and the route-rules matcher's decoded reading, so the two cannot disagree
- * about what "decoded" means.
+ * Shared by {@link import("../request.ts").getRouterParams}'s `decode: true`,
+ * the route-rules matcher's decoded reading and
+ * {@link import("../static.ts").serveStatic}'s on-disk id, so they cannot
+ * disagree about what "decoded" means — and so none of them can grow a
+ * separator the router never matched on.
  */
-export function decodePreservingSeparators(value: string): string {
+export function decodePreservingSeparators(
+  value: string,
+  opts?: DecodePreservingSeparatorsOptions,
+): string {
   if (!value.includes("%")) {
     return value; // Fast path: nothing to decode.
   }
+  const decode = opts?.decode || decodeURIComponent;
+  const re = opts?.nested === false ? ENCODED_SEP_FLAT_RE_G : ENCODED_SEP_RE_G;
   // Decode around the encoded separators: split on them, decode the pieces, and
   // rejoin keeping each separator in its original (encoded) form so it can never
-  // become a raw separator.
+  // become a raw separator. Splitting only ever cuts at a whole escape, so every
+  // piece handed to `decode` still has intact percent-encoding.
   let result = "";
   let lastIndex = 0;
-  ENCODED_SEP_RE_G.lastIndex = 0;
-  for (let m: RegExpExecArray | null; (m = ENCODED_SEP_RE_G.exec(value));) {
-    result += decodeURIComponent(value.slice(lastIndex, m.index)) + m[0];
+  re.lastIndex = 0;
+  for (let m: RegExpExecArray | null; (m = re.exec(value));) {
+    result += decode(value.slice(lastIndex, m.index)) + m[0];
     lastIndex = m.index + m[0].length;
   }
-  return result + decodeURIComponent(value.slice(lastIndex));
+  return result + decode(value.slice(lastIndex));
 }

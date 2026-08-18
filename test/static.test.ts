@@ -145,12 +145,18 @@ describeMatrix("serve static", (t, { it, expect }) => {
       "/assets/..",
       "/..\\etc\\passwd",
       "/..%5c..%5cetc%5cpasswd",
+      "/..%2f..%2fetc%2fpasswd",
       "/..",
     ];
     for (const path of blocked) {
       const res = await t.fetch(path);
       const text = await res.text();
-      expect(text).not.toContain("..");
+      // No bare `..` *segment*. Asserted on segment boundaries rather than as a
+      // substring: an encoded separator stays encoded, so `/..%5c..%5cetc` (like
+      // its `%2f` sibling) reaches the backend as one opaque segment whose text
+      // begins with `..` but which has no boundary for a `..` to traverse across.
+      // Decoding it into a real `/` is what this test exists to prevent.
+      expect(text).not.toMatch(/(^|[\\/])\.\.([\\/]|$)/);
     }
   });
 
@@ -177,6 +183,45 @@ describeMatrix("serve static", (t, { it, expect }) => {
     // no bare `..` segment — boundaries include `\` so a decoded backslash
     // separator would be caught too, not only a `/`.
     expect(text).not.toMatch(/(^|[\\/])\.\.([\\/]|$)/);
+  });
+
+  it("keeps a single-encoded backslash opaque in the id", async () => {
+    // `decodeURI` decodes `%5c` (not RFC 3986 reserved) to a raw `\`, which
+    // `resolveDotSegments` then normalizes to `/`. That would hand the backend a
+    // segment boundary that never existed for routing: `event.url.pathname` keeps
+    // `%5c` encoded, so rou3 — and every `use(route, ...)` guard — sees one opaque
+    // segment. The id must keep the same shape as what matched.
+    const res = await t.fetch("/foo%5cbar.txt");
+    const text = await res.text();
+    expect(text).not.toContain("\\"); // never a raw backslash
+    expect(text).not.toContain("/foo/bar.txt"); // and never a real boundary
+    expect(text).toContain("%5c");
+  });
+
+  it("does not let an encoded backslash skip a pathname-scoped guard", async () => {
+    // The desync in full: a `use("/private/**")` guard is matched against
+    // `event.url.pathname` (`/private%5csecret.txt` — one segment, no match),
+    // while the id must not resolve to the guarded `/private/secret.txt`.
+    let guarded = false;
+    const app = new H3()
+      .use("/private/**", () => {
+        guarded = true;
+        return new Response("denied", { status: 401 });
+      })
+      .all("/**", (event) =>
+        serveStatic(event, {
+          getMeta: (id) => (id === "/private/secret.txt" ? { size: 6 } : undefined),
+          getContents: () => "SECRET",
+        }),
+      );
+
+    // Sanity: the guard does cover the canonical spelling.
+    expect((await app.request("/private/secret.txt")).status).toBe(401);
+    expect(guarded).toBe(true);
+
+    const res = await app.request("/private%5csecret.txt");
+    expect(res.status).toBe(404); // not 200 "SECRET"
+    expect(await res.text()).not.toContain("SECRET");
   });
 
   it("decodes an encoded separator for the on-disk lookup", async () => {
