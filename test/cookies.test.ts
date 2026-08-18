@@ -144,6 +144,37 @@ describeMatrix("cookies", (t, { it, expect, describe }) => {
       expect(await result.text()).toBe("200");
     });
 
+    it("preserves cookies the set-cookie parser cannot understand", async () => {
+      const bigValue = "x".repeat(4100); // over the 4096 name+value parse limit
+      t.app.get("/", (event) => {
+        setCookie(event, "prefs", bigValue);
+        // `toString` conflicts with Object.prototype and is also unparseable
+        setCookie(event, "toString", "1");
+        setCookie(event, "token", "old");
+        // Merging an unrelated cookie must not drop the unparseable ones
+        setCookie(event, "token", "new");
+        return "200";
+      });
+      const result = await t.fetch("/");
+      expect(result.headers.getSetCookie()).toEqual([
+        `prefs=${bigValue}; Path=/`,
+        "toString=1; Path=/",
+        "token=new; Path=/",
+      ]);
+      expect(await result.text()).toBe("200");
+    });
+
+    it("still replaces unparseable cookies with the same name", async () => {
+      t.app.get("/", (event) => {
+        setCookie(event, "prefs", "x".repeat(4100));
+        setCookie(event, "prefs", "small");
+        return "200";
+      });
+      const result = await t.fetch("/");
+      expect(result.headers.getSetCookie()).toEqual(["prefs=small; Path=/"]);
+      expect(await result.text()).toBe("200");
+    });
+
     it("deduplicates cookies with leading-dot / mixed-case domains", async () => {
       t.app.get("/", (event) => {
         setCookie(event, "foo", "old", { domain: ".Example.com" });
