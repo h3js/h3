@@ -1,4 +1,10 @@
-import { decodeRoutePattern, formatRouteKey, parseRouteKey } from "./internal/key.ts";
+import {
+  HTTP_METHODS,
+  decodeRoutePattern,
+  formatRouteKey,
+  parseRouteKey,
+  unknownMethodPrefix,
+} from "./internal/key.ts";
 import { mergeRuleOptions } from "./merge.ts";
 import type {
   CacheRuleOptions,
@@ -18,6 +24,15 @@ export function normalizeRouteRules(
   const normalizedRules: Record<string, NormalizedRouteRules> = {};
   for (const key in config) {
     const routeConfig = config[key]!;
+    // A typo'd method prefix (`GTE /admin/**`) parses as a literal path
+    // containing a space, which never matches a request — a gate authored that
+    // way silently fails open, so reject it here instead.
+    const unknownMethod = unknownMethodPrefix(key);
+    if (unknownMethod !== undefined) {
+      throw new Error(
+        `[h3] rules: \`${key}\` looks method-scoped but \`${unknownMethod}\` is not a recognized HTTP method — as a literal path this rule can never match. Use one of ${[...HTTP_METHODS].join(", ")}, remove the prefix for an all-methods rule, or add a leading \`/\` for a literal path`,
+      );
+    }
     const { method, path: rawPath } = parseRouteKey(key);
     // A pattern's literal characters are matched against a decoded reading of
     // the request path, so an escaped one (`/%40admin/**`) has to decode here or

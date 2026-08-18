@@ -46,6 +46,24 @@ export function parseRouteKey(key: string): ParsedRouteKey {
   return { method: "", path: withLeadingSlash(key) };
 }
 
+/**
+ * The method-looking token of a key that {@link parseRouteKey} reads as a plain
+ * path — a `WORD /path` prefix whose word is not a recognized HTTP method — or
+ * `undefined` when the key has no such prefix.
+ *
+ * Such a key is almost always a typo'd method (`GTE /admin/**`): it degrades
+ * into a literal path containing a space, which never matches a request, so a
+ * gate authored that way silently fails open. Normalization rejects it via this
+ * check; the parse itself stays lenient because it also runs on
+ * already-normalized keys at router build time. A genuine literal path with a
+ * word-space prefix can be spelled with a leading slash (`/FOO bar`), which
+ * this never flags.
+ */
+export function unknownMethodPrefix(key: string): string | undefined {
+  const match = METHOD_KEY_RE.exec(key);
+  return match && !HTTP_METHODS.has(match[1]!.toUpperCase()) ? match[1] : undefined;
+}
+
 /** Re-serialize a parsed key into its canonical `"METHOD /path"` / `"/path"` form. */
 export function formatRouteKey(method: string, path: string): string {
   return method ? `${method} ${path}` : path;

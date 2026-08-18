@@ -294,7 +294,10 @@ describe("route key parsing", () => {
   });
 
   it("does not treat non-method tokens as methods", () => {
-    // Not a recognized HTTP method → plain path key (leading slash coerced)
+    // Not a recognized HTTP method → plain path key (leading slash coerced).
+    // `parseRouteKey` keeps this contract (it also runs on already-normalized
+    // keys at router build time); rejecting the typo is normalization's job —
+    // see the "unrecognized method prefix" suite below.
     expect(parseRouteKey("FOO /bar")).toEqual({ method: "", path: "/FOO /bar" });
   });
 
@@ -396,6 +399,41 @@ describe("normalizeRouteRules - reserved rule names rejected", () => {
       expect(Object.hasOwn(Object.prototype, "polluted")).toBe(false);
     });
   }
+});
+
+// A typo'd method prefix (`GTE /admin/**`) would otherwise degrade into a
+// literal path containing a space, which never matches a request — a gate
+// authored that way silently fails open. Normalization rejects it instead;
+// a genuine literal path can be spelled with a leading `/`.
+describe("normalizeRouteRules - unrecognized method prefix rejected", () => {
+  it("throws on a typo'd method prefix instead of registering a dead rule", () => {
+    expect(() => normalizeRouteRules({ "GTE /admin/**": { headers: { a: "1" } } })).toThrow(
+      /`GTE` is not a recognized HTTP method/,
+    );
+  });
+
+  it("names the key and offers both fixes (all-methods, literal path)", () => {
+    expect(() => normalizeRouteRules({ "gte /x": { headers: { a: "1" } } })).toThrow(
+      /`gte \/x`.*all-methods.*leading `\/`/,
+    );
+  });
+
+  it("rejects at app setup through `routeRules()`", () => {
+    expect(() => routeRules({ "Foo /bar/**": { headers: { a: "1" } } })).toThrow(
+      /not a recognized HTTP method/,
+    );
+  });
+
+  it("keeps recognized methods (case-insensitive), plain paths, and `/`-prefixed literals", () => {
+    expect(() =>
+      normalizeRouteRules({
+        "query /s": { headers: { a: "1" } },
+        "get /x": { headers: { a: "1" } },
+        "api/docs": { headers: { a: "1" } },
+        "/FOO bar": { headers: { a: "1" } },
+      }),
+    ).not.toThrow();
+  });
 });
 
 // D3: `false` is the *only* reset marker. Any other falsy value for a built-in
