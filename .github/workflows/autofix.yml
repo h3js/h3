@@ -9,7 +9,7 @@ on:
 
 permissions: {}
 
-concurrency: { group: autofix-$, { { github.ref } }, cancel-in-progress: true }
+concurrency: { group: "autofix-${{ github.ref }}", cancel-in-progress: true }
 
 jobs:
   autofix:
