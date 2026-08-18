@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { requestWithURL, requestWithBaseURL } from "../../src/utils/request.ts";
 import { getRequestProtocol } from "../../src/index.ts";
+import type { ServerRequest } from "srvx";
 
 // Minimal fake HTTPEvent for unit-testing getRequestProtocol without a live server
 function makeEvent(headers: Record<string, string>, url = "http://localhost/test") {
@@ -45,6 +46,32 @@ describe("requestWithURL", () => {
   it("is instanceof Request", () => {
     const proxied = requestWithURL(original, "http://example.com/path");
     expect(proxied instanceof Request).toBe(true);
+  });
+
+  it("does not leak Object.prototype through the memo cache", () => {
+    const proxied = requestWithURL(original, "http://example.com/path");
+    expect(proxied.constructor).toBe(original.constructor);
+    expect(proxied.constructor.name).toBe("Request");
+    expect((proxied as any).__proto__).toBe(Object.getPrototypeOf(original));
+  });
+
+  it("does not memoize bodyUsed", async () => {
+    const req = new Request("http://example.com/base/path", { method: "POST", body: "hello" });
+    const proxied = requestWithURL(req, "http://example.com/path");
+    expect(proxied.bodyUsed).toBe(false);
+    await proxied.text();
+    expect(proxied.bodyUsed).toBe(true);
+  });
+
+  it("invalidates the memo cache on write", () => {
+    const req = new Request("http://example.com/base/path");
+    const proxied = requestWithURL(req, "http://example.com/path");
+    expect(proxied.context).toBeUndefined();
+    proxied.context = { foo: "bar" };
+    expect(proxied.context).toEqual({ foo: "bar" });
+    expect((req as ServerRequest).context).toEqual({ foo: "bar" });
+    // the url override survives writes to other props
+    expect(proxied.url).toBe("http://example.com/path");
   });
 
   it("clone() works and keeps overridden url", () => {

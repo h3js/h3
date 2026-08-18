@@ -1,5 +1,6 @@
 import { type ErrorDetails, HTTPError } from "../error.ts";
 import { decodePreservingSeparators, stripBase } from "./internal/path.ts";
+import { EmptyObject } from "./internal/obj.ts";
 import { parseQuery } from "./internal/query.ts";
 import { validateData } from "./internal/validate.ts";
 import { getEventContext } from "./event.ts";
@@ -18,15 +19,31 @@ import type { ServerRequest } from "srvx";
  * Avoids cloning the original request (no `new Request()` allocation).
  */
 export function requestWithURL(req: ServerRequest, url: string): ServerRequest {
+  // Null prototype: with a plain object literal every `Object.prototype` key is
+  // a cache hit, so `constructor` would resolve to `Object` and `__proto__` to
+  // `Object.prototype` instead of the request's own.
+  const cache: Record<string | symbol, unknown> = new EmptyObject();
+  cache.url = url;
   // Shadow `_url` too: the runtime-parsed URL object reflects the original
   // request URL and consumers must re-parse the overridden `url` instead.
-  const cache: Record<string | symbol, unknown> = { url, _url: undefined };
+  cache._url = undefined;
   return new Proxy(req, {
     get(target, prop) {
       if (prop in cache) return cache[prop];
       const value = Reflect.get(target, prop);
-      cache[prop] = typeof value === "function" ? value.bind(target) : value;
+      // Never memoize `bodyUsed`: it flips when the body is consumed.
+      if (prop === "bodyUsed") return value;
+      // Methods are bound so they run against the real request (private field
+      // brand checks), but `constructor` has to keep its identity for
+      // `req.constructor === Request` style duck-typing.
+      cache[prop] =
+        typeof value === "function" && prop !== "constructor" ? value.bind(target) : value;
       return cache[prop];
+    },
+    set(target, prop, value) {
+      // Writes go to the request, so drop the stale memo (except the shadowed url).
+      if (prop !== "url" && prop !== "_url") delete cache[prop];
+      return Reflect.set(target, prop, value);
     },
   });
 }
