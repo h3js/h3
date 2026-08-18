@@ -8,7 +8,14 @@ export default defineBuildConfig({
   entries: [
     {
       type: "bundle",
-      input: [...entries.map((entry) => `src/_entries/${entry}.ts`), "./src/tracing.ts"],
+      input: [
+        ...entries.map((entry) => `src/_entries/${entry}.ts`),
+        "./src/tracing.ts",
+        "./src/rules/index.ts",
+        "./src/rules/cache.ts",
+        "./src/rules/proxy.ts",
+        "./src/rules/compiler.ts",
+      ],
     },
   ],
   hooks: {

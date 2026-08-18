@@ -1,6 +1,6 @@
 import type { Session } from "../utils/session.ts";
 import type { H3Route } from "./h3.ts";
-import type { RouteRules } from "./route-rules.ts";
+import type { ResolvedRouteRules } from "./route-rules.ts";
 import type { ServerRequestContext } from "srvx";
 
 export interface H3EventContext extends ServerRequestContext {
@@ -20,8 +20,8 @@ export interface H3EventContext extends ServerRequestContext {
   /* Cached session data */
   sessions?: Record<string, Session>;
 
-  /* Rules matched for the current route */
-  routeRules?: Readonly<RouteRules>;
+  /* Merged rule options for the current route, keyed by rule name */
+  routeRules?: Readonly<ResolvedRouteRules>;
 
   /* Trusted IP Address of client */
   clientAddress?: string;

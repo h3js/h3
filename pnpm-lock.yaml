@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       rou3:
-        specifier: ^0.9.1
-        version: 0.9.1
+        specifier: ^0.9.2
+        version: 0.9.2
       srvx:
         specifier: ^0.12.4
         version: 0.12.4
@@ -77,7 +77,7 @@ importers:
         version: 'link:'
       h3-nightly:
         specifier: latest
-        version: 2.0.0-20260724-181945-6ebd459(crossws@0.4.10(srvx@0.12.4))
+        version: 2.0.0-20260818-144846-5e8a317(crossws@0.4.10(srvx@0.12.4))
       happy-dom:
         specifier: ^20.11.1
         version: 20.11.1
@@ -99,6 +99,9 @@ importers:
       obuild:
         specifier: ^0.4.38
         version: 0.4.38(@typescript/native-preview@7.0.0-dev.20260707.2)(chokidar@5.0.0)(dotenv@17.4.2)(giget@3.3.0)(jiti@2.7.0)(magicast@0.5.3)(typescript@7.0.2)
+      ocache:
+        specifier: ^0.3.0
+        version: 0.3.0
       oxc-parser:
         specifier: '>=0.140.0'
         version: 0.141.0
@@ -131,7 +134,7 @@ importers:
     dependencies:
       h3:
         specifier: latest
-        version: 2.0.1-rc.25(crossws@0.4.10(srvx@0.12.4))
+        version: 2.0.1-rc.26(crossws@0.4.10(srvx@0.12.4))
 
   playground:
     dependencies:
@@ -1781,8 +1784,8 @@ packages:
     resolution: {integrity: sha512-ZUKRh6/kUFoAiTAtTYPZJ3hw9wNxx+BIBOijnlG9PnrJsCcSjs1wyyD6vJpaYtgnzDrKYRSqf3OO6Rfa93xsRg==}
     engines: {node: '>= 0.4'}
 
-  h3-nightly@2.0.0-20260724-181945-6ebd459:
-    resolution: {integrity: sha512-BGOJ8cFJvSNiAtRkxbVqnkDgEXosxUbWw+QpVNpGt4xWbyBSfBX7JwyHjaK6KsFbSPgOwcjJ+rK3rw3ZY6ux+w==}
+  h3-nightly@2.0.0-20260818-144846-5e8a317:
+    resolution: {integrity: sha512-l4lrMcKX336pED0tCaoJpZB3zYABcQ2mmYSs9KT4ZbsM8F3FRM9xIUM8Szo8in8/7E3GyTqmQCjGBqhMVDK4Tw==}
     engines: {node: '>=20.11.1'}
     hasBin: true
     peerDependencies:
@@ -1793,6 +1796,16 @@ packages:
 
   h3@2.0.1-rc.25:
     resolution: {integrity: sha512-uIK++Up28xDt4n0+bSWfVssRivNXpUmMmA6CCiK6j9+utLcBMcFK97Gn9PlSZwAPW9oLy3CjGJ4ag40CY9YYtQ==}
+    engines: {node: '>=20.11.1'}
+    hasBin: true
+    peerDependencies:
+      crossws: ^0.4.9
+    peerDependenciesMeta:
+      crossws:
+        optional: true
+
+  h3@2.0.1-rc.26:
+    resolution: {integrity: sha512-GDxlvDsKxgjRvG5UBRJYyGJTMWLV30CJ4cV+e7QCTgftDHihrvio1fVPbNembhEr6J4WNm8IWy3fookgyTweLw==}
     engines: {node: '>=20.11.1'}
     hasBin: true
     peerDependencies:
@@ -2062,6 +2075,9 @@ packages:
     resolution: {integrity: sha512-82uy8eU+qmdtWkKlJb/jE47caBGMAGO3CrZVwGmc0Mn63hwc5Z4Fb82nBY7lwPzc44Dmv2eMBVuvnESdqHFT6Q==}
     hasBin: true
 
+  ocache@0.3.0:
+    resolution: {integrity: sha512-RS/9P0zeBb0gDJmadGERLH8lZNXK7xbufTDhclkXGvFGTsj0G4M5/cLk+mizcERH29mLXNnocfB5wjcK70wGJg==}
+
   ofetch@1.5.1:
     resolution: {integrity: sha512-2W4oUZlVaqAPAil6FUg/difl6YhqhUR7x2eZY4bQCko22UXg3hptq9KLQdqFClV+Wu85UX7hNtdGTngi/1BxcA==}
 
@@ -2210,8 +2226,8 @@ packages:
     engines: {node: ^20.19.0 || >=22.12.0}
     hasBin: true
 
-  rou3@0.9.1:
-    resolution: {integrity: sha512-z/sSmzvtwMDDnxsPVhfWMuG6F6mbmhFDXoVqLmMfbpDD9qfV3GDmSQpf0+W296/ZDIpW2wcMmBfpVFzcnOi/nA==}
+  rou3@0.9.2:
+    resolution: {integrity: sha512-3SOzvaAg8rkHrXtRjpCvCvbyO5to9oOO27Z/XqHEYXfMRVSw/qMIVdmaOk9W2lcRLtR6dlqTjo9hDeJk70QBYQ==}
 
   router@2.2.0:
     resolution: {integrity: sha512-nLTrUKm2UyiL7rlhapu/Zl45FwNgkZGaCpZbIHajDYgwlJCOzLSk+cIPAnsEqV955GjILJnKbdQC1nVPz+gAYQ==}
@@ -3692,17 +3708,24 @@ snapshots:
 
   gopd@1.2.0: {}
 
-  h3-nightly@2.0.0-20260724-181945-6ebd459(crossws@0.4.10(srvx@0.12.4)):
+  h3-nightly@2.0.0-20260818-144846-5e8a317(crossws@0.4.10(srvx@0.12.4)):
     dependencies:
-      rou3: 0.9.1
+      rou3: 0.9.2
       srvx: 0.12.4
     optionalDependencies:
       crossws: 0.4.10(srvx@0.12.4)
 
   h3@2.0.1-rc.25(crossws@0.4.10(srvx@0.12.4)):
     dependencies:
-      rou3: 0.9.1
+      rou3: 0.9.2
       srvx: 0.11.22
+    optionalDependencies:
+      crossws: 0.4.10(srvx@0.12.4)
+
+  h3@2.0.1-rc.26(crossws@0.4.10(srvx@0.12.4)):
+    dependencies:
+      rou3: 0.9.2
+      srvx: 0.12.4
     optionalDependencies:
       crossws: 0.4.10(srvx@0.12.4)
 
@@ -3937,6 +3960,8 @@ snapshots:
       - typescript
       - vue-tsc
 
+  ocache@0.3.0: {}
+
   ofetch@1.5.1:
     dependencies:
       destr: 2.0.5
@@ -4159,7 +4184,7 @@ snapshots:
       '@rolldown/binding-win32-arm64-msvc': 1.2.0
       '@rolldown/binding-win32-x64-msvc': 1.2.0
 
-  rou3@0.9.1: {}
+  rou3@0.9.2: {}
 
   router@2.2.0(supports-color@7.2.0):
     dependencies:

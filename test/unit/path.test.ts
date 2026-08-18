@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { isCanonicalPath, resolveDotSegments } from "../../src/utils/path.ts";
+import { getURLPathname, joinURL, stripBase } from "../../src/utils/internal/path.ts";
 
 describe("resolveDotSegments", () => {
   it("leaves a plain path untouched", () => {
@@ -316,5 +317,56 @@ describe("resolveDotSegments", () => {
       );
       expect(resolveDotSegments("/foo%20bar", { mergeSlashes: true })).toBe("/foo%20bar");
     });
+  });
+});
+
+describe("joinURL", () => {
+  it("never yields an empty target", () => {
+    // An empty `Location` is a URI-reference resolving back to the request
+    // URL, so a `/**` redirect onto `/` would loop.
+    expect(joinURL("", "/")).toBe("/");
+    expect(joinURL("/api", "/")).toBe("/api");
+  });
+
+  it("absorbs exactly one boundary slash", () => {
+    expect(joinURL("/api", "/x")).toBe("/api/x");
+    expect(joinURL("/api/", "/x")).toBe("/api/x");
+    expect(joinURL("/api", "x")).toBe("/api/x");
+    // The empty segment survives: a caller's scope check must still see it.
+    expect(joinURL("/api", "//x")).toBe("/api//x");
+    expect(joinURL("/api", "../b")).toBe("/api/../b");
+  });
+});
+
+describe("stripBase", () => {
+  it("strips on a segment boundary only", () => {
+    expect(stripBase("/old/x", "/old")).toBe("/x");
+    expect(stripBase("/oldx", "/old")).toBe("/oldx");
+  });
+
+  it("collapses the leading slash run", () => {
+    // Otherwise `/base//evil.com` strips to a protocol-relative `//evil.com`.
+    expect(stripBase("/base//evil.com", "/base")).toBe("/evil.com");
+  });
+
+  it("treats `?` as a boundary (callers pass pathname + search)", () => {
+    expect(stripBase("/old?q=1", "/old")).toBe("/?q=1");
+    expect(stripBase("/oldx?q=1", "/old")).toBe("/oldx?q=1");
+  });
+});
+
+describe("getURLPathname", () => {
+  it("strips scheme, authority and userinfo", () => {
+    expect(getURLPathname("https://u:p@h:8080/api/x?q=1#f")).toBe("/api/x");
+    expect(getURLPathname("//h/api/x")).toBe("/api/x");
+    expect(getURLPathname("https://h")).toBe("");
+    expect(getURLPathname("/api/x?q=1")).toBe("/api/x");
+    expect(getURLPathname("api/x#f")).toBe("api/x");
+  });
+
+  it("never normalizes — the scope check needs the exact forwarded bytes", () => {
+    expect(getURLPathname("https://h/base//../secret")).toBe("/base//../secret");
+    expect(getURLPathname("/a%2fb")).toBe("/a%2fb");
+    expect(getURLPathname("/a b{c}")).toBe("/a b{c}");
   });
 });

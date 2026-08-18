@@ -28,14 +28,21 @@ export function matchETag(ifNoneMatch: string, etag: string): boolean {
  */
 export function isCacheMatch(
   headers: Headers,
-  validators: { etag?: string; lastModified?: Date },
+  validators: {
+    etag?: string;
+    lastModified?: Date;
+    /** Overrides the request header, for a caller holding the original value. */
+    ifNoneMatch?: string;
+    /** Overrides the request header, for a caller holding the original value. */
+    ifModifiedSince?: string;
+  },
 ): boolean {
-  const ifNoneMatch = headers.get("if-none-match");
+  const ifNoneMatch = validators.ifNoneMatch ?? headers.get("if-none-match");
   if (ifNoneMatch) {
     return !!validators.etag && matchETag(ifNoneMatch, validators.etag);
   }
   if (validators.lastModified) {
-    const ifModifiedSince = headers.get("if-modified-since");
+    const ifModifiedSince = validators.ifModifiedSince ?? headers.get("if-modified-since");
     return !!ifModifiedSince && new Date(ifModifiedSince) >= validators.lastModified;
   }
   return false;

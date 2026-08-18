@@ -6,6 +6,13 @@ export interface CacheConditions {
   maxAge?: number;
   etag?: string;
   cacheControls?: string[];
+  /**
+   * `If-None-Match` to evaluate instead of the request header. A cache layer
+   * that narrows the request it forwards holds the only copy of the validator.
+   */
+  ifNoneMatch?: string;
+  /** `If-Modified-Since` to evaluate instead of the request header. */
+  ifModifiedSince?: string;
 }
 
 // Match a whole comma-separated Cache-Control directive (optionally with an
@@ -58,7 +65,14 @@ export function handleCacheHeaders(event: H3Event, opts: CacheConditions): boole
 
   event.res.headers.set("cache-control", cacheControls.join(", "));
 
-  if (isCacheMatch(event.req.headers, { etag: opts.etag, lastModified })) {
+  if (
+    isCacheMatch(event.req.headers, {
+      etag: opts.etag,
+      lastModified,
+      ifNoneMatch: opts.ifNoneMatch,
+      ifModifiedSince: opts.ifModifiedSince,
+    })
+  ) {
     event.res.status = 304;
     return true;
   }
