@@ -38,4 +38,4 @@ jobs:
         with: { node-version: lts/*, cache: "pnpm" }
       - run: pnpm install
       - run: pnpm build
-      - run: pnpm exec pkg-pr-new publish || true
+      - run: pnpm exec pkg-pr-new publish
