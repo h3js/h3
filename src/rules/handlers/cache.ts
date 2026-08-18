@@ -28,8 +28,14 @@ let scopeCounter = 0;
  * Create a `cache` rule handler from an injected cache wrapper.
  *
  * Cache keys are isolated by handler, method, and route unless `id` or an
- * explicit cache `name` opts into sharing. Register `routeRules()` after global
- * middleware because a cache hit does not call downstream middleware.
+ * explicit cache `name` opts into sharing.
+ *
+ * Register `routeRules()` after every global middleware that must run for a
+ * cached route: this handler dispatches the matched route handler itself rather
+ * than calling `next()`, so global middleware registered after `routeRules()` is
+ * skipped on *every* request to a `cache`-matched route — misses included, not
+ * only hits. Per-route middleware is unaffected (it is part of the dispatched
+ * `~composed` pair).
  */
 export function createCacheRuleHandler(opts: CacheRuleHandlerOptions): RuleHandler<"cache"> {
   const defineCached = opts.defineCachedHandler;

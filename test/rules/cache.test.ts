@@ -843,6 +843,32 @@ describe("cache rule (core defineCachedHandler injection)", () => {
     expect(res.headers.get("x-route-mw")).toBe("1");
   });
 
+  it("skips global middleware registered after routeRules(), miss included", async () => {
+    // Documented contract, not a nicety: the cache rule dispatches the route
+    // itself, so it terminates the global chain for every request to a matched
+    // route — a miss behaves exactly like a hit. Register `routeRules()` after
+    // any global middleware that must run for cached routes.
+    const seen: string[] = [];
+    const app = createInjectedApp(
+      { "/cached-global-mw/**": { cache: { maxAge: 60 } } },
+      { defineCachedHandler: (handler) => handler },
+    );
+    app.use((event, next) => {
+      seen.push(`downstream:${event.url.pathname}`);
+      return next();
+    });
+    app.get("/cached-global-mw/:id", () => "ok");
+    app.get("/uncached", () => "ok");
+
+    // First request is a guaranteed miss for this freshly created app.
+    expect(await (await app.fetch(new Request("http://test/cached-global-mw/a"))).text()).toBe(
+      "ok",
+    );
+    await app.fetch(new Request("http://test/cached-global-mw/a"));
+    await app.fetch(new Request("http://test/uncached"));
+    expect(seen).toEqual(["downstream:/uncached"]);
+  });
+
   it("wraps same-path routes of different methods separately (F3)", async () => {
     const defineCachedHandler = vi.fn((handler: EventHandler): EventHandler => handler);
     const app = createInjectedApp(
