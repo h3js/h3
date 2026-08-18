@@ -60,6 +60,7 @@ describeMatrix("body limit", (t, { it, expect }) => {
     });
     const res = await t.fetch("/rpc", {
       method: "POST",
+      headers: { "content-type": "application/json" },
       body: streamOf(['{"jsonrpc":"2.0","id":1,', '"method":"echo","params":[1,2,3]}']),
       // @ts-expect-error duplex is required for a streaming body
       duplex: "half",

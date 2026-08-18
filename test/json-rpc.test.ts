@@ -89,6 +89,7 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
       t.app.post("/json-rpc", eventHandler);
       const result = await t.fetch("/json-rpc", {
         method: "POST",
+        headers: { "content-type": "application/json" },
         body: JSON.stringify({
           jsonrpc: "2.0",
           method: "echo",
@@ -114,6 +115,7 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
       ];
       const result = await t.fetch("/json-rpc", {
         method: "POST",
+        headers: { "content-type": "application/json" },
         body: JSON.stringify(batch),
       });
       const json = await result.json();
@@ -132,6 +134,7 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
       t.app.post("/json-rpc", eventHandler);
       const result = await t.fetch("/json-rpc", {
         method: "POST",
+        headers: { "content-type": "application/json" },
         body: JSON.stringify({
           jsonrpc: "2.0",
           method: "echo",
@@ -152,6 +155,7 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
       ];
       const result = await t.fetch("/json-rpc", {
         method: "POST",
+        headers: { "content-type": "application/json" },
         body: JSON.stringify(batch),
       });
       expect(result.status).toBe(202);
@@ -162,6 +166,7 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
       t.app.post("/json-rpc", eventHandler);
       const result = await t.fetch("/json-rpc", {
         method: "POST",
+        headers: { "content-type": "application/json" },
         body: JSON.stringify({
           jsonrpc: "2.0",
           method: "constructor",
@@ -180,6 +185,7 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
       t.app.post("/json-rpc", eventHandler);
       const result = await t.fetch("/json-rpc", {
         method: "POST",
+        headers: { "content-type": "application/json" },
         body: JSON.stringify({
           jsonrpc: "2.0",
           method: "echo",
@@ -200,6 +206,7 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
       const batch = [{ jsonrpc: "2.0", method: "echo", params: ["Hello Batch"], id: 1 }];
       const result = await t.fetch("/json-rpc", {
         method: "POST",
+        headers: { "content-type": "application/json" },
         body: JSON.stringify(batch),
       });
       const json = await result.json();
@@ -214,6 +221,7 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
       t.app.post("/json-rpc", eventHandler);
       const result = await t.fetch("/json-rpc", {
         method: "POST",
+        headers: { "content-type": "application/json" },
         body: JSON.stringify({
           jsonrpc: "1.0", // Invalid version
           method: "echo",
@@ -236,6 +244,7 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
       t.app.post("/json-rpc", eventHandler);
       const result = await t.fetch("/json-rpc", {
         method: "POST",
+        headers: { "content-type": "application/json" },
         body: JSON.stringify({
           jsonrpc: "2.0",
           method: 123,
@@ -257,6 +266,7 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
       t.app.post("/json-rpc", eventHandler);
       const result = await t.fetch("/json-rpc", {
         method: "POST",
+        headers: { "content-type": "application/json" },
         body: JSON.stringify({
           jsonrpc: "2.0",
           method: "error",
@@ -278,6 +288,7 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
       t.app.post("/json-rpc", eventHandler);
       const result = await t.fetch("/json-rpc", {
         method: "POST",
+        headers: { "content-type": "application/json" },
         body: JSON.stringify({
           jsonrpc: "2.0",
           method: "leaky",
@@ -301,6 +312,7 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
       t.app.post("/json-rpc", eventHandler);
       const result = await t.fetch("/json-rpc", {
         method: "POST",
+        headers: { "content-type": "application/json" },
         body: JSON.stringify({
           jsonrpc: "2.0",
           method: "httpErrorWithData",
@@ -323,6 +335,7 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
       t.app.post("/json-rpc", eventHandler);
       const result = await t.fetch("/json-rpc", {
         method: "POST",
+        headers: { "content-type": "application/json" },
         body: JSON.stringify({
           jsonrpc: "2.0",
           method: "errorPrimitive",
@@ -344,6 +357,7 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
       t.app.post("/json-rpc", eventHandler);
       const result = await t.fetch("/json-rpc", {
         method: "POST",
+        headers: { "content-type": "application/json" },
         body: JSON.stringify({
           jsonrpc: "2.0",
           method: "unknownMethod",
@@ -372,6 +386,7 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
       t.app.post("/json-rpc", eventHandler);
       const result = await t.fetch("/json-rpc", {
         method: "POST",
+        headers: { "content-type": "application/json" },
         body: "{ invalid json }",
       });
       const json = await result.json();
@@ -388,7 +403,11 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
     it("should return Invalid Request for valid-JSON primitive bodies", async () => {
       t.app.post("/json-rpc", eventHandler);
       for (const body of ["123", '"str"', "true", "null"]) {
-        const result = await t.fetch("/json-rpc", { method: "POST", body });
+        const result = await t.fetch("/json-rpc", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body,
+        });
         expect(await result.json(), body).toEqual({
           jsonrpc: "2.0",
           id: null,
@@ -404,6 +423,7 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
       t.app.post("/json-rpc", eventHandler);
       const result = await t.fetch("/json-rpc", {
         method: "POST",
+        headers: { "content-type": "application/json" },
         body: JSON.stringify({
           jsonrpc: "2.0",
           method: "constructor",
@@ -424,6 +444,7 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
       t.app.post("/json-rpc", eventHandler);
       const result = await t.fetch("/json-rpc", {
         method: "POST",
+        headers: { "content-type": "application/json" },
         body: JSON.stringify([]),
       });
       const json = await result.json();
@@ -441,6 +462,7 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
       t.app.post("/json-rpc", eventHandler);
       const result = await t.fetch("/json-rpc", {
         method: "POST",
+        headers: { "content-type": "application/json" },
         body: JSON.stringify([1, 2, 3]),
       });
       const json = await result.json();
@@ -455,6 +477,7 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
       t.app.post("/json-rpc", eventHandler);
       const result = await t.fetch("/json-rpc", {
         method: "POST",
+        headers: { "content-type": "application/json" },
         body: JSON.stringify({
           jsonrpc: "2.0",
           method: "rpc.discover",
@@ -476,6 +499,7 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
       t.app.post("/json-rpc", eventHandler);
       const result = await t.fetch("/json-rpc", {
         method: "POST",
+        headers: { "content-type": "application/json" },
         body: JSON.stringify({
           jsonrpc: "2.0",
           method: "echo",
@@ -498,6 +522,7 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
       t.app.post("/json-rpc", eventHandler);
       const result = await t.fetch("/json-rpc", {
         method: "POST",
+        headers: { "content-type": "application/json" },
         body: JSON.stringify({
           jsonrpc: "2.0",
           method: "echo",
@@ -520,6 +545,7 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
       t.app.post("/json-rpc", eventHandler);
       const result = await t.fetch("/json-rpc", {
         method: "POST",
+        headers: { "content-type": "application/json" },
         body: JSON.stringify({
           jsonrpc: "2.0",
           method: "echo",
@@ -542,6 +568,7 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
       t.app.post("/json-rpc", eventHandler);
       const result = await t.fetch("/json-rpc", {
         method: "POST",
+        headers: { "content-type": "application/json" },
         body: JSON.stringify({
           jsonrpc: "2.0",
           method: "__proto__",
@@ -563,6 +590,7 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
       t.app.post("/json-rpc", eventHandler);
       const result = await t.fetch("/json-rpc", {
         method: "POST",
+        headers: { "content-type": "application/json" },
         body: JSON.stringify({
           jsonrpc: "2.0",
           method: "toString",
@@ -586,6 +614,7 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
       t.app.post("/json-rpc", eventHandler);
       const result = await t.fetch("/json-rpc", {
         method: "POST",
+        headers: { "content-type": "application/json" },
         body: JSON.stringify({
           jsonrpc: "2.0",
           method: "unauthorized",
@@ -607,6 +636,7 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
       t.app.post("/json-rpc", eventHandler);
       const result = await t.fetch("/json-rpc", {
         method: "POST",
+        headers: { "content-type": "application/json" },
         body: JSON.stringify({
           jsonrpc: "2.0",
           method: "forbidden",
@@ -628,6 +658,7 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
       t.app.post("/json-rpc", eventHandler);
       const result = await t.fetch("/json-rpc", {
         method: "POST",
+        headers: { "content-type": "application/json" },
         body: JSON.stringify({
           jsonrpc: "2.0",
           method: "notFound",
@@ -649,6 +680,7 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
       t.app.post("/json-rpc", eventHandler);
       const result = await t.fetch("/json-rpc", {
         method: "POST",
+        headers: { "content-type": "application/json" },
         body: JSON.stringify({
           jsonrpc: "2.0",
           method: "badRequest",
@@ -670,6 +702,7 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
       t.app.post("/json-rpc", eventHandler);
       const result = await t.fetch("/json-rpc", {
         method: "POST",
+        headers: { "content-type": "application/json" },
         body: JSON.stringify({
           jsonrpc: "2.0",
           method: "conflict",
@@ -691,6 +724,7 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
       t.app.post("/json-rpc", eventHandler);
       const result = await t.fetch("/json-rpc", {
         method: "POST",
+        headers: { "content-type": "application/json" },
         body: JSON.stringify({
           jsonrpc: "2.0",
           method: "rateLimited",
@@ -712,6 +746,7 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
       t.app.post("/json-rpc", eventHandler);
       const result = await t.fetch("/json-rpc", {
         method: "POST",
+        headers: { "content-type": "application/json" },
         body: JSON.stringify({
           jsonrpc: "2.0",
           method: "serverError",
@@ -733,6 +768,7 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
       t.app.post("/json-rpc", eventHandler);
       const result = await t.fetch("/json-rpc", {
         method: "POST",
+        headers: { "content-type": "application/json" },
         body: JSON.stringify({
           jsonrpc: "2.0",
           method: "error",
@@ -754,6 +790,7 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
       t.app.post("/json-rpc", eventHandler);
       const result = await t.fetch("/json-rpc", {
         method: "POST",
+        headers: { "content-type": "application/json" },
         body: JSON.stringify({
           jsonrpc: "2.0",
           method: "errorWithZeroData",
@@ -776,6 +813,7 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
       t.app.post("/json-rpc", eventHandler);
       const result = await t.fetch("/json-rpc", {
         method: "POST",
+        headers: { "content-type": "application/json" },
         body: JSON.stringify({
           jsonrpc: "2.0",
           method: "errorWithEmptyStringData",
@@ -798,6 +836,7 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
       t.app.post("/json-rpc", eventHandler);
       const result = await t.fetch("/json-rpc", {
         method: "POST",
+        headers: { "content-type": "application/json" },
         body: JSON.stringify({
           jsonrpc: "2.0",
           method: "errorWithFalseData",
@@ -820,6 +859,7 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
       t.app.post("/json-rpc", eventHandler);
       const result = await t.fetch("/json-rpc", {
         method: "POST",
+        headers: { "content-type": "application/json" },
         body: JSON.stringify({
           jsonrpc: "2.0",
           method: "redirect",
@@ -835,6 +875,211 @@ describeMatrix("json-rpc", (t, { describe, it, expect }) => {
           message: "Resource moved permanently",
         },
       });
+    });
+  });
+
+  describe("security", () => {
+    it("should reject non-JSON content types", async () => {
+      t.app.post("/json-rpc", eventHandler);
+      for (const contentType of [
+        "text/plain",
+        "application/x-www-form-urlencoded",
+        "multipart/form-data; boundary=x",
+      ]) {
+        const result = await t.fetch("/json-rpc", {
+          method: "POST",
+          headers: { "content-type": contentType },
+          body: JSON.stringify({ jsonrpc: "2.0", method: "echo", params: ["hi"], id: 1 }),
+        });
+        expect(result.status, contentType).toBe(415);
+      }
+    });
+
+    it("should reject requests without a content type", async () => {
+      t.app.post("/json-rpc", eventHandler);
+      const result = await t.fetch("/json-rpc", {
+        method: "POST",
+        body: new Blob([JSON.stringify({ jsonrpc: "2.0", method: "echo", id: 1 })]),
+      });
+      expect(result.status).toBe(415);
+    });
+
+    it("should accept JSON content types with parameters and +json suffixes", async () => {
+      t.app.post("/json-rpc", eventHandler);
+      for (const contentType of [
+        "application/json; charset=utf-8",
+        "Application/JSON",
+        "application/json-rpc",
+        "application/vnd.custom+json",
+      ]) {
+        const result = await t.fetch("/json-rpc", {
+          method: "POST",
+          headers: { "content-type": contentType },
+          body: JSON.stringify({ jsonrpc: "2.0", method: "echo", params: ["hi"], id: 1 }),
+        });
+        expect(result.status, contentType).toBe(200);
+      }
+    });
+
+    it("should allow any content type with `validateContentType: false`", async () => {
+      t.app.post(
+        "/json-rpc",
+        defineJsonRpcHandler({ methods: { echo }, validateContentType: false }),
+      );
+      const result = await t.fetch("/json-rpc", {
+        method: "POST",
+        headers: { "content-type": "text/plain" },
+        body: JSON.stringify({ jsonrpc: "2.0", method: "echo", params: ["hi"], id: 1 }),
+      });
+      expect(result.status).toBe(200);
+    });
+
+    it("should reject cross-origin requests by default", async () => {
+      t.app.post("/json-rpc", eventHandler);
+      const result = await t.fetch("/json-rpc", {
+        method: "POST",
+        headers: { "content-type": "application/json", origin: "http://evil.test" },
+        body: JSON.stringify({ jsonrpc: "2.0", method: "echo", params: ["hi"], id: 1 }),
+      });
+      expect(result.status).toBe(403);
+    });
+
+    it("should allow same-origin requests", async () => {
+      t.app.get("/origin", (event) => event.url.origin);
+      t.app.post("/json-rpc", eventHandler);
+      const origin = await (await t.fetch("/origin")).text();
+      const result = await t.fetch("/json-rpc", {
+        method: "POST",
+        headers: { "content-type": "application/json", origin },
+        body: JSON.stringify({ jsonrpc: "2.0", method: "echo", params: ["hi"], id: 1 }),
+      });
+      expect(result.status).toBe(200);
+    });
+
+    it("should allow configured cross origins", async () => {
+      t.app.post(
+        "/json-rpc",
+        defineJsonRpcHandler({ methods: { echo }, allowedOrigins: ["http://good.test"] }),
+      );
+      const body = JSON.stringify({ jsonrpc: "2.0", method: "echo", params: ["hi"], id: 1 });
+      const allowed = await t.fetch("/json-rpc", {
+        method: "POST",
+        headers: { "content-type": "application/json", origin: "http://good.test" },
+        body,
+      });
+      expect(allowed.status).toBe(200);
+      const denied = await t.fetch("/json-rpc", {
+        method: "POST",
+        headers: { "content-type": "application/json", origin: "http://evil.test" },
+        body,
+      });
+      expect(denied.status).toBe(403);
+    });
+
+    it('should skip the origin check with `allowedOrigins: "*"`', async () => {
+      t.app.post("/json-rpc", defineJsonRpcHandler({ methods: { echo }, allowedOrigins: "*" }));
+      const result = await t.fetch("/json-rpc", {
+        method: "POST",
+        headers: { "content-type": "application/json", origin: "http://evil.test" },
+        body: JSON.stringify({ jsonrpc: "2.0", method: "echo", params: ["hi"], id: 1 }),
+      });
+      expect(result.status).toBe(200);
+    });
+
+    it("should reject batches larger than the default limit", async () => {
+      t.app.post("/json-rpc", eventHandler);
+      const result = await t.fetch("/json-rpc", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(
+          Array.from({ length: 51 }, (_, i) => ({
+            jsonrpc: "2.0",
+            method: "echo",
+            params: ["hi"],
+            id: i,
+          })),
+        ),
+      });
+      const json = await result.json();
+      expect(json).toEqual({
+        jsonrpc: "2.0",
+        id: null,
+        error: {
+          code: -32_600,
+          message: "Invalid Request: batch size exceeds maximum of 50",
+        },
+      });
+    });
+
+    it("should respect a custom `maxBatchSize`", async () => {
+      let calls = 0;
+      t.app.post(
+        "/json-rpc",
+        defineJsonRpcHandler({
+          methods: {
+            count: () => {
+              calls++;
+              return "ok";
+            },
+          },
+          maxBatchSize: 2,
+        }),
+      );
+      const batch = (length: number) =>
+        JSON.stringify(
+          Array.from({ length }, (_, i) => ({ jsonrpc: "2.0", method: "count", id: i })),
+        );
+
+      const ok = await t.fetch("/json-rpc", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: batch(2),
+      });
+      expect(await ok.json()).toHaveLength(2);
+      expect(calls).toBe(2);
+
+      // Oversized batches are rejected without invoking any method (notably,
+      // notification-only batches must not silently fan out either).
+      const tooLarge = await t.fetch("/json-rpc", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: batch(3),
+      });
+      expect((await tooLarge.json()).error.code).toBe(-32_600);
+      expect(calls).toBe(2);
+    });
+
+    it("should not leak messages of unhandled HTTPErrors", async () => {
+      t.app.post(
+        "/json-rpc",
+        defineJsonRpcHandler({
+          methods: {
+            unhandled: () => {
+              // Framework-wrapped internal exception (e.g. `fromNodeHandler`).
+              throw new HTTPError({
+                cause: new Error("connect ECONNREFUSED db.internal:5432"),
+                unhandled: true,
+                data: { stack: "internal" },
+              });
+            },
+          },
+        }),
+      );
+      const result = await t.fetch("/json-rpc", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ jsonrpc: "2.0", method: "unhandled", id: 7 }),
+      });
+      const json = await result.json();
+      expect(json).toEqual({
+        jsonrpc: "2.0",
+        id: 7,
+        error: {
+          code: -32_603,
+          message: "Internal error",
+        },
+      });
+      expect(JSON.stringify(json)).not.toContain("db.internal");
     });
   });
 });
