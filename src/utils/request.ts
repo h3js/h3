@@ -510,10 +510,7 @@ export function getRequestURL(
   if (opts.xForwardedHost) {
     const host = getRequestHost(event, opts);
     if (host) {
-      url.host = host;
-      if (!/:\d+$/.test(host)) {
-        url.port = "";
-      }
+      applyForwardedHost(url, host);
     }
   }
   return url;
@@ -554,4 +551,27 @@ export function getRequestIP(
   }
 
   return (event.req.context?.clientAddress as string) || event.req.ip || undefined;
+}
+
+// --- internal ---
+
+/**
+ * Apply a client provided `hostname[:port]` to `url`.
+ *
+ * The URL `hostname` and `port` setters silently ignore invalid values, so both
+ * are checked before they are trusted: applying a malformed host as-is would
+ * leave the real authority half rewritten (a bad hostname keeping the real port
+ * or, worse, a spoofed hostname inheriting it).
+ */
+function applyForwardedHost(url: URL, host: string): void {
+  const sep = host.lastIndexOf(":");
+  const hasPort = sep > host.lastIndexOf("]"); // ignore the colons of an [ipv6] host
+  const hostname = hasPort ? host.slice(0, sep) : host;
+  const prevHostname = url.hostname;
+  url.hostname = hostname;
+  if (url.hostname === prevHostname && hostname.toLowerCase() !== prevHostname) {
+    return; // the setter was a no-op: keep the real authority
+  }
+  const port = hasPort ? host.slice(sep + 1) : "";
+  url.port = /^\d{1,5}$/.test(port) && +port < 65_536 ? port : "";
 }

@@ -329,6 +329,36 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
       expect(res).toBe("http://[2001:db8::1]:8080/test");
     });
 
+    it("ignores malformed x-forwarded-host and keeps the real authority", async () => {
+      const real = await t.fetch("/test").then((r) => r.text());
+      for (const host of ["bad host", "foo|bar", "user@evil.com", "example.com%"]) {
+        const res = await t
+          .fetch("/test", {
+            headers: { host: "localhost", "x-forwarded-host": host },
+          })
+          .then((r) => r.text());
+        expect(res, host).toBe(real);
+      }
+    });
+
+    it("x-forwarded-host clears the port when only the port differs", async () => {
+      const res = await t
+        .fetch("http://localhost:3000/test", {
+          headers: { "x-forwarded-host": "localhost" },
+        })
+        .then((r) => r.text());
+      expect(res).toBe("http://localhost/test");
+    });
+
+    it("x-forwarded-host with an invalid port drops the real port", async () => {
+      const res = await t
+        .fetch("http://localhost:3000/test", {
+          headers: { "x-forwarded-host": "example.com:99999" },
+        })
+        .then((r) => r.text());
+      expect(res).toBe("http://example.com/test");
+    });
+
     it('x-forwarded-proto: "https"', async () => {
       expect(
         await t
