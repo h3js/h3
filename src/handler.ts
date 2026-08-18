@@ -14,9 +14,16 @@ import type {
   HTTPHandler,
 } from "./types/handler.ts";
 import type { StandardSchemaV1, InferOutput } from "./utils/internal/standard-schema.ts";
+import type { TypedH3EventContext } from "./types/context.ts";
 import type { TypedRequest } from "fetchdts";
 import { NoHandler, type H3Core } from "./h3.ts";
-import { validatedRequest, validatedURL, type OnValidateError } from "./utils/internal/validate.ts";
+import {
+  validatedRequest,
+  validatedURL,
+  validatedParams,
+  type OnValidateError,
+} from "./utils/internal/validate.ts";
+import { chain } from "./utils/internal/promise.ts";
 
 // --- event handler ---
 
@@ -50,7 +57,7 @@ export function defineHandler(input: EventHandler | EventHandlerObject): EventHa
   );
 }
 
-type StringHeaders<T> = {
+type StringsOnly<T> = {
   [K in keyof T]: Extract<T[K], string>;
 };
 
@@ -61,6 +68,9 @@ export function defineValidatedHandler<
   RequestBody extends StandardSchemaV1,
   RequestHeaders extends StandardSchemaV1,
   RequestQuery extends StandardSchemaV1,
+  // `undefined` default marks "no params schema" so the context override below
+  // only applies (and makes `params` required) when one is actually declared.
+  RequestParams extends StandardSchemaV1 | undefined = undefined,
   Res extends EventHandlerResponse = EventHandlerResponse,
 >(
   def: Omit<EventHandlerObject, "handler"> & {
@@ -68,26 +78,41 @@ export function defineValidatedHandler<
       body?: RequestBody;
       headers?: RequestHeaders;
       query?: RequestQuery;
+      params?: RequestParams;
+      decodeParams?: boolean;
       onError?: OnValidateError;
     };
     handler: EventHandler<
       {
         body: InferOutput<RequestBody>;
-        query: StringHeaders<InferOutput<RequestQuery>>;
+        query: StringsOnly<InferOutput<RequestQuery>>;
       },
-      Res
+      Res,
+      TypedH3EventContext<
+        RequestParams extends StandardSchemaV1 ? { params: InferOutput<RequestParams> } : {}
+      >
     >;
   },
 ): EventHandlerWithFetch<TypedRequest<InferOutput<RequestBody>, InferOutput<RequestHeaders>>, Res> {
   if (!def.validate) {
-    return defineHandler(def) as any;
+    // context-typed handler narrows the event param (contravariant) — safe at runtime
+    return defineHandler(def as any) as any;
   }
   return defineHandler({
     ...def,
-    handler: async function _validatedHandler(event) {
-      (event as any) /* readonly */.req = await validatedRequest(event.req, def.validate!);
-      (event as any) /* readonly */.url = await validatedURL(event.url, def.validate!);
-      return def.handler(event as any);
+    handler: function _validatedHandler(event) {
+      const v = def.validate!;
+      // `chain` keeps a fully-sync path from yielding a microtask.
+      // params → headers → query in sequential order
+      return chain(validatedParams(event, v), () =>
+        chain(validatedRequest(event.req, v), (req) => {
+          (event as any) /* readonly */.req = req;
+          return chain(validatedURL(event.url, v), (url) => {
+            (event as any) /* readonly */.url = url;
+            return def.handler(event as any);
+          });
+        }),
+      );
     },
   }) as any;
 }
