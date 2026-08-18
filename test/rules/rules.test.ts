@@ -314,6 +314,47 @@ describe("redirect rule", () => {
     expect(res.status).toBe(400);
   });
 
+  it("fails closed when the key prefix has no fixed segment count", async () => {
+    // The tail is stripped by segment count, so the count has to be the same for
+    // every request the key matches. A modifier param makes it vary (`:lang?`
+    // matches zero segments or one), and counting it strips the wrong number —
+    // dropping a real segment, or leaving a literal prefix segment in the tail
+    // and pointing a proxy at a different upstream resource. Reject instead.
+    const cases: [string, string[]][] = [
+      ["/:lang?/old/**", ["/en/old/a/b", "/old/a/b"]],
+      ["/x/:seg*/old/**", ["/x/old/a", "/x/a/old/b", "/x/a/b/old/c"]],
+      ["/x/:seg+/old/**", ["/x/a/old/b", "/x/a/b/old/c"]],
+      // A group that spans a separator varies the count the same way.
+      ["/x{/a}?/:id/old/**", ["/x/1/old/b", "/x/a/1/old/b"]],
+    ];
+    for (const [key, paths] of cases) {
+      const app = createApp({ [key]: { redirect: "/new/**" } });
+      for (const path of paths) {
+        const res = await app.fetch(new Request("http://test" + path));
+        expect(`${key} ${path} -> ${res.status}`).toBe(`${key} ${path} -> 400`);
+      }
+    }
+  });
+
+  it("still strips a fixed-width dynamic prefix", async () => {
+    // Every segment of these prefixes matches exactly one path segment, so the
+    // count is exact and the tail is forwarded as authored.
+    const cases: [string, string, string][] = [
+      ["/:lang/old/**", "/en/old/a/b", "/new/a/b"],
+      ["/x/*/old/**", "/x/y/old/a", "/new/a"],
+      [String.raw`/x/:id(\d+)/old/**`, "/x/12/old/a", "/new/a"],
+      // An *intra*-segment group leaves the segment count alone.
+      ["/blog{-:title}?/old/**", "/blog-post/old/a", "/new/a"],
+    ];
+    for (const [key, path, location] of cases) {
+      const app = createApp({ [key]: { redirect: "/new/**" } });
+      const res = await app.fetch(new Request("http://test" + path));
+      expect(`${key} ${path} -> ${res.headers.get("location")}`).toBe(
+        `${key} ${path} -> ${location}`,
+      );
+    }
+  });
+
   it("collapses a leading `//` without a scope base", async () => {
     // A leading `//` after the wildcard prefix must not be forwarded as a
     // protocol-relative URL.

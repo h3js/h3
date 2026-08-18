@@ -22,10 +22,9 @@ const LEADING_SEPARATOR_RUN_RE = /^(?:[/\\]|%(?:25)*(?:2f|5c))+/i;
 // traded away.
 const DYNAMIC_PATTERN_RE = /[:*()\\]/;
 
-// A `**` segment inside the prefix has no fixed segment count, so no effective
-// base can be derived from it. Left to the literal comparison below, which
-// rejects (400) — the same outcome as before, never a silent wrong strip.
-const UNCOUNTABLE_PATTERN_RE = /(?:^|\/)\*\*/;
+// A prefix segment matching a variable number of path segments: a catch-all
+// (`**`, `**:rest`) or a modifier param (`:x?` 0-1, `:x*` 0-n, `:x+` 1-n).
+const VARIABLE_WIDTH_SEGMENT_RE = /^\*\*|^:.*[?*+]$/;
 
 /**
  * Prepare a redirect or proxy target resolver. Wildcard tails and query strings
@@ -43,10 +42,7 @@ export function prepareRuleTarget(
     const baseTarget = target.slice(0, -3);
     const base = options?.base;
     // Segment count of a dynamic pattern prefix (0 = use `base` literally).
-    const baseSegments =
-      base && DYNAMIC_PATTERN_RE.test(base) && !UNCOUNTABLE_PATTERN_RE.test(base)
-        ? countSegments(base)
-        : 0;
+    const baseSegments = base && DYNAMIC_PATTERN_RE.test(base) ? patternSegmentCount(base) : 0;
     // Target's own base path (`to` minus `/**`), used to scope-check the final forwarded target below.
     let baseTargetPath = getURLPathname(baseTarget);
     if (baseTargetPath.endsWith("/")) {
@@ -157,17 +153,48 @@ function isLiterallyInScope(pathname: string, base: string): boolean {
   return isPathInScope(pathname, base) && (pathname === base || pathname.startsWith(base + "/"));
 }
 
-/** Number of `/`-delimited segments in a rule pattern prefix (`/:lang/old` → 2). */
-function countSegments(base: string): number {
-  // A prefix without a leading `/` still routes as if it had one (rou3 coerces
-  // it), so its first segment would otherwise go uncounted.
-  let count = base.startsWith("/") ? 0 : 1;
-  for (let i = 0; i < base.length; i++) {
-    if (base[i] === "/") {
-      count++;
+/**
+ * Number of path segments a rule pattern prefix matches (`/:lang/old` → 2), or
+ * 0 when it has no fixed count.
+ *
+ * Only a prefix whose every segment matches exactly one path segment can be
+ * stripped by count. A catch-all or modifier param (`/:lang?/old`,
+ * `/x/:seg*​/old`) matches a varying number, and so does a group spanning a
+ * separator (`/x{/a}?/old`) — splitting it here leaves its braces unbalanced.
+ * Counting any of those strips the wrong number of segments off the request
+ * path, so they return 0 and fall through to the literal comparison, which
+ * rejects (400) instead of forwarding a silently mis-stripped path.
+ */
+function patternSegmentCount(base: string): number {
+  const segments = splitSegments(base);
+  let depth = 0;
+  for (const segment of segments) {
+    if (VARIABLE_WIDTH_SEGMENT_RE.test(segment)) {
+      return 0;
+    }
+    for (let i = 0; i < segment.length; i++) {
+      if (segment[i] === "{") {
+        depth++;
+      } else if (segment[i] === "}") {
+        depth--;
+      }
+    }
+    if (depth !== 0) {
+      return 0;
     }
   }
-  return count;
+  return segments.length;
+}
+
+/** Number of `/`-delimited segments in a concrete path (`/a/b` → 2). */
+function countSegments(base: string): number {
+  return splitSegments(base).length;
+}
+
+// A prefix without a leading `/` still routes as if it had one (rou3 coerces
+// it), so its first segment would otherwise go uncounted.
+function splitSegments(base: string): string[] {
+  return (base.startsWith("/") ? base.slice(1) : base).split("/");
 }
 
 /** The first `count` segments of `pathname`, or `undefined` when it has fewer. */
