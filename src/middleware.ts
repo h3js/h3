@@ -39,9 +39,14 @@ function createMatcher(opts: MiddlewareOptions & { route?: string }) {
   const routeMatcher = opts.route ? createRouteMatcher(normalizeRoute(opts.route)) : undefined;
   const method = opts.method?.toUpperCase();
   return function _middlewareMatcher(event: H3Event) {
-    if (method && event.req.method !== method) {
+    if (method) {
+      // `opts.method` is uppercased above, but a request method arrives as sent:
+      // `new Request()` only normalizes the fetch spec's fixed token list
+      // (DELETE/GET/HEAD/OPTIONS/POST/PUT), so `patch` stays `patch`. Comparing
+      // raw would skip the guard while the method-agnostic route still serves.
+      const reqMethod = event.req.method.toUpperCase();
       // HEAD is served by GET handlers (RFC 9110), so GET-scoped middleware also matches HEAD
-      if (!(method === "GET" && event.req.method === "HEAD")) {
+      if (reqMethod !== method && !(method === "GET" && reqMethod === "HEAD")) {
         return false;
       }
     }
