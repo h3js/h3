@@ -1,3 +1,5 @@
+# `publish.yml` triggers off this workflow by NAME (`workflows: [ci]`), not by
+# filename — renaming it stops nightly publishing.
 name: ci
 
 on:
@@ -6,36 +8,46 @@ on:
 
 permissions: {}
 
+# Superseded PR runs are wasted work. Pushes to `main` are never cancelled:
+# `publish.yml` triggers off this workflow's conclusion, and a cancelled run
+# concludes `cancelled`, which would silently skip that commit's nightly.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   tests:
     runs-on: ubuntu-latest
     permissions: { contents: read }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - run: npm i -g --force corepack && corepack enable
+        with: { persist-credentials: false }
+      - run: npm i -fg corepack@0.35.0 && corepack enable
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with: { node-version: lts/*, cache: pnpm }
+        with: { node-version-file: .nvmrc, cache: pnpm }
       - run: pnpm install
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm build
       - run: pnpm vitest --coverage
       - uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
-        with: { token: "${{ secrets.CODECOV_TOKEN }}" }
+        with: { token: "${{ secrets.CODECOV_TOKEN }}", files: ./coverage/clover.xml }
   publish-pkg-pr-new:
     runs-on: ubuntu-latest
     permissions: { contents: read }
     timeout-minutes: 10
     needs: tests
-    # Preview publishing must never gate the nightly npm release in `publish.yml`,
-    # which is triggered by the `ci` workflow concluding successfully.
-    continue-on-error: true
+    # PRs only. `publish.yml` fires when this whole workflow concludes, so any
+    # job running here on a `main` push delays the nightly npm release by its
+    # own runtime — up to `timeout-minutes` if pkg.pr.new hangs.
+    if: github.event_name == 'pull_request'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with: { fetch-depth: 0 }
-      - run: npm i -fg corepack && corepack enable
+        with: { persist-credentials: false }
+      - run: npm i -fg corepack@0.35.0 && corepack enable
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with: { node-version: lts/*, cache: "pnpm" }
+        with: { node-version-file: .nvmrc, cache: pnpm }
       - run: pnpm install
-      - run: pnpm build
+      # No build step: `pkg-pr-new` packs with `npm pack`, which runs `prepack`
+      # (`pnpm build`) itself.
       - run: pnpm exec pkg-pr-new publish
