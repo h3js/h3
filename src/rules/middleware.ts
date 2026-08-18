@@ -12,6 +12,7 @@ import type {
   RouteRulesMatcher,
   RouteRulesMatcherOptions,
 } from "./match.ts";
+import { HTTP_METHODS } from "./internal/key.ts";
 import { normalizeRouteRules } from "./normalize.ts";
 import type { MatchResult, RouteRuleConfig } from "./types.ts";
 
@@ -61,8 +62,6 @@ export function routeRules(
   };
 }
 
-const METHOD_TOKEN_RE = /^[A-Za-z]+$/;
-
 /**
  * Lift only the requested method's CORS rule for preflight; lifting auth or
  * other method-scoped rules would incorrectly reject credentialless preflights.
@@ -74,11 +73,14 @@ function liftPreflightCors(
   pathname: string,
 ): MatchResult {
   const requested = event.req.headers.get("access-control-request-method");
-  if (!requested || !METHOD_TOKEN_RE.test(requested)) {
+  if (!requested) {
     return matched;
   }
+  // Only a method a rule key can name is worth a second lookup — the header is
+  // attacker-controlled, and a free-form token would key a fresh entry in the
+  // shared match memo on every preflight.
   const method = requested.toUpperCase();
-  if (method === "OPTIONS") {
+  if (method === "OPTIONS" || !HTTP_METHODS.has(method)) {
     return matched;
   }
   const cors = match(method, pathname).matchedRules.cors;

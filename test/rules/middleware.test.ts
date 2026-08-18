@@ -116,6 +116,32 @@ describe("routeRules() middleware", () => {
     expect(seen[3]).toEqual(seen[0]);
   });
 
+  it("does not spend a memo entry on an unroutable preflight method", async () => {
+    // `access-control-request-method` is attacker-controlled. Lifting a CORS
+    // rule for it means a second, method-keyed lookup — and with a free-form
+    // token that keys a fresh entry in the shared memo on every preflight,
+    // evicting the real traffic's entries for a method no rule key can name.
+    const { app, seen } = appWithContextProbe(
+      { "/api/**": { headers: { "x-api": "1" } } },
+      { memoize: { max: 2 } },
+    );
+    const get = () => app.fetch(new Request("http://test/api/a"));
+    const preflight = (requested: string) =>
+      app.fetch(
+        new Request("http://test/api/a", {
+          method: "OPTIONS",
+          headers: {
+            origin: "https://evil.example",
+            "access-control-request-method": requested,
+          },
+        }),
+      );
+    await get(); // miss: memo holds `GET /api/a`
+    for (const junk of ["AAAA", "BBBB", "CCCC"]) await preflight(junk);
+    await get();
+    expect(seen[1]).toBe(seen[0]); // survived: only `OPTIONS /api/a` was added
+  });
+
   it("normalizes the request method before the lookup (and before the memo key)", async () => {
     // Rule keys are uppercased at parse time, so the lookup method must be too —
     // otherwise a method-scoped rule (which never populates rou3's `methods[""]`)
