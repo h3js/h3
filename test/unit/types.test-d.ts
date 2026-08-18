@@ -3,6 +3,7 @@ import { describe, it, expectTypeOf } from "vitest";
 import {
   defineHandler,
   getQuery,
+  getRouterParams,
   readBody,
   readValidatedBody,
   getValidatedQuery,
@@ -75,11 +76,19 @@ describe("types", () => {
           query: z.object({
             search: z.string().optional(),
           }),
+          params: z.object({
+            userId: z.string(),
+          }),
         },
         async handler(event) {
           const query = getQuery(event);
           expectTypeOf(query.search).not.toBeAny();
           expectTypeOf(query.search).toEqualTypeOf<string | undefined>();
+
+          // params are string-typed, mirroring query (coercion deferred)
+          const params = getRouterParams(event);
+          expectTypeOf(params).not.toBeAny();
+          expectTypeOf(params).toEqualTypeOf<{ userId: string }>();
 
           // TODO:
           // type PossibleParams = Parameters<typeof event.url.searchParams.get>[0]
