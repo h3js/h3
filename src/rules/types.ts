@@ -28,6 +28,23 @@ export interface CacheRuleOptions {
   staleMaxAge?: number;
   /** Storage key base prefix(es). */
   base?: string | string[];
+  /**
+   * Seconds one shared resolution may take before every waiter is rejected and
+   * the entry evicted. Defaults to `30`; `0` or `Infinity` disables the deadline.
+   */
+  maxResolveTime?: number;
+  /**
+   * Stream the response that fills the entry instead of buffering it first.
+   * Trades a synthesized `etag` and mid-body error recovery for time to first
+   * byte; later requests are still served from the stored entry.
+   */
+  stream?: boolean;
+  /**
+   * Largest response body, in bytes, that may be buffered for storage. Defaults
+   * to what the storage backend can hold; a larger response streams through
+   * uncached.
+   */
+  maxBodySize?: number;
   /** Only handle conditional headers (304 responses) without caching full responses. */
   headersOnly?: boolean;
   /**
@@ -35,8 +52,11 @@ export interface CacheRuleOptions {
    * are forwarded only when {@link allowAuthorization} is enabled.
    */
   varies?: string[] | readonly string[];
-  /** Allowlist of query parameter names that vary the cache key. */
-  allowQuery?: string[] | readonly string[];
+  /**
+   * Query parameter names that reach the handler and vary the cache key. No
+   * query parameter does by default; `true` opts the full query string back in.
+   */
+  allowQuery?: boolean | string[] | readonly string[];
   /**
    * Cookies allowed to vary the cache key and reach the handler. Other request
    * cookies are filtered, and `Set-Cookie` is never stored.

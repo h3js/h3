@@ -5,8 +5,13 @@ import { handleCacheHeaders } from "../utils/cache.ts";
 import type { H3Event } from "../event.ts";
 import type { EventHandler } from "../types/handler.ts";
 import type { ServerRequest } from "srvx";
-import { defineCachedHandler as ocacheDefineCachedHandler, setStorage } from "ocache";
-import type { CachedEventHandlerOptions, StorageInterface } from "ocache";
+import { createMemoryStorage, defineCachedHandler as ocacheDefineCachedHandler } from "ocache";
+import type {
+  CacheConditions as OcacheCacheConditions,
+  CachedEventHandlerOptions,
+  StorageInterface,
+  StorageOption,
+} from "ocache";
 import { createCacheRuleHandler } from "./handlers/cache.ts";
 import type { CacheRuleOptions, RuleHandler } from "./types.ts";
 
@@ -15,15 +20,16 @@ import type { CacheRuleOptions, RuleHandler } from "./types.ts";
  * are optional; the default uses ocache's in-memory storage out of the box.
  */
 export interface OcacheRuleHandlerOptions {
-  /** ocache storage implementation. Applied via its process-global `setStorage`. */
-  storage?: StorageInterface;
+  /**
+   * ocache storage instance, or a factory resolved on first use. Shared by every
+   * cache rule this handler serves. Defaults to one lazily created memory store.
+   */
+  storage?: StorageOption;
   /** Default ocache options. Rule options take precedence. */
   defaults?: CachedEventHandlerOptions;
   /** Stable cache-key scope. Set this when sharing persistent storage across processes. */
   id?: string;
 }
-
-let installedStorage: StorageInterface | undefined;
 
 // Reflected CORS headers are request-specific and must not enter a shared cache.
 const VOLATILE_CORS_HEADERS = [
@@ -41,9 +47,28 @@ function getSetCookies(headers: Headers): string[] {
   return value === null ? [] : [value];
 }
 
+// Matches the `origin` entry of a comma-separated `Vary` list.
+const RE_VARY_ORIGIN = /(?:^|,)\s*origin\s*(?:,|$)/i;
+
+/** Drop `origin` from a `Vary` list, returning `undefined` for an empty rest. */
+function withoutVaryOrigin(vary: string): string | undefined {
+  const rest = vary
+    .split(",")
+    .map((name) => name.trim())
+    .filter((name) => name && name.toLowerCase() !== "origin");
+  return rest.length > 0 ? rest.join(", ") : undefined;
+}
+
 /**
  * Keep request-specific CORS and `Set-Cookie` headers out of shared entries
  * while preserving them on the cache-miss response.
+ *
+ * The `cors` rule's `Vary: Origin` goes with them: it declares the reflected
+ * `Access-Control-Allow-Origin` this function just moved out, and the rule
+ * (order -3, outside the cache) re-appends both on every request, hit or miss.
+ * Left in place it would only make ocache refuse to store the entry at all —
+ * an undeclared `Vary` name is not cacheable, and keying by origin instead
+ * would give every origin its own copy of the same body.
  */
 function moveVolatileHeaders(res: Response, event: H3Event): Response {
   if (event.req.method !== "GET" && event.req.method !== "HEAD") {
@@ -57,7 +82,12 @@ function moveVolatileHeaders(res: Response, event: H3Event): Response {
     }
   }
   const cookies = getSetCookies(res.headers);
-  if (moved.length === 0 && cookies.length === 0) {
+  // Only the `cors` rule's own `Vary: Origin` is dropped — a handler that
+  // declares one keeps it, and ocache then declines to store its response.
+  const vary = event.context.routeRules?.cors ? res.headers.get("vary") : null;
+  const dropVaryOrigin = vary !== null && RE_VARY_ORIGIN.test(vary);
+  const varyRest = dropVaryOrigin ? withoutVaryOrigin(vary!) : undefined;
+  if (moved.length === 0 && cookies.length === 0 && !dropVaryOrigin) {
     return res;
   }
   const strip = (headers: Headers): void => {
@@ -66,6 +96,13 @@ function moveVolatileHeaders(res: Response, event: H3Event): Response {
     }
     if (cookies.length > 0) {
       headers.delete("set-cookie");
+    }
+    if (dropVaryOrigin) {
+      if (varyRest === undefined) {
+        headers.delete("vary");
+      } else {
+        headers.set("vary", varyRest);
+      }
     }
   };
   try {
@@ -80,6 +117,11 @@ function moveVolatileHeaders(res: Response, event: H3Event): Response {
   }
   for (const cookie of cookies) {
     event.res.headers.append("set-cookie", cookie);
+  }
+  if (dropVaryOrigin) {
+    // `toResponse` above consumed the staged headers, so the miss response only
+    // keeps what is staged again here — the full `Vary` the client should see.
+    event.res.headers.set("vary", vary!);
   }
   return res;
 }
@@ -143,7 +185,10 @@ const RE_PRIVATE = /(?:^|,)\s*(?:private|no-store)(?:\s*=|\s*,|\s*$)/i;
 /** Preserve `private`/`no-store` and explicit opt-out from cache-control synthesis. */
 function withPreservedCacheControl(
   event: H3Event,
-  conditions: { modifiedTime?: Date; maxAge?: number; etag?: string },
+  // ocache captures `if-none-match`/`if-modified-since` before narrowing the
+  // request it forwards, so `event.req` no longer carries them on a miss —
+  // `handleCacheHeaders` has to read them from here.
+  conditions: OcacheCacheConditions,
   sendCacheControl: boolean,
 ): boolean {
   const existing = servedCacheControl.get(event) ?? event.res.headers.get("cache-control");
@@ -201,22 +246,35 @@ function variableHeaderNames(opts: CacheRuleOptions, allowCredentials: boolean):
   );
 }
 
+// Default memory stores for `id`-scoped handlers. An explicit `id` declares two
+// handler instances to be the same app — their cache keys already match, so the
+// store has to match too for them to actually share entries, the way the
+// process-global storage of earlier ocache releases made them.
+const idStorages = /* @__PURE__ */ new Map<string, StorageInterface>();
+
+function idStorage(id: string): StorageInterface {
+  let storage = idStorages.get(id);
+  if (!storage) {
+    storage = createMemoryStorage();
+    idStorages.set(id, storage);
+  }
+  return storage;
+}
+
 /**
  * Create an ocache-backed `cache` rule handler.
  *
- * ocache storage is process-global: the last supplied `storage` affects every
- * ocache consumer. Conflicting overrides emit a warning.
+ * Every rule this handler serves shares one storage instance: the supplied
+ * `storage`, or a memory store shared by every handler with the same `id`.
  */
 export function createOcacheRuleHandler(opts?: OcacheRuleHandlerOptions): RuleHandler<"cache"> {
-  if (opts?.storage) {
-    if (installedStorage && installedStorage !== opts.storage) {
-      console.warn(
-        "[h3] [rules] `createOcacheRuleHandler({ storage })` replaces ocache's process-global storage, which another cache rule handler already set. ocache has no per-handler storage; the last call wins for every consumer in this process.",
-      );
-    }
-    installedStorage = opts.storage;
-    setStorage(opts.storage);
-  }
+  // ocache gives every cached handler a store of its own; one store per rule
+  // handler keeps all of an app's routes in a single bounded cache instead.
+  let memoryStorage: StorageInterface | undefined;
+  const id = opts?.id;
+  const storage: StorageOption =
+    opts?.storage ??
+    (id === undefined ? () => (memoryStorage ??= createMemoryStorage()) : () => idStorage(id));
   return createCacheRuleHandler({
     defineCachedHandler: (handler, cachedOpts) => {
       const allowCredentials = cachedOpts.allowAuthorization === true;
@@ -245,6 +303,7 @@ export function createOcacheRuleHandler(opts?: OcacheRuleHandlerOptions): RuleHa
               conditions,
               cachedOpts.sendCacheControl !== false,
             ),
+          storage,
           ...cachedOpts,
           ...(allowCredentials && {
             varies: [...(cachedOpts.varies ?? []), ...CREDENTIAL_HEADERS],

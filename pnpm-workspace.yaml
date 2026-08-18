@@ -14,5 +14,6 @@ minimumReleaseAgeExclude:
   - srvx*
   - rou3*
   - crossws*
+  - ocache*
   - cookie-es*
   - h3*

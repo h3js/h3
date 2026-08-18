@@ -86,7 +86,7 @@
     "memoirist": "^1.2.0",
     "mitata": "^1.0.34",
     "obuild": "^0.4.38",
-    "ocache": "^0.2.0",
+    "ocache": "^0.3.0",
     "oxc-parser": ">=0.140.0",
     "oxfmt": ">=0.60.0",
     "oxlint": "^1.75.0",
@@ -99,7 +99,7 @@
   },
   "peerDependencies": {
     "crossws": "^0.4.9",
-    "ocache": ">=0.2.0"
+    "ocache": ">=0.3.0"
   },
   "peerDependenciesMeta": {
     "crossws": {

@@ -46,8 +46,6 @@ describe("cache rule registration", () => {
   });
 });
 
-// NOTE: keep this describe *before* the storage test at the end of the
-// ocache-backed block — that test swaps ocache's process-global storage.
 describe("cache rule (isolation & credential safety)", () => {
   it("never serves one app's cached body to another app (F2, shared `cache` export)", async () => {
     // The `cache` export of `h3/rules/cache` is module-scoped: every app in the
@@ -644,6 +642,66 @@ describe("cache rule (ocache-backed, h3/rules/cache)", () => {
     expect(calls).toBe(1);
   });
 
+  it("answers a conditional request that misses the cache with a 304", async () => {
+    // ocache narrows the request it forwards to the keyed data only, so
+    // `if-none-match` never reaches `event.req` on a miss — it arrives as
+    // `conditions.ifNoneMatch` instead, and the glue has to read it from there
+    // or every conditional request pays for a full body.
+    const app = createApp(
+      { "/cached-cond-miss/**": { cache: { maxAge: 60 } } },
+      createOcacheRuleHandler(),
+    );
+    app.get("/cached-cond-miss/:id", () => ({ ok: true }));
+
+    const etag = (await app.fetch(new Request("http://test/cached-cond-miss/a"))).headers.get(
+      "etag",
+    );
+    expect(etag).toBeTruthy();
+
+    // A *different* entry (fresh key), so the request misses — but the body it
+    // produces is byte-identical, hence the same synthesized etag.
+    const conditional = await app.fetch(
+      new Request("http://test/cached-cond-miss/b", { headers: { "if-none-match": etag! } }),
+    );
+    expect(conditional.status).toBe(304);
+    expect(await conditional.text()).toBe("");
+  });
+
+  it("stores an entry for a `cors`-covered route (vary: origin is applied live)", async () => {
+    // The `cors` rule appends `Vary: Origin` for the reflected
+    // `access-control-allow-origin` the cache glue moves out of the entry. Left
+    // in the stored response it is an undeclared vary name, and ocache then
+    // refuses to store the entry at all — every request would re-dispatch.
+    let calls = 0;
+    const app = createApp(
+      {
+        "/cached-cors-vary/**": {
+          cors: { origin: ["https://a.com"] },
+          cache: { maxAge: 60 },
+        },
+      },
+      createOcacheRuleHandler(),
+    );
+    app.get("/cached-cors-vary/:id", () => ({ calls: ++calls }));
+
+    const req = () =>
+      app.fetch(
+        new Request("http://test/cached-cors-vary/a", { headers: { origin: "https://a.com" } }),
+      );
+
+    const first = await req();
+    expect(first.headers.get("x-cache")).toBe("MISS");
+    // The client still sees the full `Vary` on the miss...
+    expect(first.headers.get("vary")).toMatch(/origin/i);
+
+    const second = await req();
+    expect(second.headers.get("x-cache")).toBe("HIT");
+    expect(await second.json()).toEqual({ calls: 1 });
+    // ...and on the hit, where the `cors` rule appends it live.
+    expect(second.headers.get("vary")).toMatch(/origin/i);
+    expect(calls).toBe(1);
+  });
+
   it("dispatches the route exactly once for a `headersOnly` cache rule (F12)", async () => {
     // ocache's `headersOnly` path returns `handler(event)` raw (no `toResponse`),
     // so a handler with no return value hands back `undefined` — which h3's
@@ -664,9 +722,6 @@ describe("cache rule (ocache-backed, h3/rules/cache)", () => {
     expect(res.headers.get("x-calls")).toBe("1");
   });
 
-  // NOTE: keep this test last in this describe — the `storage` option mutates
-  // ocache's process-global storage (`setStorage`), so it would leak into the
-  // default-storage tests above if it ran first.
   it("honors a consumer-provided storage", async () => {
     const store = new Map<string, unknown>();
     const storage = {
@@ -686,7 +741,9 @@ describe("cache rule (ocache-backed, h3/rules/cache)", () => {
     expect(await first.text()).toBe("stored");
     expect(storage.set).toHaveBeenCalled();
     const key = storage.set.mock.calls[0]![0] as string;
-    expect(key).toContain("h3/route-rules");
+    // ocache escapes `group` and `name` before they enter a key, so the group
+    // appears with its separators removed rather than verbatim.
+    expect(key).toContain("h3routerules");
 
     // second fetch: served from the provided storage, not the handler
     storage.get.mockClear();
