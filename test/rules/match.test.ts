@@ -59,10 +59,13 @@ describe("createMatcherFromFind override guard", () => {
 
   it("the default guard never allows what rou3 `compareRoutes` forbids", () => {
     // The default is dependency-free (rou3 must stay out of compiled bundles),
-    // so it decides containment by pattern shape. It may be *more* conservative
-    // than the exact predicate the runtime matcher injects, but never more
-    // permissive — otherwise a compiled matcher would accept a downgrade the
-    // runtime rejects. rou3 itself is the oracle here.
+    // so it decides containment by pattern shape — an approximation, not a
+    // proof. It should be *more* conservative than the exact predicate the
+    // runtime matcher injects and never more permissive (otherwise a compiled
+    // matcher would accept a downgrade the runtime rejects), and this sweeps
+    // rou3 as the oracle over the shapes below to keep it that way. Shapes it
+    // cannot reason about must fail closed, so widen this universe whenever the
+    // guard learns a new one.
     const routes = [
       "/**",
       "/a",
@@ -106,6 +109,19 @@ describe("createMatcherFromFind override guard", () => {
       "/a/:x?/**",
       "/a/*/:path*",
       "/a/*/:path+",
+      // Group params: `{x}` is a single-segment param like `:x`, but an
+      // *optional* group also matches the empty segment, so `/a/{lang}?` is
+      // only *partial* against `/a/:id` — shape alone cannot tell it from a
+      // literal segment, so the guard treats every group as undecidable.
+      "/a/{lang}",
+      "/a/{lang}?",
+      "/a/{lang}?/b",
+      "/a/{lang}?/**",
+      "/a/b-{x}",
+      "/a/{x}-b",
+      "/a/b-{x}?",
+      "/admin/{page}?",
+      "/admin/{page}?/**",
     ];
     const unsound: string[] = [];
     for (const current of routes) {
@@ -131,6 +147,9 @@ describe("createMatcherFromFind override guard", () => {
     // it: `/a/*​/:path*` matches `/a/x`, which `/a/*​/**` does not, so the
     // catch-all is the *narrower* pattern and must not absorb it.
     expect(canOverrideRouteShape("/a/*/**", "/a/*/:path*")).toBe(false);
+    // …as does the optional-group shape, for the same reason one level down:
+    // `/a/{lang}?` matches `/a/`, which `/a/:id` does not.
+    expect(canOverrideRouteShape("/a/:id", "/a/{lang}?")).toBe(false);
   });
 
   it("an explicit predicate still overrides the default", () => {

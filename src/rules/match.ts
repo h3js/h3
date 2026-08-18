@@ -237,8 +237,10 @@ const canOverrideRoute: RouteOverridePredicate = (currentRoute, incomingRoute) =
 const OPAQUE_SEGMENT_RE = /[()\\]/;
 
 // A concrete (non-pattern) segment: matches exactly itself, so any
-// single-segment param contains it.
-const CONCRETE_SEGMENT_RE = /^[^:*()\\]+$/;
+// single-segment param contains it. Group syntax (`{x}`) is excluded — an
+// optional group (`/a/{lang}?`) also matches the empty segment, which a plain
+// `:param` does not, making it partial rather than contained.
+const CONCRETE_SEGMENT_RE = /^[^:*(){}\\]+$/;
 
 // A param that can match *zero* segments (`:x?`, `:x*`). rou3 reads such a
 // pattern as broader than the `**` that appears to absorb it (`/a/*​/:path*`
