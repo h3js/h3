@@ -448,4 +448,34 @@ describeMatrix("app", (t, { it, expect }) => {
       expect(res.headers.get("access-control-allow-origin"), path).toBe("*");
     }
   });
+  it("does not mutate a handler-returned Response when merging prepared headers", async () => {
+    // A reused Response (module constant, memoized fallback, ...) must not accumulate
+    // request-scoped headers: appended `set-cookie` values would leak across requests.
+    const shared = new Response(null, { status: 302, headers: { location: "/login" } });
+    let user = 0;
+    t.app.get("/shared", (event) => {
+      setCookie(event, "sid", `user${++user}`);
+      return shared;
+    });
+
+    for (const expected of ["user1", "user2", "user3"]) {
+      const res = await t.fetch("/shared");
+      expect(res.headers.getSetCookie()).toEqual([`sid=${expected}; Path=/`]);
+      expect(res.headers.get("location")).toBe("/login");
+    }
+
+    expect([...shared.headers.keys()]).toEqual(["location"]);
+  });
+
+  it("keeps a handler-returned Response's own set-cookie values when merging", async () => {
+    t.app.get("/multi", (event) => {
+      setCookie(event, "staged", "s");
+      const headers = new Headers();
+      headers.append("set-cookie", "a=1; Path=/");
+      headers.append("set-cookie", "b=2; Path=/");
+      return new Response(null, { status: 204, headers });
+    });
+    const res = await t.fetch("/multi");
+    expect(res.headers.getSetCookie()).toEqual(["a=1; Path=/", "b=2; Path=/", "staged=s; Path=/"]);
+  });
 });
