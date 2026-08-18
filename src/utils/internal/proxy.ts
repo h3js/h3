@@ -100,29 +100,38 @@ export function rewriteCookieProperty(
  * Apply `x-forwarded-*` headers derived from the incoming request onto the
  * given proxy headers (returning a `Headers` instance).
  *
- * Each header is only set when absent — a value already present (from the
- * incoming request or header options) is never modified.
+ * An inbound value from the client never wins: `x-forwarded-for` is *appended*
+ * to (like nginx `$proxy_add_x_forwarded_for`) and the remaining headers are
+ * overwritten with the server-resolved request info. Otherwise a client could
+ * hand the upstream — which trusts these headers precisely because a proxy sits
+ * in front of it — an arbitrary origin address, protocol, and host.
+ *
+ * Apply this to the forwarded request headers *before* merging caller-supplied
+ * header options, so an explicit `opts.headers` value still wins.
  */
 export function applyXForwardedHeaders(headers: HeadersInit, event: H3Event): Headers {
   const merged = headers instanceof Headers ? headers : new Headers(headers);
 
+  // Append this hop's client address to the existing chain rather than
+  // deferring to it, so a spoofed inbound value cannot mask the real peer.
+  // When the address is unknown (runtimes that do not expose one) the chain is
+  // left as-is: there is nothing to append, and dropping it would discard a
+  // legitimate upstream proxy's audit trail.
   const ip = event.req.ip;
-  if (ip && !merged.has("x-forwarded-for")) {
-    merged.set("x-forwarded-for", ip);
+  if (ip) {
+    const forwardedFor = merged.get("x-forwarded-for");
+    merged.set("x-forwarded-for", forwardedFor ? `${forwardedFor}, ${ip}` : ip);
   }
 
+  // These describe *this* hop, so they are always replaced with the
+  // server-resolved values. Behind a trusted proxy (srvx `trustProxy`)
+  // `event.url` already reflects the trusted inbound `x-forwarded-*` headers,
+  // making the overwrite a no-op; without one it reflects the real transport
+  // and on-the-wire `Host`, which is what the upstream should be told.
   const proto = event.url.protocol.slice(0, -1); // strip trailing ":"
-  if (proto && !merged.has("x-forwarded-proto")) {
-    merged.set("x-forwarded-proto", proto);
-  }
-
-  if (!merged.has("x-forwarded-host")) {
-    merged.set("x-forwarded-host", event.url.host);
-  }
-
-  if (!merged.has("x-forwarded-port")) {
-    merged.set("x-forwarded-port", event.url.port || (proto === "https" ? "443" : "80"));
-  }
+  merged.set("x-forwarded-proto", proto);
+  merged.set("x-forwarded-host", event.url.host);
+  merged.set("x-forwarded-port", event.url.port || (proto === "https" ? "443" : "80"));
 
   return merged;
 }

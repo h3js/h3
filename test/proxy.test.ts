@@ -441,7 +441,7 @@ describeMatrix("proxy", (t, { it, expect, describe }) => {
       describe("xfwd", () => {
         beforeEach(() => {
           t.app.all("/debug", (event) => {
-            return { headers: Object.fromEntries(event.req.headers.entries()) };
+            return { headers: Object.fromEntries(event.req.headers.entries()), ip: event.req.ip };
           });
         });
 
@@ -458,7 +458,7 @@ describeMatrix("proxy", (t, { it, expect, describe }) => {
           expect(headers["x-forwarded-port"]).toBeTruthy();
         });
 
-        it("does not override an existing x-forwarded-for", async () => {
+        it("appends the client IP to an inbound x-forwarded-for chain", async () => {
           t.app.all("/", (event) => {
             return proxyRequest(event, "/debug", { xfwd: true });
           });
@@ -469,7 +469,52 @@ describeMatrix("proxy", (t, { it, expect, describe }) => {
             })
             .then((r) => r.json());
 
-          expect(result.headers["x-forwarded-for"]).toBe("1.2.3.4");
+          // The real peer must be appended (nginx `$proxy_add_x_forwarded_for`),
+          // never masked by the client-supplied value. Runtimes without a known
+          // client IP have nothing to append and keep the chain as-is.
+          expect(result.headers["x-forwarded-for"]).toBe(
+            result.ip ? `1.2.3.4, ${result.ip}` : "1.2.3.4",
+          );
+        });
+
+        it("replaces client-supplied x-forwarded-proto/host/port", async () => {
+          t.app.all("/", async (event) => {
+            const res = await proxyRequest(event, "/debug", { xfwd: true });
+            // Echo what the server resolved, so the assertion compares against
+            // the real request info rather than a hard-coded value.
+            res.headers.set("x-resolved-proto", event.url.protocol.slice(0, -1));
+            res.headers.set("x-resolved-host", event.url.host);
+            return res;
+          });
+
+          const res = await t.fetch("/", {
+            headers: {
+              "x-forwarded-host": "evil.example",
+              "x-forwarded-port": "1337",
+            },
+          });
+          const result = await res.json();
+
+          expect(result.headers["x-forwarded-proto"]).toBe(res.headers.get("x-resolved-proto"));
+          expect(result.headers["x-forwarded-host"]).toBe(res.headers.get("x-resolved-host"));
+          expect(result.headers["x-forwarded-host"]).not.toBe("evil.example");
+          expect(result.headers["x-forwarded-port"]).not.toBe("1337");
+        });
+
+        it("lets explicit header options win over the derived values", async () => {
+          t.app.all("/", (event) => {
+            return proxyRequest(event, "/debug", {
+              xfwd: true,
+              headers: { "x-forwarded-for": "9.9.9.9", "x-forwarded-proto": "https" },
+            });
+          });
+
+          const result = await t
+            .fetch("/", { headers: { "x-forwarded-for": "1.2.3.4" } })
+            .then((r) => r.json());
+
+          expect(result.headers["x-forwarded-for"]).toBe("9.9.9.9");
+          expect(result.headers["x-forwarded-proto"]).toBe("https");
         });
 
         it("does not add x-forwarded-* headers by default", async () => {

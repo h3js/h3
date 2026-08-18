@@ -107,28 +107,30 @@ export interface ProxyOptions {
    * When `true`, add `x-forwarded-*` request headers derived from the incoming
    * request so the upstream learns the client and original request info:
    *
-   * - `x-forwarded-for`: the client IP (`event.req.ip`, when available).
+   * - `x-forwarded-for`: the client IP (`event.req.ip`, when available),
+   *   **appended** to any inbound chain (like nginx
+   *   `$proxy_add_x_forwarded_for`) so each hop is preserved.
    * - `x-forwarded-proto`: the incoming request protocol.
    * - `x-forwarded-host`: the original host (incl. port).
    * - `x-forwarded-port`: the original port (or the protocol default — `443` for
    *   https, `80` for http).
    *
-   * Each header is only set when absent — a value already present on the
-   * incoming request (or set via header options) is left untouched.
+   * An inbound value from the client never wins: the last three are replaced
+   * with the server-resolved values from `event.url`, and the client's
+   * `x-forwarded-for` becomes only the left of the chain. Otherwise a client
+   * could hand the upstream — which trusts these headers precisely because a
+   * proxy sits in front of it — an arbitrary origin address, protocol, and host,
+   * defeating IP allowlists, rate limiting, and audit logs.
    *
-   * **Security:** because present values win, a client-supplied
-   * `x-forwarded-for` is forwarded verbatim and the real client IP is never
-   * added. On an internet-facing server (no trusted proxy in front), strip
-   * incoming values first with `filterHeaders: ["x-forwarded-for"]` if the
-   * upstream trusts this header for allowlisting, rate limiting, or logging.
+   * These values reflect the server's own view of the request, which by default
+   * comes from the real transport and the on-the-wire `Host`. They follow an
+   * inbound `x-forwarded-*` header only when the server is explicitly configured
+   * to trust an upstream proxy (e.g. srvx's `trustProxy`) — the correct setup
+   * when a proxy you control sits in front, and the case where replacing them
+   * here is a no-op.
    *
-   * Note that `x-forwarded-proto`/`-host` reflect `event.url` (the server's
-   * resolved protocol and host), not the raw client headers — so `filterHeaders`
-   * does not affect them. By default the server derives these from the real
-   * transport and the on-the-wire `Host`, so a client cannot spoof them; they
-   * only follow an inbound `x-forwarded-*` header when the server is explicitly
-   * configured to trust an upstream proxy (e.g. srvx's `trustProxy`), which is
-   * the correct setup when a proxy you control sits in front.
+   * Headers passed explicitly via `headers` or `fetchOptions.headers` still win
+   * over all of the above, since they are merged in afterwards.
    *
    * Only applied by `proxyRequest` (which forwards the incoming request);
    * the lower-level `proxy` ignores this option.
@@ -199,12 +201,16 @@ export async function proxyRequest(
       : undefined;
 
   // Headers
+  // `x-forwarded-*` is applied to the forwarded request headers *before* the
+  // caller's header options are merged in, so an inbound (client-controlled)
+  // value cannot survive while an explicit `opts.headers` value still wins.
+  const proxyHeaders = getProxyRequestHeaders(event, {
+    host: target.startsWith("/"),
+    forwardHeaders: opts.forwardHeaders,
+    filterHeaders: opts.filterHeaders,
+  });
   const fetchHeaders = mergeHeaders(
-    getProxyRequestHeaders(event, {
-      host: target.startsWith("/"),
-      forwardHeaders: opts.forwardHeaders,
-      filterHeaders: opts.filterHeaders,
-    }),
+    opts.xfwd ? applyXForwardedHeaders(proxyHeaders, event) : proxyHeaders,
     opts.fetchOptions?.headers,
     opts.headers,
   );
@@ -234,7 +240,7 @@ export async function proxyRequest(
       body: requestBody,
       ...opts.fetchOptions,
       duplex: opts.fetchOptions?.duplex ?? (fetchBody != null ? "half" : undefined),
-      headers: opts.xfwd ? applyXForwardedHeaders(fetchHeaders, event) : fetchHeaders,
+      headers: fetchHeaders,
     },
   });
 }
