@@ -3,7 +3,8 @@ import type { H3Event } from "../../src/index.ts";
 import { describe, expect, it } from "vitest";
 import { routeRules } from "../../src/rules/middleware.ts";
 import type { RouteRulesOptions } from "../../src/rules/middleware.ts";
-import type { RouteRuleConfig } from "../../src/rules/types.ts";
+import type { RouteRuleConfig, RuleHandler } from "../../src/rules/types.ts";
+import { cache } from "../../src/rules/cache.ts";
 
 // Whatever `routeRules()` actually puts on the context — read off h3's own
 // context type (which `src/h3.ts` augments) rather than restating the internal
@@ -207,5 +208,79 @@ describe("routeRules() middleware", () => {
     app.get("/api/**", () => "ok");
     await app.fetch(new Request("http://test/api/x"));
     expect(ran).toEqual(["custom", "headers", "tags"]);
+  });
+
+  // Regression: the chain used to fall back to `matchedRules` key order for
+  // equal orders, which is normalize's fixed order only when every rule comes
+  // from the same pattern — across patterns it is layer order (broad → narrow).
+  // Since none of the terminating rules calls `next()`, the first one merged
+  // swallowed the rest, so splitting a rule set across two patterns changed
+  // which one answered.
+  describe("terminating rules do not depend on which pattern contributed them", () => {
+    // The `/**` redirect keeps its own base, so its target carries the full
+    // matched tail — only *which* rule answers is under test here.
+    const authorings: [label: string, config: Record<string, RouteRuleConfig>, to: string][] = [
+      [
+        "broad cache + narrow redirect",
+        { "/**": { swr: 60 }, "/old/**": { redirect: "/new/**" } },
+        "/new/a",
+      ],
+      ["one pattern", { "/old/**": { redirect: "/new/**", swr: 60 } }, "/new/a"],
+      [
+        "narrow cache + broad redirect",
+        { "/**": { redirect: "/new/**" }, "/old/**": { swr: 60 } },
+        "/new/old/a",
+      ],
+    ];
+
+    for (const [label, config, to] of authorings) {
+      it(`redirect wins over cache (${label})`, async () => {
+        const app = new H3();
+        app.use(routeRules(config, { handlers: { cache } }));
+        app.get("/old/**", () => "handler-ran");
+        const res = await app.fetch(new Request("http://test/old/a"));
+        expect([res.status, res.headers.get("location")]).toEqual([307, to]);
+      });
+    }
+
+    // A custom handler left at the default `0` is a gate for anyone who did not
+    // read the `-2` note; a broader `cache` must not answer (and cache) ahead of
+    // it, since `cache` dispatches the route handler itself.
+    it("a default-order custom rule runs ahead of a broader cache rule", async () => {
+      const gate: RuleHandler<"custom"> = {
+        handler: () => () => new Response("denied", { status: 401 }),
+      };
+      const app = new H3();
+      app.use(
+        routeRules(
+          { "/**": { swr: 60 }, "/admin/**": { custom: true } },
+          { handlers: { cache, custom: gate } },
+        ),
+      );
+      app.get("/admin/**", () => "SECRET");
+      const res = await app.fetch(new Request("http://test/admin/x"));
+      expect([res.status, await res.text()]).toEqual([401, "denied"]);
+    });
+
+    it("breaks equal orders by rule name, not by contributing pattern", async () => {
+      const ran: string[] = [];
+      const mk = (name: string): RuleHandler<"custom"> => ({
+        handler: () => (_event, next) => (ran.push(name), next()),
+      });
+      const handlers = { custom: mk("custom"), tags: mk("tags") };
+      const authorings: Record<string, RouteRuleConfig>[] = [
+        { "/**": { tags: 1 }, "/api/**": { custom: 1 } },
+        { "/**": { custom: 1 }, "/api/**": { tags: 1 } },
+        { "/api/**": { tags: 1, custom: 1 } },
+      ];
+      for (const config of authorings) {
+        ran.length = 0;
+        const app = new H3();
+        app.use(routeRules(config, { handlers }));
+        app.get("/api/**", () => "ok");
+        await app.fetch(new Request("http://test/api/x"));
+        expect(ran).toEqual(["custom", "tags"]);
+      }
+    });
   });
 });

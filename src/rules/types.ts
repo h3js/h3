@@ -147,11 +147,18 @@ export type MatchedRouteRules = {
   [K in RouteRuleName]?: MatchedRouteRule<K>;
 };
 
-/**
- * Builds middleware for a matched rule. Lower `order` values run first;
- * the default is `0`.
- */
+/** Builds middleware for a matched rule. */
 export interface RuleHandler<K extends RouteRuleName = RouteRuleName> {
+  /**
+   * Execution order, lower runs first (outermost). Defaults to `0`, which is
+   * outside every built-in that can short-circuit (`redirect` 1, `proxy` 2,
+   * `cache` 3) and inside `cors` (-3) and `headers` (-1); `-2` is left free for
+   * a gate that must also precede `headers`.
+   *
+   * Two handlers must not share an order when one of them can answer without
+   * calling `next()` — the tie is broken by rule name, which is deterministic
+   * but arbitrary, and the loser never runs.
+   */
   order?: number;
   /**
    * Mark fail-closed rules such as auth gates. Restricting rules may be re-added

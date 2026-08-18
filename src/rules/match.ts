@@ -347,14 +347,29 @@ function toRouteRules(matchedRules: MatchedRouteRules): ResolvedRouteRules {
   return routeRules as ResolvedRouteRules;
 }
 
-/** Build middleware ordered by handler `order` ascending. */
+/**
+ * Build middleware ordered by handler `order` ascending, ties broken by rule
+ * name.
+ *
+ * The tie-break is what makes the chain a property of the *rules* rather than of
+ * how they were matched: key order here is the order rules were merged in, which
+ * is normalize's fixed per-pattern order only when they all come from one
+ * pattern — across patterns it is layer order (broad → narrow). A rule that
+ * never calls `next()` swallows everything after it, so without a tie-break the
+ * same rule set would behave differently depending on whether it was authored on
+ * one pattern or split across two (a broad `cache` swallowing a narrow gate).
+ * Sorting by name is arbitrary but total, and no built-in relies on it — the
+ * ones whose relative position matters carry distinct explicit orders.
+ */
 export function buildRouteRuleMiddleware(
   matchedRules: MatchedRouteRules,
 ): MatchResult["routeRuleMiddleware"] {
   const routeRuleMiddleware: MatchResult["routeRuleMiddleware"] = [];
-  const rules = Object.values(matchedRules) as MatchedRouteRule[];
-  const orderedRules = rules.length > 1 ? rules.sort(compareRuleOrder) : rules;
-  for (const rule of orderedRules) {
+  const rules = Object.entries(matchedRules) as [string, MatchedRouteRule][];
+  if (rules.length > 1) {
+    rules.sort(compareRuleOrder);
+  }
+  for (const [, rule] of rules) {
     if (!rule.handler) {
       continue;
     }
@@ -470,8 +485,8 @@ function requireOptInHandler(
   }
 }
 
-const compareRuleOrder = (a: MatchedRouteRule, b: MatchedRouteRule): number =>
-  orderWeight(a.handler) - orderWeight(b.handler);
+const compareRuleOrder = (a: [string, MatchedRouteRule], b: [string, MatchedRouteRule]): number =>
+  orderWeight(a[1].handler) - orderWeight(b[1].handler) || (a[0] < b[0] ? -1 : 1);
 
 function orderWeight(handler: RuleHandler | undefined): number {
   return handler?.order ?? 0;

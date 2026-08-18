@@ -41,6 +41,11 @@ export function createCacheRuleHandler(opts: CacheRuleHandlerOptions): RuleHandl
   >();
 
   return {
+    // order: 3, innermost — it dispatches the route handler itself, so anything
+    // that decides whether the route should run at all (`redirect`, `proxy`, a
+    // custom gate at the default `0`) must be outside it. See `redirect` for why
+    // the terminating rules cannot share an order.
+    order: 3,
     handler: (m) =>
       function cacheRouteRule(event, next) {
         const matchedRoute = event.context.matchedRoute;

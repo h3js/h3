@@ -12,6 +12,8 @@ import { prepareRuleTarget } from "./handlers/_utils.ts";
  * shared scope check (encoded separators stay opaque) — see {@link prepareRuleTarget}.
  */
 export const proxy: RuleHandler<"proxy"> = {
+  // order: 2 — see `redirect` for why each terminating rule owns a distinct one.
+  order: 2,
   handler: (m) => {
     const options = m.options as ProxyRuleOptions | undefined;
     // `to`-derived setup runs once per handler; the resolver only does
