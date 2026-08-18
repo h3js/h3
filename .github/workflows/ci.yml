@@ -8,16 +8,18 @@ on:
 
 permissions: {}
 
-# Superseded PR runs are wasted work. Pushes to `main` are never cancelled:
-# `publish.yml` triggers off this workflow's conclusion, and a cancelled run
-# concludes `cancelled`, which would silently skip that commit's nightly.
+# Superseded PR runs are wasted work. Pushes to `main` each get their own group
+# instead of sharing `ci-refs/heads/main`: a group holds at most one *pending*
+# run, so a third push would cancel the second, and `publish.yml` skips any ci
+# run that concludes `cancelled` — losing that commit's nightly and its verdict.
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   tests:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions: { contents: read }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -30,8 +32,14 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm build
       - run: pnpm vitest --coverage
+      # `version` is what actually gets pinned here: the action downloads the
+      # Codecov CLI at runtime and defaults to `latest`, so pinning the action
+      # SHA alone pins none of the code that runs.
       - uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
-        with: { token: "${{ secrets.CODECOV_TOKEN }}", files: ./coverage/clover.xml }
+        with:
+          token: "${{ secrets.CODECOV_TOKEN }}"
+          files: ./coverage/clover.xml
+          version: v11.3.1
   publish-pkg-pr-new:
     runs-on: ubuntu-latest
     permissions: { contents: read }

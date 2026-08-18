@@ -22,7 +22,9 @@ permissions: {}
 jobs:
   publish:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # Generous: this job has no dependency cache (see below), so every nightly
+    # pays a cold `pnpm install` plus a full `prepack` build inside `npm publish`.
+    timeout-minutes: 20
     # Nightly releases must not race: two quick pushes to `main` would otherwise
     # both bump and publish. Declared on the job, not the workflow: job-level
     # concurrency is evaluated after `if:`, so runs that skip (failed `ci`, fork
@@ -56,9 +58,11 @@ jobs:
           ref: "${{ github.event.workflow_run.head_sha }}"
       - run: npm i -fg corepack@0.35.0 && corepack enable
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        # setup-node's docs advise disabling the package-manager cache in
-        # privileged jobs: a poisoned store would execute with the OIDC token
-        # live. This job installs once per nightly, so the cache buys seconds.
+        # No `cache: pnpm` here, unlike `ci.yml`: the store is written by
+        # unprivileged jobs, and a poisoned one would execute with the OIDC
+        # token live. `package-manager-cache: false` opts out of setup-node's
+        # implicit cache too (npm-only today, but `packageManager` may change).
+        # Costs one cold install per nightly, which the timeout above allows for.
         with: { node-version-file: .nvmrc, package-manager-cache: false }
       - run: pnpm install
       - run: pnpm changelogen --bump -r 2.0.0 --canary nightly
@@ -68,3 +72,25 @@ jobs:
       # if the Node line ever moves to one bundling an older npm.
       - run: printf '11.5.1\n%s\n' "$(npm --version)" | sort -VC
       - run: npm publish --tag latest
+
+  # `publish` skipping is normally correct (failed ci, fork PR, re-run of an old
+  # run) and needs no noise. The one case worth surfacing is a commit that passed
+  # ci but was overtaken on `main` before its publish run started: that commit
+  # gets no nightly, and nothing else reports it.
+  report-skipped:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    if: >-
+      github.repository == 'h3js/h3' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_sha != github.sha
+    steps:
+      - run: |
+          echo "::warning title=Nightly skipped::${SKIPPED_SHA} passed ci but is no longer the tip of main (${TIP_SHA}); no nightly was published for it."
+        env:
+          SKIPPED_SHA: "${{ github.event.workflow_run.head_sha }}"
+          TIP_SHA: "${{ github.sha }}"
