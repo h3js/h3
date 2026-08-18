@@ -21,7 +21,7 @@ describe("benchmark", () => {
     // rou3 0.9.2 escapes param names that are not valid capture-group names and
     // emits a computed key for a `__proto__` route param, in the shared segment
     // codegen H3's own router uses: +286 B raw / +120 B gzip over 0.9.1.
-    expect(bundle.bytes).toBeLessThanOrEqual(17_400); // <17.4kb
+    expect(bundle.bytes).toBeLessThanOrEqual(17_500); // <17.5kb
     expect(bundle.gzipSize).toBeLessThanOrEqual(6_800); // <6.8kb
   });
 
