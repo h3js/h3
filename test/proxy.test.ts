@@ -206,6 +206,42 @@ describeMatrix("proxy", (t, { it, expect, describe }) => {
         });
       });
 
+      // A leading separator run is an *authority* to the URL parser, so an
+      // "internal" (`/`-prefixed) target must not be resolvable to a foreign
+      // origin. `\` counts as a separator for special schemes too.
+      for (const target of ["//evil.com/x", String.raw`/\evil.com/x`, "///evil.com/x"]) {
+        it(`keeps an internal proxy target on the app origin: ${target}`, async () => {
+          t.app.all("/**", (event) => ({
+            origin: event.url.origin,
+            pathname: event.url.pathname,
+          }));
+
+          t.app.all("/", async (event) => {
+            const res = await proxy(event, target);
+            // `proxy()` returns an `HTTPResponse`; read its body directly.
+            return { outer: event.url.origin, sub: await new Response(res.body).json() };
+          });
+
+          const result = await t.fetch("/").then((r) => r.json());
+
+          expect(result.sub.origin).toBe(result.outer);
+          expect(result.sub.pathname).toBe("/evil.com/x");
+        });
+      }
+
+      it("keeps an internal fetchWithEvent target on the app origin", async () => {
+        t.app.all("/**", (event) => ({ origin: event.url.origin }));
+
+        t.app.all("/", async (event) => {
+          const res = await fetchWithEvent(event, "//evil.com/x");
+          return { outer: event.url.origin, sub: await res.json() };
+        });
+
+        const result = await t.fetch("/").then((r) => r.json());
+
+        expect(result.sub.origin).toBe(result.outer);
+      });
+
       it("does not forward incoming accept-encoding header", async () => {
         t.app.all("/debug", (event) => {
           return { headers: Object.fromEntries(event.req.headers.entries()) };

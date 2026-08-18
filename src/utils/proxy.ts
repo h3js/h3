@@ -142,7 +142,10 @@ export interface ProxyOptions {
  * Proxy the incoming request to a target URL.
  *
  * If the `target` starts with `/`, the request is handled internally by the app router
- * via `event.app.fetch()` instead of making an external HTTP request.
+ * via `event.app.fetch()` instead of making an external HTTP request. Such a target
+ * always resolves against the app's own origin: a leading separator run
+ * (`//host/x`, `/\host/x`) is collapsed to a single `/` rather than read as an
+ * authority.
  *
  * The request body is streamed to the target without buffering. Per the Fetch
  * standard, a request body can only be consumed once, so reading it beforehand
@@ -513,7 +516,9 @@ export function getProxyRequestHeaders(
  * An **internal** `url` (starting with `/`) is dispatched via
  * `event.app.fetch()` (sub-request) and never leaves the process. It inherits
  * the incoming request's filtered headers (via `getProxyRequestHeaders`) and
- * runtime metadata (`ip`, `waitUntil`, ...).
+ * runtime metadata (`ip`, `waitUntil`, ...). It always resolves against the
+ * app's own origin: a leading separator run (`//host/x`, `/\host/x`) is
+ * collapsed to a single `/` rather than read as an authority.
  *
  * An **external** `url` is sent with native `fetch(url, init)` **unchanged** —
  * the event's headers and context are *not* inherited (forwarding cookies or
@@ -545,7 +550,13 @@ export async function fetchWithEvent(
 }
 
 function createSubRequest(event: H3Event, path: string, init: RequestInit): ServerRequest {
-  const url = new URL(path, event.url);
+  // Collapse the leading separator run before resolving. Callers classify a
+  // target as internal with `path[0] === "/"`, but the URL parser reads a
+  // longer run as an *authority* (`//evil.com/x`, and `/\evil.com/x` too since
+  // `\` is a separator for special schemes), which would hand the sub-event a
+  // foreign `event.url.origin`. Same normalization `stripBase` applies, so an
+  // internal target always stays on the app's own origin.
+  const url = new URL(path.replace(LEADING_SEPARATOR_RUN_RE, "/"), event.url);
   // A ReadableStream body requires `duplex: "half"` or the Request constructor
   // throws on Node. Default it when a body is present and no duplex is set (e.g.
   // the `fetchWithEvent` path, which never sets it).
@@ -558,3 +569,5 @@ function createSubRequest(event: H3Event, path: string, init: RequestInit): Serv
   req.ip = event.req.ip;
   return req;
 }
+
+const LEADING_SEPARATOR_RUN_RE = /^[/\\]+/;
