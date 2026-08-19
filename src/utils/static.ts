@@ -1,7 +1,7 @@
 import type { H3Event } from "../event.ts";
 import { HTTPError } from "../error.ts";
 import { decodePreservingSeparators, withoutTrailingSlash } from "./internal/path.ts";
-import { resolveDotSegments } from "./path.ts";
+import { isCanonicalPath } from "./path.ts";
 import { getType, getExtension } from "./internal/mime.ts";
 import { isCacheMatch } from "./internal/cache.ts";
 import { HTTPResponse } from "../response.ts";
@@ -77,12 +77,14 @@ export interface ServeStaticOptions {
  * guard. Resolve the `id` against your asset root as an opaque string — a
  * backend that decodes it re-introduces separators and re-opens the hole.
  *
- * A pathname starting with more than one separator (`//private/x`,
- * `/\\private/x`) is **not served** (404, or falls through when `fallthrough`
- * is set): it dispatches to a catch-all route but misses a narrower
+ * A **non-canonical pathname is not served** (404, or falls through when
+ * `fallthrough` is set): more than one leading separator (`//private/x`,
+ * `/\\private/x`) or a dot segment that survived URL canonicalization, which
+ * means one spelled with `%25`-nested escapes (`/pub/%252e%252e/private/x`).
+ * Both dispatch to a catch-all route while missing a narrower
  * `use("/private/**")` guard, and the only `id` `serveStatic` could build from
- * it collapses that leading run, re-spelling it into a path the guard would
- * have caught. Assets are reachable under their canonical spelling only.
+ * them resolves back into the guarded path. Assets are reachable under their
+ * canonical spelling — the one routing and `use()` guards match on — only.
  *
  * Everything else is decoded once for the on-disk lookup, so a file's real name
  * reaches the backend: `/50%25.png` → `/50%.png`, `/a%20b` → `/a b`, and one
@@ -119,51 +121,66 @@ export async function serveStatic(
     throw new HTTPError({ status: 405 });
   }
 
-  // A leading `[/\\]` run is the one thing `resolveDotSegments` rewrites rather
-  // than resolves: it clamps the run to a single `/` (a protocol-relative id must
-  // never reach a URL-composing backend). But dispatch already happened against
-  // the un-collapsed path, so collapsing here would re-spell the id into a path
-  // the router never matched: `//private/x` misses a `use("/private/**")` guard
-  // while a catch-all static route still matches, serving the guarded asset
-  // unauthenticated. Same class of hole as the `%5c` peel below, so same answer:
-  // refuse, rather than serve a second, cache- and WAF-invisible spelling.
-  const secondChar = event.url.pathname.charCodeAt(1);
-  if (secondChar === 47 /* / */ || secondChar === 92 /* \ */) {
+  // The id has to keep the segment structure dispatch matched on, so the one
+  // thing it must never do is *rewrite* the pathname. `isCanonicalPath` rejects
+  // exactly the inputs `resolveDotSegments` would rewrite rather than pass
+  // through — a leading `[/\\]` run, a `\`, and a dot segment at any
+  // `%25`-nesting depth — and each rewrite re-spells the request into a path the
+  // router never saw:
+  //   - `//private/x` misses a `use("/private/**")` guard (a literal
+  //     `startsWith`, matching rou3) while a catch-all static route still
+  //     matches; clamping the run to a single `/` for the lookup then serves the
+  //     guarded asset unauthenticated.
+  //   - `/pub/%252e%252e/private/x` is four opaque segments to `~findRoute` and
+  //     to that same guard. Canonicalization decodes `%2e` (so the URL parser
+  //     resolves `/pub/%2e%2e/private/x` before anything matches on it) but never
+  //     `%25`, so a `%25`-nested spelling is *meant* to stay opaque; resolving
+  //     those dots here walks the id back to the guarded `/private/x`.
+  // Same class of hole as the `%5c` peel below, so same answer: refuse, rather
+  // than serve a second, cache- and WAF-invisible spelling. Assets stay reachable
+  // under their canonical spelling — the one the router sees — only.
+  if (!isCanonicalPath(event.url.pathname)) {
     if (options.fallthrough) {
       return;
     }
     throw new HTTPError({ status: 404 });
   }
 
-  // Resolve traversal first, then peel one `%25` level for the on-disk lookup
-  // (guarded: malformed `%` falls back to the safe traversal-resolved value).
+  // The path is canonical per the check above, so there is no traversal left to
+  // resolve — the pathname *is* its own resolved form. All that remains is to
+  // peel one `%25` level for the on-disk lookup (guarded: malformed `%` falls
+  // back to the still-encoded pathname).
   //
   // The peel must never turn an encoded separator into a real one. `decodeURI`
   // holds back `%2f` (RFC 3986 reserved) but *not* `%5c`, which it decodes to
-  // `\`, and `resolveDotSegments` then normalizes that to `/`: `/private%5cx` is
-  // one opaque segment to `~findRoute` and to a `use("/private/**")` guard, but
-  // would reach the backend as `/private/x`. `decodePreservingSeparators` keeps
-  // both encoded, so the id keeps the segment structure routing matched on.
+  // `\` — and `/private%5cx` is one opaque segment to `~findRoute` and to a
+  // `use("/private/**")` guard, so a backend resolving `\` would read it as the
+  // guarded `/private/x`. `decodePreservingSeparators` keeps both encoded, so the
+  // id keeps the segment structure routing matched on.
   //
   // `nested: false` because this is a single decode: one `%25` level off `%252f`
   // leaves a literal `%2f`, not a separator, so filenames containing `%2f` stay
   // addressable. `decodeURI` (not `decodeURIComponent`) keeps `%23`/`%3f`
   // encoded, so a URL-composing backend cannot grow a truncating `#`/`?`.
   //
-  // The second `resolveDotSegments` still runs: the peel can reveal a dot segment
-  // (one `%25` level off `%252e`), which must not reach the backend as a bare `..`.
-  const resolvedId = withoutTrailingSlash(resolveDotSegments(event.url.pathname));
+  // Re-checked rather than re-resolved: with no separator introduced there is no
+  // new segment boundary, so a dot segment the peel reveals (one `%25` level off
+  // `%252e`) can only be one the pathname already carried at a deeper nesting —
+  // refused above. Resolving one here is precisely what would re-spell the id.
+  const resolvedId = withoutTrailingSlash(event.url.pathname);
   let originalId = resolvedId;
   if (resolvedId.includes("%")) {
     try {
-      originalId = withoutTrailingSlash(
-        resolveDotSegments(
-          decodePreservingSeparators(resolvedId, { decode: decodeURI, nested: false }),
-        ),
-      );
+      const decodedId = decodePreservingSeparators(resolvedId, {
+        decode: decodeURI,
+        nested: false,
+      });
+      if (isCanonicalPath(decodedId)) {
+        originalId = withoutTrailingSlash(decodedId);
+      }
     } catch {
-      // Malformed escape (e.g. trailing `%`): keep the traversal-resolved,
-      // still-encoded `resolvedId` already assigned to `originalId` above.
+      // Malformed escape (e.g. a trailing `%`): keep the still-encoded
+      // `resolvedId` already assigned to `originalId` above.
     }
   }
 

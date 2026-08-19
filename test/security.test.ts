@@ -293,6 +293,72 @@ describe("security: a guard cannot be bypassed by a leading slash run", () => {
   });
 });
 
+// Canonicalization decodes `%2e` (so `/a/%2e%2e/b` is resolved by the URL parser
+// before anything matches on it), but never `%25` — a `%252e` segment is *meant*
+// to stay opaque, and `~findRoute` and every `use(route, ...)` guard see it that
+// way. `serveStatic` resolving those encoded dots into a real `..` is what gives
+// a guarded asset a second spelling that dispatch never matched.
+describeMatrix(
+  "security: a guard cannot be bypassed by a nested encoded dot",
+  (ctx, { it, expect }) => {
+    const setup = () => {
+      ctx.app.use("/private/**", () => new HTTPResponse("blocked", { status: 403 }));
+      ctx.app.all("/**", (event) =>
+        serveStatic(event, {
+          getMeta: (id) => (id === "/private/secret.txt" ? { size: 6, mtime: 0 } : undefined),
+          getContents: () => "secret",
+        }),
+      );
+    };
+
+    it("blocks the guarded path itself", async () => {
+      setup();
+      const res = await ctx.fetch("/private/secret.txt");
+      expect(res.status).toBe(403);
+      expect(await res.text()).toBe("blocked");
+    });
+
+    for (const path of [
+      "/pub/%252e%252e/private/secret.txt",
+      "/pub/%25252e%25252e/private/secret.txt",
+      "/pub/.%252e/private/secret.txt",
+      "/pub/%252e./private/secret.txt",
+      "/%252e/private/secret.txt",
+    ]) {
+      it(`does not serve ${path}`, async () => {
+        setup();
+        const res = await ctx.fetch(path);
+        expect(res.status).toBe(404);
+        expect(await res.text()).not.toContain("secret");
+      });
+    }
+
+    it("falls through instead of 404 when `fallthrough` is set", async () => {
+      ctx.app.use((event) =>
+        serveStatic(event, {
+          fallthrough: true,
+          getMeta: (id) => (id === "/private/secret.txt" ? { size: 6, mtime: 0 } : undefined),
+          getContents: () => "secret",
+        }),
+      );
+      ctx.app.use(() => "fell through");
+      expect(await (await ctx.fetch("/pub/%252e%252e/private/secret.txt")).text()).toBe(
+        "fell through",
+      );
+    });
+
+    it("still serves a nested escape that is not a whole dot segment", async () => {
+      ctx.app.all("/**", (event) =>
+        serveStatic(event, {
+          getMeta: (id) => (id === "/pub/a%2eb.txt" ? { size: 2, mtime: 0 } : undefined),
+          getContents: () => "ok",
+        }),
+      );
+      expect(await (await ctx.fetch("/pub/a%252eb.txt")).text()).toBe("ok");
+    });
+  },
+);
+
 // Canonicalization lives in the H3Event constructor, so it also covers events
 // that never reach app dispatch.
 describe("security: canonicalization covers directly built events", () => {
