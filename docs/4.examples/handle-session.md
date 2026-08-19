@@ -148,6 +148,45 @@ Every option is optional except `password`. The `name` option is worth calling o
 > [!NOTE]
 > The `secure: true` option tells the browser to only store and send the cookie over HTTPS. When developing locally over plain HTTP, compliant browsers (notably Safari and iOS, and Chrome on some local domains) silently drop the cookie, so the session will not persist. Set `cookie: { secure: false }` during local development to work around this.
 
+## Expiration
+
+Sessions have two independent expiration controls, and you can use either or both:
+
+- `maxAge` is an **absolute** lifetime, counted from when the session was created. It is reached however active the user is.
+- `idleTimeout` is a **sliding** lifetime, counted from the last request. An active user stays signed in; an idle one is signed out.
+
+```js
+const session = await useSession(event, {
+  password: "80d42cfb-1cd2-462c-8f17-e3237d9027e9",
+  idleTimeout: 60 * 30, // signed out after 30 minutes of inactivity...
+  maxAge: 60 * 60 * 24 * 7, // ...and after 7 days regardless
+});
+```
+
+With `idleTimeout` set, H3 moves the idle window forward by resealing the session cookie with the reseal time stamped into it. `createdAt` is left untouched, which is what lets `maxAge` still act as a hard cap on top. The cookie `Expires` is set to whichever limit runs out first.
+
+If you are coming from `express-session` or `koa-session`, `idleTimeout` is their `rolling` option. The difference is that it carries its own duration instead of reinterpreting `maxAge`, so enabling it does not cost you the absolute limit.
+
+Resealing is the expensive part of a session, so H3 does not do it on every request: it reseals only once more than half the window has been used, and updating the session counts as a reseal. An active user therefore never gets signed out, but the recorded last-seen time can trail the real one by up to half the window:
+
+```js
+// idleTimeout: 60 * 30
+// Sign-out happens 15 to 30 minutes after the last request, never later.
+```
+
+Halve `idleTimeout` if you need the shorter end of that range to be your real limit.
+
+> [!NOTE]
+> Only cookie sessions slide. A session sent through the `x-{name}-session` header cannot be resealed, so it expires `idleTimeout` after its seal was issued.
+
+> [!IMPORTANT]
+> Because the session lives in the cookie, a request that only reads the session writes it back when it slides the window. If such a request overlaps with one that writes the session, whichever response the browser applies last wins, so the write can be lost. Without `idleTimeout` a read-only request sets no cookie and cannot clobber a concurrent write.
+
+> [!NOTE]
+> A request that slides the window pays for an extra seal and puts a `Set-Cookie` header on its response — shared caches and CDNs often refuse to store those. Requests that only read the session inside the throttle window set no cookie at all.
+
+The session cookie is also applied to error responses, so a request that throws still slides the window and still persists a session created during it.
+
 ## Use Multiple Sessions
 
 Because each session is stored under its own `name`, you can run several independent sessions on the same request. They live in separate cookies and never overwrite each other, which is useful for keeping unrelated concerns apart, such as a long-lived auth session and a short-lived flash message:
