@@ -146,8 +146,9 @@ export interface ProxyOptions {
  * If the `target` starts with `/`, the request is handled internally by the app router
  * via `event.app.fetch()` instead of making an external HTTP request. Such a target
  * always resolves against the app's own origin: a leading separator run
- * (`//host/x`, `/\host/x`) is collapsed to a single `/` rather than read as an
- * authority.
+ * (`//host/x`, `/\host/x`, and C0-interleaved forms like `/\thost/x` that the
+ * URL parser strips down to one) is collapsed to a single `/` rather than read
+ * as an authority.
  *
  * The request body is streamed to the target without buffering. Per the Fetch
  * standard, a request body can only be consumed once, so reading it beforehand
@@ -523,8 +524,9 @@ export function getProxyRequestHeaders(
  * `event.app.fetch()` (sub-request) and never leaves the process. It inherits
  * the incoming request's filtered headers (via `getProxyRequestHeaders`) and
  * runtime metadata (`ip`, `waitUntil`, ...). It always resolves against the
- * app's own origin: a leading separator run (`//host/x`, `/\host/x`) is
- * collapsed to a single `/` rather than read as an authority.
+ * app's own origin: a leading separator run (`//host/x`, `/\host/x`, and
+ * C0-interleaved forms like `/\thost/x` that the URL parser strips down to
+ * one) is collapsed to a single `/` rather than read as an authority.
  *
  * An **external** `url` is sent with native `fetch(url, init)` **unchanged** —
  * the event's headers and context are *not* inherited (forwarding cookies or
@@ -560,7 +562,8 @@ function createSubRequest(event: H3Event, path: string, init: RequestInit): Serv
   // target as internal with `path[0] === "/"`, but the URL parser reads a
   // longer run as an *authority* (`//evil.com/x`, and `/\evil.com/x` too since
   // `\` is a separator for special schemes), which would hand the sub-event a
-  // foreign `event.url.origin`. Same normalization `stripBase` applies, so an
+  // foreign `event.url.origin`. The run also covers the C0 characters the
+  // parser strips first (`/\t/evil.com/x` parses as `//evil.com/x`), so an
   // internal target always stays on the app's own origin.
   const url = new URL(path.replace(LEADING_SEPARATOR_RUN_RE, "/"), event.url);
   // A ReadableStream body requires `duplex: "half"` or the Request constructor
@@ -576,4 +579,8 @@ function createSubRequest(event: H3Event, path: string, init: RequestInit): Serv
   return req;
 }
 
-const LEADING_SEPARATOR_RUN_RE = /^[/\\]+/;
+// Matches a leading run of anything the URL parser can read as part of an
+// authority-introducing `//`: the separators themselves (`\` counts as one for
+// special schemes) and the C0 characters it *removes* before parsing, which
+// would otherwise let `/\t/evil.com` slip through as `//evil.com`.
+const LEADING_SEPARATOR_RUN_RE = /^(?:[/\\]|[\t\n\r])+/;
