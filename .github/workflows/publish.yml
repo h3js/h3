@@ -1,0 +1,96 @@
+name: publish
+
+# Split from `ci.yml` so npm trusted publishing (OIDC) trusts a workflow file
+# that contains nothing but the publish job. `workflow_run` is used instead of
+# `workflow_call` on purpose: npm validates the entry-point workflow filename,
+# so a reusable workflow would keep the trust bound to `ci.yml`.
+#
+# The npm trusted publisher must be configured with `publish.yml`.
+on:
+  workflow_run:
+    # Matches by workflow *name* (`name: ci`), not filename — renaming it
+    # silently stops all nightly publishing.
+    workflows: [ci]
+    types: [completed]
+    # Not a security control: this filters the *triggering* run's `head_branch`,
+    # which a fork PR chooses, so a fork branch named `main` matches. The job
+    # `if:` below is the gate.
+    branches: [main]
+
+permissions: {}
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    # Generous: this job has no dependency cache (see below), so every nightly
+    # pays a cold `pnpm install` plus a full `prepack` build inside `npm publish`.
+    timeout-minutes: 20
+    # Nightly releases must not race: two quick pushes to `main` would otherwise
+    # both bump and publish. Declared on the job, not the workflow: job-level
+    # concurrency is evaluated after `if:`, so runs that skip (failed `ci`, fork
+    # PRs, superseded commits) never occupy the group and cannot evict a pending
+    # real release.
+    concurrency: { group: publish, cancel-in-progress: false }
+    permissions: { id-token: write, contents: read }
+    # Every clause is load-bearing:
+    # - `event == 'push'` + `head_repository` + `head_branch` keep fork PRs out.
+    #   This job holds `id-token: write`, and `pnpm install`/`prepack` would run
+    #   the checked-out commit's code.
+    # - `head_sha == github.sha` requires the tested commit to still be the tip
+    #   of `main`. npm builds its provenance statement from the runner's
+    #   `GITHUB_SHA` (main's tip under `workflow_run`), not from the `ref:`
+    #   checked out below, so publishing a non-tip commit would attest the wrong
+    #   source. It also stops a re-run of an old `ci` run from republishing
+    #   stale code as the newest nightly.
+    if: >-
+      github.repository == 'h3js/h3' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_sha == github.sha
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Required: `changelogen --bump` walks tags and history.
+          fetch-depth: 0
+          persist-credentials: false
+          ref: "${{ github.event.workflow_run.head_sha }}"
+      - run: npm i -fg corepack@0.35.0 && corepack enable
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        # No `cache: pnpm` here, unlike `ci.yml`: the store is written by
+        # unprivileged jobs, and a poisoned one would execute with the OIDC
+        # token live. `package-manager-cache: false` opts out of setup-node's
+        # implicit cache too (npm-only today, but `packageManager` may change).
+        # Costs one cold install per nightly, which the timeout above allows for.
+        with: { node-version-file: .nvmrc, package-manager-cache: false }
+      - run: pnpm install
+      - run: pnpm changelogen --bump -r 2.0.0 --canary nightly
+      # Trusted publishing (OIDC) needs npm >= 11.5.1, which the runner's bundled
+      # npm satisfies today (Node 24.6+ ships 11.17.0) — so no global npm install
+      # is needed. Assert it rather than failing later with an opaque auth error
+      # if the Node line ever moves to one bundling an older npm.
+      - run: printf '11.5.1\n%s\n' "$(npm --version)" | sort -VC
+      - run: npm publish --tag latest
+
+  # `publish` skipping is normally correct (failed ci, fork PR, re-run of an old
+  # run) and needs no noise. The one case worth surfacing is a commit that passed
+  # ci but was overtaken on `main` before its publish run started: that commit
+  # gets no nightly, and nothing else reports it.
+  report-skipped:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    if: >-
+      github.repository == 'h3js/h3' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_sha != github.sha
+    steps:
+      - run: |
+          echo "::warning title=Nightly skipped::${SKIPPED_SHA} passed ci but is no longer the tip of main (${TIP_SHA}); no nightly was published for it."
+        env:
+          SKIPPED_SHA: "${{ github.event.workflow_run.head_sha }}"
+          TIP_SHA: "${{ github.sha }}"
