@@ -319,6 +319,66 @@ describeMatrix("router", (t, { it, expect, describe }) => {
       expect(postRes.status).toBe(200);
       expect(await postRes.text()).toBe("post");
     });
+
+    // Regression: rou3 keeps every registration reaching the same node in a single
+    // `node.methods[METHOD]` array and its `removeRoute()` deletes the whole array,
+    // so removing one dynamic pattern silently unregistered its siblings.
+    it("keeps sibling routes sharing the same param node", async () => {
+      t.app.get("/users/:id", () => "id");
+      t.app.get("/users/:name", (event) => `name:${event.context.params!.name}`);
+
+      removeRoute(t.app, "GET", "/users/:id");
+
+      const sibling = await t.fetch("/users/123");
+      expect(sibling.status).toBe(200);
+      expect(await sibling.text()).toBe("name:123");
+    });
+
+    it("keeps a static route an optional pattern also registers", async () => {
+      t.app.get("/opt", () => "static");
+      t.app.get("/opt/:id?", () => "optional");
+
+      removeRoute(t.app, "GET", "/opt/:id?");
+
+      const optional = await t.fetch("/opt/123");
+      expect(optional.status).toBe(404);
+
+      const staticRes = await t.fetch("/opt");
+      expect(staticRes.status).toBe(200);
+      expect(await staticRes.text()).toBe("static");
+    });
+
+    // Regression: only the first matching `~routes` entry was spliced, so a route
+    // registered twice left a stale entry behind that `mount()` re-registered.
+    it("does not resurrect a removed route when the app is mounted", async () => {
+      const sub = new H3();
+      sub.get("/dup", () => "first");
+      sub.get("/dup", () => "second");
+
+      removeRoute(sub, "GET", "/dup");
+      t.app.mount("/api", sub);
+
+      const res = await t.fetch("/api/dup");
+      expect(res.status).toBe(404);
+    });
+
+    // Regression: an empty method spliced an arbitrary `~routes` entry while rou3
+    // kept the route, so `mount()` dropped a still-routable handler.
+    it("empty method keeps other methods listed for mounting", async () => {
+      const sub = new H3();
+      sub.get("/keep", () => "get");
+      sub.all("/keep", () => "all");
+
+      removeRoute(sub, "", "/keep");
+      t.app.mount("/api", sub);
+
+      const res = await t.fetch("/api/keep");
+      expect(res.status).toBe(200);
+      expect(await res.text()).toBe("get");
+
+      const other = await t.fetch("/api/keep", { method: "PUT" });
+      expect(other.status).toBe(404);
+    });
   });
 
   describe("encoded route registration", () => {

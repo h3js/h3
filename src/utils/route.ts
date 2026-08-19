@@ -1,9 +1,9 @@
-import type { H3RouteMeta, HTTPMethod } from "../types/h3.ts";
+import type { H3Route, H3RouteMeta, HTTPMethod } from "../types/h3.ts";
 import type { EventHandler, Middleware } from "../types/handler.ts";
 import type { H3 } from "../types/h3.ts";
 import type { H3Plugin } from "../plugin.ts";
 import type { StandardSchemaV1 } from "./internal/standard-schema.ts";
-import { removeRoute as _removeRoute } from "rou3";
+import { addRoute, createRouter, removeRoute as _removeRoute } from "rou3";
 import { defineValidatedHandler } from "../handler.ts";
 import { normalizeRoute } from "./internal/path.ts";
 
@@ -76,6 +76,9 @@ export function defineRoute(def: RouteDefinition): H3Plugin {
 /**
  * Remove a route handler from the app.
  *
+ * All registrations matching `method` + `route` are removed (an empty `method`
+ * only matches routes registered with `app.all()`).
+ *
  * @example
  * ```ts
  * import { H3, removeRoute } from "h3";
@@ -91,13 +94,33 @@ export function removeRoute(
   method: HTTPMethod | Lowercase<HTTPMethod> | "",
   route: string,
 ): void {
-  const _method = method ? method.toUpperCase() : undefined;
+  const _method = (method ? method.toUpperCase() : "") as HTTPMethod;
   route = normalizeRoute(route);
-  _removeRoute(app["~rou3"], _method || "", route);
-  const idx = app["~routes"].findIndex(
-    (r) => r.route === route && (_method == null || r.method === _method),
-  );
-  if (idx !== -1) {
-    app["~routes"].splice(idx, 1);
+
+  const routes = app["~routes"];
+  const kept = routes.filter((r) => !(r.route === route && (r.method || "") === _method));
+  if (kept.length === routes.length) {
+    // Nothing mirrored in `~routes`: only the router may have it (e.g. a route
+    // added straight to `~rou3`).
+    _removeRoute(app["~rou3"], _method, route);
+    return;
+  }
+  app["~routes"] = kept;
+
+  // Every registration reaching the same rou3 node shares one `node.methods[method]`
+  // array and rou3 drops the whole array, so removing `/users/:id` would unregister
+  // `/users/:name` too (and `/a` would take the `/a` expansion of `/a/{b}?` with it).
+  // Rebuilding from the surviving `~routes` removes exactly what was matched above
+  // and keeps both views in sync — `~routes` is what `mount()` copies and `tracing`
+  // rewrites, so a stale entry resurrects a removed route in the parent app.
+  const rou3 = app["~rou3"];
+  if (rou3) {
+    const rebuilt = createRouter<H3Route>();
+    for (const r of kept) {
+      addRoute(rebuilt, r.method || "", r.route!, r);
+    }
+    // In place: `~rou3` identity may be held elsewhere.
+    rou3.root = rebuilt.root;
+    rou3.static = rebuilt.static;
   }
 }
