@@ -4,6 +4,7 @@
 
 [![npm version](https://img.shields.io/npm/v/h3)](https://npmjs.com/package/h3)
 [![npm downloads](https://img.shields.io/npm/dm/h3)](https://npm.chart.dev/h3)
+[![inspect.software](https://raw.githubusercontent.com/inspect-software/badges/main/v1/h/h3js/h3.svg)](https://inspect.software/software/h3js/h3)
 
 <!-- /automd -->
 
