@@ -391,6 +391,38 @@ describe("defineJsonRpcWebSocketHandler", () => {
       });
     });
 
+    it("should reject batches larger than the default limit", async () => {
+      const { sent } = await sendMessage(
+        Array.from({ length: 51 }, (_, i) => ({ jsonrpc: "2.0", method: "echo", id: i })),
+      );
+
+      expect(sent).toHaveLength(1);
+      expect(JSON.parse(sent[0])).toEqual({
+        jsonrpc: "2.0",
+        id: null,
+        error: { code: -32_600, message: "Invalid Request: batch size exceeds maximum of 50" },
+      });
+    });
+
+    it("should respect a custom `maxBatchSize`", async () => {
+      const method = vi.fn(() => "ok");
+      const handler = defineJsonRpcWebSocketHandler({ methods: { method }, maxBatchSize: 2 });
+      const hooks = (handler({} as any) as any).crossws;
+      const peer = createMockPeer();
+
+      await hooks.message(
+        peer,
+        createMockMessage(
+          JSON.stringify(
+            Array.from({ length: 3 }, (_, i) => ({ jsonrpc: "2.0", method: "method", id: i })),
+          ),
+        ),
+      );
+
+      expect(JSON.parse(peer._sent[0]).error.code).toBe(-32_600);
+      expect(method).not.toHaveBeenCalled();
+    });
+
     it("should return Invalid Request for non-object batch items", async () => {
       const { sent } = await sendMessage([1, 2, 3]);
 

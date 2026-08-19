@@ -3,6 +3,7 @@ import type { Hooks as WebSocketHooks, Peer as WebSocketPeer } from "crossws";
 import type { H3Event } from "../event.ts";
 import { defineHandler } from "../handler.ts";
 import { defineWebSocketHandler } from "./ws.ts";
+import { isCorsOriginAllowed } from "./internal/cors.ts";
 import { HTTPError } from "../error.ts";
 import { HTTPResponse } from "../response.ts";
 
@@ -65,8 +66,16 @@ const INVALID_REQUEST = -32_600; // The JSON sent is not a valid Request object.
 const METHOD_NOT_FOUND = -32_601; // The method does not exist / is not available.
 const INVALID_PARAMS = -32_602; // Invalid method parameter(s).
 
+// Default upper bound for the number of requests in a single batch.
+const DEFAULT_MAX_BATCH_SIZE = 50;
+
 /**
  * Creates an H3 event handler that implements the JSON-RPC 2.0 specification.
+ *
+ * **Security defaults:** requests must have a JSON `Content-Type` (CSRF, see
+ * `validateContentType`), cross-origin requests are rejected (CSRF and DNS
+ * rebinding, see `allowedOrigins`), and batches are capped at 50 requests
+ * (fan-out amplification, see `maxBatchSize`).
  *
  * @param methods A map of RPC method names to their handler functions.
  * @param middleware Optional middleware to apply to the handler.
@@ -90,14 +99,86 @@ const INVALID_PARAMS = -32_602; // Invalid method parameter(s).
 export function defineJsonRpcHandler<RequestT extends EventHandlerRequest = EventHandlerRequest>(
   opts: Omit<EventHandlerObject<RequestT>, "handler" | "fetch"> & {
     methods: Record<string, JsonRpcMethod>;
+
+    /**
+     * Maximum number of requests allowed in a single batch.
+     *
+     * Every batch item is dispatched concurrently, so an unbounded batch turns
+     * one HTTP request into an arbitrary number of method invocations
+     * (per-request rate limiters and quotas count it once) and fans out to
+     * upstreams and database pools. Batches larger than this are rejected with
+     * an `Invalid Request` (`-32600`) error.
+     *
+     * Set to `Infinity` to disable the limit.
+     *
+     * @default 50
+     */
+    maxBatchSize?: number;
+
+    /**
+     * Require a JSON `Content-Type` (`application/json`, `application/json-rpc`
+     * or any `+json` media type) and reject anything else with a `415`.
+     *
+     * This is a CSRF defense: without it, an HTML form (or a typeless `fetch`
+     * body) from an attacker page qualifies as a CORS "simple request" and is
+     * delivered with the victim's cookies without any preflight. Requiring a
+     * JSON content type forces a preflight for cross-origin callers.
+     *
+     * @default true
+     */
+    validateContentType?: boolean;
+
+    /**
+     * Origins allowed to call this endpoint.
+     *
+     * By default only same-origin requests are accepted: a request carrying an
+     * `Origin` header that does not match the request's own origin is rejected
+     * with a `403`. Requests without an `Origin` header (CLI clients,
+     * server-to-server, MCP stdio bridges) are always allowed.
+     *
+     * Pass an explicit allowlist to accept specific cross-origin callers, or
+     * `"*"` to disable the check entirely. An allowlist **replaces** the
+     * same-origin default rather than extending it, so include this endpoint's
+     * own origin as well when browsers served from it call it too.
+     *
+     * **Behind a proxy:** the same-origin default compares against
+     * `event.url.origin`, derived from the request's own protocol and `Host`.
+     * A TLS-terminating proxy leaves that `http:` while the browser sends an
+     * `https:` `Origin`, so same-origin requests are rejected. Start the server
+     * with srvx `trustProxy` when a proxy you control rewrites `X-Forwarded-*`,
+     * or pass an explicit allowlist.
+     *
+     * **Security:** the MCP Streamable HTTP transport requires servers to
+     * validate `Origin` to prevent DNS-rebinding attacks. The same-origin
+     * default does not stop rebinding on its own (the rebound name is both the
+     * `Origin` and the `Host`); locally bound servers should pass an explicit
+     * allowlist of the origins they expect (e.g. `["http://localhost:3000"]`).
+     *
+     * Regular expressions are tested **unanchored** — always anchor them
+     * (`/^https:\/\/app\.example\.com$/`).
+     */
+    allowedOrigins?: "*" | string | (string | RegExp)[] | ((origin: string) => boolean);
   } = {} as any,
 ): EventHandler<RequestT> {
   const methodMap = createMethodMap(opts.methods);
+  const maxBatchSize = opts.maxBatchSize ?? DEFAULT_MAX_BATCH_SIZE;
   const handler = async (event: H3Event) => {
     // JSON-RPC requests MUST be POST.
     if (event.req.method !== "POST") {
       throw new HTTPError({ status: 405 });
     }
+
+    // Reject non-JSON content types (CSRF: see `validateContentType`).
+    if (
+      opts.validateContentType !== false &&
+      !isJsonContentType(event.req.headers.get("content-type"))
+    ) {
+      throw new HTTPError({ status: 415, message: "Unsupported Media Type" });
+    }
+
+    // Reject disallowed origins (CSRF / DNS rebinding: see `allowedOrigins`).
+    assertAllowedOrigin(event, opts.allowedOrigins);
+
     let body: unknown;
     try {
       body = await event.req.json();
@@ -109,10 +190,50 @@ export function defineJsonRpcHandler<RequestT extends EventHandlerRequest = Even
       }
       return createJsonRpcError(null, PARSE_ERROR, "Parse error");
     }
-    const result = await processJsonRpcBody(body, methodMap, event);
+    const result = await processJsonRpcBody(body, methodMap, event, maxBatchSize);
     return result === undefined ? new HTTPResponse("", { status: 202 }) : result;
   };
   return defineHandler<RequestT>({ ...opts, handler });
+}
+
+/**
+ * Check that a request `Content-Type` is a JSON media type.
+ */
+function isJsonContentType(value: string | null): boolean {
+  if (!value) {
+    return false;
+  }
+  const mediaType = value.split(";")[0].trim().toLowerCase();
+  return (
+    mediaType === "application/json" ||
+    mediaType === "application/json-rpc" ||
+    mediaType.endsWith("+json")
+  );
+}
+
+/**
+ * Validate the request `Origin` against the allowed origins (default: same-origin only).
+ */
+function assertAllowedOrigin(
+  event: H3Event,
+  allowedOrigins: "*" | string | (string | RegExp)[] | ((origin: string) => boolean) | undefined,
+): void {
+  const origin = event.req.headers.get("origin");
+
+  // Non-browser clients send no `Origin` and are not subject to CSRF.
+  if (!origin || allowedOrigins === "*") {
+    return;
+  }
+
+  const allowed = allowedOrigins
+    ? isCorsOriginAllowed(origin, {
+        origin: typeof allowedOrigins === "string" ? [allowedOrigins] : allowedOrigins,
+      })
+    : origin === event.url.origin;
+
+  if (!allowed) {
+    throw new HTTPError({ status: 403, message: "Origin not allowed" });
+  }
 }
 
 /**
@@ -121,6 +242,12 @@ export function defineJsonRpcHandler<RequestT extends EventHandlerRequest = Even
  * This is an opt-in feature that allows JSON-RPC communication over WebSocket
  * connections for bi-directional messaging. Each incoming WebSocket text message
  * is processed as a JSON-RPC request, and responses are sent back to the peer.
+ *
+ * **Security:** unlike `defineJsonRpcHandler()`, this does not check the request
+ * `Origin`. WebSocket upgrades are not subject to CORS, so a page on any origin
+ * can open a connection carrying the visitor's cookies (cross-site WebSocket
+ * hijacking). Validate `Origin` in the `upgrade` hook and throw a `Response` to
+ * abort the connection.
  *
  * @param opts Options including methods map and optional WebSocket hooks.
  * @returns An H3 EventHandler that upgrades to a WebSocket connection.
@@ -161,9 +288,24 @@ export function defineJsonRpcHandler<RequestT extends EventHandlerRequest = Even
  */
 export function defineJsonRpcWebSocketHandler(opts: {
   methods: Record<string, JsonRpcWebSocketMethod>;
+
+  /**
+   * Maximum number of requests allowed in a single batch message.
+   *
+   * Batch items are dispatched concurrently, so an unbounded batch lets a
+   * single message fan out to an arbitrary number of method invocations.
+   * Larger batches are rejected with an `Invalid Request` (`-32600`) error.
+   *
+   * Set to `Infinity` to disable the limit.
+   *
+   * @default 50
+   */
+  maxBatchSize?: number;
+
   hooks?: Partial<Omit<WebSocketHooks, "message">>;
 }): EventHandler {
   const methodMap = createMethodMap(opts.methods);
+  const maxBatchSize = opts.maxBatchSize ?? DEFAULT_MAX_BATCH_SIZE;
   return defineWebSocketHandler({
     ...opts.hooks,
     async message(peer, message) {
@@ -174,7 +316,7 @@ export function defineJsonRpcWebSocketHandler(opts: {
         peer.send(JSON.stringify(createJsonRpcError(null, PARSE_ERROR, "Parse error")));
         return;
       }
-      const result = await processJsonRpcBody(body, methodMap, peer);
+      const result = await processJsonRpcBody(body, methodMap, peer, maxBatchSize);
       if (result !== undefined) {
         peer.send(JSON.stringify(result));
       }
@@ -208,6 +350,7 @@ async function processJsonRpcBody<C extends H3Event | WebSocketPeer>(
   body: unknown,
   methodMap: Record<string, (data: JsonRpcRequest, context: C) => unknown | Promise<unknown>>,
   context: C,
+  maxBatchSize: number,
 ): Promise<JsonRpcResponse | JsonRpcResponse[] | undefined> {
   // Body must be a non-null object or array.
   // Note: parsing already succeeded here, so a primitive body is not a Parse
@@ -221,6 +364,16 @@ async function processJsonRpcBody<C extends H3Event | WebSocketPeer>(
   // Per spec §6: an empty array is an Invalid Request.
   if (requests.length === 0) {
     return createJsonRpcError(null, INVALID_REQUEST, "Invalid Request");
+  }
+
+  // Bound the fan-out: every item is dispatched concurrently below, so an
+  // unbounded batch amplifies one request into unlimited method invocations.
+  if (requests.length > maxBatchSize) {
+    return createJsonRpcError(
+      null,
+      INVALID_REQUEST,
+      `Invalid Request: batch size exceeds maximum of ${maxBatchSize}`,
+    );
   }
 
   const responses = await Promise.all(
@@ -321,15 +474,19 @@ async function processJsonRpcMethod<C extends H3Event | WebSocketPeer>(
     }
 
     // If the handler throws, wrap it in a JSON-RPC error response.
-    const h3Error = HTTPError.isError(error_)
+    //
+    // Never expose internal exception details to untrusted callers: only an
+    // `HTTPError` the app threw itself may surface its `message`/`data`.
+    // `unhandled` errors are framework-wrapped internal exceptions whose
+    // message is lifted from an arbitrary `cause` (e.g. `fromNodeHandler`
+    // wrapping a driver error), so they are masked here exactly like
+    // `HTTPError.toJSON()` masks them (see `src/error.ts`).
+    const isExposable = HTTPError.isError(error_) && !error_.unhandled;
+    const h3Error = isExposable
       ? error_
       : {
-          status: 500,
+          status: HTTPError.isError(error_) ? error_.status : 500,
           message: "Internal error",
-          // Never expose internal exception details to untrusted callers.
-          // Consistent with `HTTPError.toJSON()` hiding `data`/`message` for
-          // unhandled errors (see `src/error.ts`). Thrown `HTTPError`s keep
-          // their opt-in `data`/`message` via the branch above.
           data: undefined,
         };
     const statusCode = h3Error.status;

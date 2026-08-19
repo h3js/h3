@@ -3,9 +3,9 @@ export interface ResolveDotSegmentsOptions {
    * Also decode percent-encoded path separators (`%2f`, `%5c`) into real `/`
    * segment boundaries before resolving `.`/`..`.
    *
-   * `event.url.pathname` never decodes `%2f` on its own, because doing so
-   * would change how many segments a path has and therefore which route
-   * matches — a correctness concern for dispatch, not just a security one
+   * `event.url.pathname` never decodes `%2f`, because doing so would change how
+   * many segments a path has and therefore which route matches — a correctness
+   * concern for dispatch, not just a security one
    * (e.g. `/files/:id` may rely on `%2F` to keep an id with a literal slash
    * as one opaque segment). So never use the result for routing/dispatch.
    *
@@ -21,9 +21,9 @@ export interface ResolveDotSegmentsOptions {
    * repeated whole `%25` prefixes (`%252f`, `%25252f`, ...) at any depth, so a
    * downstream that keeps `%25`-re-encoding and decoding cannot smuggle one
    * past. It does NOT catch a separator whose own hex digits are themselves
-   * percent-encoded (`%25%32%66` → `%2f` → `/` after two decodes) — and that
-   * form can appear even in an already-once-decoded pathname (from wire
-   * `%2525%2532%2566`), so once-decoded input is not by itself sufficient.
+   * percent-encoded (`%25%32%66` → `%2f` → `/` after two decodes) — though that
+   * exact spelling reaches a handler already canonicalized to `%252f`, which is
+   * collapsed.
    * Treat this as covering the common `%25`-nesting case, not as an absolute
    * guarantee against every multi-decode chain. Other escapes (e.g. `%20`) are
    * never decoded.
@@ -108,8 +108,8 @@ const ENCODED_DOT_RE_G = /%(?:25)*2e/gi;
  *
  * Only `.`/`..` resolution and the decodes above alter the string; every other
  * percent-encoding (`%20`, non-ASCII, `%3A`, and any `%2e` not forming a whole
- * segment) is left intact, so the result stays in the same representation as an
- * un-decoded `event.url.pathname` and matches routes/rules consistently.
+ * segment) is left intact, so the result stays in the same representation as
+ * `event.url.pathname` and matches routes/rules consistently.
  * A trailing `.`/`..` resolves to a directory and keeps its trailing slash
  * (`/a/b/..` -> `/a/`, `/a/.` -> `/a/`), per RFC 3986 §5.2.4 and matching what a
  * WHATWG/nginx downstream resolves — so a scope check sees the directory form,

@@ -1,5 +1,6 @@
 import { type ErrorDetails, HTTPError } from "../error.ts";
-import { decodePathname, stripBase } from "./internal/path.ts";
+import { decodePreservingSeparators, stripBase } from "./internal/path.ts";
+import { EmptyObject } from "./internal/obj.ts";
 import { parseQuery } from "./internal/query.ts";
 import { validateData } from "./internal/validate.ts";
 import { getEventContext } from "./event.ts";
@@ -18,41 +19,67 @@ import type { ServerRequest } from "srvx";
  * Avoids cloning the original request (no `new Request()` allocation).
  */
 export function requestWithURL(req: ServerRequest, url: string): ServerRequest {
+  // Null prototype: with a plain object literal every `Object.prototype` key is
+  // a cache hit, so `constructor` would resolve to `Object` and `__proto__` to
+  // `Object.prototype` instead of the request's own.
+  const cache: Record<string | symbol, unknown> = new EmptyObject();
+  cache.url = url;
   // Shadow `_url` too: the runtime-parsed URL object reflects the original
   // request URL and consumers must re-parse the overridden `url` instead.
-  const cache: Record<string | symbol, unknown> = { url, _url: undefined };
+  cache._url = undefined;
   return new Proxy(req, {
     get(target, prop) {
       if (prop in cache) return cache[prop];
       const value = Reflect.get(target, prop);
-      cache[prop] = typeof value === "function" ? value.bind(target) : value;
+      // Never memoize `bodyUsed`: it flips when the body is consumed.
+      if (prop === "bodyUsed") return value;
+      // Methods are bound so they run against the real request (private field
+      // brand checks), but `constructor` has to keep its identity for
+      // `req.constructor === Request` style duck-typing.
+      cache[prop] =
+        typeof value === "function" && prop !== "constructor" ? value.bind(target) : value;
       return cache[prop];
+    },
+    set(target, prop, value) {
+      // Writes go to the request, so drop the stale memo (except the shadowed url).
+      if (prop !== "url" && prop !== "_url") delete cache[prop];
+      return Reflect.set(target, prop, value);
     },
   });
 }
 
 /**
  * Create a lightweight request proxy with the base path stripped from the URL pathname.
+ *
+ * `options.url` is the parsed request URL to strip `base` from, in place of
+ * parsing `req.url`. Pass `event.url` whenever there is an event: for a
+ * non-canonical path it holds the canonicalized form the parent matched `base`
+ * against, while `req.url` still holds the wire form, and slicing one by an
+ * offset derived from the other is how mount prefixes desync.
  */
-export function requestWithBaseURL(req: ServerRequest, base: string): ServerRequest {
-  const url = new URL(req.url);
-  let pathname: string;
-  try {
-    pathname = decodePathname(url.pathname);
-  } catch {
-    // Malformed percent-encoding: fall back to the raw pathname instead of throwing.
-    pathname = url.pathname;
-  }
-  url.pathname = stripBase(pathname, base);
+export function requestWithBaseURL(
+  req: ServerRequest,
+  base: string,
+  options: { url?: URL } = {},
+): ServerRequest {
+  // Strip only, never decode: the mounted handler must receive the same
+  // representation the parent app routed on.
+  const url = new URL(options.url || req.url);
+  url.pathname = stripBase(url.pathname, base);
   return requestWithURL(req, url.href);
 }
 
 /**
  * Convert input into a web [Request](https://developer.mozilla.org/en-US/docs/Web/API/Request).
  *
- * If input is a relative URL, it will be normalized into a full path based on headers.
+ * If input is a relative URL, it will be normalized into a full path based on the `host` header.
  *
  * If input is already a Request and no options are provided, it will be returned as-is.
+ *
+ * **Security:** The `host` header is client input. It is only used as the authority of the
+ * synthesized URL (falling back to `localhost` when absent or malformed) and can never widen
+ * into the path, and `x-forwarded-proto` is ignored, so the scheme is always `http`. Pass an
+ * absolute URL to control the origin.
  */
 export function toRequest(
   input: ServerRequest | URL | string,
@@ -62,12 +89,7 @@ export function toRequest(
     let url = input;
     if (url[0] === "/") {
       const headers = options?.headers ? new Headers(options.headers) : undefined;
-      const host = headers?.get("host") || "localhost";
-      const proto =
-        (headers?.get("x-forwarded-proto") || "").split(",")[0].trim() === "https"
-          ? "https"
-          : "http";
-      url = `${proto}://${host}${url}`;
+      url = `http://${safeHost(headers?.get("host"))}${url}`;
     }
     return new Request(url, options);
   } else if (options || input instanceof URL) {
@@ -170,13 +192,31 @@ export function getValidatedQuery(
 /**
  * Get matched route params.
  *
- * If `decode` option is `true`, it will decode the matched route params (like
- * `decodeURIComponent`), except encoded path separators (`%2f`, `%5c`) are kept
- * encoded so decoding can never reintroduce a `/` or `\` the router never matched.
+ * By default params are returned exactly as they appeared in the URL path, still
+ * percent-encoded.
+ *
+ * With `decode: true` each param is decoded **once** (like `decodeURIComponent`),
+ * except encoded path separators (`%2f`, `%5c`, at any `%25`-nesting depth) which
+ * are left in their encoded form so decoding can never reintroduce a `/` or `\`
+ * the router never matched.
+ *
+ * A single decode is not the same as "fully decoded": `%25XX` decodes to the
+ * literal text `%XX`, so the result can still contain percent-escapes — including
+ * dot segments (`%252e%252e` -> `%2e%2e`) and control characters (`%2500` -> `%00`).
+ * **Do not decode the result again**: a second pass turns those back into
+ * traversal (`../`) and separators the routing and middleware layers never saw.
+ * Treat the returned string as final and validate it as-is.
  *
  * @example
  * app.get("/", (event) => {
  *   const params = getRouterParams(event); // { key: "value" }
+ * });
+ *
+ * @example
+ * // GET /files/%252e%252e/x
+ * app.get("/files/**:rest", (event) => {
+ *   getRouterParams(event); // { rest: "%252e%252e/x" }
+ *   getRouterParams(event, { decode: true }); // { rest: "%2e%2e/x" } — still encoded, do not decode again
  * });
  */
 export function getRouterParams(
@@ -189,49 +229,16 @@ export function getRouterParams(
   if (opts.decode) {
     params = { ...params };
     for (const key in params) {
-      params[key] = decodeRouterParam(params[key]);
+      // Never let an encoded separator collapse into a raw `/` or `\`: whatever
+      // reaches a param survived the `decodeURI` in `event.ts` still encoded, so
+      // route matching and every pathname-based middleware only ever saw it as
+      // one opaque segment (a `:id` capture can never hold a raw separator).
+      // Decoding it here would reintroduce a separator — and `..`-based
+      // traversal — that no guard could see.
+      params[key] = decodePreservingSeparators(params[key]);
     }
   }
   return params;
-}
-
-// Percent-encoded path separators (`%2f` → `/`, `%5c` → `\`) at any `%25`-nesting
-// depth (`%2f`, `%252f`, ...). Whatever reaches a param already survived the pathname
-// decode in `event.ts` (a single `decodeURI` that preserves `%25`) still encoded:
-// `decodeURI` keeps `%2f` as a reserved char, and `%25`-nested forms (`%252f`,
-// `%255c`, ...) only lose one `%25` level. A bare `%5c` never reaches a param at all —
-// it decodes to `\`, which the URL parser normalizes into a real `/` the router splits
-// on — but it stays in the pattern as a cheap guard. Either way, route matching and any
-// pathname-based middleware only ever saw the matched param as one opaque, still-encoded
-// segment (a `:id` capture can never hold a raw separator).
-const ENCODED_SEP_RE_G = /%(?:25)*(?:2f|5c)/gi;
-
-/**
- * `decodeURIComponent` a matched route param, but never let an encoded path
- * separator collapse into a raw `/` or `\`.
- *
- * A full second decode on top of the already-once-decoded pathname would
- * reintroduce a separator (and thus `..`-based traversal) the routing/middleware
- * layer could not see — a path desync / smuggling vector when the decoded param
- * feeds a filesystem or upstream path. So the encoded separators are kept in
- * their encoded form while every other escape (spaces, non-ASCII, ...) still
- * decodes normally, keeping `decode:true` human-readable.
- */
-function decodeRouterParam(value: string): string {
-  if (!value.includes("%")) {
-    return value; // Fast path: nothing to decode.
-  }
-  // Decode around the encoded separators: split on them, decode the pieces, and
-  // rejoin keeping each separator in its original (encoded) form so it can never
-  // become a raw separator.
-  let result = "";
-  let lastIndex = 0;
-  ENCODED_SEP_RE_G.lastIndex = 0;
-  for (let m: RegExpExecArray | null; (m = ENCODED_SEP_RE_G.exec(value));) {
-    result += decodeURIComponent(value.slice(lastIndex, m.index)) + m[0];
-    lastIndex = m.index + m[0].length;
-  }
-  return result + decodeURIComponent(value.slice(lastIndex));
 }
 
 export function getValidatedRouterParams<Event extends HTTPEvent, S extends StandardSchemaV1>(
@@ -257,9 +264,10 @@ export function getValidatedRouterParams<
 /**
  * Get matched route params and validate with validate function.
  *
- * If `decode` option is `true`, it will decode the matched route params (like
- * `decodeURIComponent`), except encoded path separators (`%2f`, `%5c`) are kept
- * encoded so decoding can never reintroduce a `/` or `\` the router never matched.
+ * If `decode` option is `true`, params are decoded **once** exactly as described in
+ * {@link getRouterParams} — path separators stay encoded, other escapes decode a
+ * single level, and the validated value can still contain `%XX`. Validate it as-is;
+ * do not decode it again.
  *
  * You can use a simple function to validate the params object or use a Standard-Schema compatible library like `zod` to define a schema.
  *
@@ -360,15 +368,21 @@ export function isMethod(
   expected: HTTPMethod | HTTPMethod[],
   allowHead?: boolean,
 ): boolean {
-  if (allowHead && event.req.method === "HEAD") {
+  // `expected` is typed uppercase, but a request method arrives as sent:
+  // `new Request()` only normalizes the fetch spec's fixed token list
+  // (DELETE/GET/HEAD/OPTIONS/POST/PUT), so `patch` stays `patch`. Comparing raw
+  // would report a mismatch for a method the request actually used.
+  const method = event.req.method.toUpperCase();
+
+  if (allowHead && method === "HEAD") {
     return true;
   }
 
   if (typeof expected === "string") {
-    if (event.req.method === expected) {
+    if (method === expected) {
       return true;
     }
-  } else if (expected.includes(event.req.method as HTTPMethod)) {
+  } else if (expected.includes(method as HTTPMethod)) {
     return true;
   }
 
@@ -496,10 +510,7 @@ export function getRequestURL(
   if (opts.xForwardedHost) {
     const host = getRequestHost(event, opts);
     if (host) {
-      url.host = host;
-      if (!/:\d+$/.test(host)) {
-        url.port = "";
-      }
+      applyForwardedHost(url, host);
     }
   }
   return url;
@@ -540,4 +551,40 @@ export function getRequestIP(
   }
 
   return (event.req.context?.clientAddress as string) || event.req.ip || undefined;
+}
+
+// --- internal ---
+
+/**
+ * Apply a client provided `hostname[:port]` to `url`.
+ *
+ * The URL `hostname` and `port` setters silently ignore invalid values, so both
+ * are checked before they are trusted: applying a malformed host as-is would
+ * leave the real authority half rewritten (a bad hostname keeping the real port
+ * or, worse, a spoofed hostname inheriting it).
+ */
+function applyForwardedHost(url: URL, host: string): void {
+  const sep = host.lastIndexOf(":");
+  const hasPort = sep > host.lastIndexOf("]"); // ignore the colons of an [ipv6] host
+  const hostname = hasPort ? host.slice(0, sep) : host;
+  const prevHostname = url.hostname;
+  url.hostname = hostname;
+  if (url.hostname === prevHostname && hostname.toLowerCase() !== prevHostname) {
+    return; // the setter was a no-op: keep the real authority
+  }
+  const port = hasPort ? host.slice(sep + 1) : "";
+  url.port = /^\d{1,5}$/.test(port) && +port < 65_536 ? port : "";
+}
+
+/**
+ * Authority for a URL synthesized from a relative path and a `host` header.
+ *
+ * The host is concatenated *ahead of* the path, so anything that can end the
+ * authority (`/`, `\`, `?`, `#`) or split it (`@`, whitespace) would let a
+ * client-supplied `Host` inject a request path or hand the authority to a
+ * different host. Such a value is not a host: fall back instead of parsing
+ * whatever prefix of it happens to be one.
+ */
+function safeHost(host: string | undefined | null): string {
+  return host && !/[/\\?#@\s]/.test(host) ? host : "localhost";
 }

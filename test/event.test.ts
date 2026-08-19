@@ -93,19 +93,19 @@ describeMatrix("event", (t, { it, expect }) => {
     expect(await result.text()).toBe("200");
   });
 
-  it("normalizes event.url without touching req.url on any runtime", async () => {
+  it("keeps event.url in the wire encoding of req.url on any runtime", async () => {
     t.app.all("/*", (event) => ({
       pathname: event.url.pathname,
       reqUrl: event.req.url,
       rawNodeUrl: event.runtime?.node?.req?.url ?? null,
     }));
-    const res = await t.fetch("/h%65llo?q=%41");
+    const res = await t.fetch("/caf%C3%A9?q=%41");
     const body = await res.json();
-    expect(body.pathname).toBe("/hello");
-    // req.url keeps the original wire encoding on every runtime (#1432)
-    expect(new URL(body.reqUrl).pathname).toBe("/h%65llo");
+    expect(body.pathname).toBe("/caf%C3%A9");
+    // event.url never diverges from req.url (#1432)
+    expect(new URL(body.reqUrl).pathname).toBe("/caf%C3%A9");
     if (t.target === "node") {
-      expect(body.rawNodeUrl).toBe("/h%65llo?q=%41");
+      expect(body.rawNodeUrl).toBe("/caf%C3%A9?q=%41");
     } else {
       expect(body.rawNodeUrl).toBe(null);
     }

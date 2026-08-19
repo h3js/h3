@@ -1,6 +1,7 @@
 import { FastResponse } from "srvx";
 import { HTTPError } from "./error.ts";
 import { isJSONSerializable } from "./utils/internal/object.ts";
+import { sanitizeStatusCode, sanitizeStatusMessage } from "./utils/sanitize.ts";
 import { kEventDispose, type DisposeState } from "./utils/internal/dispose.ts";
 
 import type { H3Config } from "./types/h3.ts";
@@ -172,10 +173,17 @@ function prepareResponse(
 
   if (!(val instanceof Response)) {
     const res = prepareResponseBody(val, event, config);
-    const status = res.status || preparedRes?.status;
+    // Sanitize on the way out: `event.res.status`/`statusText` and `HTTPResponse` are plain
+    // user-writable fields, and `FastResponse` defers validation to the runtime. An invalid value
+    // then throws from Node's `writeHead()` — after `toResponse` returned, so outside every h3
+    // try/catch — and takes the process down; on runtimes that do not validate the reason phrase,
+    // a CRLF in `statusText` is response splitting.
+    const rawStatus = res.status || preparedRes?.status;
+    const status = rawStatus ? sanitizeStatusCode(rawStatus) : undefined;
+    const rawStatusText = res.statusText || preparedRes?.statusText;
     return new FastResponse(nullBody(event.req.method, status) ? null : res.body, {
       status,
-      statusText: res.statusText || preparedRes?.statusText,
+      statusText: rawStatusText === undefined ? undefined : sanitizeStatusMessage(rawStatusText),
       headers:
         res.headers && preparedHeaders
           ? mergeHeaders(res.headers, preparedHeaders)
@@ -191,18 +199,19 @@ function prepareResponse(
   }
 
   // Merge prepared headers unless there is nothing to merge or a custom error
-  // render is returned from `onError`.
-  if (preparedHeaders && !nested) {
-    try {
-      mergeHeaders(val.headers, preparedHeaders, val.headers);
-    } catch {
-      // Headers are immutable
-      return new FastResponse(nullBody(event.req.method, val.status) ? null : val.body, {
-        status: val.status,
-        statusText: val.statusText,
-        headers: mergeHeaders(val.headers, preparedHeaders),
-      }) as Response;
-    }
+  // render is returned from `onError`. `event.res.headers` is created lazily on first
+  // access, so it can be present but empty -- nothing to merge then either.
+  if (preparedHeaders && !nested && !preparedHeaders.keys().next().done) {
+    // Never merge *into* `val.headers`: the handler owns that `Response` and may reuse it
+    // (module-level constant, memoized fallback, ...). Merging in place makes
+    // request-scoped headers stick to it permanently, and because `set-cookie` is
+    // appended rather than set, one request's session cookie would then be re-emitted to
+    // every later client receiving that same object. Build a new response instead.
+    return new FastResponse(nullBody(event.req.method, val.status) ? null : val.body, {
+      status: val.status,
+      statusText: val.statusText,
+      headers: mergeHeaders(val.headers, preparedHeaders),
+    }) as Response;
   }
 
   // Strip the body for HEAD requests (runtimes usually do this, but keep

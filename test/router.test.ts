@@ -179,6 +179,20 @@ describeMatrix("router", (t, { it, expect, describe }) => {
         const nonAscii = await (await t.fetch("/files/caf%C3%A9")).text();
         expect(nonAscii).toBe("café");
       });
+
+      it("decodes exactly one level (documented in docs/2.utils/4.security.md)", async () => {
+        // `decode:true` is one `decodeURIComponent` pass, not a full
+        // normalization: `%25XX` yields the literal text `%XX`, so the result
+        // can still contain escapes and must not be decoded again.
+        t.app.get("/files/**:rest", (event) => {
+          return getRouterParams(event, { decode: true }).rest;
+        });
+
+        expect(await (await t.fetch("/files/%252e%252e/x")).text()).toBe("%2e%2e/x");
+        expect(await (await t.fetch("/files/%2500")).text()).toBe("%00");
+        // Separators stay encoded at every `%25`-nesting depth.
+        expect(await (await t.fetch("/files/a%252fb")).text()).toBe("a%252fb");
+      });
     });
 
     describe("without router", () => {
@@ -304,6 +318,99 @@ describeMatrix("router", (t, { it, expect, describe }) => {
       const postRes = await t.fetch("/path", { method: "POST" });
       expect(postRes.status).toBe(200);
       expect(await postRes.text()).toBe("post");
+    });
+
+    // Regression: rou3 keeps every registration reaching the same node in a single
+    // `node.methods[METHOD]` array and its `removeRoute()` deletes the whole array,
+    // so removing one dynamic pattern silently unregistered its siblings.
+    it("keeps sibling routes sharing the same param node", async () => {
+      t.app.get("/users/:id", () => "id");
+      t.app.get("/users/:name", (event) => `name:${event.context.params!.name}`);
+
+      removeRoute(t.app, "GET", "/users/:id");
+
+      const sibling = await t.fetch("/users/123");
+      expect(sibling.status).toBe(200);
+      expect(await sibling.text()).toBe("name:123");
+    });
+
+    it("keeps a static route an optional pattern also registers", async () => {
+      t.app.get("/opt", () => "static");
+      t.app.get("/opt/:id?", () => "optional");
+
+      removeRoute(t.app, "GET", "/opt/:id?");
+
+      const optional = await t.fetch("/opt/123");
+      expect(optional.status).toBe(404);
+
+      const staticRes = await t.fetch("/opt");
+      expect(staticRes.status).toBe(200);
+      expect(await staticRes.text()).toBe("static");
+    });
+
+    // Regression: only the first matching `~routes` entry was spliced, so a route
+    // registered twice left a stale entry behind that `mount()` re-registered.
+    it("does not resurrect a removed route when the app is mounted", async () => {
+      const sub = new H3();
+      sub.get("/dup", () => "first");
+      sub.get("/dup", () => "second");
+
+      removeRoute(sub, "GET", "/dup");
+      t.app.mount("/api", sub);
+
+      const res = await t.fetch("/api/dup");
+      expect(res.status).toBe(404);
+    });
+
+    // Regression: an empty method spliced an arbitrary `~routes` entry while rou3
+    // kept the route, so `mount()` dropped a still-routable handler.
+    it("empty method keeps other methods listed for mounting", async () => {
+      const sub = new H3();
+      sub.get("/keep", () => "get");
+      sub.all("/keep", () => "all");
+
+      removeRoute(sub, "", "/keep");
+      t.app.mount("/api", sub);
+
+      const res = await t.fetch("/api/keep");
+      expect(res.status).toBe(200);
+      expect(await res.text()).toBe("get");
+
+      const other = await t.fetch("/api/keep", { method: "PUT" });
+      expect(other.status).toBe(404);
+    });
+  });
+
+  describe("encoded route registration", () => {
+    // Regression: `event.url.pathname` is canonicalized before routing (needless
+    // escapes like `%40` decoded to `@`, see src/event.ts / src/utils/internal/path.ts),
+    // but a route string passed to `on()`/`get()`/etc. was normalized with
+    // `new URL(route, "http://_").pathname` only — never canonicalized. A route
+    // registered in its escaped wire form (`/%40handle`) therefore matched
+    // neither the encoded request (canonicalized to `/@handle` before matching)
+    // nor the literal decoded request (`/@handle`, which never equals the raw
+    // `/%40handle` registration string) — the route was unreachable either way.
+    it("registering a needlessly-escaped route makes it reachable via both its encoded and decoded form", async () => {
+      t.app.get("/%40handle", () => "handle");
+      t.app.get("/**", () => "fallback");
+
+      const encoded = await t.fetch("/%40handle");
+      expect(await encoded.text()).toBe("handle");
+
+      const decoded = await t.fetch("/@handle");
+      expect(await decoded.text()).toBe("handle");
+    });
+
+    it("removeRoute canonicalizes the route it looks up, matching a route registered in its escaped form", async () => {
+      t.app.get("/%40removable", () => "handle");
+
+      const before = await t.fetch("/@removable");
+      expect(before.status).toBe(200);
+
+      removeRoute(t.app, "GET", "/@removable");
+
+      const after = await t.fetch("/@removable");
+      expect(after.status).toBe(404);
     });
   });
 

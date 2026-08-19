@@ -4,6 +4,7 @@ import {
   redirectBack,
   withBase,
   assertMethod,
+  isMethod,
   getQuery,
   getRequestURL,
   getRequestHost,
@@ -328,6 +329,36 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
       expect(res).toBe("http://[2001:db8::1]:8080/test");
     });
 
+    it("ignores malformed x-forwarded-host and keeps the real authority", async () => {
+      const real = await t.fetch("/test").then((r) => r.text());
+      for (const host of ["bad host", "foo|bar", "user@evil.com", "example.com%"]) {
+        const res = await t
+          .fetch("/test", {
+            headers: { host: "localhost", "x-forwarded-host": host },
+          })
+          .then((r) => r.text());
+        expect(res, host).toBe(real);
+      }
+    });
+
+    it("x-forwarded-host clears the port when only the port differs", async () => {
+      const res = await t
+        .fetch("http://localhost:3000/test", {
+          headers: { "x-forwarded-host": "localhost" },
+        })
+        .then((r) => r.text());
+      expect(res).toBe("http://localhost/test");
+    });
+
+    it("x-forwarded-host with an invalid port drops the real port", async () => {
+      const res = await t
+        .fetch("http://localhost:3000/test", {
+          headers: { "x-forwarded-host": "example.com:99999" },
+        })
+        .then((r) => r.text());
+      expect(res).toBe("http://example.com/test");
+    });
+
     it('x-forwarded-proto: "https"', async () => {
       expect(
         await t
@@ -436,10 +467,24 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
       });
       const fingerprint = await res.text();
 
-      // sha1 is 40 chars long
-      expect(fingerprint).toHaveLength(40);
+      // sha256 (default) is 64 chars long
+      expect(fingerprint).toHaveLength(64);
 
       // and only uses hex chars
+      expect(fingerprint).toMatch(/^[\dA-Fa-f]+$/);
+    });
+
+    it("supports stronger hash algorithms", async () => {
+      t.app.use((event) => getRequestFingerprint(event, { hash: "SHA-512", xForwardedFor: true }));
+
+      const res = await t.fetch("/", {
+        headers: {
+          "x-forwarded-for": "client-ip",
+        },
+      });
+      const fingerprint = await res.text();
+
+      expect(fingerprint).toHaveLength(128);
       expect(fingerprint).toMatch(/^[\dA-Fa-f]+$/);
     });
 
@@ -492,6 +537,40 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
       });
 
       expect(await res.text()).toBe("client-ip|test-user-agent");
+    });
+
+    it("keeps an empty slot for undeterminable components", async () => {
+      t.app.use((event) =>
+        getRequestFingerprint(event, {
+          hash: false,
+          ip: false,
+          method: true,
+          userAgent: true,
+        }),
+      );
+
+      // Empty `user-agent`: the slot stays empty instead of being dropped.
+      const res = await t.fetch("/", { headers: { "user-agent": "" } });
+
+      expect(await res.text()).toBe("GET|");
+    });
+
+    it("escapes the component separator", async () => {
+      t.app.use((event) =>
+        getRequestFingerprint(event, {
+          hash: false,
+          ip: false,
+          method: true,
+          userAgent: true,
+        }),
+      );
+
+      // A `|` inside a component cannot forge the slot structure of another request.
+      const res = await t.fetch("/", {
+        headers: { "user-agent": "a|b%c" },
+      });
+
+      expect(await res.text()).toBe("GET|a%7Cb%25c");
     });
 
     it("uses x-forwarded-for ip when header set", async () => {
@@ -550,6 +629,74 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
       expect(new Set(res405.headers.get("Allow")?.split(/\s*,\s*/))).toEqual(
         new Set(["GET", "POST"]),
       );
+    });
+
+    // Regression: `assertMethod` compared a raw `event.req.method` against the
+    // expected method, so a request that spelled the method in any other case
+    // was rejected with a spurious 405. `new Request()` only normalizes the
+    // fetch spec's fixed token list (DELETE/GET/HEAD/OPTIONS/POST/PUT), so
+    // `patch` reaches handlers verbatim through `app.fetch()` on every runtime.
+    //
+    // `t.app.request()` instead of `t.fetch()`: in node mode the latter goes
+    // over a real socket, and llhttp rejects an unknown-cased method token with
+    // a 400 before h3 sees it. The in-process path is the one actually reachable.
+    for (const method of ["PATCH", "patch", "PaTcH"]) {
+      it(`allows a PATCH assertion for a request spelled ${method}`, async () => {
+        t.app.all("/patch", (event) => {
+          assertMethod(event, "PATCH");
+          return "ok";
+        });
+        const res = await t.app.request("http://localhost/patch", { method });
+        expect(res.status).toBe(200);
+        expect(await res.text()).toBe("ok");
+      });
+    }
+
+    it("still rejects a genuinely different method", async () => {
+      t.app.all("/patch", (event) => {
+        assertMethod(event, "PATCH");
+        return "ok";
+      });
+      for (const method of ["POST", "post"]) {
+        const res = await t.app.request("http://localhost/patch", { method });
+        expect(res.status, method).toBe(405);
+      }
+    });
+  });
+
+  describe("isMethod", () => {
+    for (const method of ["QUERY", "query", "QuErY"]) {
+      it(`matches a QUERY expectation for a request spelled ${method}`, async () => {
+        t.app.all("/query", (event) => String(isMethod(event, "QUERY")));
+        const res = await t.app.request("http://localhost/query", { method });
+        expect(await res.text()).toBe("true");
+      });
+    }
+
+    it("matches a lowercase method within a list of expected methods", async () => {
+      t.app.all("/list", (event) => String(isMethod(event, ["PATCH", "QUERY"])));
+      const res = await t.app.request("http://localhost/list", { method: "patch" });
+      expect(await res.text()).toBe("true");
+    });
+
+    it("allows an unnormalized `head` token when allowHead is set", async () => {
+      let matched: boolean | undefined;
+      t.app.all("/head", (event) => {
+        matched = isMethod(event, "GET", true);
+        return "ok";
+      });
+      // `new Request()` normalizes `head` to `HEAD`; force the token back to
+      // model a runtime that hands h3 the method as it arrived on the wire.
+      const req = new Request("http://localhost/head", { method: "HEAD" });
+      Object.defineProperty(req, "method", { value: "head", configurable: true });
+      await t.app.request(req);
+      expect(matched).toBe(true);
+    });
+
+    it("does not match a different method", async () => {
+      t.app.all("/other", (event) => String(isMethod(event, "PATCH")));
+      const res = await t.app.request("http://localhost/other", { method: "post" });
+      expect(await res.text()).toBe("false");
     });
   });
 

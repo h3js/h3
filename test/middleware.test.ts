@@ -212,4 +212,172 @@ describeMatrix("middleware", (t, { it, expect }) => {
     expect(res.headers.get("content-length")).toBe("3");
     expect(res.headers.getSetCookie()).toMatchObject(["session=abc123; Path=/; HttpOnly"]);
   });
+
+  // Regression: `event.url.pathname` is canonicalized before matching (needless
+  // escapes like `%40` decoded to `@`), but a route filter string passed to
+  // `use(route, ...)` was handed to `routeToRegExp()` raw — so an escaped filter
+  // like `/%40admin/**` could never match the canonicalized pathname of a
+  // request for `/@admin/...`.
+  it("canonicalizes a needlessly-escaped route filter passed to use()", async () => {
+    let ran = false;
+    t.app.use("/%40admin/**", () => {
+      ran = true;
+    });
+    t.app.get("/@admin/x", () => "ok");
+
+    const res = await t.fetch("/@admin/x");
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe("ok");
+    expect(ran).toBe(true);
+  });
+});
+
+// Regression: `use(route, ...)` used to compile its own regex for the route
+// filter while the router matched with rou3, and the two disagreed — so a
+// request could reach a handler with the guard registered for it skipped.
+// A `:param` regex was `[^/]+`, rejecting the empty segment rou3's trie accepts
+// (`/admin/7//` reached `/admin/:id` unguarded), and the `/**` regex made the
+// separator optional (`/admin/**` also fired on `/adminx`). Both matchers are
+// now rou3, so the scope of a `use()` is the match-set of the same pattern.
+describeMatrix("middleware route scope", (t, { it, expect }) => {
+  // Every path here is routed by its own pattern, so its guard must fire.
+  const scopes = [
+    { route: "/admin/:id", paths: ["/admin/7", "/admin/7/", "/admin/7//"] },
+    { route: "/admin/**", paths: ["/admin", "/admin/", "/admin//", "/admin/x", "/admin/x/y"] },
+    // A named `**` needs at least one segment, so `/files` itself is not routed.
+    { route: "/files/**:rest", paths: ["/files/a", "/files/a/b", "/files/a/b/"] },
+    { route: "/a/*", paths: ["/a", "/a/", "/a/x", "/a/x/"] },
+    { route: "/api", paths: ["/api", "/api/", "/api//"] },
+  ];
+
+  for (const { route, paths } of scopes) {
+    it(`guards every path routed by ${route}`, async () => {
+      t.app.use(route, () => "DENIED");
+      t.app.all(route, () => "ALLOWED");
+      for (const path of paths) {
+        const res = await t.fetch(path);
+        expect(await res.text(), `${route} vs ${path}`).toBe("DENIED");
+      }
+    });
+  }
+
+  it("does not let a `/**` scope bleed past the segment boundary", async () => {
+    const seen: string[] = [];
+    t.app.use("/admin/**", (event) => {
+      seen.push(event.url.pathname);
+    });
+    t.app.get("/**", () => "ok");
+
+    for (const path of ["/adminx", "/administrator", "/admin-panel", "/ad"]) {
+      expect(await (await t.fetch(path)).text()).toBe("ok");
+    }
+    expect(seen).toEqual([]);
+
+    await t.fetch("/admin/x");
+    expect(seen).toEqual(["/admin/x"]);
+  });
+
+  // A leading empty segment is only reachable in web mode: the node test client
+  // resolves `//admin/...` against its base URL as a protocol-relative URL.
+  it.skipIf(t.target === "node")("guards a path with an empty leading segment", async () => {
+    t.app.use("/:tenant/admin/**", () => "DENIED");
+    t.app.get("/:tenant/admin/users", () => "ALLOWED");
+
+    const res = await t.app.request(new Request("http://localhost//admin/users"));
+    expect(await res.text()).toBe("DENIED");
+  });
+
+  // `on()` percent-encoded these (via `new URL(route, "http://_")`) while
+  // `use()` kept them literal, so the route was reachable at its encoded path
+  // while its guard, registered from the same string, matched nothing.
+  // See `normalizeRoute` in src/utils/internal/path.ts.
+  const unencodedScopes = [
+    { route: "/café/secret", guard: "/café/**", path: "/caf%C3%A9/secret" },
+    { route: "/a b/secret", guard: "/a b/**", path: "/a%20b/secret" },
+  ];
+
+  for (const { route, guard, path } of unencodedScopes) {
+    it(`guards ${path} registered as ${guard}`, async () => {
+      t.app.use(guard, () => "DENIED");
+      t.app.get(route, () => "ALLOWED");
+
+      expect(await (await t.fetch(path)).text()).toBe("DENIED");
+    });
+  }
+
+  it("exposes rou3 param names in middlewareParams", async () => {
+    let params: Record<string, string> | undefined;
+    t.app.use("/mix/*/:id/**:rest", (event) => {
+      params = event.context.middlewareParams;
+    });
+    t.app.get("/**", () => "ok");
+
+    await t.fetch("/mix/q/7/a/b");
+    expect(params).toEqual({ "0": "q", id: "7", rest: "a/b" });
+  });
+});
+
+// Regression: `use(fn, { method })` uppercased the scope but compared it against
+// a raw `event.req.method`, so a guard scoped to a method was skipped whenever
+// the request spelled that method in any other case — and a skipped middleware
+// falls through to the method-agnostic route (fail-open), unlike a method-scoped
+// route, which just 404s. `new Request()` only normalizes the fetch spec's fixed
+// token list (DELETE/GET/HEAD/OPTIONS/POST/PUT), so `patch` reaches handlers
+// verbatim through `app.fetch()` on every runtime.
+describeMatrix("middleware method scope", (t, { it, expect }) => {
+  // `t.app.request()` instead of `t.fetch()`: in node mode the latter goes over a
+  // real socket, and llhttp rejects an unknown-cased method token with a 400
+  // before h3 sees it. The in-process path is the one that is actually reachable.
+  const request = (method: string) => t.app.request("http://localhost/secret", { method });
+
+  for (const method of ["PATCH", "patch", "PaTcH"]) {
+    it(`guards a PATCH-scoped route spelled ${method}`, async () => {
+      t.app.use(() => "DENIED", { method: "PATCH" });
+      t.app.all("/secret", () => "SECRET");
+
+      expect(await (await request(method)).text()).toBe("DENIED");
+    });
+  }
+
+  it("does not match a genuinely different method", async () => {
+    let ran = false;
+    t.app.use(
+      () => {
+        ran = true;
+        return "DENIED";
+      },
+      { method: "PATCH" },
+    );
+    t.app.all("/secret", () => "SECRET");
+
+    for (const method of ["POST", "post"]) {
+      expect(await (await request(method)).text(), method).toBe("SECRET");
+    }
+    expect(ran).toBe(false);
+  });
+
+  it("matches HEAD for a lowercase `get` scope", async () => {
+    const seen: string[] = [];
+    t.app.use((event) => void seen.push(event.req.method), { method: "get" });
+    t.app.get("/foo", () => "hello");
+
+    const res = await t.app.request("http://localhost/foo", { method: "HEAD" });
+    expect(res.status).toBe(200);
+    expect(seen).toEqual(["HEAD"]);
+  });
+
+  it("matches an unnormalized `head` token for a GET scope", async () => {
+    const seen: string[] = [];
+    t.app.use((event) => void seen.push(event.req.method), { method: "GET" });
+    t.app.all("/foo", () => "hello");
+
+    // `new Request()` normalizes `head` to `HEAD`; force the token back to model a
+    // runtime that hands h3 the method as it arrived on the wire.
+    const req = new Request("http://localhost/foo", { method: "HEAD" });
+    Object.defineProperty(req, "method", { value: "head", configurable: true });
+
+    const res = await t.app.request(req);
+    expect(res.status).toBe(200);
+    expect(seen).toEqual(["head"]);
+  });
 });

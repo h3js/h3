@@ -67,6 +67,7 @@ src/
 │   ├── h3.ts             # App types (H3Config, H3Plugin, H3Route, HTTPMethod)
 │   ├── handler.ts        # Handler types (EventHandler, Middleware)
 │   ├── context.ts        # H3EventContext
+│   ├── route-rules.ts    # RouteRules (shared, augmentable: merged rule options on event.context.routeRules)
 │   └── _utils.ts         # Internal type helpers
 ├── utils/                # ~30 utility modules (public API)
 │   ├── request.ts        # getQuery, getRouterParams, getRequestURL, ...
@@ -90,6 +91,19 @@ src/
 │       ├── iron-crypto.ts    # Session sealing crypto
 │       ├── standard-schema.ts # Standard schema validation
 │       └── validate.ts
+├── rules/                # Route rules (h3/rules subpath entries)
+│   ├── index.ts          # h3/rules — routeRules middleware, matchers, built-in handlers
+│   ├── middleware.ts     # routeRules() plug-and-play middleware
+│   ├── normalize.ts      # normalizeRouteRules (config → runtime rules)
+│   ├── match.ts          # createRouteRulesMatcher, createMatcherFromFind, memoize
+│   ├── merge.ts          # mergeMatchedRouteRules (layer merge semantics)
+│   ├── types.ts          # RouteRuleConfig, NormalizedRouteRules, MatchedRouteRule, RuleHandler
+│   ├── cache.ts          # h3/rules/cache — ocache-backed cache handler (optional peer)
+│   ├── proxy.ts          # h3/rules/proxy — proxyRequest-backed proxy handler
+│   ├── compiler.ts       # h3/rules/compiler — build-time codegen
+│   ├── handlers/         # Built-in rule handlers (headers, redirect, cors, cache)
+│   ├── compiler/         # Codegen internals (compile, codegen, runtime-rules, options)
+│   └── internal/         # key parsing, scope checks, node-key bucketing, pre-merge analysis
 ├── _entries/             # Platform-specific entry points
 │   ├── generic.ts        # Web Worker / Browser
 │   ├── node.ts           # Node.js (adds toNodeHandler)
@@ -103,6 +117,7 @@ src/
 test/
 ├── _setup.ts             # Test infrastructure (describeMatrix, setupWebTest, setupNodeTest)
 ├── *.test.ts             # ~30 integration test files
+├── rules/                # Route rules tests (+ type tests: types.test-d.ts)
 ├── unit/                 # Unit tests (including type tests: types.test-d.ts)
 ├── bench/                # Benchmarks (mitata)
 └── fixture/              # Runtime-specific playground fixtures
@@ -199,7 +214,7 @@ pnpm test                                # full: lint + typecheck + coverage
 ## Build
 
 - **obuild** with Rolldown bundler
-- 6 platform entries + `tracing.ts` as separate entry
+- 6 platform entries + `tracing.ts` and the 4 `rules/*` entries as separate entries
 - Code splitting enabled (`h3-[hash].mjs` chunks)
 - Custom plugin strips comments (preserves `#/@` annotations)
 - Output: `dist/_entries/*.mjs` + `dist/*.d.mts`
@@ -215,15 +230,20 @@ h3/cloudflare → Cloudflare Workers
 h3/service-worker → Service Workers
 h3/generic   → Universal web standard
 h3/tracing   → Tracing plugin
+h3/rules     → Route rules (routeRules middleware, matchers, built-in handlers)
+h3/rules/cache → ocache-backed `cache` rule handler (optional `ocache` peer)
+h3/rules/proxy → `proxy` rule handler (pulls in proxyRequest)
+h3/rules/compiler → Build-time route rules codegen
 ```
 
 ## Dependencies
 
-| Dep       | Purpose                                   |
-| --------- | ----------------------------------------- |
-| `rou3`    | Route matching engine                     |
-| `srvx`    | Server abstraction (multi-runtime)        |
-| `crossws` | WebSocket abstraction (optional peer dep) |
+| Dep       | Purpose                                                   |
+| --------- | --------------------------------------------------------- |
+| `rou3`    | Route matching engine                                     |
+| `srvx`    | Server abstraction (multi-runtime)                        |
+| `crossws` | WebSocket abstraction (optional peer dep)                 |
+| `ocache`  | Response caching for `h3/rules/cache` (optional peer dep) |
 
 ## Best Practices for Contributing
 

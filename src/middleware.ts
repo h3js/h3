@@ -1,5 +1,6 @@
-import { routeToRegExp } from "rou3";
 import { kNotFound } from "./response.ts";
+import { normalizeRoute } from "./utils/internal/path.ts";
+import { createRouteMatcher } from "./utils/internal/route.ts";
 
 import type { H3Event } from "./event.ts";
 import type { MiddlewareOptions } from "./types/h3.ts";
@@ -31,12 +32,21 @@ function createMatcher(opts: MiddlewareOptions & { route?: string }) {
   if (!opts.route && !opts.method && !opts.match) {
     return undefined;
   }
-  const routeMatcher = opts.route ? routeToRegExp(opts.route) : undefined;
+  // The matcher is rou3's, the same engine `~findRoute` routes with, over the
+  // same `normalizeRoute` form `on()` registers with: a scope that disagreed
+  // with the router on either half would let a request reach a handler while
+  // skipping the guard registered for it.
+  const routeMatcher = opts.route ? createRouteMatcher(normalizeRoute(opts.route)) : undefined;
   const method = opts.method?.toUpperCase();
   return function _middlewareMatcher(event: H3Event) {
-    if (method && event.req.method !== method) {
+    if (method) {
+      // `opts.method` is uppercased above, but a request method arrives as sent:
+      // `new Request()` only normalizes the fetch spec's fixed token list
+      // (DELETE/GET/HEAD/OPTIONS/POST/PUT), so `patch` stays `patch`. Comparing
+      // raw would skip the guard while the method-agnostic route still serves.
+      const reqMethod = event.req.method.toUpperCase();
       // HEAD is served by GET handlers (RFC 9110), so GET-scoped middleware also matches HEAD
-      if (!(method === "GET" && event.req.method === "HEAD")) {
+      if (reqMethod !== method && !(method === "GET" && reqMethod === "HEAD")) {
         return false;
       }
     }
@@ -46,14 +56,14 @@ function createMatcher(opts: MiddlewareOptions & { route?: string }) {
     if (!routeMatcher) {
       return true;
     }
-    const match = event.url.pathname.match(routeMatcher);
-    if (!match) {
+    const params = routeMatcher(event.url.pathname);
+    if (params === false) {
       return false;
     }
-    if (match.groups) {
+    if (params) {
       event.context.middlewareParams = {
         ...event.context.middlewareParams,
-        ...match.groups,
+        ...params,
       };
     }
     return true;

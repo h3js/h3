@@ -1,0 +1,408 @@
+import { compareRoutes } from "rou3";
+import { describe, expect, it } from "vitest";
+import { H3 } from "../../src/index.ts";
+import { compileFindRouteRules } from "../../src/rules/compiler.ts";
+import {
+  canOverrideRouteShape,
+  createMatcherFromFind,
+  createRouteRulesMatcher,
+} from "../../src/rules/match.ts";
+import type { FindRouteRules, RouteRulesMatcher } from "../../src/rules/match.ts";
+import type { RouteRuleLayer } from "../../src/rules/merge.ts";
+import { routeRules } from "../../src/rules/middleware.ts";
+import { normalizeRouteRules } from "../../src/rules/normalize.ts";
+import type { RouteRuleConfig } from "../../src/rules/types.ts";
+
+// Layers as rou3 would hand them over (least → most specific), for a hand-built
+// `findRouteRules` — the compiled-fragment integration point.
+const layer = (route: string, options: unknown): RouteRuleLayer => ({
+  data: [{ name: "cors", route, options }],
+});
+
+const BROAD = layer("/**", { origin: "*" });
+const ADMIN = layer("/app/admin/**", { origin: ["https://admin.example"] });
+
+// The served (raw) path resolves the narrow admin rule; every other reading —
+// here the `%2e%2e` canonicalization, which walks *up* out of /app/admin —
+// resolves only the broad one.
+const find: FindRouteRules = (_method, pathname) =>
+  pathname.startsWith("/app/admin") ? [BROAD, ADMIN] : [BROAD];
+
+// Canonicalizes to "/y", so the canonical pass matches `/**` alone.
+const ESCALATION = "/app/admin/x/%2e%2e/%2e%2e/%2e%2e/y";
+
+describe("createMatcherFromFind override guard", () => {
+  it("guards specificity by default (no broader-pattern downgrade)", () => {
+    const matcher = createMatcherFromFind(find);
+    const cors = matcher("GET", ESCALATION).matchedRules.cors!;
+    expect(cors.route).toBe("/app/admin/**");
+    expect(cors.options).toMatchObject({ origin: ["https://admin.example"] });
+  });
+
+  it("still lets a narrower reading upgrade a broader resolved rule", () => {
+    // `%2f` keeps the raw path a single opaque segment (broad rule only); the
+    // canonical reading reveals the narrower admin rule, which must win.
+    const encoded = "/app/admin%2fpanel";
+    const upgrade: FindRouteRules = (_method, pathname) =>
+      pathname.includes("/admin/") ? [BROAD, ADMIN] : [BROAD];
+    const cors = createMatcherFromFind(upgrade)("GET", encoded).matchedRules.cors!;
+    expect(cors.route).toBe("/app/admin/**");
+    expect(cors.options).toMatchObject({ origin: ["https://admin.example"] });
+  });
+
+  it("`() => true` opts back into unconditional override", () => {
+    const matcher = createMatcherFromFind(find, () => true);
+    const cors = matcher("GET", ESCALATION).matchedRules.cors!;
+    expect(cors.route).toBe("/**");
+    expect(cors.options).toMatchObject({ origin: "*" });
+  });
+
+  it("the default guard never allows what rou3 `compareRoutes` forbids", () => {
+    // The default is dependency-free (rou3 must stay out of compiled bundles),
+    // so it decides containment by pattern shape — an approximation, not a
+    // proof. It should be *more* conservative than the exact predicate the
+    // runtime matcher injects and never more permissive (otherwise a compiled
+    // matcher would accept a downgrade the runtime rejects), and this sweeps
+    // rou3 as the oracle over the shapes below to keep it that way. Shapes it
+    // cannot reason about must fail closed, so widen this universe whenever the
+    // guard learns a new one.
+    const routes = [
+      "/**",
+      "/a",
+      "/a/",
+      "/a/**",
+      "/a/*",
+      "/a/b",
+      "/a/b/**",
+      "/a/b/c",
+      "/a/:id",
+      "/a/:id/**",
+      "/a/:id/b",
+      "/a/*/c",
+      "/a/b/*",
+      "/a//b",
+      "/:x/**",
+      "/:x/b",
+      "/*/b",
+      "/*/**",
+      "/*/*/**",
+      "/admin/**",
+      "/admin/panel",
+      "/app/admin/**",
+      "/params/:section/**",
+      "/params/:section/:id",
+      String.raw`/a/:id(\d+)`,
+      String.raw`/a/:id(\d+)/**`,
+      "/file-*",
+      "/a/b-*/c",
+      "/**:rest",
+      "/a/**:rest",
+      "/a/*/**",
+      "/",
+      // Modifier params: a `:x?`/`:x*` segment can match zero segments, so rou3
+      // reads it as *broader* than the `**` that appears to absorb it — the one
+      // shape where deciding containment from shape alone used to fail open.
+      "/admin/:page?",
+      "/a/:id?",
+      "/a/:id*",
+      "/a/:id+",
+      "/a/:x?/**",
+      "/a/*/:path*",
+      "/a/*/:path+",
+      // Group params: `{x}` is a single-segment param like `:x`, but an
+      // *optional* group also matches the empty segment, so `/a/{lang}?` is
+      // only *partial* against `/a/:id` — shape alone cannot tell it from a
+      // literal segment, so the guard treats every group as undecidable.
+      "/a/{lang}",
+      "/a/{lang}?",
+      "/a/{lang}?/b",
+      "/a/{lang}?/**",
+      "/a/b-{x}",
+      "/a/{x}-b",
+      "/a/b-{x}?",
+      "/admin/{page}?",
+      "/admin/{page}?/**",
+    ];
+    const unsound: string[] = [];
+    for (const current of routes) {
+      for (const incoming of routes) {
+        if (current === incoming) {
+          continue;
+        }
+        const rel = compareRoutes(current, incoming);
+        const exact = rel === "superset" || rel === "equal";
+        if (canOverrideRouteShape(current, incoming) && !exact) {
+          unsound.push(`${current} -> ${incoming} (${rel})`);
+        }
+      }
+    }
+    expect(unsound).toEqual([]);
+    // …and it is not vacuously strict: the containment cases that matter resolve.
+    expect(canOverrideRouteShape("/**", "/admin/**")).toBe(true);
+    expect(canOverrideRouteShape("/admin/**", "/admin/panel/**")).toBe(true);
+    expect(canOverrideRouteShape("/params/:section/**", "/params/:section/:id")).toBe(true);
+    expect(canOverrideRouteShape("/admin/**", "/**")).toBe(false);
+    expect(canOverrideRouteShape("/admin/**", "/public/**")).toBe(false);
+    // …and the modifier-param shape fails closed in the direction rou3 orders
+    // it: `/a/*​/:path*` matches `/a/x`, which `/a/*​/**` does not, so the
+    // catch-all is the *narrower* pattern and must not absorb it.
+    expect(canOverrideRouteShape("/a/*/**", "/a/*/:path*")).toBe(false);
+    // …as does the optional-group shape, for the same reason one level down:
+    // `/a/{lang}?` matches `/a/`, which `/a/:id` does not.
+    expect(canOverrideRouteShape("/a/:id", "/a/{lang}?")).toBe(false);
+  });
+
+  it("an explicit predicate still overrides the default", () => {
+    const seen: Array<[string, string]> = [];
+    const matcher = createMatcherFromFind(find, (current, incoming) => {
+      seen.push([current, incoming]);
+      return false;
+    });
+    expect(matcher("GET", ESCALATION).matchedRules.cors!.route).toBe("/app/admin/**");
+    // Exactly one consultation: the predicate's only job is the cross-reading
+    // override guard. Ordering the matched layers of a single reading uses their
+    // build-time `rank` instead, so it never reaches the predicate — which is
+    // what keeps a compiled matcher's conservative default out of rule retention.
+    expect(seen).toEqual([["/app/admin/**", "/**"]]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Method-agnostic gates vs. node-aliased method-scoped siblings
+// ---------------------------------------------------------------------------
+
+// rou3 buckets registrations by *node*, not by pattern text: `*`, `:id` and
+// `:userId` all collapse onto `node.param`, `**`/`**:rest` onto `node.wildcard`,
+// and `/admin`/`/admin/` onto the same terminal node — and lookup resolves
+// `node.methods[method] || node.methods[""]`. So a method-scoped rule spelled
+// differently from a method-agnostic one on the same node used to hide it
+// outright: the agnostic gate was never returned for that method.
+//
+// Each pair below is [agnostic rule, method-scoped sibling, probe path]. The
+// agnostic rule must survive on *every* method; the scoped one appears only on
+// GET/HEAD.
+const ALIASED_PAIRS: Array<[agnostic: string, scoped: string, path: string]> = [
+  ["/a/*", "GET /a/:id", "/a/b"],
+  ["/a/:id", "GET /a/:userId", "/a/b"],
+  ["/a/**", "GET /a/**:rest", "/a/b"],
+  ["/**", "GET /**:path", "/a/b"],
+  ["/admin", "GET /admin/", "/admin"],
+  // Reversed spelling order (scoped pattern is the "broader" spelling).
+  ["/a/:id", "GET /a/*", "/a/b"],
+  // Control: identical pattern text — the one spelling combination that always
+  // worked (same `byPath` bucket).
+  ["/a/b", "GET /a/b", "/a/b"],
+];
+
+const aliasConfig = (agnostic: string, scoped: string): Record<string, RouteRuleConfig> => ({
+  [agnostic]: { cors: { origin: ["https://admin.example"] } },
+  [scoped]: { headers: { "cache-control": "max-age=60" } },
+});
+
+const ruleNames = (matcher: RouteRulesMatcher, method: string, path: string): string[] =>
+  Object.keys(matcher(method, path).routeRules).sort();
+
+// Evaluate a compiled `findRouteRules` fragment with the handler bindings it
+// may reference — the compiler shares `createRulesRouter`, so the fix must
+// reach codegen with no compiler change.
+function evaluateCompiledMatcher(config: Record<string, RouteRuleConfig>): RouteRulesMatcher {
+  const code = compileFindRouteRules(config);
+  // eslint-disable-next-line no-new-func
+  const find = new Function(
+    "__ruleHandlers__$cors",
+    "__ruleHandlers__$headers",
+    `return (${code});`,
+  )(undefined, undefined) as FindRouteRules;
+  return createMatcherFromFind(find);
+}
+
+describe("method-agnostic rules vs node-aliased method-scoped siblings", () => {
+  it.each(ALIASED_PAIRS)(
+    "keeps the agnostic rule for %s alongside %s",
+    (agnostic, scoped, path) => {
+      const matcher = createRouteRulesMatcher(normalizeRouteRules(aliasConfig(agnostic, scoped)));
+      // The rule is method-agnostic — it must be matched on every method…
+      expect(ruleNames(matcher, "GET", path)).toEqual(["cors", "headers"]);
+      expect(ruleNames(matcher, "POST", path)).toEqual(["cors"]);
+      expect(ruleNames(matcher, "DELETE", path)).toEqual(["cors"]);
+      // …including HEAD, which serves the GET-scoped layers too (RFC 9110).
+      expect(ruleNames(matcher, "HEAD", path)).toEqual(["cors", "headers"]);
+      // Its options survive intact (not clobbered by the sibling).
+      expect(matcher("GET", path).routeRules.cors).toEqual({ origin: ["https://admin.example"] });
+    },
+  );
+
+  it.each(ALIASED_PAIRS)("compiled matcher matches runtime for %s + %s", (agn, scoped, path) => {
+    const config = aliasConfig(agn, scoped);
+    const runtime = createRouteRulesMatcher(normalizeRouteRules(config));
+    const compiled = evaluateCompiledMatcher(config);
+    for (const method of ["GET", "HEAD", "POST", "DELETE"]) {
+      expect(ruleNames(compiled, method, path), `${method} ${path}`).toEqual(
+        ruleNames(runtime, method, path),
+      );
+    }
+  });
+
+  it("a method-scoped sibling still overrides the agnostic rule it shares a name with", () => {
+    // Materializing the agnostic entry onto every used method must not flip
+    // precedence: the method-scoped value still wins on its method, and the
+    // agnostic one still applies everywhere else.
+    const config: Record<string, RouteRuleConfig> = {
+      "/a/*": { headers: { "x-b": "all" } },
+      "GET /a/:id": { headers: { "x-b": "get" } },
+    };
+    const matcher = createRouteRulesMatcher(normalizeRouteRules(config));
+    expect(matcher("GET", "/a/b").routeRules.headers).toEqual({ "x-b": "get" });
+    expect(matcher("HEAD", "/a/b").routeRules.headers).toEqual({ "x-b": "get" });
+    expect(matcher("POST", "/a/b").routeRules.headers).toEqual({ "x-b": "all" });
+    const compiled = evaluateCompiledMatcher(config);
+    expect(compiled("GET", "/a/b").routeRules.headers).toEqual({ "x-b": "get" });
+    expect(compiled("POST", "/a/b").routeRules.headers).toEqual({ "x-b": "all" });
+  });
+
+  it("layer order between differently-specific spellings stays rou3's", () => {
+    // Method scope selects *which* registrations are matched; it does not
+    // re-rank patterns. rou3 sorts `/a/*` ahead of `/a/:id` on the shared param
+    // node (unnamed catch-all first) regardless of config order, so the `/a/:id`
+    // layer is last and wins — for two agnostic patterns and, identically, when
+    // the `/a/*` one is method-scoped. What must never happen again is the
+    // agnostic layer being *absent*.
+    const agnosticOnly = createRouteRulesMatcher(
+      normalizeRouteRules({
+        "/a/*": { headers: { x: "star" } },
+        "/a/:id": { headers: { x: "named" } },
+      }),
+    );
+    expect(agnosticOnly("GET", "/a/b").routeRules.headers).toEqual({ x: "named" });
+
+    const mixed = createRouteRulesMatcher(
+      normalizeRouteRules({
+        "/a/:id": { headers: { x: "named" } },
+        "GET /a/*": { headers: { x: "star" } },
+      }),
+    );
+    expect(mixed("GET", "/a/b").routeRules.headers).toEqual({ x: "named" });
+    expect(mixed("POST", "/a/b").routeRules.headers).toEqual({ x: "named" });
+  });
+
+  it("an explicit HEAD rule still overrides the GET-derived one", () => {
+    const matcher = createRouteRulesMatcher(
+      normalizeRouteRules({
+        "/a/*": { headers: { "x-b": "all" } },
+        "GET /a/:id": { headers: { "x-b": "get" } },
+        "HEAD /a/:id": { headers: { "x-b": "head" } },
+      }),
+    );
+    expect(matcher("HEAD", "/a/b").routeRules.headers).toEqual({ "x-b": "head" });
+    expect(matcher("GET", "/a/b").routeRules.headers).toEqual({ "x-b": "get" });
+  });
+
+  it("does not leak a method-scoped rule onto another method", () => {
+    const matcher = createRouteRulesMatcher(
+      normalizeRouteRules({
+        "/a/*": { cors: { origin: ["https://admin.example"] } },
+        "POST /a/:id": { headers: { "x-b": "post" } },
+      }),
+    );
+    expect(ruleNames(matcher, "POST", "/a/b")).toEqual(["cors", "headers"]);
+    expect(ruleNames(matcher, "GET", "/a/b")).toEqual(["cors"]);
+    expect(ruleNames(matcher, "HEAD", "/a/b")).toEqual(["cors"]);
+  });
+
+  it("does not register agnostic-only rule sets per method", () => {
+    // No method-scoped key anywhere → no materialization, byte-identical output.
+    const before = compileFindRouteRules({ "/a/**": { headers: { "x-a": "1" } } });
+    expect(before).not.toContain('m==="GET"');
+  });
+
+  it("materializes an agnostic rule only onto methods scoped on a node it shares", () => {
+    // `/a/**` and `/b/**` land on different radix nodes, so the POST-scoped key
+    // cannot hide the agnostic one and must not buy it a POST copy. Only the
+    // `/b/**` branch may be method-guarded.
+    const code = compileFindRouteRules({
+      "/a/**": { headers: { "x-a": "1" } },
+      "POST /b/**": { headers: { "x-b": "1" } },
+    });
+    expect(code.match(/m===/g)).toHaveLength(1);
+    expect(code).toContain('m==="POST"');
+    // `$0` is the agnostic pattern's entry array: declared once, pushed once —
+    // no second, method-scoped registration of it.
+    expect(code.match(/data:\$0/g)).toHaveLength(1);
+    // …while a shared node does buy that copy (`/a/*` aliasing `/a/:id`): the
+    // agnostic layer is pushed from the POST branch as well as the fallback one.
+    const shared = compileFindRouteRules({
+      "/a/*": { headers: { "x-a": "1" } },
+      "POST /a/:id": { headers: { "x-b": "1" } },
+    });
+    expect(shared.match(/data:\$0/g)).toHaveLength(2);
+  });
+
+  it("keeps agnostic rules on every node an optional pattern spans", () => {
+    // `/a/:x?` registers on *two* nodes (`/a` and `/a/*`), and `GET /a/:id`
+    // scopes GET on the second — so the agnostic layers on **both** nodes need
+    // a GET copy: `/a/:x?`'s own (or `GET /a/:id` hides it on `/a/*`) and
+    // `/a`'s (because `/a/:x?`'s GET copy lands on `/a` too and would hide the
+    // rule there). Grouping shared nodes transitively is what covers both; a
+    // per-node grouping drops one or the other, fail-open either way.
+    const config: Record<string, RouteRuleConfig> = {
+      "/a": { cors: { origin: ["https://admin.example"] } },
+      "/a/:x?": { headers: { "x-opt": "1" } },
+      "GET /a/:id": { headers: { "x-get": "1" } },
+    };
+    const matcher = createRouteRulesMatcher(normalizeRouteRules(config));
+    const compiled = evaluateCompiledMatcher(config);
+    for (const method of ["GET", "HEAD", "POST"]) {
+      expect(ruleNames(matcher, method, "/a"), method).toContain("cors");
+      expect(matcher(method, "/a/b").routeRules.headers, method).toMatchObject({ "x-opt": "1" });
+      expect(ruleNames(compiled, method, "/a"), `compiled ${method}`).toEqual(
+        ruleNames(matcher, method, "/a"),
+      );
+      expect(compiled(method, "/a/b").routeRules.headers, `compiled ${method}`).toEqual(
+        matcher(method, "/a/b").routeRules.headers,
+      );
+    }
+    // The scoped sibling still applies on its own method (GET, and HEAD from it).
+    expect(matcher("GET", "/a/b").routeRules.headers).toEqual({ "x-opt": "1", "x-get": "1" });
+    expect(matcher("POST", "/a/b").routeRules.headers).toEqual({ "x-opt": "1" });
+  });
+
+  it("reports an unparseable rule pattern as an h3 rules error", () => {
+    expect(() =>
+      createRouteRulesMatcher(normalizeRouteRules({ "/a/:x(": { headers: {} } })),
+    ).toThrow(/^\[h3\] rules: invalid route pattern `\/a\/:x\(`:/);
+  });
+
+  it("app-level: a dropped agnostic layer is observable on every method", async () => {
+    // End-to-end shape of the node-aliasing bug, with a rule that short-circuits:
+    // if `GET /users/:id` hid the agnostic `/users/*` registration, the route
+    // handler would run instead of the redirect — on GET and, via the fallback,
+    // on HEAD.
+    const app = new H3();
+    app.use(
+      routeRules({
+        "/users/*": { redirect: "/elsewhere" },
+        "GET /users/:id": { headers: { "cache-control": "max-age=60" } },
+      }),
+    );
+    let handlerRuns = 0;
+    app.all("/users/**", () => {
+      handlerRuns++;
+      return "from the handler";
+    });
+
+    for (const method of ["GET", "HEAD", "POST", "DELETE"]) {
+      const res = await app.fetch(new Request("http://test/users/42", { method }));
+      expect([method, res.status, res.headers.get("location")]).toEqual([
+        method,
+        307,
+        "/elsewhere",
+      ]);
+    }
+    expect(handlerRuns).toBe(0);
+    // The sibling rule still applies on GET (and on the HEAD it falls back to).
+    const get = await app.fetch(new Request("http://test/users/42"));
+    expect(get.headers.get("cache-control")).toBe("max-age=60");
+    const post = await app.fetch(new Request("http://test/users/42", { method: "POST" }));
+    expect(post.headers.get("cache-control")).toBeNull();
+  });
+});

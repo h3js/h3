@@ -108,11 +108,13 @@ export function setCookie(
   event.res.headers.delete("set-cookie");
   for (const cookie of currentCookies) {
     const parsed = parseSetCookie(cookie);
-    if (!parsed) {
-      continue;
-    }
-    const _key = _getDistinctCookieKey(cookie.split("=")?.[0], parsed);
-    if (_key === newCookieKey) {
+    // `parseSetCookie` returns `undefined` for cookies it cannot understand (oversized
+    // name+value, prototype-conflicting names). Fall back to the same name-only check
+    // used by the fast path above, so unrelated cookies are kept instead of dropped.
+    const isReplaced = parsed
+      ? _getDistinctCookieKey(cookie.split("=")?.[0], parsed) === newCookieKey
+      : cookie.startsWith(namePrefix);
+    if (isReplaced) {
       continue;
     }
     event.res.headers.append("set-cookie", cookie);

@@ -2,7 +2,11 @@ import type { ServerRequest, ServerRuntimeContext } from "srvx";
 import type { H3EventContext } from "./types/context.ts";
 
 import { EmptyObject } from "./utils/internal/obj.ts";
-import { decodePathname } from "./utils/internal/path.ts";
+import {
+  canonicalPathname,
+  decodePathname,
+  isNonCanonicalPathname,
+} from "./utils/internal/path.ts";
 import { FastURL } from "srvx";
 import type { EventHandlerRequest, TypedServerRequest } from "./types/handler.ts";
 import type { H3Core } from "./h3.ts";
@@ -45,25 +49,27 @@ export class H3Event<
   /**
    * Access to the parsed request URL.
    *
-   * Unlike `event.req.url`, which keeps the original wire encoding, `event.url.pathname` is
-   * percent-decoded **once**, so route matching and every pathname-based
-   * middleware compare the same normalized value (`/%61dmin` cannot slip past an
-   * `/admin` guard). Decoding is a single `decodeURI` pass and the result is
-   * re-serialized by the URL parser, so:
+   * `event.url.pathname` is the path in its wire encoding, with one exception:
+   * an escape that is *needlessly* there is dropped — one whose character
+   * survives WHATWG path serialization unchanged, minus `%2F` and `%25` which
+   * must stay opaque (e.g. `/%61dmin` -> `/admin`, `/%40handle` -> `/@handle`).
+   * This is decoded once, before routing, so that route matching, `use()`
+   * matchers and a handler reading `event.url.pathname` all compare one and the
+   * same string and `/%61dmin` cannot slip past an `/admin` guard. Nothing else
+   * is touched, and `event.req.url` always keeps the original wire encoding.
+   * See the "Pathname encoding" section of the guide for the full rule:
+   * https://h3.dev/guide/api/h3event#pathname-encoding
    *
-   * - Unreserved escapes decode: `/%41` → `/A`, `/a%2eb` → `/a.b` (and `%2e%2e`
-   *   segments then collapse, `/a/%2e%2e/b` → `/b`).
-   * - Structural escapes stay encoded: `%2F`, `%3F`, `%23`, `%25`. A `:param`
-   *   can therefore never hold a raw `/` the router did not match on.
-   * - Escapes the URL serializer re-adds stay encoded: `%20`, non-ASCII (`%C3%A9`).
+   * Malformed encoding (`/foo%`, `/%ZZ`) has no canonical form and is rejected
+   * with a `400` before any handler runs, unless the `allowMalformedURL` app
+   * option is enabled.
    *
-   * Never decode `pathname` a second time: it can reintroduce a `/` or `..` that
+   * Every escape that survives is therefore opaque, and must be treated as such:
+   * `%2F`/`%5C` keep a separator out of a `:param` the router matched as one
+   * segment, and decoding `pathname` yourself can reintroduce a `/` or `..` that
    * routing and middleware never saw (path traversal). To read a route param in
    * decoded form use `getRouterParams(event, { decode: true })`, which keeps
    * encoded separators encoded.
-   *
-   * Malformed encoding (`/foo%`, `/%ZZ`) is rejected with a 400 before any
-   * handler runs, unless the `allowMalformedURL` app option is enabled.
    *
    * [MDN Reference](https://developer.mozilla.org/en-US/docs/Web/API/URL)
    */
@@ -90,20 +96,27 @@ export class H3Event<
     // Parsed URL can be provided by srvx (node) and other runtimes
     const _url = (req as { _url?: URL })._url;
     let url = _url && _url instanceof URL ? _url : new FastURL(req.url);
-    // Normalize percent-encoded pathname to prevent middleware bypass
-    if (url.pathname.includes("%")) {
-      try {
-        const pathname = decodePathname(url.pathname);
-        if (pathname !== url.pathname) {
-          // Clone instead of mutating: the parsed URL is shared with the
-          // runtime, and req.url must keep the original wire encoding (#1432)
-          url = new FastURL(`${url.protocol}//${url.host}${pathname}${url.search}`);
-        }
-      } catch {
-        // Malformed percent-encoding (e.g. `/foo%`, `/%ZZ`): flag for a 400
-        // response and keep the raw pathname so route matching and middleware
-        // guards still see one consistent value.
+    // Canonicalize the pathname before anything can match on it. Done here, in
+    // the constructor, so the guarantee holds for every event — including one
+    // built by `mockEvent()` or a standalone `handler.fetch()`, which never
+    // reach the app dispatch path.
+    const pathname = url.pathname;
+    if (pathname.includes("%")) {
+      if (decodePathname(pathname) === undefined) {
+        // Malformed percent-encoding (e.g. `/foo%`, `/%ZZ`): no canonical form
+        // to decode to. Flag for a 400 response and keep the raw pathname so
+        // route matching and middleware guards still see one consistent value.
         (this as any)[kMalformedURL] = true;
+      } else if (isNonCanonicalPathname(pathname)) {
+        // Clone instead of mutating: the parsed URL is shared with the runtime,
+        // and req.url must keep the original wire encoding (#1432). Only reached
+        // for a path that is actually non-canonical, so the common `/a%20b` and
+        // `/caf%C3%A9` never pay for it. Built as one href and parsed once — the
+        // parser resolves any dot segment the decode revealed, so setting
+        // `pathname` on a second parse of `req.url` would only pay for it twice.
+        url = new FastURL(
+          `${url.protocol}//${url.host}${canonicalPathname(pathname)}${url.search}`,
+        );
       }
     }
     this.url = url;

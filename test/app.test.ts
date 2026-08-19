@@ -321,11 +321,11 @@ describeMatrix("app", (t, { it, expect }) => {
     // Legacy handler must see the base-stripped path in raw req.url
     expect(await t.fetch("/api/hello?q=1").then((r) => r.text())).toBe("/hello?q=1");
 
-    // Rewrites must propagate even when the pathname needed percent-decode
-    // normalization (event.url is a clone detached from the shared _url)
-    expect(await t.fetch("/api/h%65llo").then((r) => r.text())).toBe("/hello");
+    // Rewrites must propagate in the wire encoding, without re-encoding or
+    // decoding the pathname on the way to the legacy handler
+    expect(await t.fetch("/api/caf%C3%A9?q=1").then((r) => r.text())).toBe("/caf%C3%A9?q=1");
     // ...and the raw url is restored once the handler settles
-    expect(rawUrlAfter).toBe("/api/h%65llo");
+    expect(rawUrlAfter).toBe("/api/caf%C3%A9?q=1");
   });
 
   it.skipIf(t.target !== "node")("fromNodeHandler + piping", async () => {
@@ -447,5 +447,35 @@ describeMatrix("app", (t, { it, expect }) => {
       expect(res.status, path).toBe(401);
       expect(res.headers.get("access-control-allow-origin"), path).toBe("*");
     }
+  });
+  it("does not mutate a handler-returned Response when merging prepared headers", async () => {
+    // A reused Response (module constant, memoized fallback, ...) must not accumulate
+    // request-scoped headers: appended `set-cookie` values would leak across requests.
+    const shared = new Response(null, { status: 302, headers: { location: "/login" } });
+    let user = 0;
+    t.app.get("/shared", (event) => {
+      setCookie(event, "sid", `user${++user}`);
+      return shared;
+    });
+
+    for (const expected of ["user1", "user2", "user3"]) {
+      const res = await t.fetch("/shared");
+      expect(res.headers.getSetCookie()).toEqual([`sid=${expected}; Path=/`]);
+      expect(res.headers.get("location")).toBe("/login");
+    }
+
+    expect([...shared.headers.keys()]).toEqual(["location"]);
+  });
+
+  it("keeps a handler-returned Response's own set-cookie values when merging", async () => {
+    t.app.get("/multi", (event) => {
+      setCookie(event, "staged", "s");
+      const headers = new Headers();
+      headers.append("set-cookie", "a=1; Path=/");
+      headers.append("set-cookie", "b=2; Path=/");
+      return new Response(null, { status: 204, headers });
+    });
+    const res = await t.fetch("/multi");
+    expect(res.headers.getSetCookie()).toEqual(["a=1; Path=/", "b=2; Path=/", "staged=s; Path=/"]);
   });
 });
