@@ -82,6 +82,17 @@ export function toError(value: unknown): unknown {
   return error;
 }
 
+/**
+ * Brand for {@link HTTPResponse}, checked instead of `constructor.name`.
+ *
+ * A duck-typed name check is forgeable from untrusted input: `JSON.parse` creates an *own*
+ * `constructor` property, so a request body like `{"constructor":{"name":"HTTPResponse"}}` echoed
+ * back by a handler would be accepted as a response descriptor and get to pick the response body,
+ * headers and status. A registry symbol cannot appear in JSON while still matching across
+ * duplicate module instances (multiple h3 copies, realms).
+ */
+const kHTTPResponse: unique symbol = /* @__PURE__ */ Symbol.for("h3.HTTPResponse");
+
 export class HTTPResponse {
   #headers?: Headers;
   #init?: Pick<ResponseInit, "status" | "statusText" | "headers"> | undefined;
@@ -111,6 +122,9 @@ export class HTTPResponse {
     return (this.#headers ||= new Headers(this.#init?.headers));
   }
 }
+
+// Assigned on the prototype (not as a class field) to keep it out of the public type surface.
+(HTTPResponse.prototype as any)[kHTTPResponse] = true;
 
 function prepareResponse(
   val: unknown,
@@ -286,7 +300,7 @@ function prepareResponseBody(
   }
 
   // Partial Response
-  if (val instanceof HTTPResponse || val?.constructor?.name === "HTTPResponse") {
+  if (val instanceof HTTPResponse || (val as any)?.[kHTTPResponse] === true) {
     return val;
   }
 

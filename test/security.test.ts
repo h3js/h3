@@ -1,6 +1,6 @@
 import { beforeEach, describe, it, expect } from "vitest";
 import { describeMatrix } from "./_setup.ts";
-import { H3, HTTPResponse, defineHandler, mockEvent, serveStatic } from "../src/index.ts";
+import { H3, HTTPResponse, defineHandler, mockEvent, readBody, serveStatic } from "../src/index.ts";
 
 describeMatrix("security: path encoding bypass", (ctx, { it, expect }) => {
   beforeEach(() => {
@@ -459,4 +459,36 @@ describeMatrix("security: response status sanitization", (ctx, { it, expect }) =
     expect(res.status).toBe(200);
     expect(res.statusText).toBe("");
   });
+});
+
+// `HTTPResponse` used to be detected by `constructor.name`, which untrusted JSON can forge:
+// `JSON.parse` creates an *own* `constructor` property. A handler echoing a parsed body (verbatim
+// or spread) would then let the requester pick the response body, headers and status.
+describeMatrix("security: forged HTTPResponse", (ctx, { it, expect }) => {
+  const forged = {
+    constructor: { name: "HTTPResponse" },
+    body: "<script>alert(1)</script>",
+    headers: { "content-type": "text/html", "set-cookie": "evil=1" },
+    status: 201,
+    statusText: "Forged",
+  };
+
+  for (const [name, echo] of [
+    ["verbatim", (body: unknown) => body],
+    ["spread", (body: any) => ({ ...body })],
+  ] as const) {
+    it(`serializes a ${name} echoed body as JSON`, async () => {
+      ctx.app.post("/echo", async (event) => echo(await readBody(event)));
+      const res = await ctx.fetch("/echo", {
+        method: "POST",
+        body: JSON.stringify(forged),
+        headers: { "content-type": "text/plain" },
+      });
+      expect(res.status).toBe(200);
+      expect(res.statusText).not.toBe("Forged");
+      expect(res.headers.get("content-type")).toBe("application/json;charset=UTF-8");
+      expect(res.headers.get("set-cookie")).toBe(null);
+      expect(await res.json()).toMatchObject({ body: forged.body });
+    });
+  }
 });
