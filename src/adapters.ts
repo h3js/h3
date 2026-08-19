@@ -87,15 +87,37 @@ function callNodeHandler(
     res.once("pipe", (stream) => {
       resolve(
         new Promise((resolve, reject) => {
-          stream.once("close", () => resolve(kHandled));
-          stream.once("error", (error: any) => {
-            console.error("[h3] Stream error in Node.js handler", {
-              cause: error,
-            });
-            // We cannot alter the outgoing response at this point
-            // TODO: We might at least call h3 error hook here by exposing app to node request
-            reject(kHandled);
-          });
+          // The response can end before the source does (client disconnect). `pipe` only
+          // unpipes (pauses) the source in that case, so it emits neither "close" nor
+          // "error" and this promise would stay pending forever — leaving the event
+          // lifecycle (`onResponse`, `onDispose`) unfinished and the source alive with
+          // its resources (file descriptors, sockets) held. Destroy it to settle both.
+          const onResClose = () => {
+            stream.destroy();
+            resolve(kHandled);
+          };
+          const settle = (cb: () => void) => {
+            res.removeListener("close", onResClose);
+            cb();
+          };
+          stream.once("close", () => settle(() => resolve(kHandled)));
+          stream.once("error", (error: any) =>
+            settle(() => {
+              console.error("[h3] Stream error in Node.js handler", {
+                cause: error,
+              });
+              // We cannot alter the outgoing response at this point
+              // TODO: We might at least call h3 error hook here by exposing app to node request
+              reject(kHandled);
+            }),
+          );
+          // The client may have disconnected already — "close" was emitted before this
+          // listener could be attached and would never fire.
+          if (res.closed || res.destroyed) {
+            onResClose();
+          } else {
+            res.once("close", onResClose);
+          }
         }),
       );
     });

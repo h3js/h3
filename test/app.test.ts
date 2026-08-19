@@ -4,6 +4,7 @@ import { fromNodeHandler } from "../src/adapters.ts";
 import { withBase } from "../src/utils/base.ts";
 import { HTTPError } from "../src/error.ts";
 import { onResponse } from "../src/utils/middleware.ts";
+import { onDispose } from "../src/index.ts";
 import { setCookie } from "../src/utils/cookie.ts";
 import { handleCors } from "../src/utils/cors.ts";
 import { describeMatrix } from "./_setup.ts";
@@ -365,6 +366,44 @@ describeMatrix("app", (t, { it, expect }) => {
       expect(res.status).toBe(201);
       expect(await res.text()).toBe("item1,item2");
       spy.mockRestore();
+    },
+  );
+
+  it.skipIf(t.target !== "node")(
+    "fromNodeHandler + piping (client disconnect settles the event)",
+    async () => {
+      // `pipe` only unpipes the source when the response closes, so an aborted
+      // request must not leave the handler promise pending: the event lifecycle
+      // has to complete and the source has to be released.
+      const { promise: destroyed, resolve: onDestroyed } = Promise.withResolvers<boolean>();
+      const { promise: disposed, resolve: onDisposed } = Promise.withResolvers<boolean>();
+
+      t.app.use((event) => {
+        onDispose(event, () => onDisposed(true));
+      });
+      t.app.all(
+        "/*",
+        fromNodeHandler((req, res) => {
+          new NodeStreamReadable({
+            read() {
+              this.push("x".repeat(64 * 1024));
+            },
+            destroy(err, cb) {
+              onDestroyed(true);
+              cb(err);
+            },
+          }).pipe(res);
+        }),
+      );
+
+      const controller = new AbortController();
+      const res = await t.fetch("/", { signal: controller.signal });
+      await res.body!.getReader().read();
+      controller.abort();
+
+      const timeout = <T>(value: T) => new Promise<T>((r) => setTimeout(() => r(value), 500));
+      expect(await Promise.race([destroyed, timeout(false)])).toBe(true);
+      expect(await Promise.race([disposed, timeout(false)])).toBe(true);
     },
   );
 
