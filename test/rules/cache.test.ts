@@ -1,4 +1,4 @@
-import { H3, setCookie } from "../../src/index.ts";
+import { H3, defineHandler, setCookie } from "../../src/index.ts";
 import type { EventHandler } from "../../src/index.ts";
 import { describe, expect, it, vi } from "vitest";
 import { routeRules } from "../../src/rules/middleware.ts";
@@ -924,5 +924,96 @@ describe("cache rule (core defineCachedHandler injection)", () => {
     // each matcher instance wraps independently (no shared/global map)
     expect(wrap1).toHaveBeenCalledTimes(1);
     expect(wrap2).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("cache rule (re-entrancy)", () => {
+  // `routeRules()` is documented as global middleware, but nothing stops it from
+  // being registered as *route* middleware — and then the cache rule sits inside
+  // the very `~composed` pair it dispatches. Left unguarded the dispatched pair
+  // re-enters the rule, which dispatches it again: ocache dedupes the in-flight
+  // key, so the re-entry awaits the resolution it is itself supposed to produce
+  // and the request hangs forever (no stack overflow, no timeout, no error).
+  const rules = (): ReturnType<typeof routeRules> =>
+    routeRules({ "/reenter/**": { swr: 60 } }, { handlers: { cache } });
+
+  it("route-level `routeRules()` middleware does not deadlock the request", async () => {
+    const app = new H3();
+    const handler = vi.fn(() => "ok");
+    app.get("/reenter/a", handler, { middleware: [rules()] });
+
+    const res = await app.fetch(new Request("http://test/reenter/a"));
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe("ok");
+    // Dispatched once: the re-entrant pass falls through to the route handler
+    // that the outer, caching dispatch is already driving.
+    expect(handler).toHaveBeenCalledTimes(1);
+  });
+
+  it("`defineHandler({ middleware: [routeRules()] })` does not deadlock the request", async () => {
+    // No route-level middleware, so `~composed` is unset and the rule dispatches
+    // `matchedRoute.handler` — which is itself the composed pair. Same cycle.
+    const app = new H3();
+    const handler = vi.fn(() => "ok");
+    app.get("/reenter/b", defineHandler({ middleware: [rules()], handler }));
+
+    const res = await app.fetch(new Request("http://test/reenter/b"));
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe("ok");
+    expect(handler).toHaveBeenCalledTimes(1);
+  });
+
+  it("a re-entrant dispatch with no cache dedupe does not recurse without bound", async () => {
+    // The injected path has no in-flight dedupe to stall on, so the same cycle
+    // shows up as unbounded recursion instead of a hang.
+    const app = new H3();
+    const handler = vi.fn(() => "ok");
+    app.get("/reenter/c", handler, {
+      middleware: [
+        routeRules(
+          { "/reenter/**": { swr: 60 } },
+          {
+            handlers: {
+              cache: createCacheRuleHandler({ defineCachedHandler: (h) => h }),
+            },
+          },
+        ),
+      ],
+    });
+
+    const res = await app.fetch(new Request("http://test/reenter/c"));
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe("ok");
+    expect(handler).toHaveBeenCalledTimes(1);
+  });
+
+  it("still caches across requests when registered as route middleware", async () => {
+    const app = new H3();
+    const handler = vi.fn(() => ({ n: handler.mock.calls.length }));
+    app.get("/reenter/d", handler, { middleware: [rules()] });
+
+    const first = await app.fetch(new Request("http://test/reenter/d"));
+    expect(await first.json()).toEqual({ n: 1 });
+    const second = await app.fetch(new Request("http://test/reenter/d"));
+    expect(await second.json()).toEqual({ n: 1 });
+    expect(handler).toHaveBeenCalledTimes(1);
+  });
+
+  it("a nested app's own matched route is still cached on the same event", async () => {
+    // Guarding by event alone would silently disable caching here: a second,
+    // *different* route handler legitimately reaches the rule on one event.
+    const inner = new H3();
+    const innerHandler = vi.fn(() => "inner");
+    inner.use(routeRules({ "/nested/**": { swr: 60 } }, { handlers: { cache } }));
+    inner.get("/nested/x", innerHandler);
+
+    const outer = new H3();
+    const outerHandler = vi.fn((event) => inner.handler(event));
+    outer.use(routeRules({ "/nested/**": { swr: 60 } }, { handlers: { cache } }));
+    outer.get("/nested/x", outerHandler);
+
+    const res = await outer.fetch(new Request("http://test/nested/x"));
+    expect(await res.text()).toBe("inner");
+    expect(innerHandler).toHaveBeenCalledTimes(1);
   });
 });

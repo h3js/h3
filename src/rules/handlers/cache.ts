@@ -1,4 +1,5 @@
 import { HTTPResponse } from "../../response.ts";
+import type { H3Event } from "../../event.ts";
 import type { EventHandler } from "../../types/handler.ts";
 import type { CacheRuleOptions, RuleHandler } from "../types.ts";
 
@@ -20,6 +21,20 @@ export interface CacheRuleHandlerOptions {
 
 const CACHE_GROUP = "h3/route-rules";
 
+/**
+ * Route handlers a cache rule is already dispatching, per event.
+ *
+ * `routeRules()` as *route* middleware (or composed in via
+ * `defineHandler({ middleware })`) lands inside the handler this rule
+ * dispatches, so the dispatch re-enters the rule with the same event and
+ * handler. Unguarded that hangs forever instead of overflowing the stack:
+ * ocache dedupes in-flight keys, so the re-entry awaits the resolution it is
+ * itself meant to produce. Keyed by handler and not by event alone because one
+ * event can legitimately reach the rule for a *different* matched route (a
+ * nested app), which must still be cached. Allocated on first dispatch.
+ */
+let dispatching: WeakMap<H3Event, Set<EventHandler>> | undefined;
+
 // Per-route-handler cache-key scope counter. Only ever appended to a key, never
 // parsed; uniqueness within the process is the whole contract.
 let scopeCounter = 0;
@@ -29,6 +44,9 @@ let scopeCounter = 0;
  *
  * Cache keys are isolated by handler, method, and route unless `id` or an
  * explicit cache `name` opts into sharing.
+ *
+ * Registering `routeRules()` as *route* middleware puts this rule inside the
+ * handler it dispatches; the re-entrant pass falls through (see {@link dispatching}).
  *
  * Register `routeRules()` after every global middleware that must run for a
  * cached route: this handler dispatches the matched route handler itself rather
@@ -87,6 +105,18 @@ export function createCacheRuleHandler(opts: CacheRuleHandlerOptions): RuleHandl
           });
           entry.byRoute.set(key, cachedHandler);
         }
+        let active = dispatching?.get(event);
+        if (active?.has(handler)) {
+          // Inside this handler's own cached dispatch: it is the cache boundary,
+          // so continue to the route handler instead of dispatching again.
+          return next();
+        }
+        if (!active) {
+          (dispatching ??= new WeakMap()).set(event, (active = new Set()));
+        }
+        // Never released: a second entry for the same event and handler is
+        // re-entrancy whenever it happens, a detached `swr` revalidation included.
+        active.add(handler);
         const res = cachedHandler(event);
         return typeof (res as Promise<unknown>)?.then === "function"
           ? (res as Promise<unknown>).then(normalizeResult)
