@@ -72,9 +72,14 @@ export function requestWithBaseURL(
 /**
  * Convert input into a web [Request](https://developer.mozilla.org/en-US/docs/Web/API/Request).
  *
- * If input is a relative URL, it will be normalized into a full path based on headers.
+ * If input is a relative URL, it will be normalized into a full path based on the `host` header.
  *
  * If input is already a Request and no options are provided, it will be returned as-is.
+ *
+ * **Security:** The `host` header is client input. It is only used as the authority of the
+ * synthesized URL (falling back to `localhost` when absent or malformed) and can never widen
+ * into the path, and `x-forwarded-proto` is ignored, so the scheme is always `http`. Pass an
+ * absolute URL to control the origin.
  */
 export function toRequest(
   input: ServerRequest | URL | string,
@@ -84,12 +89,7 @@ export function toRequest(
     let url = input;
     if (url[0] === "/") {
       const headers = options?.headers ? new Headers(options.headers) : undefined;
-      const host = headers?.get("host") || "localhost";
-      const proto =
-        (headers?.get("x-forwarded-proto") || "").split(",")[0].trim() === "https"
-          ? "https"
-          : "http";
-      url = `${proto}://${host}${url}`;
+      url = `http://${safeHost(headers?.get("host"))}${url}`;
     }
     return new Request(url, options);
   } else if (options || input instanceof URL) {
@@ -574,4 +574,17 @@ function applyForwardedHost(url: URL, host: string): void {
   }
   const port = hasPort ? host.slice(sep + 1) : "";
   url.port = /^\d{1,5}$/.test(port) && +port < 65_536 ? port : "";
+}
+
+/**
+ * Authority for a URL synthesized from a relative path and a `host` header.
+ *
+ * The host is concatenated *ahead of* the path, so anything that can end the
+ * authority (`/`, `\`, `?`, `#`) or split it (`@`, whitespace) would let a
+ * client-supplied `Host` inject a request path or hand the authority to a
+ * different host. Such a value is not a host: fall back instead of parsing
+ * whatever prefix of it happens to be one.
+ */
+function safeHost(host: string | undefined | null): string {
+  return host && !/[/\\?#@\s]/.test(host) ? host : "localhost";
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { requestWithURL, requestWithBaseURL } from "../../src/utils/request.ts";
+import { requestWithURL, requestWithBaseURL, toRequest } from "../../src/utils/request.ts";
 import { getRequestProtocol } from "../../src/index.ts";
 import type { ServerRequest } from "srvx";
 
@@ -160,5 +160,45 @@ describe("getRequestProtocol", () => {
   it("ignores x-forwarded-proto when xForwardedProto is false", () => {
     const event = makeEvent({ "x-forwarded-proto": "https" }, "http://localhost/test");
     expect(getRequestProtocol(event, { xForwardedProto: false })).toBe("http");
+  });
+});
+
+describe("toRequest", () => {
+  it("uses a plain host header for the synthesized authority", () => {
+    const req = toRequest("/api/data", { headers: { host: "example.com:3000" } });
+    const url = new URL(req.url);
+    expect(url.host).toBe("example.com:3000");
+    expect(url.pathname).toBe("/api/data");
+  });
+
+  it("defaults to localhost without a host header", () => {
+    expect(new URL(toRequest("/api/data").url).host).toBe("localhost");
+  });
+
+  it("keeps a host header from injecting a path", () => {
+    for (const host of ["x/../admin", String.raw`x\..\admin`, "x?y", "x#y"]) {
+      const url = new URL(toRequest("/api/data", { headers: { host } }).url);
+      expect(url.pathname).toBe("/api/data");
+      expect(url.host).toBe("localhost");
+    }
+  });
+
+  it("keeps a host header from hijacking the authority with userinfo", () => {
+    const url = new URL(toRequest("/api/data", { headers: { host: "evil.com@internal" } }).url);
+    expect(url.host).toBe("localhost");
+    expect(url.username).toBe("");
+  });
+
+  it("ignores x-forwarded-proto", () => {
+    const req = toRequest("/api/data", {
+      headers: { host: "example.com", "x-forwarded-proto": "https" },
+    });
+    expect(new URL(req.url).protocol).toBe("http:");
+  });
+
+  it("keeps a protocol-relative path out of the authority", () => {
+    const url = new URL(toRequest("//evil.com/api", { headers: { host: "example.com" } }).url);
+    expect(url.host).toBe("example.com");
+    expect(url.pathname).toBe("//evil.com/api");
   });
 });
