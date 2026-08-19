@@ -157,4 +157,42 @@ describe("~getMiddleware compat", () => {
     expect(await res.text()).toBe("ok");
     expect(seen).toEqual(["global", "route"]);
   });
+
+  test("same function as global and route middleware still runs twice", async () => {
+    const seen: string[] = [];
+    const mw = () => {
+      seen.push("mw");
+    };
+    const app = new H3();
+    app.use(mw);
+    app.get("/x", () => "ok", { middleware: [mw] });
+    app["~getMiddleware"] = function () {
+      return this["~middleware"];
+    };
+
+    const res = await app.request("/x");
+    expect(await res.text()).toBe("ok");
+    expect(seen).toEqual(["mw", "mw"]);
+  });
+
+  test("nitro-style override keeps dual registration at two runs", async () => {
+    const seen: string[] = [];
+    const mw = () => {
+      seen.push("mw");
+    };
+    const app = new H3();
+    app.use(mw);
+    app.get("/x", () => "ok", { middleware: [mw] });
+    app["~getMiddleware"] = function (_event, route) {
+      const middleware = [...this["~middleware"]];
+      if (route?.data?.middleware?.length) {
+        middleware.push(...route.data.middleware);
+      }
+      return middleware;
+    };
+
+    const res = await app.request("/x");
+    expect(await res.text()).toBe("ok");
+    expect(seen).toEqual(["mw", "mw"]);
+  });
 });
