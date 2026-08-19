@@ -343,4 +343,41 @@ describeMatrix("errors", (t, { it, expect, describe }) => {
     expect(res.status).toBe(500);
     expect(await res.json()).toMatchObject({ status: 500, unhandled: true });
   });
+
+  // A value returned from `onError` replaces the response, so a value *thrown* by the hook must be
+  // normalized through `toError()` first. Otherwise the two are indistinguishable and a non-Error
+  // throw is rendered as a successful body: the hook's internals leak to the client and the failed
+  // request reports 200.
+  for (const [label, thrown] of [
+    ["an object", { secret: "s3cr3t" }],
+    ["a string", "leaked internal string"],
+  ] as const) {
+    it(`an onError throwing ${label} renders an unhandled 500, not a 200 body`, async () => {
+      t.app.config.onError = () => {
+        throw thrown;
+      };
+      t.app.use(() => {
+        throw new Error("handler boom");
+      });
+
+      const res = await t.fetch("/");
+      expect(res.status).toBe(500);
+      const body = await res.json();
+      expect(body).toMatchObject({ status: 500, unhandled: true });
+      expect(JSON.stringify(body)).not.toContain("s3cr3t");
+      expect(JSON.stringify(body)).not.toContain("leaked internal string");
+    });
+  }
+
+  it("an onError throwing a number renders that status", async () => {
+    t.app.config.onError = () => {
+      throw 418;
+    };
+    t.app.use(() => {
+      throw new Error("handler boom");
+    });
+
+    const res = await t.fetch("/");
+    expect(res.status).toBe(418);
+  });
 });

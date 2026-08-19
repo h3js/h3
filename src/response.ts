@@ -146,8 +146,7 @@ function prepareResponse(
     const errHeaders: Headers | undefined = (event as any)[kEventRes]?.[kEventResErrHeaders];
     if (onError && !nested) {
       return Promise.resolve()
-        .then(() => onError(error, event))
-        .catch((error) => error)
+        .catch(toError)
         .then((newVal) => prepareResponse(newVal ?? val, event, config, true));
     }
     // `errorResponse` merges `errHeaders` into the response it builds, so clear the
