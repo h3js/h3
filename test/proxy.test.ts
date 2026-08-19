@@ -1000,6 +1000,39 @@ describeMatrix("proxy", (t, { it, expect, describe }) => {
         }
       });
 
+      it.runIf(t.target === "web")(
+        "does not leak the upstream failure message in the gateway error",
+        async () => {
+          // Runtimes surface the target URL, port and OS connect error in the
+          // rejected fetch's message (Deno/Bun/workerd). Relaying it verbatim
+          // hands unauthenticated clients an oracle about internal reachability.
+          const fetchMock = vi
+            .spyOn(globalThis, "fetch")
+            .mockImplementation(() =>
+              Promise.reject(
+                new Error(
+                  "error sending request for url (http://internal-admin.test:8081/secret): dns error",
+                ),
+              ),
+            );
+
+          try {
+            t.app.all("/", (event) => proxyRequest(event, "https://upstream.test/"));
+
+            const res = await t.fetch("/");
+            expect(res.status).toBe(502);
+            expect(res.statusText).toBe("Bad Gateway");
+            expect(await res.json()).toMatchObject({
+              status: 502,
+              statusText: "Bad Gateway",
+              message: "Bad Gateway",
+            });
+          } finally {
+            fetchMock.mockRestore();
+          }
+        },
+      );
+
       it("drops the body when the outgoing method is overridden to GET", async () => {
         t.app.all("/debug", async (event) => ({
           method: event.req.method,

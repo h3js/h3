@@ -372,7 +372,12 @@ export async function proxy(
         return new HTTPResponse(null, { status: 499, statusText: "Client Closed Request" });
       }
     }
-    throw new HTTPError({ status: 502, cause: error });
+    // Set an explicit message: without one, `HTTPError` falls back to
+    // `cause.message` and serializes it into the response body. Runtimes put the
+    // target URL, port and OS connect error there (Deno/Bun/workerd), handing
+    // clients an oracle about internal reachability. `statusText` alone is not
+    // enough — `cause.message` outranks it in the constructor's fallback chain.
+    throw new HTTPError("Bad Gateway", { status: 502, statusText: "Bad Gateway", cause: error });
   } finally {
     if (timeoutId !== undefined) {
       clearTimeout(timeoutId);
