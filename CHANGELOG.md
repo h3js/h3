@@ -14,22 +14,22 @@ All notable changes to this project will be documented in this file. See [standa
 ### 🩹 Fixes
 
 - **session:** Encode large payloads outside node-compatible runtimes ([#1515](https://github.com/h3js/h3/pull/1515))
-- **event:** ⚠️  Decode only needless escapes in the pathname ([#1526](https://github.com/h3js/h3/pull/1526))
+- **event:** ⚠️ Decode only needless escapes in the pathname ([#1526](https://github.com/h3js/h3/pull/1526))
 - **middleware:** Match use() route filters with rou3 ([d9d3124](https://github.com/h3js/h3/commit/d9d3124))
 - **response:** Sanitize status and statusText ([8e69593](https://github.com/h3js/h3/commit/8e69593))
 - Normalize route patterns as pathnames ([cbd5c73](https://github.com/h3js/h3/commit/cbd5c73))
 - **middleware:** Compare method scopes case-insensitively ([850f25c](https://github.com/h3js/h3/commit/850f25c))
 - **request:** Compare methods case-insensitively in isMethod ([#1528](https://github.com/h3js/h3/pull/1528))
 - **proxy:** Keep internal targets on the app origin ([07d22ec](https://github.com/h3js/h3/commit/07d22ec))
-- **json-rpc:** ⚠️  Require JSON content-type, validate origin and cap batch size ([72d8e05](https://github.com/h3js/h3/commit/72d8e05))
-- **fingerprint:** ⚠️  Default to SHA-256 and disambiguate components ([51e68cd](https://github.com/h3js/h3/commit/51e68cd))
+- **json-rpc:** ⚠️ Require JSON content-type, validate origin and cap batch size ([72d8e05](https://github.com/h3js/h3/commit/72d8e05))
+- **fingerprint:** ⚠️ Default to SHA-256 and disambiguate components ([51e68cd](https://github.com/h3js/h3/commit/51e68cd))
 - **cookie:** Keep unparseable set-cookie headers when merging ([175ba5c](https://github.com/h3js/h3/commit/175ba5c))
 - **static:** Keep encoded backslashes opaque in the asset id ([ab3f23c](https://github.com/h3js/h3/commit/ab3f23c))
 - **request:** Keep the request proxy cache from shadowing real properties ([c71f5c0](https://github.com/h3js/h3/commit/c71f5c0))
-- **proxy:** ⚠️  Xfwd must not let client `x-forwarded-*` headers win ([0c7429e](https://github.com/h3js/h3/commit/0c7429e))
+- **proxy:** ⚠️ Xfwd must not let client `x-forwarded-*` headers win ([0c7429e](https://github.com/h3js/h3/commit/0c7429e))
 - **response:** Keep prepared headers from accumulating on reused Responses ([9f766d9](https://github.com/h3js/h3/commit/9f766d9))
 - **request:** Keep a malformed x-forwarded-host from stripping the real port ([429b994](https://github.com/h3js/h3/commit/429b994))
-- **request:** ⚠️  Keep the host header from steering the synthesized URL ([2b59a3a](https://github.com/h3js/h3/commit/2b59a3a))
+- **request:** ⚠️ Keep the host header from steering the synthesized URL ([2b59a3a](https://github.com/h3js/h3/commit/2b59a3a))
 - **rules:** Keep a route-scoped cache rule from deadlocking the request ([484ec58](https://github.com/h3js/h3/commit/484ec58))
 - **route:** Keep removeRoute from unregistering sibling routes ([94d0edd](https://github.com/h3js/h3/commit/94d0edd))
 
@@ -68,11 +68,11 @@ All notable changes to this project will be documented in this file. See [standa
 
 #### ⚠️ Breaking Changes
 
-- **event:** ⚠️  Decode only needless escapes in the pathname ([#1526](https://github.com/h3js/h3/pull/1526))
-- **json-rpc:** ⚠️  Require JSON content-type, validate origin and cap batch size ([72d8e05](https://github.com/h3js/h3/commit/72d8e05))
-- **fingerprint:** ⚠️  Default to SHA-256 and disambiguate components ([51e68cd](https://github.com/h3js/h3/commit/51e68cd))
-- **proxy:** ⚠️  Xfwd must not let client `x-forwarded-*` headers win ([0c7429e](https://github.com/h3js/h3/commit/0c7429e))
-- **request:** ⚠️  Keep the host header from steering the synthesized URL ([2b59a3a](https://github.com/h3js/h3/commit/2b59a3a))
+- **event:** ⚠️ Decode only needless escapes in the pathname ([#1526](https://github.com/h3js/h3/pull/1526))
+- **json-rpc:** ⚠️ Require JSON content-type, validate origin and cap batch size ([72d8e05](https://github.com/h3js/h3/commit/72d8e05))
+- **fingerprint:** ⚠️ Default to SHA-256 and disambiguate components ([51e68cd](https://github.com/h3js/h3/commit/51e68cd))
+- **proxy:** ⚠️ Xfwd must not let client `x-forwarded-*` headers win ([0c7429e](https://github.com/h3js/h3/commit/0c7429e))
+- **request:** ⚠️ Keep the host header from steering the synthesized URL ([2b59a3a](https://github.com/h3js/h3/commit/2b59a3a))
 
 ### ❤️ Contributors
 
