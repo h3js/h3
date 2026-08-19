@@ -122,12 +122,22 @@ function createDispatcher(app: H3Core): NonNullable<H3Core["~dispatch"]> {
   if (app["~getMiddleware"] !== H3Core.prototype["~getMiddleware"]) {
     // Compat: a custom `~getMiddleware` (subclass or instance override, e.g. nitro)
     // can return per-event middleware, which cannot be precomposed.
-    return (event, route) =>
-      callMiddleware(
-        event,
-        app["~getMiddleware"](event, route as unknown as undefined),
-        route?.data.handler || NoHandler,
-      );
+    //
+    // Route middleware is owned by the route. Overrides that already re-add
+    // `route.data.middleware` (Nitro) keep a single run via identity. Overrides
+    // that return only global middleware still get the route chain appended,
+    // without mutating the array they returned.
+    return (event, route) => {
+      let middleware = app["~getMiddleware"](event, route as unknown as undefined);
+      const routeMiddleware = route?.data.middleware;
+      if (routeMiddleware?.length) {
+        const missing = routeMiddleware.filter((mw) => !middleware.includes(mw));
+        if (missing.length) {
+          middleware = [...middleware, ...missing];
+        }
+      }
+      return callMiddleware(event, middleware, route?.data.handler || NoHandler);
+    };
   }
   const middleware = app["~middleware"];
   if (middleware.length === 0) {

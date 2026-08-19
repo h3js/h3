@@ -110,4 +110,51 @@ describe("~getMiddleware compat", () => {
       expect(await res.text()).toBe("handler:+global+extra");
     }
   });
+
+  test("override that omits route middleware still runs it (#1525)", async () => {
+    const seen: string[] = [];
+    const app = new H3();
+    app.use(() => {
+      seen.push("global");
+    });
+    app.get("/x", () => "ok", {
+      middleware: [
+        () => {
+          seen.push("route");
+        },
+      ],
+    });
+    app["~getMiddleware"] = function () {
+      return this["~middleware"];
+    };
+
+    const res = await app.request("/x");
+    expect(await res.text()).toBe("ok");
+    expect(seen).toEqual(["global", "route"]);
+    // Must not mutate the global middleware list returned by the override.
+    expect(app["~middleware"]).toHaveLength(1);
+  });
+
+  test("override that re-adds route middleware does not double-run it (nitro)", async () => {
+    const seen: string[] = [];
+    const app = new H3();
+    app.use(() => {
+      seen.push("global");
+    });
+    const routeMw = () => {
+      seen.push("route");
+    };
+    app.get("/x", () => "ok", { middleware: [routeMw] });
+    app["~getMiddleware"] = function (_event, route) {
+      const middleware = [...this["~middleware"]];
+      if (route?.data?.middleware?.length) {
+        middleware.push(...route.data.middleware);
+      }
+      return middleware;
+    };
+
+    const res = await app.request("/x");
+    expect(await res.text()).toBe("ok");
+    expect(seen).toEqual(["global", "route"]);
+  });
 });
