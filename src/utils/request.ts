@@ -519,9 +519,26 @@ export function getRequestURL(
 /**
  * Try to get the client IP address from the incoming request.
  *
- * If `xForwardedFor` is `true`, it will use the `x-forwarded-for` header if it exists.
+ * By default the address comes from `event.req.ip`: the connection peer, or the
+ * client resolved from the forwarded chain when the server is configured to
+ * trust an upstream proxy (e.g. srvx's `trustProxy`).
+ *
+ * If `xForwardedFor` is `true`, the **first** entry of the `x-forwarded-for`
+ * header is returned instead, when the header exists.
  *
  * If IP cannot be determined, it will default to `undefined`.
+ *
+ * **Security:** `xForwardedFor` is opt-in because that first entry is client
+ * input. Proxies conventionally *append* to the chain (nginx
+ * `$proxy_add_x_forwarded_for`, most CDNs, and h3's own {@link proxy} util), so
+ * a value sent by the client stays at the left of the chain and is exactly what
+ * this returns — letting any caller choose their own address and defeat IP
+ * allow-lists, rate limiting, geo checks, and audit logs. Enabling it also
+ * *overrides* `event.req.ip`, discarding an address the server already resolved
+ * correctly. Prefer configuring the server to trust your proxy (srvx
+ * `trustProxy` walks the chain from the right, past trusted hops) and leave this
+ * option off; only enable it when an upstream you control always overwrites
+ * `x-forwarded-for` on every request.
  *
  * @example
  * app.get("/", (event) => {
@@ -532,9 +549,12 @@ export function getRequestIP(
   event: HTTPEvent,
   opts: {
     /**
-     * Use the X-Forwarded-For HTTP header set by proxies.
+     * Return the first entry of the `X-Forwarded-For` HTTP header set by proxies.
      *
-     * Note: Make sure that this header can be trusted (your application running behind a CDN or reverse proxy) before enabling.
+     * Note: only enable this when an upstream you control *overwrites* the
+     * header. A proxy that appends to it (the common default) leaves a
+     * client-sent value first, making the result spoofable. Prefer a trusted
+     * proxy configured on the server (srvx `trustProxy`) with `event.req.ip`.
      */
     xForwardedFor?: boolean;
   } = {},
