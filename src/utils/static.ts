@@ -18,19 +18,16 @@ export interface ServeStaticOptions {
   /**
    * This function should resolve asset meta.
    *
-   * **Security:** The `id` keeps encoded separators percent-encoded — `%2f`
-   * (encoded `/`) and `%5c` (encoded `\`) both always survive. Path traversal
-   * safety depends on this backend **not** decoding them — a decode would
-   * re-introduce separators and defeat the traversal normalization done by
-   * `serveStatic`. See {@link serveStatic}.
+   * **Security:** The `id` keeps encoded separators (`%2f`, `%5c`)
+   * percent-encoded. Decoding them here re-introduces separators and defeats
+   * the traversal normalization done by `serveStatic`. See {@link serveStatic}.
    */
   getMeta: (id: string) => StaticAssetMeta | undefined | Promise<StaticAssetMeta | undefined>;
 
   /**
    * This function should resolve asset content.
    *
-   * **Security:** As with `getMeta`, the `id` keeps encoded separators (`%2f`
-   * and `%5c`) percent-encoded and this backend must not decode them before
+   * **Security:** As with `getMeta`, the `id` must not be decoded before
    * resolving the asset. See {@link serveStatic}.
    */
   getContents: (id: string) => BodyInit | null | undefined | Promise<BodyInit | null | undefined>;
@@ -71,17 +68,21 @@ export interface ServeStaticOptions {
 /**
  * Dynamically serve static assets based on the request path.
  *
- * **Security — path traversal:** `serveStatic` resolves `.`/`..` segments and
- * normalizes the request path, but deliberately keeps encoded separators
- * **percent-encoded** in the `id` it passes to `getMeta`/`getContents`: `%2f`
- * (encoded `/`) and `%5c` (encoded `\`) both always survive, exactly as they do
- * in `event.url.pathname`. So the `id` has the same segment structure the router
- * and pathname-scoped `use()` guards matched on — `/private%5cx` stays one opaque
- * segment and cannot be served as `/private/x` past a `use("/private/**")` guard.
- * Traversal safety therefore depends on those backends **not** decoding the `id`:
- * a backend that percent-decodes it (e.g. an extra `decodeURIComponent`, or a
- * lookup layer that decodes) re-introduces separators and **re-opens the
- * traversal hole**. Resolve the `id` against your asset root as an opaque string.
+ * **Security — path traversal:** `serveStatic` resolves `.`/`..` segments but
+ * deliberately keeps encoded separators (`%2f`, `%5c`) percent-encoded in the
+ * `id` it passes to `getMeta`/`getContents`, exactly as `event.url.pathname`
+ * does. The `id` therefore has the same segment structure the router and
+ * pathname-scoped `use()` guards matched on: `/private%5cx` stays one opaque
+ * segment and cannot be served as `/private/x` past a `use("/private/**")`
+ * guard. Resolve the `id` against your asset root as an opaque string — a
+ * backend that decodes it re-introduces separators and re-opens the hole.
+ *
+ * A pathname starting with more than one separator (`//private/x`,
+ * `/\\private/x`) is **not served** (404, or falls through when `fallthrough`
+ * is set): it dispatches to a catch-all route but misses a narrower
+ * `use("/private/**")` guard, and the only `id` `serveStatic` could build from
+ * it collapses that leading run, re-spelling it into a path the guard would
+ * have caught. Assets are reachable under their canonical spelling only.
  *
  * Everything else is decoded once for the on-disk lookup, so a file's real name
  * reaches the backend: `/50%25.png` → `/50%.png`, `/a%20b` → `/a b`, and one
@@ -89,13 +90,11 @@ export interface ServeStaticOptions {
  * literal `%2f`, never a boundary). RFC 3986's reserved set stays encoded, so an
  * `id` can never grow a `?` or `#` that would truncate it in a URL.
  *
- * When implementing custom `getMeta`/`getContents` over a real filesystem, the
- * integrator is also responsible for two things `serveStatic` cannot enforce.
- * **Case-insensitive filesystems** (macOS, Windows): case-fold both sides of any
- * allow/deny checks — otherwise `/SECRET.env` can slip past a check written for
- * `/secret.env`. **Symlink containment:** re-assert that the resolved path stays
- * within the asset root after following links (e.g. compare `realpath(target)`
- * against the root), since a symlink can point outside it.
+ * Two things `serveStatic` cannot enforce for filesystem-backed assets:
+ * **case-insensitive filesystems** (macOS, Windows) need both sides of any
+ * allow/deny check case-folded (otherwise `/SECRET.env` slips past a check for
+ * `/secret.env`), and **symlinks** need the resolved path re-asserted against
+ * the asset root after following links (e.g. `realpath(target)`).
  */
 export async function serveStatic(
   event: H3Event,
@@ -120,24 +119,36 @@ export async function serveStatic(
     throw new HTTPError({ status: 405 });
   }
 
+  // A leading `[/\\]` run is the one thing `resolveDotSegments` rewrites rather
+  // than resolves: it clamps the run to a single `/` (a protocol-relative id must
+  // never reach a URL-composing backend). But dispatch already happened against
+  // the un-collapsed path, so collapsing here would re-spell the id into a path
+  // the router never matched: `//private/x` misses a `use("/private/**")` guard
+  // while a catch-all static route still matches, serving the guarded asset
+  // unauthenticated. Same class of hole as the `%5c` peel below, so same answer:
+  // refuse, rather than serve a second, cache- and WAF-invisible spelling.
+  const secondChar = event.url.pathname.charCodeAt(1);
+  if (secondChar === 47 /* / */ || secondChar === 92 /* \ */) {
+    if (options.fallthrough) {
+      return;
+    }
+    throw new HTTPError({ status: 404 });
+  }
+
   // Resolve traversal first, then peel one `%25` level for the on-disk lookup
   // (guarded: malformed `%` falls back to the safe traversal-resolved value).
   //
   // The peel must never turn an encoded separator into a real one. `decodeURI`
-  // alone holds back `%2f` (RFC 3986 reserved) but *not* `%5c`, which it decodes
-  // to `\` — and `resolveDotSegments` then normalizes that to `/`. The id would
-  // gain a segment boundary the router never matched on: `/private%5cx` is one
-  // opaque segment to `~findRoute` and to a `use("/private/**")` guard, but would
-  // reach the backend as `/private/x`, serving a guarded asset unauthenticated
-  // (and giving every asset a second, cache- and WAF-invisible spelling).
-  // `decodePreservingSeparators` keeps both separators encoded, so the id keeps
-  // the exact segment structure routing and middleware matched on.
+  // holds back `%2f` (RFC 3986 reserved) but *not* `%5c`, which it decodes to
+  // `\`, and `resolveDotSegments` then normalizes that to `/`: `/private%5cx` is
+  // one opaque segment to `~findRoute` and to a `use("/private/**")` guard, but
+  // would reach the backend as `/private/x`. `decodePreservingSeparators` keeps
+  // both encoded, so the id keeps the segment structure routing matched on.
   //
   // `nested: false` because this is a single decode: one `%25` level off `%252f`
-  // leaves a literal `%2f`, which is not a separator either, and a file whose
-  // name really contains `%2f` must stay addressable. `decodeURI` (not
-  // `decodeURIComponent`) keeps `%23`/`%3f` encoded, so an id handed to a
-  // URL-composing backend cannot grow a `#`/`?` that truncates it.
+  // leaves a literal `%2f`, not a separator, so filenames containing `%2f` stay
+  // addressable. `decodeURI` (not `decodeURIComponent`) keeps `%23`/`%3f`
+  // encoded, so a URL-composing backend cannot grow a truncating `#`/`?`.
   //
   // The second `resolveDotSegments` still runs: the peel can reveal a dot segment
   // (one `%25` level off `%252e`), which must not reach the backend as a bare `..`.
@@ -151,7 +162,7 @@ export async function serveStatic(
         ),
       );
     } catch {
-      // Malformed escape (e.g. `%` at the end): fall back to the traversal-resolved,
+      // Malformed escape (e.g. trailing `%`): keep the traversal-resolved,
       // still-encoded `resolvedId` already assigned to `originalId` above.
     }
   }

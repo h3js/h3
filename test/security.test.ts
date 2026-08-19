@@ -227,6 +227,72 @@ describe("security: canonicalization and the leading slash run", () => {
   });
 });
 
+// `serveStatic` resolves the leading `[/\]+` run down to a single `/` before it
+// looks anything up. Dispatch already happened against the un-collapsed path, so
+// a `use("/private/**")` guard — a literal `startsWith("/private/")`, matching
+// rou3 — misses `//private/x` while the catch-all static route still matches.
+// Collapsing the run afterwards would hand `getMeta`/`getContents` the guarded
+// id, giving every asset a second, cache- and WAF-invisible spelling.
+// Not a matrix test: `ctx.fetch` resolves the path against the test server's
+// URL, which swallows the leading run before it can reach the app.
+describe("security: a guard cannot be bypassed by a leading slash run", () => {
+  const buildApp = () => {
+    const app = new H3();
+    app.use("/private/**", () => new HTTPResponse("blocked", { status: 403 }));
+    app.all("/**", (event) =>
+      serveStatic(event, {
+        getMeta: (id) => (id === "/private/secret.txt" ? { size: 6, mtime: 0 } : undefined),
+        getContents: () => "secret",
+      }),
+    );
+    return app;
+  };
+
+  it("blocks the guarded path itself", async () => {
+    const res = await buildApp().request("/private/secret.txt");
+    expect(res.status).toBe(403);
+    expect(await res.text()).toBe("blocked");
+  });
+
+  for (const path of [
+    "//private/secret.txt",
+    "///private/secret.txt",
+    String.raw`/\private/secret.txt`,
+    String.raw`/\\private/secret.txt`,
+    String.raw`//\private/secret.txt`,
+  ]) {
+    it(`does not serve ${path}`, async () => {
+      const res = await buildApp().request(path);
+      expect(res.status).toBe(404);
+      expect(await res.text()).not.toBe("secret");
+    });
+  }
+
+  it("falls through instead of 404 when `fallthrough` is set", async () => {
+    const app = new H3();
+    app.use((event) =>
+      serveStatic(event, {
+        fallthrough: true,
+        getMeta: (id) => (id === "/private/secret.txt" ? { size: 6, mtime: 0 } : undefined),
+        getContents: () => "secret",
+      }),
+    );
+    app.use(() => "fell through");
+    expect(await (await app.request("//private/secret.txt")).text()).toBe("fell through");
+  });
+
+  it("still serves an interior empty segment the guard does match", async () => {
+    const app = new H3();
+    app.all("/**", (event) =>
+      serveStatic(event, {
+        getMeta: (id) => (id === "/a//b.txt" ? { size: 2, mtime: 0 } : undefined),
+        getContents: () => "ok",
+      }),
+    );
+    expect(await (await app.request("/a//b.txt")).text()).toBe("ok");
+  });
+});
+
 // Canonicalization lives in the H3Event constructor, so it also covers events
 // that never reach app dispatch.
 describe("security: canonicalization covers directly built events", () => {
