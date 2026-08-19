@@ -33,9 +33,18 @@ describe("handler.ts", () => {
       const middleware = [vi.fn()];
       const eventHandler = defineHandler({ fetch: fetchHandler, middleware });
       eventHandler({} as H3Event);
-      expect(eventHandler.fetch).toBe(fetchHandler);
       expect(middleware[0]).toHaveBeenCalled();
       expect(fetchHandler).toHaveBeenCalled();
+    });
+
+    it("object syntax (fetchable) runs middleware via .fetch", async () => {
+      const middleware = vi.fn();
+      const fetchHandler = () => new Response("secret");
+      const eventHandler = defineHandler({ fetch: fetchHandler, middleware: [middleware] });
+      expect(eventHandler.fetch).not.toBe(fetchHandler);
+      const res = await eventHandler.fetch(new Request("http://localhost/"));
+      expect(middleware).toHaveBeenCalled();
+      expect(await res.text()).toBe("secret");
     });
   });
 

@@ -42,12 +42,12 @@ export function defineHandler(input: EventHandler | EventHandlerObject): EventHa
         }
       : NoHandler);
 
-  return Object.assign(
-    handlerWithFetch(
-      input.middleware?.length ? composeHandler(input.middleware, handler) : handler,
-    ),
-    input,
-  );
+  const composed = input.middleware?.length && composeHandler(input.middleware, handler);
+  const eventHandler = handlerWithFetch(composed || handler);
+
+  // When middleware is composed, `.fetch` must stay the composed one: assigning `input` would
+  // restore the raw `input.fetch` and requests made through it would bypass the middleware
+  return Object.assign(eventHandler, input, composed && { fetch: eventHandler.fetch });
 }
 
 type StringHeaders<T> = {
