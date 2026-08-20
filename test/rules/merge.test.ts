@@ -27,7 +27,7 @@ describe("merge algorithm", () => {
   // pattern's, and its `false` reset deletes the narrower pattern's rule outright.
   // This is the default (no `preMerge`, no compiler) path.
   describe("matched layers are merged in containment order, not findAllRoutes order", () => {
-    // Two distinct upstream shapes: `/api/*​/:path*` subsumes `/api/*​/**` and comes
+    // Two distinct upstream shapes: `/api/*/:path*` subsumes `/api/*/**` and comes
     // back last in BOTH registration orders (rou3 sorts it there), while
     // `/admin/:page?` subsumes `/admin` and gets no specificity sort at all (both
     // weigh 0 in `pushSorted`, so config order survives) — hence both orders below.
@@ -627,7 +627,7 @@ describe("mergeMatchedRouteRules (pure)", () => {
     // Layer ordering must be decided by the build-time rank alone: the only
     // predicate a compiled matcher has by default is `canOverrideRouteShape`,
     // which is conservative but *not* exact for modifier params (it cannot see
-    // that `/api/*​/:path*` subsumes the `/api/*​/**` it appears to sit under, so
+    // that `/api/*/:path*` subsumes the `/api/*/**` it appears to sit under, so
     // it decides neither direction), leaving a predicate-driven order to fall
     // back on arrival order — which fails open exactly here. No `canOverride`
     // is passed below.

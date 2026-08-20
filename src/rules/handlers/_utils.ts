@@ -158,9 +158,10 @@ function isLiterallyInScope(pathname: string, base: string): boolean {
  * 0 when it has no fixed count.
  *
  * Only a prefix whose every segment matches exactly one path segment can be
- * stripped by count. A catch-all or modifier param (`/:lang?/old`,
- * `/x/:seg*​/old`) matches a varying number, and so does a group spanning a
- * separator (`/x{/a}?/old`) — splitting it here leaves its braces unbalanced.
+ * stripped by count. A catch-all or modifier param (`/:lang?/old`, or a
+ * `:seg*` segment mid-prefix) matches a varying number, and so does a group
+ * spanning a separator (`/x{/a}?/old`) — splitting it here leaves its braces
+ * unbalanced.
  * Counting any of those strips the wrong number of segments off the request
  * path, so they return 0 and fall through to the literal comparison, which
  * rejects (400) instead of forwarding a silently mis-stripped path.

@@ -243,8 +243,8 @@ const OPAQUE_SEGMENT_RE = /[()\\]/;
 const CONCRETE_SEGMENT_RE = /^[^:*(){}\\]+$/;
 
 // A param that can match *zero* segments (`:x?`, `:x*`). rou3 reads such a
-// pattern as broader than the `**` that appears to absorb it (`/a/*​/:path*`
-// matches `/a/x`, which `/a/*​/**` does not), so it must never be absorbed.
+// pattern as broader than the `**` that appears to absorb it (`/a/*/:path*`
+// matches `/a/x`, which `/a/*/**` does not), so it must never be absorbed.
 const ZERO_MATCHABLE_SEGMENT_RE = /^:.*[?*]$/;
 
 /**

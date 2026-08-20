@@ -144,7 +144,7 @@ describe("createMatcherFromFind override guard", () => {
     expect(canOverrideRouteShape("/admin/**", "/**")).toBe(false);
     expect(canOverrideRouteShape("/admin/**", "/public/**")).toBe(false);
     // …and the modifier-param shape fails closed in the direction rou3 orders
-    // it: `/a/*​/:path*` matches `/a/x`, which `/a/*​/**` does not, so the
+    // it: `/a/*/:path*` matches `/a/x`, which `/a/*/**` does not, so the
     // catch-all is the *narrower* pattern and must not absorb it.
     expect(canOverrideRouteShape("/a/*/**", "/a/*/:path*")).toBe(false);
     // …as does the optional-group shape, for the same reason one level down:

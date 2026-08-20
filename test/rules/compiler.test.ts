@@ -216,8 +216,8 @@ describe("generated code shape", () => {
   it("a compiled matcher with no override predicate still keeps a subsumed rule", () => {
     // The divergence this pins: `createMatcherFromFind`'s dependency-free default
     // predicate (`canOverrideRouteShape`) is not exact for modifier params — it
-    // cannot prove either direction between `/mod/reset/*​/**` and the
-    // `/mod/reset/*​/:path*` that actually subsumes it. Ordering matched layers
+    // cannot prove either direction between `/mod/reset/*/**` and the
+    // `/mod/reset/*/:path*` that actually subsumes it. Ordering matched layers
     // must therefore never consult a predicate, or the compiled default falls
     // back on arrival order and fails open: the broader pattern's `cors: false`
     // lands last and deletes the narrower rule. `evaluateCompiled` builds

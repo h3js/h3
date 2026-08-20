@@ -3,6 +3,7 @@
   "plugins": ["unicorn", "typescript", "oxc"],
   "rules": {
     "no-unused-expressions": "off",
+    "no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }],
     "typescript/unbound-method": "off",
     "typescript/no-floating-promises": "off",
     "typescript/no-implied-eval": "off",
