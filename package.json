@@ -55,7 +55,7 @@
   },
   "dependencies": {
     "rou3": "^0.9.2",
-    "srvx": "^0.12.6"
+    "srvx": "^0.12.7"
   },
   "devDependencies": {
     "@happy-dom/global-registrator": "^20.11.2",
@@ -71,7 +71,7 @@
     "changelogen": "^0.6.2",
     "connect": "^3.7.0",
     "cookie-es": "^3.1.1",
-    "crossws": "^0.4.10",
+    "crossws": "^0.4.11",
     "elysia": "^1.4.29",
     "esbuild": "^0.28.2",
     "express": "^5.2.1",
@@ -87,7 +87,7 @@
     "mitata": "^1.0.34",
     "obuild": "^0.4.38",
     "ocache": "^0.3.0",
-    "oxc-parser": "^0.145.0",
+    "oxc-parser": "^0.146.0",
     "oxfmt": ">=0.64.0",
     "oxlint": "^1.79.0",
     "pkg-pr-new": "^0.0.88",
@@ -99,7 +99,7 @@
     "zod": "^4.4.3"
   },
   "peerDependencies": {
-    "crossws": "^0.4.9",
+    "crossws": "^0.4.11",
     "ocache": ">=0.3.0"
   },
   "peerDependenciesMeta": {
