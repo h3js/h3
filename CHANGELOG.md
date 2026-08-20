@@ -2,6 +2,43 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## v2.0.1-rc.28
+
+[compare changes](https://github.com/h3js/h3/compare/v2.0.1-rc.27...v2.0.1-rc.28)
+
+### 🩹 Fixes
+
+- **static:** Keep a leading separator run from bypassing a route guard ([f3e4c46](https://github.com/h3js/h3/commit/f3e4c46))
+- **proxy:** Strip tab/LF/CR from internal proxy targets ([ffd9620](https://github.com/h3js/h3/commit/ffd9620))
+- **proxy:** Do not include upstream failure message in gateway error ([936f14b](https://github.com/h3js/h3/commit/936f14b))
+- **response:** Normalize values thrown from the onError hook ([2d6a10a](https://github.com/h3js/h3/commit/2d6a10a))
+- **response:** Detect `HTTPResponse` by brand instead of `constructor.name` ([0bbcbc4](https://github.com/h3js/h3/commit/0bbcbc4))
+- **fromNodeHandler:** Don't hang the event when a piped client disconnects ([373e32a](https://github.com/h3js/h3/commit/373e32a))
+- **handler:** Run middleware for object syntax with fetch ([cf7e585](https://github.com/h3js/h3/commit/cf7e585))
+- **response:** Call the `onError` hook again ([f176b35](https://github.com/h3js/h3/commit/f176b35))
+- **static:** Refuse a non-canonical pathname instead of resolving it ([baef4b9](https://github.com/h3js/h3/commit/baef4b9))
+
+### 📖 Documentation
+
+- Rewrite route rules ([abd4d77](https://github.com/h3js/h3/commit/abd4d77))
+- **request:** Add security caveat for getRequestIP xForwardedFor ([b09eda1](https://github.com/h3js/h3/commit/b09eda1))
+
+### 🏡 Chore
+
+- Apply automated updates ([a98d6d6](https://github.com/h3js/h3/commit/a98d6d6))
+- Apply automated updates ([449aa7f](https://github.com/h3js/h3/commit/449aa7f))
+- Update deps ([75fd2de](https://github.com/h3js/h3/commit/75fd2de))
+- Lint ([f05b374](https://github.com/h3js/h3/commit/f05b374))
+- Update deps ([71715ce](https://github.com/h3js/h3/commit/71715ce))
+
+### ✅ Tests
+
+- Bump bundle size ([bd5cd6a](https://github.com/h3js/h3/commit/bd5cd6a))
+
+### ❤️ Contributors
+
+- Pooya Parsa ([@pi0](https://github.com/pi0))
+
 ## v2.0.1-rc.27
 
 [compare changes](https://github.com/h3js/h3/compare/v2.0.1-rc.26...v2.0.1-rc.27)
