@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## v2.0.1-rc.29
+
+[compare changes](https://github.com/h3js/h3/compare/v2.0.1-rc.28...v2.0.1-rc.29)
+
+### 🩹 Fixes
+
+- **ws:** Keep WebSocket hooks reachable when the response is rebuilt ([3a57939](https://github.com/h3js/h3/commit/3a57939))
+
+### ❤️ Contributors
+
+- Pooya Parsa ([@pi0](https://github.com/pi0))
+
 ## v2.0.1-rc.28
 
 [compare changes](https://github.com/h3js/h3/compare/v2.0.1-rc.27...v2.0.1-rc.28)
