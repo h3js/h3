@@ -71,7 +71,7 @@
     "changelogen": "^0.6.2",
     "connect": "^3.7.0",
     "cookie-es": "^3.1.1",
-    "crossws": "^0.4.11",
+    "crossws": "^0.4.12",
     "elysia": "^1.4.29",
     "esbuild": "^0.28.2",
     "express": "^5.2.1",
@@ -99,7 +99,7 @@
     "zod": "^4.4.3"
   },
   "peerDependencies": {
-    "crossws": "^0.4.11",
+    "crossws": "^0.4.12",
     "ocache": ">=0.3.0"
   },
   "peerDependenciesMeta": {
