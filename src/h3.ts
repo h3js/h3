@@ -122,12 +122,23 @@ function createDispatcher(app: H3Core): NonNullable<H3Core["~dispatch"]> {
   if (app["~getMiddleware"] !== H3Core.prototype["~getMiddleware"]) {
     // Compat: a custom `~getMiddleware` (subclass or instance override, e.g. nitro)
     // can return per-event middleware, which cannot be precomposed.
-    return (event, route) =>
-      callMiddleware(
-        event,
-        app["~getMiddleware"](event, route as unknown as undefined),
-        route?.data.handler || NoHandler,
-      );
+    //
+    // Route middleware is owned by the route. Overrides that already re-add
+    // `route.data.middleware` as a suffix (Nitro) keep a single run. Overrides
+    // that return only the global list still get the full route chain appended,
+    // including when the same function is registered globally and on the route
+    // (the default dispatcher runs it twice). Do not mutate the returned array.
+    return (event, route) => {
+      let middleware = app["~getMiddleware"](event, route as unknown as undefined);
+      const routeMiddleware = route?.data.middleware;
+      if (routeMiddleware?.length) {
+        const returnedOnlyGlobal = sameMiddlewareList(middleware, app["~middleware"]);
+        if (returnedOnlyGlobal || !middlewareListEndsWith(middleware, routeMiddleware)) {
+          middleware = [...middleware, ...routeMiddleware];
+        }
+      }
+      return callMiddleware(event, middleware, route?.data.handler || NoHandler);
+    };
   }
   const middleware = app["~middleware"];
   if (middleware.length === 0) {
@@ -135,6 +146,18 @@ function createDispatcher(app: H3Core): NonNullable<H3Core["~dispatch"]> {
   }
   const composed = (app["~composed"] ??= composeMiddleware(middleware));
   return (event, route) => composed(event, routeHandler(route));
+}
+
+function sameMiddlewareList(a: Middleware[], b: Middleware[]): boolean {
+  return a.length === b.length && a.every((mw, i) => mw === b[i]);
+}
+
+function middlewareListEndsWith(list: Middleware[], suffix: Middleware[]): boolean {
+  if (suffix.length > list.length) {
+    return false;
+  }
+  const offset = list.length - suffix.length;
+  return suffix.every((mw, i) => list[offset + i] === mw);
 }
 
 function routeHandler(route: MatchedRoute<H3Route> | void): EventHandler {
