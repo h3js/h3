@@ -106,10 +106,8 @@ export class H3Core implements H3CoreType {
   }
 
   // Overriding `~getMiddleware` opts out of the precomposed fast path (see `createDispatcher`)
-  "~getMiddleware"(_event: H3Event, route: MatchedRoute<H3Route> | undefined): Middleware[] {
-    const routeMiddleware = route?.data.middleware;
-    const globalMiddleware = this["~middleware"];
-    return routeMiddleware ? [...globalMiddleware, ...routeMiddleware] : globalMiddleware;
+  "~getMiddleware"(_event: H3Event, _route?: MatchedRoute<H3Route>): Middleware[] {
+    return this["~middleware"];
   }
 }
 
@@ -126,7 +124,7 @@ function createDispatcher(app: H3Core): NonNullable<H3Core["~dispatch"]> {
       callMiddleware(
         event,
         app["~getMiddleware"](event, route as unknown as undefined),
-        route?.data.handler || NoHandler,
+        routeHandler(route),
       );
   }
   const middleware = app["~middleware"];
