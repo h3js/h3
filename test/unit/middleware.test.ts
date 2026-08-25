@@ -131,4 +131,18 @@ describe("~getMiddleware compat", () => {
     expect(await res.text()).toBe("ok");
     expect(seen).toEqual(["global", "route"]);
   });
+
+  test("route middleware only runs once with default dispatcher", async () => {
+    let count = 0;
+    const app = new H3();
+    app.get("/count", () => "ok", {
+      middleware: [
+        () => {
+          count++;
+        },
+      ],
+    });
+    await app.request("/count");
+    expect(count).toBe(1);
+  });
 });

@@ -121,11 +121,7 @@ function createDispatcher(app: H3Core): NonNullable<H3Core["~dispatch"]> {
     // Compat: a custom `~getMiddleware` (subclass or instance override, e.g. nitro)
     // can return per-event middleware, which cannot be precomposed.
     return (event, route) =>
-      callMiddleware(
-        event,
-        app["~getMiddleware"](event, route as unknown as undefined),
-        routeHandler(route),
-      );
+      callMiddleware(event, app["~getMiddleware"](event, route || undefined), routeHandler(route));
   }
   const middleware = app["~middleware"];
   if (middleware.length === 0) {
