@@ -137,12 +137,14 @@ describe("~getMiddleware compat", () => {
     const app = new H3();
     app.get("/count", () => "ok", {
       middleware: [
-        () => {
+        (_event, next) => {
           count++;
+          return next();
         },
       ],
     });
-    await app.request("/count");
+    const res = await app.request("/count");
     expect(count).toBe(1);
+    expect(await res.text()).toBe("ok");
   });
 });
