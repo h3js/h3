@@ -105,7 +105,7 @@ export async function useSession<T extends SessionData = SessionData>(
 ): Promise<SessionManager<T>> {
   // Create a synced wrapper around the session
   const sessionName = config.name || DEFAULT_SESSION_NAME;
-  await getSession(event, config); // Force init
+  await getSession(event, config, { persistNew: true }); // Force init
   const sessionManager = {
     get id() {
       const context = getEventContext<H3EventContext>(event);
@@ -130,9 +130,19 @@ export async function useSession<T extends SessionData = SessionData>(
 /**
  * Get the session for the current request.
  */
+export type GetSessionOptions = {
+  /**
+   * Persist a newly created empty session as a cookie.
+   * Used by {@link useSession} to keep its force-init contract.
+   * @internal
+   */
+  persistNew?: boolean;
+};
+
 export async function getSession<T extends SessionData = SessionData>(
   event: HTTPEvent,
   config: SessionConfig,
+  opts?: GetSessionOptions,
 ): Promise<Session<T>> {
   const sessionName = config.name || DEFAULT_SESSION_NAME;
 
@@ -199,11 +209,14 @@ export async function getSession<T extends SessionData = SessionData>(
     await promise;
   }
 
-  // New session store in response cookies
+  // Assign id for a new session. Persist only when requested (useSession
+  // force-init); plain getSession stays read-only so auth peeks do not mint cookies.
   if (!session.id) {
     session.id = config.generateId?.() ?? (config.crypto || crypto).randomUUID();
     session.createdAt = Date.now();
-    await updateSession(event, config);
+    if (opts?.persistNew) {
+      await updateSession(event, config);
+    }
   }
 
   return session;
