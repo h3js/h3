@@ -93,6 +93,12 @@ export interface SessionConfig {
   crypto?: Crypto;
   /** Default is Crypto.randomUUID */
   generateId?: () => string;
+  /**
+   * Automatically persist an initial empty session when `getSession` is called on a request without one.
+   *
+   * @default true
+   */
+  autoCreate?: boolean;
 }
 
 /**
@@ -203,7 +209,9 @@ export async function getSession<T extends SessionData = SessionData>(
   if (!session.id) {
     session.id = config.generateId?.() ?? (config.crypto || crypto).randomUUID();
     session.createdAt = Date.now();
-    await updateSession(event, config);
+    if (config.autoCreate !== false) {
+      await updateSession(event, config);
+    }
   }
 
   return session;

@@ -1,6 +1,6 @@
 import type { SessionConfig } from "../src/utils/session.ts";
 import { beforeEach, vi } from "vitest";
-import { useSession, clearSession, readBody, H3, HTTPError } from "../src/index.ts";
+import { useSession, getSession, clearSession, readBody, H3, HTTPError } from "../src/index.ts";
 import { seal, unseal, defaults as sealDefaults } from "../src/utils/internal/iron-crypto.ts";
 import { describeMatrix } from "./_setup.ts";
 
@@ -35,6 +35,32 @@ describeMatrix("session", (t, { it, expect }) => {
     expect(await result.json()).toMatchObject({
       session: { id: "1", data: {} },
     });
+  });
+
+  it("does not write session cookie when autoCreate is false until updated", async () => {
+    t.app.get("/read-only-session", async (event) => {
+      const session = await getSession(event, {
+        ...sessionConfig,
+        autoCreate: false,
+      });
+      return { id: session.id, data: session.data };
+    });
+
+    const res1 = await t.fetch("/read-only-session");
+    expect(res1.headers.getSetCookie()).toHaveLength(0);
+    expect(await res1.json()).toMatchObject({ data: {} });
+
+    t.app.post("/write-session", async (event) => {
+      const session = await useSession(event, {
+        ...sessionConfig,
+        autoCreate: false,
+      });
+      await session.update({ user: "alice" });
+      return { ok: true };
+    });
+
+    const res2 = await t.fetch("/write-session", { method: "POST" });
+    expect(res2.headers.getSetCookie()).toHaveLength(1);
   });
 
   it("sets SameSite=Lax by default", async () => {
