@@ -96,6 +96,25 @@ describe("types", () => {
     });
   });
 
+  describe("defineValidatedHandler", () => {
+    it("returned handler exposes validated body, query and headers", () => {
+      const handler = defineValidatedHandler({
+        validate: {
+          body: z.object({ title: z.string(), count: z.number() }),
+          headers: z.object({ "x-thing": z.string() }),
+          query: z.object({ page: z.string().optional() }),
+        },
+        handler: () => "ok",
+      });
+
+      type Req = typeof handler extends (event: H3Event<infer R>) => any ? R : never;
+
+      expectTypeOf<Req["body"]>().toEqualTypeOf<{ title: string; count: number }>();
+      expectTypeOf<Req["query"]>().toEqualTypeOf<{ page?: string | undefined }>();
+      expectTypeOf<Req["headers"]>().toEqualTypeOf<{ "x-thing": string }>();
+    });
+  });
+
   describe("getQuery", () => {
     it("untyped", () => {
       defineHandler((event) => {

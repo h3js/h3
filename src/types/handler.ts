@@ -29,6 +29,7 @@ export interface EventHandlerObject<
 
 export interface EventHandlerRequest {
   body?: unknown;
+  headers?: unknown;
   query?: Partial<Record<string, string>>;
   routerParams?: Record<string, string>;
 }
