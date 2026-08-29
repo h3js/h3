@@ -98,6 +98,8 @@ describe("types", () => {
   });
 
   describe("defineValidatedHandler", () => {
+    type ReqOf<H> = H extends (event: H3Event<infer R>) => any ? R : never;
+
     it("returned handler exposes validated body, query and headers", () => {
       const handler = defineValidatedHandler({
         validate: {
@@ -108,11 +110,32 @@ describe("types", () => {
         handler: () => "ok",
       });
 
-      type Req = typeof handler extends (event: H3Event<infer R>) => any ? R : never;
+      type Req = ReqOf<typeof handler>;
 
       expectTypeOf<Req["body"]>().toEqualTypeOf<{ title: string; count: number }>();
       expectTypeOf<Req["query"]>().toEqualTypeOf<{ page?: string | undefined }>();
       expectTypeOf<Req["headers"]>().toEqualTypeOf<{ "x-thing": string }>();
+    });
+
+    it("leaves unvalidated parts of the request empty", () => {
+      const bodyOnly = defineValidatedHandler({
+        validate: { body: z.object({ title: z.string() }) },
+        handler: () => "ok",
+      });
+      type BodyOnlyReq = ReqOf<typeof bodyOnly>;
+
+      expectTypeOf<BodyOnlyReq["body"]>().toEqualTypeOf<{ title: string }>();
+      expectTypeOf<BodyOnlyReq["query"]>().toEqualTypeOf<{}>();
+      expectTypeOf<BodyOnlyReq["headers"]>().toEqualTypeOf<{}>();
+    });
+
+    it("types the request as unvalidated when no schema is given", () => {
+      const unvalidated = defineValidatedHandler({ handler: () => "ok" });
+      type UnvalidatedReq = ReqOf<typeof unvalidated>;
+
+      expectTypeOf<UnvalidatedReq["body"]>().toBeUnknown();
+      expectTypeOf<UnvalidatedReq["query"]>().toEqualTypeOf<{}>();
+      expectTypeOf<UnvalidatedReq["headers"]>().toEqualTypeOf<{}>();
     });
 
     it("handlers with a concrete request type can be registered on an app", () => {
