@@ -5,7 +5,7 @@ import type { MaybePromise } from "./_utils.ts";
 import type { H3RouteMeta } from "./h3.ts";
 import type { H3Core } from "../h3.ts";
 
-export type HTTPHandler = EventHandler | FetchableObject | H3Core;
+export type HTTPHandler = EventHandler<any, any> | FetchableObject | H3Core;
 
 //  --- event handler ---
 

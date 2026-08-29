@@ -1,4 +1,5 @@
 import type { H3Event, RouteRules, WebSocketResponse } from "../../src/index.ts";
+import { H3 } from "../../src/index.ts";
 import { describe, it, expectTypeOf } from "vitest";
 import {
   defineHandler,
@@ -112,6 +113,19 @@ describe("types", () => {
       expectTypeOf<Req["body"]>().toEqualTypeOf<{ title: string; count: number }>();
       expectTypeOf<Req["query"]>().toEqualTypeOf<{ page?: string | undefined }>();
       expectTypeOf<Req["headers"]>().toEqualTypeOf<{ "x-thing": string }>();
+    });
+
+    it("handlers with a concrete request type can be registered on an app", () => {
+      const validated = defineValidatedHandler({
+        validate: { body: z.object({ title: z.string() }) },
+        handler: () => "ok",
+      });
+      const typed = defineHandler<{ body: { id: string } }, string>(() => "ok");
+
+      new H3().get("/validated", validated).post("/typed", typed).all("/all", validated);
+
+      // @ts-expect-error not an event handler
+      new H3().get("/bad", (n: number) => n);
     });
   });
 
