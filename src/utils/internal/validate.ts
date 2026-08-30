@@ -2,6 +2,7 @@ import { type ErrorDetails, HTTPError } from "../../error.ts";
 
 import type { ServerRequest } from "srvx";
 import type { StandardSchemaV1, FailureResult, InferOutput, Issue } from "./standard-schema.ts";
+import { parseQuery } from "./query.ts";
 
 export type ValidateResult<T> = T | true | false | void;
 
@@ -162,13 +163,20 @@ export async function validatedURL(
 
   const validatedQuery = await validateSource(
     "query",
-    Object.fromEntries(url.searchParams.entries()),
-    validate.query as StandardSchemaV1<Record<string, string>>,
+    parseQuery(url.search.slice(1)),
+    validate.query as StandardSchemaV1<Record<string, string | string[]>>,
     validate.onError,
   );
 
   for (const [key, value] of Object.entries(validatedQuery)) {
-    url.searchParams.set(key, value);
+    if (Array.isArray(value)) {
+      url.searchParams.delete(key);
+      for (const item of value) {
+        url.searchParams.append(key, item);
+      }
+    } else {
+      url.searchParams.set(key, value);
+    }
   }
 
   return url;
