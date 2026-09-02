@@ -14,7 +14,6 @@ import type {
   HTTPHandler,
 } from "./types/handler.ts";
 import type { StandardSchemaV1, InferOutput } from "./utils/internal/standard-schema.ts";
-import type { TypedRequest } from "fetchdts";
 import { NoHandler, type H3Core } from "./h3.ts";
 import { validatedRequest, validatedURL, type OnValidateError } from "./utils/internal/validate.ts";
 
@@ -54,6 +53,16 @@ type StringHeaders<T> = {
   [K in keyof T]: Extract<T[K], string>;
 };
 
+type ValidatedRequest<
+  RequestBody extends StandardSchemaV1,
+  RequestHeaders extends StandardSchemaV1,
+  RequestQuery extends StandardSchemaV1,
+> = {
+  body: InferOutput<RequestBody>;
+  headers: StringHeaders<InferOutput<RequestHeaders>>;
+  query: StringHeaders<InferOutput<RequestQuery>>;
+};
+
 /**
  * @experimental defineValidatedHandler is an experimental feature and API may change.
  */
@@ -70,15 +79,9 @@ export function defineValidatedHandler<
       query?: RequestQuery;
       onError?: OnValidateError;
     };
-    handler: EventHandler<
-      {
-        body: InferOutput<RequestBody>;
-        query: StringHeaders<InferOutput<RequestQuery>>;
-      },
-      Res
-    >;
+    handler: EventHandler<ValidatedRequest<RequestBody, RequestHeaders, RequestQuery>, Res>;
   },
-): EventHandlerWithFetch<TypedRequest<InferOutput<RequestBody>, InferOutput<RequestHeaders>>, Res> {
+): EventHandlerWithFetch<ValidatedRequest<RequestBody, RequestHeaders, RequestQuery>, Res> {
   if (!def.validate) {
     return defineHandler(def) as any;
   }
