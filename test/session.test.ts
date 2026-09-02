@@ -1,6 +1,14 @@
 import type { SessionConfig } from "../src/utils/session.ts";
-import { beforeEach, vi } from "vitest";
-import { useSession, clearSession, readBody, H3, HTTPError } from "../src/index.ts";
+import { beforeEach, describe, vi } from "vitest";
+import {
+  useSession,
+  getSession,
+  updateSession,
+  clearSession,
+  readBody,
+  H3,
+  HTTPError,
+} from "../src/index.ts";
 import { seal, unseal, defaults as sealDefaults } from "../src/utils/internal/iron-crypto.ts";
 import { describeMatrix } from "./_setup.ts";
 
@@ -660,5 +668,91 @@ describeMatrix("session", (t, { it, expect }) => {
 
     const body = await res.json();
     expect(body.session.data.token).toBe(token);
+  });
+
+  describe("lazy creation", () => {
+    const lazyConfig: SessionConfig = {
+      name: "h3-lazy",
+      password: "1234567123456712345671234567123456712345671234567",
+    };
+
+    it("does not persist a session that is only read", async () => {
+      t.app.get("/peek", async (event) => {
+        const session = await getSession(event, lazyConfig);
+        return { id: session.id, data: session.data };
+      });
+
+      const res = await t.fetch("/peek");
+      expect(res.headers.getSetCookie()).toHaveLength(0);
+      expect(await res.json()).toMatchObject({ data: {} });
+    });
+
+    it("persists on the first write after a read", async () => {
+      t.app.get("/login", async (event) => {
+        await getSession(event, lazyConfig);
+        const session = await updateSession(event, lazyConfig, { user: "alice" });
+        return { id: session.id, data: session.data };
+      });
+
+      const res = await t.fetch("/login");
+      expect(res.headers.getSetCookie()).toHaveLength(1);
+      expect(res.headers.getSetCookie()[0]).toContain("h3-lazy=");
+      expect(await res.json()).toMatchObject({ data: { user: "alice" } });
+    });
+
+    it("seals once when updateSession creates the session", async () => {
+      const deriveBits = vi.spyOn(crypto.subtle, "deriveBits");
+      t.app.get("/seal-count", async (event) => {
+        await updateSession(event, lazyConfig, { user: "alice" });
+        return "ok";
+      });
+
+      deriveBits.mockClear();
+      const res = await t.fetch("/seal-count");
+      expect(res.headers.getSetCookie()).toHaveLength(1);
+      // Two derivations (encryption + integrity) for a single seal
+      expect(deriveBits).toHaveBeenCalledTimes(2);
+      deriveBits.mockRestore();
+    });
+
+    it("useSession still force-inits after a bare getSession", async () => {
+      t.app.get("/peek-then-use", async (event) => {
+        await getSession(event, lazyConfig); // e.g. auth middleware peeking
+        const session = await useSession(event, lazyConfig);
+        return { id: session.id };
+      });
+
+      const res = await t.fetch("/peek-then-use");
+      expect(res.headers.getSetCookie()).toHaveLength(1);
+    });
+
+    it("useSession still force-inits when read concurrently", async () => {
+      t.app.get("/concurrent", async (event) => {
+        const [, session] = await Promise.all([
+          getSession(event, lazyConfig),
+          useSession(event, lazyConfig),
+        ]);
+        return { id: session.id };
+      });
+
+      const res = await t.fetch("/concurrent");
+      expect(res.headers.getSetCookie()).toHaveLength(1);
+    });
+
+    it("keeps the session id stable across requests once persisted", async () => {
+      t.app.get("/stable", async (event) => {
+        const session = await useSession(event, lazyConfig);
+        return { id: session.id };
+      });
+
+      const res1 = await t.fetch("/stable");
+      const setCookie = res1.headers.getSetCookie()[0];
+      const { id } = await res1.json();
+
+      const res2 = await t.fetch("/stable", {
+        headers: { Cookie: setCookie.split(";")[0] },
+      });
+      expect(await res2.json()).toMatchObject({ id });
+    });
   });
 });

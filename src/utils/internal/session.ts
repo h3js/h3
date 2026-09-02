@@ -2,6 +2,8 @@ import type { SessionConfig } from "../session.ts";
 
 export const kGetSession: unique symbol = /* @__PURE__ */ Symbol.for("h3.internal.session.promise");
 
+export const kSessionNew: unique symbol = /* @__PURE__ */ Symbol.for("h3.internal.session.new");
+
 export const kLegacySeal: unique symbol = /* @__PURE__ */ Symbol.for(
   "h3.internal.session.legacy-seal",
 );
