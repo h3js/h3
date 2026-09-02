@@ -312,3 +312,14 @@ describe("deprecated v1 signatures", () => {
     expectTypeOf(sendRedirect).toBeCallableWith({} as H3Event, "/target");
   });
 });
+
+describe("header types", () => {
+  it("re-exports TypedHeaders, RequestHeaders, ResponseHeaders from fetchdts", () => {
+    expectTypeOf<import("../../src/index.ts").TypedHeaders>().not.toBeAny();
+    expectTypeOf<import("../../src/index.ts").RequestHeaders>().not.toBeAny();
+    expectTypeOf<import("../../src/index.ts").ResponseHeaders>().not.toBeAny();
+    expectTypeOf<import("../../src/index.ts").TypedHeaders>().toEqualTypeOf<
+      import("../../src/index.ts").RequestHeaders
+    >();
+  });
+});

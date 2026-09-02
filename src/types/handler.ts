@@ -1,5 +1,15 @@
 import type { ServerRequest } from "srvx";
-import type { TypedRequest, TypedResponse, ResponseHeaderMap } from "fetchdts";
+import type {
+  TypedRequest,
+  TypedResponse,
+  TypedHeaders as _TypedHeaders,
+  RequestHeaders,
+  ResponseHeaders,
+  RequestHeaderMap,
+  ResponseHeaderMap,
+  RequestHeaderName,
+  ResponseHeaderName,
+} from "fetchdts";
 import type { H3Event, HTTPEvent } from "../event.ts";
 import type { MaybePromise } from "./_utils.ts";
 import type { H3RouteMeta } from "./h3.ts";
@@ -44,6 +54,18 @@ export type TypedServerRequest<_RequestT extends EventHandlerRequest = EventHand
     TypedRequest<NonNullable<_RequestT["body"]>, Record<keyof ResponseHeaderMap, string>>,
     "json" | "headers" | "clone"
   >;
+
+export type TypedHeaders<T extends Record<string, string> | unknown = RequestHeaderMap> =
+  _TypedHeaders<T>;
+
+export type {
+  RequestHeaders,
+  ResponseHeaders,
+  RequestHeaderMap,
+  ResponseHeaderMap,
+  RequestHeaderName,
+  ResponseHeaderName,
+};
 
 // --- fetchable ---
 
