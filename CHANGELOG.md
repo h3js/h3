@@ -2,6 +2,44 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## v2.0.1-rc.30
+
+[compare changes](https://github.com/h3js/h3/compare/v2.0.1-rc.29...v2.0.1-rc.30)
+
+### 🩹 Fixes
+
+- **cli:** Resolve docs directory to file system path with fileURLToPath ([#1540](https://github.com/h3js/h3/pull/1540))
+- **cli:** Spawn docs command without a shell ([04a78a0](https://github.com/h3js/h3/commit/04a78a0))
+- **session:** Do not persist a session that is only read ([#1541](https://github.com/h3js/h3/pull/1541))
+
+### 💅 Refactors
+
+- **core:** Compose route middleware in the dispatcher ([#1533](https://github.com/h3js/h3/pull/1533))
+
+### 🌊 Types
+
+- **handler:** Expose validated query/headers on validated hander type ([#1538](https://github.com/h3js/h3/pull/1538))
+
+### 🏡 Chore
+
+- Fix docs link ([1892ee9](https://github.com/h3js/h3/commit/1892ee9))
+- Update srvx to v1 ([81440ec](https://github.com/h3js/h3/commit/81440ec))
+- Update deps ([2364d46](https://github.com/h3js/h3/commit/2364d46))
+- Pin node to 24 ([5797f6d](https://github.com/h3js/h3/commit/5797f6d))
+- Update release script ([2c9b2f9](https://github.com/h3js/h3/commit/2c9b2f9))
+
+### ✅ Tests
+
+- **cli:** Assert docs command spawns without a shell ([07273db](https://github.com/h3js/h3/commit/07273db))
+
+### ❤️ Contributors
+
+- Pooya Parsa ([@pi0](https://github.com/pi0))
+- Dương Ngọc Anh <duongngocanh2k03@gmail.com>
+- Pi0x <x@pi0.io>
+- Liang Xu <755674130@qq.com>
+- Daniel Roe ([@danielroe](https://github.com/danielroe))
+
 ## v2.0.1-rc.29
 
 [compare changes](https://github.com/h3js/h3/compare/v2.0.1-rc.28...v2.0.1-rc.29)
