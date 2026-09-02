@@ -118,7 +118,7 @@ export class H3Core implements H3CoreType {
  */
 function createDispatcher(app: H3Core): NonNullable<H3Core["~dispatch"]> {
   if (app["~getMiddleware"] !== H3Core.prototype["~getMiddleware"]) {
-    // Compat: a custom `~getMiddleware` (subclass or instance override, e.g. nitro)
+    // Compat: a custom `~getMiddleware` (subclass or instance override)
     // can return per-event middleware, which cannot be precomposed.
     return (event, route) =>
       callMiddleware(event, app["~getMiddleware"](event, route || undefined), routeHandler(route));
