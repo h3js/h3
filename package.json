@@ -58,13 +58,13 @@
     "srvx": "^1.0.0"
   },
   "devDependencies": {
-    "@happy-dom/global-registrator": "^20.11.2",
+    "@happy-dom/global-registrator": "^20.12.0",
     "@mitata/counters": "^0.0.8",
     "@types/connect": "^3.4.38",
     "@types/express": "^5.0.6",
-    "@types/node": "^26.2.0",
+    "@types/node": "^26.4.0",
     "@types/react": "^19.2.18",
-    "@types/react-dom": "^19.2.4",
+    "@types/react-dom": "^19.2.5",
     "@typescript/native-preview": "latest",
     "@vitest/coverage-v8": "^4.1.11",
     "automd": "^0.4.3",
@@ -72,31 +72,31 @@
     "connect": "^3.7.0",
     "cookie-es": "^3.1.1",
     "crossws": "^0.4.12",
-    "elysia": "^1.4.29",
+    "elysia": "^1.4.30",
     "esbuild": "^0.28.2",
     "express": "^5.2.1",
-    "fetchdts": "^0.1.7",
+    "fetchdts": "^0.2.0",
     "get-port-please": "^3.2.0",
     "h3": "workspace:*",
     "h3-nightly": "latest",
-    "happy-dom": "^20.11.2",
-    "hono": "^4.13.3",
-    "magic-string": "^1.2.1",
+    "happy-dom": "^20.12.0",
+    "hono": "^4.13.5",
+    "magic-string": "^1.2.3",
     "mdzilla": "^0.2.1",
     "memoirist": "^1.2.2",
     "mitata": "^1.0.34",
-    "obuild": "^0.4.38",
+    "obuild": "^0.4.39",
     "ocache": "^0.3.0",
-    "oxc-parser": "^0.146.0",
-    "oxfmt": ">=0.64.0",
-    "oxlint": "^1.79.0",
+    "oxc-parser": "^0.147.0",
+    "oxfmt": "^0.65.0",
+    "oxlint": "^1.80.0",
     "pkg-pr-new": "^0.0.88",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "typescript": "^7.0.2",
-    "vite": "^8.2.1",
+    "vite": "^8.2.2",
     "vitest": "^4.1.11",
-    "zod": "^4.4.3"
+    "zod": "^4.5.4"
   },
   "peerDependencies": {
     "crossws": "^0.4.12",
@@ -117,5 +117,5 @@
   "engines": {
     "node": ">=20.11.1"
   },
-  "packageManager": "pnpm@11.15.1"
+  "packageManager": "pnpm@11.22.0"
 }
