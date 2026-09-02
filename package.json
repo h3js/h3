@@ -49,7 +49,7 @@
     "play:node": "pnpm test/fixture/node.ts",
     "play:plain": "pnpm test/fixture/plain.ts",
     "play:web": "pnpm test/fixture/web.ts",
-    "release": "pnpm build && pnpm test && changelogen --release --prerelease && npm publish --tag latest && git push --follow-tags",
+    "release": "pnpm build && pnpm test && changelogen --release --prerelease && pnpm publish --tag latest && git push --follow-tags",
     "test": "pnpm lint && pnpm typecheck && vitest --run --coverage",
     "typecheck": "tsc --noEmit"
   },
