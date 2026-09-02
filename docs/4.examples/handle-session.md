@@ -11,7 +11,7 @@ A session is a way to remember users using cookies. It is a very common method f
 H3 provides many utilities to handle sessions:
 
 - `useSession` initializes a session and returns a wrapper to control it.
-- `getSession` initializes or retrieves the current user session.
+- `getSession` retrieves the current user session, without starting one.
 - `updateSession` updates the data of the current session.
 - `clearSession` clears the current session.
 

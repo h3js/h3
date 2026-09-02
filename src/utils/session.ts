@@ -2,7 +2,7 @@ import { seal, unseal, defaults as sealDefaults } from "./internal/iron-crypto.t
 import { getChunkedCookie, setChunkedCookie, deleteChunkedCookie } from "./cookie.ts";
 import { DEFAULT_SESSION_NAME, DEFAULT_SESSION_COOKIE } from "./internal/session.ts";
 import { EmptyObject } from "./internal/obj.ts";
-import { kGetSession, kLegacySeal } from "./internal/session.ts";
+import { kGetSession, kLegacySeal, kSessionNew } from "./internal/session.ts";
 
 import type { H3Event, HTTPEvent } from "../event.ts";
 import type { CookieSerializeOptions } from "cookie-es";
@@ -25,6 +25,8 @@ export interface Session<T extends SessionDataT = SessionDataT> {
   lastSeenAt?: number;
   data: SessionData<T>;
   [kGetSession]?: Promise<Session<T>>;
+  /** Set on a session created in-memory for this request and not yet persisted */
+  [kSessionNew]?: true;
 }
 
 export interface SessionManager<T extends SessionDataT = SessionDataT> {
@@ -98,6 +100,9 @@ export interface SessionConfig {
 /**
  * Create a session manager for the current request.
  *
+ * Starts a session if the request does not carry one, persisting it so its id
+ * is stable across requests. Use {@link getSession} to read a session without
+ * starting one.
  */
 export async function useSession<T extends SessionData = SessionData>(
   event: HTTPEvent,
@@ -105,7 +110,11 @@ export async function useSession<T extends SessionData = SessionData>(
 ): Promise<SessionManager<T>> {
   // Create a synced wrapper around the session
   const sessionName = config.name || DEFAULT_SESSION_NAME;
-  await getSession(event, config); // Force init
+  // Force init: persist a session created during this request so its id is stable
+  const session = await getSession(event, config);
+  if (session[kSessionNew]) {
+    await updateSession(event, config);
+  }
   const sessionManager = {
     get id() {
       const context = getEventContext<H3EventContext>(event);
@@ -129,6 +138,12 @@ export async function useSession<T extends SessionData = SessionData>(
 
 /**
  * Get the session for the current request.
+ *
+ * A request without a session gets a new one initialized in memory only — no
+ * `Set-Cookie` is issued until something is stored with {@link updateSession},
+ * so reading the session (an auth check, for example) does not start one for
+ * anonymous visitors. Its `id` is therefore only stable across requests once
+ * the session has been written; use {@link useSession} to start one eagerly.
  */
 export async function getSession<T extends SessionData = SessionData>(
   event: HTTPEvent,
@@ -199,11 +214,12 @@ export async function getSession<T extends SessionData = SessionData>(
     await promise;
   }
 
-  // New session store in response cookies
+  // New session: initialize in memory only. It is persisted by the first
+  // `updateSession` (or by `useSession`, which force-inits).
   if (!session.id) {
     session.id = config.generateId?.() ?? (config.crypto || crypto).randomUUID();
     session.createdAt = Date.now();
-    await updateSession(event, config);
+    session[kSessionNew] = true;
   }
 
   return session;
@@ -235,6 +251,10 @@ export async function updateSession<T extends SessionData = SessionData>(
   if (update) {
     Object.assign(session.data, update);
   }
+
+  // Persisted (or persistence is disabled by config): no longer a fresh session
+  // awaiting its first write.
+  delete session[kSessionNew];
 
   // Seal and store in cookie
   if (config.cookie !== false && (event as H3Event).res) {
