@@ -247,7 +247,7 @@ export const H3 = /* @__PURE__ */ (() => {
       return this;
     }
 
-    all(route: string, handler: EventHandler, opts?: RouteOptions) {
+    all(route: string, handler: HTTPHandler, opts?: RouteOptions) {
       return this.on("", route, handler, opts);
     }
 
@@ -292,7 +292,7 @@ export const H3 = /* @__PURE__ */ (() => {
     (H3Core as any).prototype[method.toLowerCase()] = function (
       this: H3Type,
       route: string,
-      handler: EventHandler,
+      handler: HTTPHandler,
       opts?: RouteOptions,
     ) {
       return this.on(method, route, handler, opts);

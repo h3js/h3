@@ -1,4 +1,5 @@
 import type { H3Event, RouteRules, WebSocketResponse } from "../../src/index.ts";
+import { H3 } from "../../src/index.ts";
 import { describe, it, expectTypeOf } from "vitest";
 import {
   defineHandler,
@@ -93,6 +94,61 @@ describe("types", () => {
           expectTypeOf(body).toEqualTypeOf<{ id: string } | undefined>();
         },
       });
+    });
+  });
+
+  describe("defineValidatedHandler", () => {
+    type ReqOf<H> = H extends (event: H3Event<infer R>) => any ? R : never;
+
+    it("returned handler exposes validated body, query and headers", () => {
+      const handler = defineValidatedHandler({
+        validate: {
+          body: z.object({ title: z.string(), count: z.number() }),
+          headers: z.object({ "x-thing": z.string() }),
+          query: z.object({ page: z.string().optional() }),
+        },
+        handler: () => "ok",
+      });
+
+      type Req = ReqOf<typeof handler>;
+
+      expectTypeOf<Req["body"]>().toEqualTypeOf<{ title: string; count: number }>();
+      expectTypeOf<Req["query"]>().toEqualTypeOf<{ page?: string | undefined }>();
+      expectTypeOf<Req["headers"]>().toEqualTypeOf<{ "x-thing": string }>();
+    });
+
+    it("leaves unvalidated parts of the request empty", () => {
+      const bodyOnly = defineValidatedHandler({
+        validate: { body: z.object({ title: z.string() }) },
+        handler: () => "ok",
+      });
+      type BodyOnlyReq = ReqOf<typeof bodyOnly>;
+
+      expectTypeOf<BodyOnlyReq["body"]>().toEqualTypeOf<{ title: string }>();
+      expectTypeOf<BodyOnlyReq["query"]>().toEqualTypeOf<{}>();
+      expectTypeOf<BodyOnlyReq["headers"]>().toEqualTypeOf<{}>();
+    });
+
+    it("types the request as unvalidated when no schema is given", () => {
+      const unvalidated = defineValidatedHandler({ handler: () => "ok" });
+      type UnvalidatedReq = ReqOf<typeof unvalidated>;
+
+      expectTypeOf<UnvalidatedReq["body"]>().toBeUnknown();
+      expectTypeOf<UnvalidatedReq["query"]>().toEqualTypeOf<{}>();
+      expectTypeOf<UnvalidatedReq["headers"]>().toEqualTypeOf<{}>();
+    });
+
+    it("handlers with a concrete request type can be registered on an app", () => {
+      const validated = defineValidatedHandler({
+        validate: { body: z.object({ title: z.string() }) },
+        handler: () => "ok",
+      });
+      const typed = defineHandler<{ body: { id: string } }, string>(() => "ok");
+
+      new H3().get("/validated", validated).post("/typed", typed).all("/all", validated);
+
+      // @ts-expect-error not an event handler
+      new H3().get("/bad", (n: number) => n);
     });
   });
 

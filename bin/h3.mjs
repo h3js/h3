@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-import { execSync } from "node:child_process";
+import { execFileSync, execSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { main } from "srvx/cli";
 import meta from "../package.json" with { type: "json" };
 
@@ -15,10 +16,10 @@ if (process.argv[2] === "docs") {
       return true;
     } catch {}
   }) || ["npm", "x"];
-  const runnerCmd = [runner[0], runner[1]].filter(Boolean).join(" ");
-  const docsDir = new URL("../dist/docs", import.meta.url).pathname;
-  const args = process.argv.slice(3).join(" ");
-  execSync(`${runnerCmd} mdzilla ${docsDir}${args ? ` ${args}` : ""}`, { stdio: "inherit" });
+  const docsDir = fileURLToPath(new URL("../dist/docs", import.meta.url));
+  execFileSync(runner[0], [...runner.slice(1), "mdzilla", docsDir, ...process.argv.slice(3)], {
+    stdio: "inherit",
+  });
   process.exit(0);
 }
 if (process.argv.includes("--help") || process.argv.includes("-h")) {
