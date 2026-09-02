@@ -8,7 +8,13 @@ describe("h3 CLI docs", () => {
     expect(binContent).toMatch(
       /fileURLToPath\(new URL\(['"]\.\.\/dist\/docs['"], import\.meta\.url\)\)/,
     );
-    expect(binContent).toMatch(/`\${runnerCmd} mdzilla "\${docsDir}"/);
+  });
+
+  it("passes docs dir and args to the runner without a shell", () => {
+    const binContent = readFileSync(new URL("../../bin/h3.mjs", import.meta.url), "utf8");
+    expect(binContent).toMatch(/execFileSync\(/);
+    expect(binContent).toMatch(/["']mdzilla["'],\s*docsDir/);
+    expect(binContent).not.toMatch(/\${docsDir}/);
   });
 
   it("fileURLToPath correctly handles spaces and special characters compared to URL.pathname", () => {
