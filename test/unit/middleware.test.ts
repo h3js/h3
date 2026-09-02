@@ -110,4 +110,41 @@ describe("~getMiddleware compat", () => {
       expect(await res.text()).toBe("handler:+global+extra");
     }
   });
+
+  test("custom ~getMiddleware executes route-level middleware", async () => {
+    const seen: string[] = [];
+    const app = new H3();
+    app.use(() => {
+      seen.push("global");
+    });
+    app.get("/x", () => "ok", {
+      middleware: [
+        () => {
+          seen.push("route");
+        },
+      ],
+    });
+    app["~getMiddleware"] = function () {
+      return this["~middleware"];
+    };
+    const res = await app.request("/x");
+    expect(await res.text()).toBe("ok");
+    expect(seen).toEqual(["global", "route"]);
+  });
+
+  test("route middleware only runs once with default dispatcher", async () => {
+    let count = 0;
+    const app = new H3();
+    app.get("/count", () => "ok", {
+      middleware: [
+        (_event, next) => {
+          count++;
+          return next();
+        },
+      ],
+    });
+    const res = await app.request("/count");
+    expect(count).toBe(1);
+    expect(await res.text()).toBe("ok");
+  });
 });
