@@ -33,6 +33,10 @@ jobs:
           cache-dependencies: false
           package-managers: pnpm
       - run: pnpm changelogen --bump -r 2.0.0 --canary nightly
+      # The runner's own npm is too old for trusted publishing (10.9.8 on
+      # ubuntu-latest), and jup's `npm` shim refuses to run while pnpm is the
+      # pinned manager — so install one. The assertion below is the guard.
+      - run: npm i -g npm@11
       - run: printf '11.5.1\n%s\n' "$(npm --version)" | sort -VC
       - run: npm publish --tag latest
 
