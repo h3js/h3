@@ -38,4 +38,6 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: { persist-credentials: false }
       - uses: unjs/setup-jup@85aa1e9e4cd2995fba3bee414cde74bf88637a2c # v1.0.0
+        # `pkg-pr-new` runs `npm pack`; a shimmed `npm` refuses while pnpm is pinned.
+        with: { package-managers: pnpm }
       - run: pnpm exec pkg-pr-new publish
