@@ -55,14 +55,14 @@
   },
   "dependencies": {
     "rou3": "^0.9.2",
-    "srvx": "^1.0.0"
+    "srvx": "^1.0.2"
   },
   "devDependencies": {
-    "@happy-dom/global-registrator": "^20.12.0",
+    "@happy-dom/global-registrator": "^20.13.2",
     "@mitata/counters": "^0.0.8",
     "@types/connect": "^3.4.38",
     "@types/express": "^5.0.6",
-    "@types/node": "^26.4.0",
+    "@types/node": "^26.4.1",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.5",
     "@typescript/native-preview": "latest",
@@ -79,7 +79,7 @@
     "get-port-please": "^3.2.0",
     "h3": "workspace:*",
     "h3-nightly": "latest",
-    "happy-dom": "^20.12.0",
+    "happy-dom": "^20.13.2",
     "hono": "^4.13.5",
     "magic-string": "^1.2.3",
     "mdzilla": "^0.2.1",
@@ -89,7 +89,7 @@
     "ocache": "^0.3.0",
     "oxc-parser": "^0.147.0",
     "oxfmt": "^0.65.0",
-    "oxlint": "^1.80.0",
+    "oxlint": "^1.81.0",
     "pkg-pr-new": "^0.0.88",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
