@@ -2,6 +2,34 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## v2.0.1-rc.31
+
+[compare changes](https://github.com/h3js/h3/compare/v2.0.1-rc.30...v2.0.1-rc.31)
+
+### 🚀 Enhancements
+
+- **rules:** Support non-trailing `**` in redirect/proxy targets ([228bca3](https://github.com/h3js/h3/commit/228bca3))
+
+### 🔥 Performance
+
+- **rules:** Evict memoized matches with SIEVE instead of FIFO ([#1543](https://github.com/h3js/h3/pull/1543))
+
+### 🏡 Chore
+
+- Apply automated updates ([c460ebe](https://github.com/h3js/h3/commit/c460ebe))
+- Update deps ([1316ffb](https://github.com/h3js/h3/commit/1316ffb))
+- Apply automated updates ([21a26d9](https://github.com/h3js/h3/commit/21a26d9))
+- Update lockfile ([00c0d3f](https://github.com/h3js/h3/commit/00c0d3f))
+
+### 🤖 CI
+
+- Replace setup-node and corepack with setup-jup ([#1544](https://github.com/h3js/h3/pull/1544))
+
+### ❤️ Contributors
+
+- Pooya Parsa ([@pi0](https://github.com/pi0))
+- Pi0x <x@pi0.io>
+
 ## v2.0.1-rc.30
 
 [compare changes](https://github.com/h3js/h3/compare/v2.0.1-rc.29...v2.0.1-rc.30)
