@@ -1,8 +1,5 @@
 name: autofix.ci
 
-# `pull_request` already covers PR branches. Without the `push` branch filter,
-# every push to a PR branch ran this workflow twice for the same commit, the two
-# runs racing to push a fixup commit to the same branch.
 on:
   push: { branches: [main] }
   pull_request: {}
@@ -15,17 +12,10 @@ jobs:
   autofix:
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    # `autofix-ci/action` commits through its own GitHub App, not `GITHUB_TOKEN`.
     permissions: { contents: read }
     steps:
-      # No `persist-credentials: false` here, unlike the other workflows:
-      # `autofix-ci/action` runs `git fetch origin <pull_request.head.sha>` when
-      # it has fixes to apply, which needs the checkout credentials.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - run: npm i -fg corepack@0.35.0 && corepack enable
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with: { node-version-file: .nvmrc, cache: pnpm }
-      - run: pnpm install
+      - uses: unjs/setup-jup@85aa1e9e4cd2995fba3bee414cde74bf88637a2c # v1.0.0
       - run: pnpm fmt
       - uses: autofix-ci/action@c5b2d67aa2274e7b5a18224e8171550871fc7e4a # v1.3.4
         with: { commit-message: "chore: apply automated updates" }

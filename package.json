@@ -42,8 +42,8 @@
     "bench:node": "node --expose-gc --allow-natives-syntax ./test/bench/bench.ts",
     "build": "obuild",
     "dev": "vitest",
-    "lint": "oxlint . && oxfmt --check .",
     "fmt": "automd && oxlint --fix . && oxfmt .",
+    "lint": "oxlint . && oxfmt --check .",
     "prepack": "pnpm build",
     "play:bun": "bun ./test/fixture/bun.ts",
     "play:node": "pnpm test/fixture/node.ts",
@@ -114,8 +114,17 @@
     "h3": "link:.",
     "h3-nightly": "latest"
   },
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "version": "^12"
+    },
+    "runtime": {
+      "name": "node",
+      "version": "^24"
+    }
+  },
   "engines": {
     "node": ">=20.11.1"
-  },
-  "packageManager": "pnpm@11.22.0"
+  }
 }
