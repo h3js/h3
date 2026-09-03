@@ -1,4 +1,9 @@
-import type { H3Event, RouteRules, WebSocketResponse } from "../../src/index.ts";
+import type {
+  EventHandlerRequest,
+  H3Event,
+  RouteRules,
+  WebSocketResponse,
+} from "../../src/index.ts";
 import { H3 } from "../../src/index.ts";
 import { describe, it, expectTypeOf } from "vitest";
 import {
@@ -149,6 +154,15 @@ describe("types", () => {
 
       // @ts-expect-error not an event handler
       new H3().get("/bad", (n: number) => n);
+    });
+  });
+
+  describe("routes", () => {
+    it("types the event of an inline route handler", () => {
+      new H3().get("/", (event) => {
+        expectTypeOf(event).toEqualTypeOf<H3Event<EventHandlerRequest>>();
+        return "ok";
+      });
     });
   });
 

@@ -4,7 +4,13 @@ import { createRouteMatcher } from "./utils/internal/route.ts";
 
 import type { H3Event } from "./event.ts";
 import type { MiddlewareOptions } from "./types/h3.ts";
-import type { EventHandler, FetchableObject, HTTPHandler, Middleware } from "./types/handler.ts";
+import type {
+  EventHandler,
+  EventHandlerRequest,
+  FetchableObject,
+  HTTPHandler,
+  Middleware,
+} from "./types/handler.ts";
 import type { H3Core } from "./h3.ts";
 
 export function defineMiddleware(input: Middleware): Middleware {
@@ -159,7 +165,9 @@ function isUnhandledResponse(val: unknown) {
  *
  * If FetchableObject or Handler returns a Response with 404 status, the next middleware will be called.
  */
-export function toMiddleware(input: HTTPHandler | Middleware | undefined): Middleware {
+export function toMiddleware<_RequestT extends EventHandlerRequest = EventHandlerRequest>(
+  input: HTTPHandler<_RequestT> | Middleware | undefined,
+): Middleware {
   let h = (input as H3Core).handler || (input as EventHandler | Middleware);
   let isFunction: boolean = typeof h === "function";
   if (!isFunction && typeof (input as FetchableObject)?.fetch === "function") {

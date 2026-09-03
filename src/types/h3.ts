@@ -1,5 +1,5 @@
 import type { H3EventContext } from "./context.ts";
-import type { HTTPHandler, EventHandler, Middleware } from "./handler.ts";
+import type { HTTPHandler, EventHandler, EventHandlerRequest, Middleware } from "./handler.ts";
 import type { HTTPError } from "../error.ts";
 import type { MaybePromise } from "./_utils.ts";
 import type { FetchHandler, ServerRequest } from "srvx";
@@ -180,10 +180,10 @@ export declare class H3 extends H3Core {
   /**
    * Register a route handler for the specified HTTP method and route.
    */
-  on(
+  on<_RequestT extends EventHandlerRequest = EventHandlerRequest>(
     method: HTTPMethod | Lowercase<HTTPMethod> | "",
     route: string,
-    handler: HTTPHandler,
+    handler: HTTPHandler<_RequestT>,
     opts?: RouteOptions,
   ): this;
 
@@ -204,16 +204,60 @@ export declare class H3 extends H3Core {
   /**
    * Register a route handler for all HTTP methods.
    */
-  all(route: string, handler: HTTPHandler, opts?: RouteOptions): this;
+  all<_RequestT extends EventHandlerRequest = EventHandlerRequest>(
+    route: string,
+    handler: HTTPHandler<_RequestT>,
+    opts?: RouteOptions,
+  ): this;
 
-  get(route: string, handler: HTTPHandler, opts?: RouteOptions): this;
-  post(route: string, handler: HTTPHandler, opts?: RouteOptions): this;
-  put(route: string, handler: HTTPHandler, opts?: RouteOptions): this;
-  delete(route: string, handler: HTTPHandler, opts?: RouteOptions): this;
-  patch(route: string, handler: HTTPHandler, opts?: RouteOptions): this;
-  head(route: string, handler: HTTPHandler, opts?: RouteOptions): this;
-  options(route: string, handler: HTTPHandler, opts?: RouteOptions): this;
-  connect(route: string, handler: HTTPHandler, opts?: RouteOptions): this;
-  trace(route: string, handler: HTTPHandler, opts?: RouteOptions): this;
-  query(route: string, handler: HTTPHandler, opts?: RouteOptions): this;
+  get<_RequestT extends EventHandlerRequest = EventHandlerRequest>(
+    route: string,
+    handler: HTTPHandler<_RequestT>,
+    opts?: RouteOptions,
+  ): this;
+  post<_RequestT extends EventHandlerRequest = EventHandlerRequest>(
+    route: string,
+    handler: HTTPHandler<_RequestT>,
+    opts?: RouteOptions,
+  ): this;
+  put<_RequestT extends EventHandlerRequest = EventHandlerRequest>(
+    route: string,
+    handler: HTTPHandler<_RequestT>,
+    opts?: RouteOptions,
+  ): this;
+  delete<_RequestT extends EventHandlerRequest = EventHandlerRequest>(
+    route: string,
+    handler: HTTPHandler<_RequestT>,
+    opts?: RouteOptions,
+  ): this;
+  patch<_RequestT extends EventHandlerRequest = EventHandlerRequest>(
+    route: string,
+    handler: HTTPHandler<_RequestT>,
+    opts?: RouteOptions,
+  ): this;
+  head<_RequestT extends EventHandlerRequest = EventHandlerRequest>(
+    route: string,
+    handler: HTTPHandler<_RequestT>,
+    opts?: RouteOptions,
+  ): this;
+  options<_RequestT extends EventHandlerRequest = EventHandlerRequest>(
+    route: string,
+    handler: HTTPHandler<_RequestT>,
+    opts?: RouteOptions,
+  ): this;
+  connect<_RequestT extends EventHandlerRequest = EventHandlerRequest>(
+    route: string,
+    handler: HTTPHandler<_RequestT>,
+    opts?: RouteOptions,
+  ): this;
+  trace<_RequestT extends EventHandlerRequest = EventHandlerRequest>(
+    route: string,
+    handler: HTTPHandler<_RequestT>,
+    opts?: RouteOptions,
+  ): this;
+  query<_RequestT extends EventHandlerRequest = EventHandlerRequest>(
+    route: string,
+    handler: HTTPHandler<_RequestT>,
+    opts?: RouteOptions,
+  ): this;
 }
