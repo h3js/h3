@@ -91,14 +91,16 @@ export interface RouteRuleConfig {
 
   /**
    * Server-side redirect; a plain string defaults to status `307`. When the rule
-   * key and `to` both end in `/**`, the matched tail is appended to the destination.
+   * key ends in `/**`, a `**` in `to` is replaced with the matched tail — appended
+   * for a trailing `to: "/new/**"`, or interpolated in place anywhere else in the
+   * target's path, query, or fragment (`/new?from=**`).
    * `false` disables a redirect inherited from a less-specific pattern.
    */
   redirect?: string | { to: string; status?: HTTPStatus } | false;
 
   /**
    * Proxy to another origin or internal path; a plain string is the destination,
-   * or use an object for {@link ProxyOptions}. Wildcard `/**` tail behavior matches
+   * or use an object for {@link ProxyOptions}. Wildcard `**` tail behavior matches
    * {@link redirect}. `false` disables a proxy inherited from a less-specific pattern.
    */
   proxy?: string | ({ to: string } & ProxyOptions) | false;
@@ -133,14 +135,14 @@ type RuleReset<K extends RouteRuleName> = K extends keyof RouteRuleConfig
 export interface RedirectRuleOptions {
   to: string;
   status: HTTPStatus;
-  /** Scope base used to validate and strip a `/**` rule target. */
+  /** Scope base used to validate and strip the tail a `/**` rule key matched. */
   base?: string;
 }
 
 /** Normalized `proxy` rule options. */
 export type ProxyRuleOptions = {
   to: string;
-  /** Scope base used to validate and strip a `/**` rule target. */
+  /** Scope base used to validate and strip the tail a `/**` rule key matched. */
   base?: string;
 } & ProxyOptions;
 

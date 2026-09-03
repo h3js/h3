@@ -5,6 +5,7 @@ import {
   parseRouteKey,
   unknownMethodPrefix,
 } from "./internal/key.ts";
+import { isHostPositionSplat } from "./handlers/_splat.ts";
 import { mergeRuleOptions } from "./merge.ts";
 import type {
   CacheRuleOptions,
@@ -53,6 +54,7 @@ export function normalizeRouteRules(
       if (path.endsWith("/**")) {
         redirectOptions.base = path.slice(0, -3);
       }
+      assertNoHostSplat(redirectOptions.to, "redirect", canonicalKey);
       routeRules.redirect = redirectOptions;
     }
 
@@ -62,6 +64,7 @@ export function normalizeRouteRules(
       if (path.endsWith("/**")) {
         proxyOptions.base = path.slice(0, -3);
       }
+      assertNoHostSplat(proxyOptions.to, "proxy", canonicalKey);
       routeRules.proxy = proxyOptions;
     }
 
@@ -133,6 +136,25 @@ export function normalizeRouteRules(
     }
   }
   return normalizedRules;
+}
+
+/**
+ * Reject a `**` that sits where it could choose the destination host.
+ *
+ * Everywhere else in `to` a `**` interpolates the matched request tail; in the
+ * authority — or at the very start of a target that has none, where the tail
+ * would supply the scheme and host itself — that would let the request pick
+ * the redirect/proxy destination, an open redirect written by accident. The
+ * resolver never interpolates there (see `parseSplatTemplate`), so the
+ * alternative is emitting a target pointing at a literal `**` host; say so at
+ * config time instead.
+ */
+function assertNoHostSplat(to: string, name: string, canonicalKey: string): void {
+  if (isHostPositionSplat(to)) {
+    throw new Error(
+      `[h3] rules: \`${name}\` rule for \`${canonicalKey}\` has \`**\` in the target host (\`${to}\`) — \`**\` interpolates the matched path tail and must come after the target's host, in its path, query, or fragment`,
+    );
+  }
 }
 
 const BUILTIN_RULE_NAMES: readonly (keyof RouteRuleConfig)[] = [

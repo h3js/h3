@@ -402,6 +402,52 @@ describe("normalizeRouteRules - reserved rule names rejected", () => {
 });
 
 // A typo'd method prefix (`GTE /admin/**`) would otherwise degrade into a
+// A `**` in a `redirect`/`proxy` target interpolates the matched request tail.
+// In the target's *host* that would let the request itself choose the
+// destination — an open redirect written by accident — so the resolver never
+// substitutes there, and the alternative (a target pointing at a literal `**`
+// host) is a dead rule. Reject it while the config is still in hand.
+describe("normalizeRouteRules - `**` in a target host rejected", () => {
+  it("throws for a redirect and a proxy target", () => {
+    expect(() =>
+      normalizeRouteRules({ "/old/**": { redirect: "https://**.example.com/x" } }),
+    ).toThrow(/`redirect` rule for `\/old\/\*\*`.*target host/);
+    expect(() => normalizeRouteRules({ "/old/**": { proxy: "//**.example.com/x" } })).toThrow(
+      /`proxy` rule for `\/old\/\*\*`.*target host/,
+    );
+  });
+
+  it("throws for every spelling a URL parser reads as a host", () => {
+    // A lexical authority reading (`//` then up to the next `/`) is narrower
+    // than what parsers accept: a special scheme skips *every* following `/`
+    // and `\`, `\` separates like `/`, and a target with no authority at all
+    // lets a leading `**` supply the scheme and host itself.
+    for (const to of [
+      "**",
+      "**.cdn.test/x",
+      "http:///**.h/x",
+      String.raw`https:/**.h/x`,
+      String.raw`https:\\**.h/x`,
+      String.raw`/\**.h`,
+      String.raw`\\**.h`,
+      "//u:p@**.h/x",
+      "//h:**/x",
+      "//[**::1]/x",
+    ]) {
+      expect(() => normalizeRouteRules({ "/old/**": { redirect: to } }), to).toThrow(/target host/);
+    }
+  });
+
+  it("allows `**` in the target's path, query and fragment", () => {
+    expect(() =>
+      normalizeRouteRules({
+        "/old/**": { redirect: "https://example.com/a/**/b?p=**#**" },
+        "/api/**": { proxy: "https://example.com/**" },
+      }),
+    ).not.toThrow();
+  });
+});
+
 // literal path containing a space, which never matches a request — a gate
 // authored that way silently fails open. Normalization rejects it instead;
 // a genuine literal path can be spelled with a leading `/`.

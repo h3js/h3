@@ -3,12 +3,20 @@ import type { H3Event } from "../../event.ts";
 import { getURLPathname, joinURL, withoutBase } from "../../utils/internal/path.ts";
 import { decodedPath, isPathInScope } from "../internal/scope.ts";
 import type { ProxyRuleOptions, RedirectRuleOptions } from "../types.ts";
+import { interpolateSplat, parseSplatTemplate } from "./_splat.ts";
 
 /**
  * Per-request resolver for a `redirect`/`proxy` rule target, produced once per
  * handler by {@link prepareRuleTarget}.
  */
 export type RuleTargetResolver = (event: H3Event) => string;
+
+/**
+ * Per-request resolver for the tail a `/**` rule key matched: the request path
+ * with the rule's own base stripped, always `/`-prefixed. Throws 400 when the
+ * path cannot be faithfully stripped (see {@link prepareTailResolver}).
+ */
+type TailResolver = (event: H3Event) => string;
 
 // Matches a leading run of path separators, in every form h3's
 // `resolveDotSegments` decodes to `/` — collapsed so a base-less wildcard
@@ -37,74 +45,116 @@ export function prepareRuleTarget(
   if (!target) {
     return;
   }
+  const base = options?.base;
 
   if (target.endsWith("/**")) {
     const baseTarget = target.slice(0, -3);
-    const base = options?.base;
-    // Segment count of a dynamic pattern prefix (0 = use `base` literally).
-    const baseSegments = base && DYNAMIC_PATTERN_RE.test(base) ? patternSegmentCount(base) : 0;
     // Target's own base path (`to` minus `/**`), used to scope-check the final forwarded target below.
-    let baseTargetPath = getURLPathname(baseTarget);
-    if (baseTargetPath.endsWith("/")) {
-      baseTargetPath = baseTargetPath.slice(0, -1);
-    }
+    const baseTargetPath = targetBasePath(baseTarget);
+    const resolveTail = prepareTailResolver(base);
     return (event) => {
-      let targetPath = event.url.pathname + event.url.search;
-      const rawPath = event.url.pathname;
-      // Effective base for this request: the literal prefix, or the path's own
-      // leading segments when the prefix is dynamic.
-      let scopeBase = base;
-      if (baseSegments) {
-        scopeBase = leadingSegments(rawPath, baseSegments);
-        if (scopeBase === undefined) {
-          // Fewer segments than the pattern prefix (unreachable through rou3,
-          // reachable through the matcher's canonical readings) — fail closed.
-          throw new HTTPError({ status: 400 });
-        }
-      }
-      if (scopeBase) {
-        // Fail closed if the raw path doesn't literally sit under `scopeBase` (e.g. an
-        // encoded separator or dot-segment makes it canonical-only under base) —
-        // it can't be faithfully stripped, so don't forward it unstripped.
-        // A derived base satisfies the literal test by construction; `isPathInScope`
-        // carries the weight there, rejecting a path whose canonical readings
-        // disagree with the raw segments the base was taken from.
-        if (!isLiterallyInScope(rawPath, scopeBase)) {
-          // The rule can also have matched through the matcher's *decoded*
-          // reading — a pattern spelled `/a b/**` covers a `/a%20b/...`
-          // request — and there the raw path never literally starts with the
-          // pattern prefix. Strip the request's own leading segments instead
-          // (the by-count strip the dynamic-prefix branch already uses; decoding
-          // never adds or removes a separator, so the counts line up), gated on
-          // the decoded reading being in scope so a path that genuinely escapes
-          // still fails closed. The forwarded remainder keeps its raw bytes.
-          const decoded = decodedPath(rawPath);
-          const derived =
-            decoded === rawPath || !isLiterallyInScope(decoded, scopeBase)
-              ? undefined
-              : leadingSegments(rawPath, countSegments(scopeBase));
-          if (derived === undefined) {
-            throw new HTTPError({ status: 400 });
-          }
-          scopeBase = derived;
-        }
-        targetPath = withoutBase(targetPath, scopeBase);
-      } else {
-        // Only the leading position can leak as a protocol-relative `//host` URL;
-        // interior separators stay opaque and are forwarded verbatim.
-        targetPath = targetPath.replace(LEADING_SEPARATOR_RUN_RE, "/");
-      }
-      const resolved = joinURL(baseTarget, targetPath);
-      // Re-check scope on the final joined target, not just the incoming path:
-      // joinURL collapses empty segments that may have shielded a `..` pre-join,
-      // so a `..%2f` can still escape the target's own base post-join.
-      if (!isFinalTargetInScope(getURLPathname(resolved), baseTargetPath)) {
-        throw new HTTPError({ status: 400 });
-      }
+      // The query rides along with the tail: `stripBase` treats `?` as a segment
+      // boundary, so `GET /old?q=1` under base `/old` joins as `/new/?q=1`.
+      const resolved = joinURL(baseTarget, resolveTail(event) + event.url.search);
+      assertTargetInScope(resolved, baseTargetPath);
       return resolved;
     };
   }
 
+  // A `**` anywhere else in the target — a query value (`/new?from=**`), a
+  // mid-path segment (`/new/**/edit`) — interpolates the same matched tail
+  // through the same scope checks. Only a rule key ending in `/**` has a tail
+  // to capture, and `base` is set exactly then; without one the `**` is left
+  // literal, as it always has been.
+  const template = base === undefined ? undefined : parseSplatTemplate(target);
+  if (template) {
+    // Everything ahead of the first placeholder is config-authored text: it
+    // fixes the target's own base path, and its origin.
+    const prefix = template.literals[0]!;
+    const baseTargetPath = targetBasePath(prefix);
+    const resolveTail = prepareTailResolver(base);
+    return (event) => {
+      // Drop the tail's leading `/`: a path placeholder is written with its own
+      // separator (`/new/**/edit`), and a value placeholder wants none at all.
+      const resolved = interpolateSplat(template, resolveTail(event).slice(1));
+      assertTargetInScope(resolved, baseTargetPath);
+      assertTargetOrigin(resolved, prefix, event.url);
+      return appendSearch(resolved, event.url.search);
+    };
+  }
+
+  return (event) => appendSearch(target, event.url.search);
+}
+
+/**
+ * Resolver for the request tail under `base`, the rule key minus its `/**`.
+ *
+ * `base` is *pattern* text, so it may carry rou3 dynamic segments that can
+ * never equal a request path literally; those are stripped by segment count
+ * instead. Anything that cannot be stripped faithfully throws 400 rather than
+ * forwarding a mis-stripped path.
+ */
+function prepareTailResolver(base: string | undefined): TailResolver {
+  // Segment count of a dynamic pattern prefix (0 = use `base` literally).
+  const baseSegments = base && DYNAMIC_PATTERN_RE.test(base) ? patternSegmentCount(base) : 0;
+  return (event) => {
+    const rawPath = event.url.pathname;
+    // Effective base for this request: the literal prefix, or the path's own
+    // leading segments when the prefix is dynamic.
+    let scopeBase = base;
+    if (baseSegments) {
+      scopeBase = leadingSegments(rawPath, baseSegments);
+      if (scopeBase === undefined) {
+        // Fewer segments than the pattern prefix (unreachable through rou3,
+        // reachable through the matcher's canonical readings) — fail closed.
+        throw new HTTPError({ status: 400 });
+      }
+    }
+    if (!scopeBase) {
+      // Only the leading position can leak as a protocol-relative `//host` URL;
+      // interior separators stay opaque and are forwarded verbatim.
+      return rawPath.replace(LEADING_SEPARATOR_RUN_RE, "/");
+    }
+    // Fail closed if the raw path doesn't literally sit under `scopeBase` (e.g. an
+    // encoded separator or dot-segment makes it canonical-only under base) —
+    // it can't be faithfully stripped, so don't forward it unstripped.
+    // A derived base satisfies the literal test by construction; `isPathInScope`
+    // carries the weight there, rejecting a path whose canonical readings
+    // disagree with the raw segments the base was taken from.
+    if (!isLiterallyInScope(rawPath, scopeBase)) {
+      // The rule can also have matched through the matcher's *decoded*
+      // reading — a pattern spelled `/a b/**` covers a `/a%20b/...`
+      // request — and there the raw path never literally starts with the
+      // pattern prefix. Strip the request's own leading segments instead
+      // (the by-count strip the dynamic-prefix branch already uses; decoding
+      // never adds or removes a separator, so the counts line up), gated on
+      // the decoded reading being in scope so a path that genuinely escapes
+      // still fails closed. The forwarded remainder keeps its raw bytes.
+      const decoded = decodedPath(rawPath);
+      const derived =
+        decoded === rawPath || !isLiterallyInScope(decoded, scopeBase)
+          ? undefined
+          : leadingSegments(rawPath, countSegments(scopeBase));
+      if (derived === undefined) {
+        throw new HTTPError({ status: 400 });
+      }
+      scopeBase = derived;
+    }
+    return withoutBase(rawPath, scopeBase);
+  };
+}
+
+/** A target's own base path: its pathname, without a trailing slash. */
+function targetBasePath(prefix: string): string {
+  const path = getURLPathname(prefix);
+  return path.endsWith("/") ? path.slice(0, -1) : path;
+}
+
+/** Append the request's query to `target`, ahead of any `#fragment`. */
+function appendSearch(target: string, search: string): string {
+  if (!search) {
+    return target;
+  }
   // Split off any `#fragment` so appended query params land before it, not inside it.
   const hashIndex = target.indexOf("#");
   const targetBase = hashIndex === -1 ? target : target.slice(0, hashIndex);
@@ -114,13 +164,51 @@ export function prepareRuleTarget(
       ? ""
       : "&"
     : "?";
-  return (event) => {
-    const search = event.url.search;
-    if (!search) {
-      return target;
-    }
-    return targetBase + joiner + search.slice(1) + targetHash;
-  };
+  return targetBase + joiner + search.slice(1) + targetHash;
+}
+
+/**
+ * Re-check scope on the final resolved target, not just the incoming path:
+ * `joinURL` collapses empty segments that may have shielded a `..` pre-join, so
+ * a `..%2f` can still escape the target's own base post-join — and an
+ * interpolated tail lands inside the target rather than after it.
+ */
+function assertTargetInScope(resolved: string, baseTargetPath: string): void {
+  if (!isFinalTargetInScope(getURLPathname(resolved), baseTargetPath)) {
+    throw new HTTPError({ status: 400 });
+  }
+}
+
+/**
+ * Reject a resolved target whose origin is not the one the template's own
+ * literal prefix resolves to.
+ *
+ * A trailing `to: ".../**"` appends strictly after the target's path, so the
+ * tail can never reach the destination host. An interpolated placeholder
+ * splices *into* the target, where the tail can carry a `scheme:` or a `//`,
+ * and where an empty tail can collapse two literal separators into a
+ * protocol-relative `//host`. Neither is visible to {@link isFinalTargetInScope},
+ * which is handed a pathname the authority has already been parsed out of.
+ *
+ * This asks the URL parser rather than re-deriving the authority lexically:
+ * the two disagree in enough spellings (`http:///h`, `https:/h`, `/\h`, all of
+ * which a browser reads as host `h`) that a lexical check is the wrong tool.
+ * A reading that does not parse at all fails closed.
+ */
+function assertTargetOrigin(resolved: string, prefix: string, url: URL): void {
+  let expected: URL;
+  let actual: URL;
+  try {
+    expected = new URL(prefix, url);
+    actual = new URL(resolved, url);
+  } catch {
+    throw new HTTPError({ status: 400 });
+  }
+  // `origin` is `"null"` for every non-special scheme, so compare the protocol
+  // too — `mailto:`, `javascript:` and friends must not swap for one another.
+  if (expected.origin !== actual.origin || expected.protocol !== actual.protocol) {
+    throw new HTTPError({ status: 400 });
+  }
 }
 
 /**

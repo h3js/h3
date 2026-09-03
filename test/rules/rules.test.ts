@@ -314,6 +314,55 @@ describe("redirect rule", () => {
     expect(res.status).toBe(400);
   });
 
+  it("interpolates a `**` that is not the target's trailing segment", async () => {
+    const app = createApp({
+      "/old/**": { redirect: { to: "/target?param=**", status: 301 } },
+      "/legacy/**": { redirect: "/new/**/edit" },
+    });
+    const query = await app.fetch(new Request("http://test/old/FOO?x=1"));
+    expect(query.status).toBe(301);
+    expect(query.headers.get("location")).toBe("/target?param=FOO&x=1");
+    const path = await app.fetch(new Request("http://test/legacy/a/b"));
+    expect(path.headers.get("location")).toBe("/new/a/b/edit");
+    // the tail goes through the same scope check as a trailing `/**`
+    const escape = await app.fetch(new Request("http://test/old/..%2f..%2fadmin"));
+    expect(escape.status).toBe(400);
+  });
+
+  it("never lets an interpolated tail move the target's origin", async () => {
+    // A placeholder splices *into* the target, so unlike a trailing `/**` the
+    // tail can reach the destination host: by carrying a `scheme:`/`//` itself,
+    // or — when empty — by collapsing two of the target's own separators into a
+    // protocol-relative `//host`. Both must fail closed.
+    const app = createApp({ "/old/**": { redirect: "/**/edit" } });
+    for (const path of ["/old", "/old/", "/old/%2f%2fevil.com"]) {
+      const res = await app.fetch(new Request("http://test" + path));
+      expect(`${path} -> ${res.status}`).toBe(`${path} -> 400`);
+    }
+    expect((await app.fetch(new Request("http://test/old/FOO"))).headers.get("location")).toBe(
+      "/FOO/edit",
+    );
+    // and a host-position placeholder never reaches the runtime at all
+    expect(() => createApp({ "/old/**": { redirect: "**.cdn.test/x" } })).toThrow(/target host/);
+  });
+
+  it("interpolates for a narrow rule that inherits a broader pattern's base", async () => {
+    // Rule options merge shallowly, so a narrow key inherits `base` from a
+    // broader `/**` layer — the same inheritance the trailing branch already
+    // has, and what decides whether a target `**` is a placeholder.
+    const bare = createApp({ "/old/x": { redirect: "/t?p=**" } });
+    expect((await bare.fetch(new Request("http://test/old/x"))).headers.get("location")).toBe(
+      "/t?p=**",
+    );
+    const inherited = createApp({
+      "/old/**": { redirect: "/new/**" },
+      "/old/x": { redirect: "/t?p=**" },
+    });
+    expect((await inherited.fetch(new Request("http://test/old/x"))).headers.get("location")).toBe(
+      "/t?p=x",
+    );
+  });
+
   it("fails closed when the key prefix has no fixed segment count", async () => {
     // The tail is stripped by segment count, so the count has to be the same for
     // every request the key matches. A modifier param makes it vary (`:lang?`
@@ -473,6 +522,13 @@ describe("proxy rule", () => {
     const app = createApp({ "/rules/proxy/legacy/**": { proxy: "/api/wildcard/**" } });
     const res = await app.fetch(new Request("http://test/rules/proxy/legacy/..%2f..%2fsecret"));
     expect(res.status).toBe(400);
+  });
+
+  it("interpolates a `**` that is not the target's trailing segment", async () => {
+    const app = createApp({ "/api/proxy/**": { proxy: "/api/echo/**/detail" } });
+    app.get("/api/echo/**", (event) => ({ path: event.url.pathname, q: event.url.search }));
+    const res = await app.fetch(new Request("http://test/api/proxy/1?x=1"));
+    expect(await res.json()).toEqual({ path: "/api/echo/1/detail", q: "?x=1" });
   });
 
   it("collapses leading slashes after a base-scoped wildcard prefix", async () => {

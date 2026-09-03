@@ -424,4 +424,140 @@ describe("rule target scope (prepareRuleTarget)", () => {
       expect(resolve("/old/docs", options)).toBe("/docs");
     });
   });
+
+  // A `**` that is *not* the target's trailing segment interpolates the same
+  // matched tail, through the same base stripping and the same two scope
+  // checks — only the splice point (and the escaping the splice point needs)
+  // differs from `to: ".../**"`.
+  describe("interpolated `**` (non-trailing placeholder)", () => {
+    it("substitutes the matched tail into a query value", () => {
+      const options = rule("/old/**", "/target?param=**");
+      expect(resolve("/old/FOO", options)).toBe("/target?param=FOO");
+      expect(resolve("/old/a/b", options)).toBe("/target?param=a/b");
+      // the request's own query is still appended, as for any other target
+      expect(resolve("/old/FOO?x=1", options)).toBe("/target?param=FOO&x=1");
+    });
+
+    it("substitutes into a mid-path segment", () => {
+      const options = rule("/old/**", "/new/**/edit");
+      expect(resolve("/old/1", options)).toBe("/new/1/edit");
+      expect(resolve("/old/a/b?x=1", options)).toBe("/new/a/b/edit?x=1");
+    });
+
+    it("fills every placeholder in the target", () => {
+      const options = rule("/old/**", "/new/**?from=**");
+      expect(resolve("/old/a%20b", options)).toBe("/new/a%20b?from=a%20b");
+    });
+
+    it("percent-encodes query structure, not the tail's own escapes", () => {
+      // `&` (and the legacy `;`) start another pair, `=` a value, `+`
+      // form-decodes to a space — all inert in a path segment, all structural
+      // once the same bytes land in a query value.
+      const options = rule("/old/**", "/t?p=**");
+      expect(resolve("/old/a&b=c", options)).toBe("/t?p=a%26b%3Dc");
+      expect(resolve("/old/a+b;c", options)).toBe("/t?p=a%2Bb%3Bc");
+      // Escapes the path already carries are forwarded as-is: re-encoding `%`
+      // would make `a%20b` read back as a literal `a%20b` instead of `a b`.
+      expect(resolve("/old/a%20b", options)).toBe("/t?p=a%20b");
+      expect(resolve("/old/a%2fb", options)).toBe("/t?p=a%2fb");
+    });
+
+    it("leaves a path placeholder's tail raw", () => {
+      expect(resolve("/old/a&b=c", rule("/old/**", "/new/**/edit"))).toBe("/new/a&b=c/edit");
+    });
+
+    it("substitutes an empty string for a zero-length tail", () => {
+      // Plain template substitution: a request to exactly the rule's base has
+      // an empty tail, so the placeholder contributes nothing and the target's
+      // own separators stay as authored.
+      expect(resolve("/old", rule("/old/**", "/t?p=**"))).toBe("/t?p=");
+      expect(resolve("/old/", rule("/old/**", "/t?p=**"))).toBe("/t?p=");
+      expect(resolve("/old/", rule("/old/**", "/new/**/edit"))).toBe("/new//edit");
+    });
+
+    it("appends the request query ahead of the target's fragment", () => {
+      expect(resolve("/old/x?y=2", rule("/old/**", "/t?p=**#frag"))).toBe("/t?p=x&y=2#frag");
+    });
+
+    it("escapes a fragment placeholder like a query value", () => {
+      expect(resolve("/old/a&b", rule("/old/**", "/t#**"))).toBe("/t#a%26b");
+    });
+
+    it("strips the base through the same checks as a trailing `/**`", () => {
+      const options = rule("/old/**", "/new/**/edit");
+      expect(blocked("/old/..%2f..%2fadmin", options)).toBe(true);
+      expect(blocked("/old/a//..%2f..%2fc", options)).toBe(true);
+      // a path only *canonically* under the base cannot be faithfully stripped
+      expect(blocked("/old%2fdocs", options)).toBe(true);
+      // and a dynamic pattern prefix is still stripped by segment count
+      expect(resolve("/en/old/x", rule("/:lang/old/**", "/t?p=**"))).toBe("/t?p=x");
+      expect(blocked("/en", rule("/:lang/old/**", "/t?p=**"))).toBe(true);
+    });
+
+    it("rejects a tail that escapes the target's own base", () => {
+      // The placeholder sits *inside* the target, so the resolved target has to
+      // be re-checked against the literal prefix ahead of it — the same guard
+      // the trailing branch runs after `joinURL`.
+      expect(blocked("/..%2f..%2fadmin", { to: "/new/**/edit", base: "", status: 307 })).toBe(true);
+      // an origin-root target still has exactly one escape: a leading separator run
+      expect(blocked("/old/%2f%2fevil.com", { to: "/**/x", base: "/old", status: 307 })).toBe(true);
+    });
+
+    // The trailing branch appends strictly *after* the target's path, so a tail
+    // can never reach the destination host. A placeholder splices into the
+    // target, so it can — three ways, each pinned here.
+    describe("origin cannot be moved by the tail", () => {
+      it("rejects a host-position placeholder outright", () => {
+        // The tail would supply the scheme and host itself. `parseSplatTemplate`
+        // refuses to treat these as placeholders, so the target stays literal
+        // even when hand-built options skip `normalizeRouteRules`.
+        for (const to of [
+          "**",
+          "**.cdn.test/x",
+          "https://**.h/x",
+          "//**.h/x",
+          // A lexical authority reading stops at the first `/`; every parser
+          // here reads the segment after it as the host instead.
+          "http:///**.cdn.test/x",
+          String.raw`https:/**.h/x`,
+          String.raw`/\**.h`,
+          String.raw`\\**.h`,
+        ]) {
+          const options: RedirectRuleOptions = { to, base: "/old", status: 307 };
+          expect(resolve("/old/evil.test/", options), to).toBe(to);
+        }
+        // A single leading `\` is not an authority to any parser, so the
+        // placeholder does interpolate — and the scope check rejects the result.
+        expect(
+          blocked("/old/evil.test", { to: String.raw`\**.h`, base: "/old", status: 307 }),
+        ).toBe(true);
+      });
+
+      it("rejects a tail that collapses the target's own separators", () => {
+        // An empty tail between two literal separators leaves a
+        // protocol-relative `//host` — a cross-origin redirect the author never
+        // wrote, reachable by requesting exactly the rule's base.
+        const options: RedirectRuleOptions = { to: "/**/edit", base: "/old", status: 307 };
+        expect(blocked("/old", options)).toBe(true);
+        expect(blocked("/old/", options)).toBe(true);
+        expect(resolve("/old/FOO", options)).toBe("/FOO/edit");
+        // the same shape one segment deeper keeps its origin, so it is allowed
+        expect(resolve("/old", rule("/old/**", "/new/**/edit"))).toBe("/new//edit");
+      });
+
+      it("keeps a target's own origin usable", () => {
+        expect(resolve("/old/FOO", rule("/old/**", "https://ex.test/a/**/b"))).toBe(
+          "https://ex.test/a/FOO/b",
+        );
+        expect(resolve("/old/FOO", rule("/old/**", "//host.test/**/x"))).toBe("//host.test/FOO/x");
+      });
+    });
+
+    it("leaves `**` literal when the rule key has no tail to capture", () => {
+      const options = rule("/old", "/t?p=**");
+      expect(options.base).toBeUndefined();
+      expect(resolve("/old", options)).toBe("/t?p=**");
+      expect(resolve("/old?x=1", options)).toBe("/t?p=**&x=1");
+    });
+  });
 });
