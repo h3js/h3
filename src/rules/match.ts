@@ -45,7 +45,8 @@ export interface RouteRulesMatcherOptions {
 export interface MatcherMemoizeOptions {
   /**
    * Maximum number of memoized `method + pathname` entries. On overflow the
-   * oldest entry is evicted (FIFO). `0` (or negative) disables memoization.
+   * oldest entry not hit since the eviction hand last passed it is evicted
+   * (SIEVE). `0` (or negative) disables memoization.
    * @default 1024
    */
   max?: number;
@@ -380,9 +381,24 @@ export function buildRouteRuleMiddleware(
   return routeRuleMiddleware;
 }
 
+interface MemoEntry {
+  key: string;
+  result: MatchResult;
+  /** Set on every hit, cleared by the hand — one hit buys one sweep's reprieve. */
+  visited: boolean;
+}
+
 /**
- * Memoize matches by method and pathname with a 1024-entry FIFO cap by default.
+ * Memoize matches by method and pathname with a 1024-entry cap by default.
  * Returned objects are shared and must be treated as immutable.
+ *
+ * Eviction is SIEVE: insertion-ordered like a FIFO, but an entry hit since the
+ * hand last passed it survives that pass. Plain FIFO evicts a hot static path
+ * on the same schedule as the one-shot dynamic paths that displaced it, so a
+ * mixed workload (a small hot set plus high-cardinality `/:id` traffic) loses
+ * cached entries it is about to ask for again. Unlike LRU this costs no map
+ * mutation on a hit — only a boolean store — which keeps the hot path the
+ * single lookup the memo exists to provide.
  */
 export function memoizeRouteRulesMatcher(
   matcher: RouteRulesMatcher,
@@ -392,17 +408,47 @@ export function memoizeRouteRulesMatcher(
   if (max <= 0) {
     return matcher;
   }
-  const memo = new Map<string, MatchResult>();
+  const memo = new Map<string, MemoEntry>();
+  // The hand: a live Map iterator walking oldest → newest. Map iterators skip
+  // entries deleted behind them and see entries appended ahead of them, so it
+  // holds its place across evictions without a linked list or a second
+  // structure. Exhausted means it reached the newest entry — wrap to the oldest.
+  let hand: MapIterator<MemoEntry> | undefined;
+  // Amortized O(1): each `visited` set costs at most one clearing step here.
+  const evict = (): void => {
+    for (;;) {
+      let next = hand?.next();
+      if (!next || next.done) {
+        hand = memo.values();
+        next = hand.next();
+        if (next.done) {
+          // Unreachable from the call site (only called at `size >= max >= 1`),
+          // but the loop must not spin on an empty map.
+          return;
+        }
+      }
+      const entry = next.value;
+      if (entry.visited) {
+        entry.visited = false; // Reprieve spent; the next pass evicts it.
+      } else {
+        memo.delete(entry.key);
+        return;
+      }
+    }
+  };
   return (method, pathname) => {
     const key = method + " " + pathname;
-    let result = memo.get(key);
-    if (!result) {
-      result = matcher(method, pathname);
-      if (memo.size >= max) {
-        memo.delete(memo.keys().next().value!);
-      }
-      memo.set(key, result);
+    const entry = memo.get(key);
+    if (entry) {
+      entry.visited = true;
+      return entry.result;
     }
+    // Resolve before evicting so a throwing matcher costs no cached entry.
+    const result = matcher(method, pathname);
+    if (memo.size >= max) {
+      evict();
+    }
+    memo.set(key, { key, result, visited: false });
     return result;
   };
 }

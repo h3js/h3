@@ -79,7 +79,7 @@ describe("memoizeRouteRulesMatcher", () => {
     expect(matcher("GET", "/api/x")).toBe(matcher("GET", "/api/x"));
   });
 
-  it("evicts FIFO past the entry cap and re-resolves evicted paths", () => {
+  it("evicts past the entry cap and re-resolves evicted paths", () => {
     let calls = 0;
     const memoized = memoizeRouteRulesMatcher(
       () => (calls++, { routeRules: {}, matchedRules: {}, routeRuleMiddleware: [] }),
@@ -104,9 +104,90 @@ describe("memoizeRouteRulesMatcher", () => {
     expect(calls).toBe(1024);
     memoized("GET", "/p/0"); // still memoized at exactly the cap
     expect(calls).toBe(1024);
-    memoized("GET", "/p/1024"); // 1025th entry evicts the oldest (/p/0)
-    memoized("GET", "/p/0"); // → re-resolved
+    // The 1025th entry forces an eviction. `/p/0` was just requested, so the
+    // hand spares it and takes the oldest untouched entry (`/p/1`) instead.
+    memoized("GET", "/p/1024");
+    memoized("GET", "/p/0"); // survived → still a hit
+    expect(calls).toBe(1025);
+    memoized("GET", "/p/1"); // evicted in its place → re-resolved
     expect(calls).toBe(1026);
+  });
+
+  it("spares an entry hit since the hand last passed it (SIEVE, not FIFO)", () => {
+    let calls = 0;
+    const memoized = memoizeRouteRulesMatcher(
+      () => (calls++, { routeRules: {}, matchedRules: {}, routeRuleMiddleware: [] }),
+      { max: 4 },
+    );
+    for (const p of ["/a", "/b", "/c", "/d"]) memoized("GET", p);
+    expect(calls).toBe(4);
+    memoized("GET", "/a"); // hit — marks /a as visited
+    // Each miss evicts one entry. /a is spared on the pass that reaches it, so
+    // the three untouched entries go first.
+    memoized("GET", "/x");
+    memoized("GET", "/y");
+    memoized("GET", "/z");
+    expect(calls).toBe(7);
+    memoized("GET", "/a"); // still resident; plain FIFO would have evicted it
+    expect(calls).toBe(7);
+    for (const p of ["/b", "/c", "/d"]) memoized("GET", p); // all evicted
+    expect(calls).toBe(10);
+  });
+
+  it("keeps a hot path cached under a flood of one-shot paths", () => {
+    let calls = 0;
+    const memoized = memoizeRouteRulesMatcher(
+      () => (calls++, { routeRules: {}, matchedRules: {}, routeRuleMiddleware: [] }),
+      { max: 16 },
+    );
+    let hotMisses = 0;
+    for (let i = 0; i < 500; i++) {
+      const before = calls;
+      memoized("GET", "/hot");
+      if (calls !== before) hotMisses++;
+      // One-shot dynamic paths, interleaved 1:1 with the hot path.
+      memoized("GET", `/scan/${i}`);
+    }
+    // Resolved once, then never evicted again.
+    expect(hotMisses).toBe(1);
+  });
+
+  it("holds the cap when the key space exceeds it", () => {
+    let calls = 0;
+    const memoized = memoizeRouteRulesMatcher(
+      () => (calls++, { routeRules: {}, matchedRules: {}, routeRuleMiddleware: [] }),
+      { max: 8 },
+    );
+    // 200 distinct keys cycled through an 8-entry cache. No key is ever hit
+    // twice while resident, so nothing is ever spared and every request misses.
+    // If the cap leaked, the second lap onward would be all hits and `calls`
+    // would settle at 200.
+    for (let lap = 0; lap < 10; lap++) {
+      for (let i = 0; i < 200; i++) memoized("GET", `/p/${i}`);
+    }
+    expect(calls).toBe(2000);
+  });
+
+  it("evicts a just-cleared entry when the whole cache is visited", () => {
+    // The sweep's termination case: with every entry spared, the hand clears
+    // all of them, runs off the end, wraps to the oldest and evicts the entry
+    // whose reprieve it just spent. A hand that stopped at the end instead of
+    // wrapping would return without evicting and let the map outgrow the cap.
+    let calls = 0;
+    const memoized = memoizeRouteRulesMatcher(
+      () => (calls++, { routeRules: {}, matchedRules: {}, routeRuleMiddleware: [] }),
+      { max: 3 },
+    );
+    for (const p of ["/a", "/b", "/c"]) memoized("GET", p);
+    for (const p of ["/a", "/b", "/c"]) memoized("GET", p); // all now visited
+    expect(calls).toBe(3);
+    memoized("GET", "/d"); // full sweep, wrap, evict /a
+    expect(calls).toBe(4);
+    memoized("GET", "/b"); // spared by the sweep, still resident
+    memoized("GET", "/c");
+    expect(calls).toBe(4);
+    memoized("GET", "/a"); // the one the wrap took
+    expect(calls).toBe(5);
   });
 
   it("a non-positive cap disables memoization (not a cap of 1)", () => {

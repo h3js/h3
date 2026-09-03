@@ -20,7 +20,7 @@ import type { MatchResult, RouteRuleConfig } from "./types.ts";
 export interface RouteRulesOptions extends RouteRulesMatcherOptions {
   /**
    * Memoize matches by method and pathname. Enabled by default with a 1024-entry
-   * FIFO cap; shared results must be treated as read-only.
+   * cap; shared results must be treated as read-only.
    * @default true
    */
   memoize?: boolean | MatcherMemoizeOptions;
