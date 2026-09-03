@@ -43,6 +43,13 @@ export type {
   FetchableObject,
   HTTPHandler,
   TypedServerRequest,
+  TypedHeaders,
+  RequestHeaders,
+  ResponseHeaders,
+  RequestHeaderMap,
+  ResponseHeaderMap,
+  RequestHeaderName,
+  ResponseHeaderName,
 } from "./types/handler.ts";
 
 export {
