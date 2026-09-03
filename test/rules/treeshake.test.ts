@@ -177,8 +177,9 @@ describe("tree-shaking (esbuild)", () => {
   it("un-memoized createMatcherFromFind shakes out the memoize wrapper", async () => {
     // Memoization is wired in createRouteRulesMatcher, not createMatcherFromFind,
     // so an un-memoized compiled matcher must not bundle memoizeRouteRulesMatcher
-    // (~240 B). `.keys().next()` is its FIFO eviction — a marker no other matcher
-    // code emits — so its absence pins the wrapper out of the compiled path.
+    // (~430 B). Its SIEVE eviction hand walks a live Map iterator, so `.next(`
+    // is a marker no other matcher code emits — its absence pins the wrapper
+    // out of the compiled path.
     const out = await bundle(
       `import * as rules from "h3/rules";\nexport const m = rules.createMatcherFromFind(() => []);`,
     );

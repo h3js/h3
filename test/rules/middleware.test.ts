@@ -102,7 +102,7 @@ describe("routeRules() middleware", () => {
     expect(seen[3]).not.toBe(seen[2]);
   });
 
-  it("memoize accepts MatcherMemoizeOptions (FIFO entry cap)", async () => {
+  it("memoize accepts MatcherMemoizeOptions (entry cap)", async () => {
     const { app, seen } = appWithContextProbe(
       { "/api/**": { headers: { "x-api": "1" } } },
       { memoize: { max: 1 } },
