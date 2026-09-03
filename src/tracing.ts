@@ -87,6 +87,7 @@ export function tracingPlugin(traceOpts?: TracingPluginOptions): H3Plugin {
     if ("on" in h3 && typeof h3.on === "function") {
       const originalOn = h3.on;
 
+      // `on` is generic, so the rest args need an explicit type to stay applicable.
       h3.on = (...args: Parameters<H3["on"]>) => {
         const instance = originalOn.apply(h3, args);
         // Since it uses route push, we can wrap the last route handler added
