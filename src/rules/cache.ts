@@ -25,7 +25,13 @@ export interface OcacheRuleHandlerOptions {
    * cache rule this handler serves. Defaults to one lazily created memory store.
    */
   storage?: StorageOption;
-  /** Default ocache options. Rule options take precedence. */
+  /**
+   * Default ocache options. Rule options take precedence.
+   *
+   * A `shouldBypassCache` hook passed here is resolved inside the cache, so a
+   * request it bypasses is still dispatched by the rule and does not continue
+   * the middleware chain the way an uncacheable method or `Range` request does.
+   */
   defaults?: CachedEventHandlerOptions;
   /** Stable cache-key scope. Set this when sharing persistent storage across processes. */
   id?: string;
@@ -124,6 +130,18 @@ function moveVolatileHeaders(res: Response, event: H3Event): Response {
     event.res.headers.set("vary", vary!);
   }
   return res;
+}
+
+/**
+ * Requests ocache never reads or writes an entry for (`isBypassedMethod`): it
+ * runs the handler live and returns, so the rule has nothing to contribute and
+ * passes them down the middleware chain instead of dispatching the route.
+ * A `Range` request is bypassed there because a partial response must not
+ * become the stored entry for the whole resource.
+ */
+function isBypassedRequest(event: H3Event): boolean {
+  const method = event.req.method;
+  return (method !== "GET" && method !== "HEAD") || event.req.headers.has("range");
 }
 
 // Never dispatch credentials under a cache key that does not vary by them.
@@ -276,6 +294,7 @@ export function createOcacheRuleHandler(opts?: OcacheRuleHandlerOptions): RuleHa
     opts?.storage ??
     (id === undefined ? () => (memoryStorage ??= createMemoryStorage()) : () => idStorage(id));
   return createCacheRuleHandler({
+    shouldBypass: isBypassedRequest,
     defineCachedHandler: (handler, cachedOpts) => {
       const allowCredentials = cachedOpts.allowAuthorization === true;
       const strip: readonly string[] = allowCredentials ? [] : CREDENTIAL_HEADERS;
