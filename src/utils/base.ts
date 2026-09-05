@@ -1,4 +1,4 @@
-import type { EventHandler, HTTPHandler } from "../types/handler.ts";
+import type { EventHandler, EventHandlerRequest, HTTPHandler } from "../types/handler.ts";
 import { toEventHandler } from "../handler.ts";
 import { withoutBase, withoutTrailingSlash } from "./internal/path.ts";
 
@@ -14,7 +14,10 @@ import { withoutBase, withoutTrailingSlash } from "./internal/path.ts";
  * @param base The base path to prefix.
  * @param handler The event handler to use with the adapted path.
  */
-export function withBase(base: string, input: HTTPHandler): EventHandler {
+export function withBase<_RequestT extends EventHandlerRequest = EventHandlerRequest>(
+  base: string,
+  input: HTTPHandler<_RequestT>,
+): EventHandler {
   base = withoutTrailingSlash(base);
 
   const handler = toEventHandler(input);

@@ -142,8 +142,8 @@ export function dynamicEventHandler(initial?: EventHandler | FetchableObject): D
 
 type MaybePromise<T> = T | Promise<T>;
 
-export function defineLazyEventHandler(
-  loader: () => MaybePromise<HTTPHandler>,
+export function defineLazyEventHandler<Req extends EventHandlerRequest = EventHandlerRequest>(
+  loader: () => MaybePromise<HTTPHandler<Req>>,
 ): EventHandlerWithFetch {
   let handler: EventHandler | undefined;
   let promise: Promise<EventHandler> | undefined;
@@ -162,9 +162,11 @@ export function defineLazyEventHandler(
 
 // --- normalization utils ---
 
-export function toEventHandler(handler: HTTPHandler | undefined): EventHandler | undefined {
+export function toEventHandler<Req extends EventHandlerRequest = EventHandlerRequest>(
+  handler: HTTPHandler<Req> | undefined,
+): EventHandler | undefined {
   if (typeof handler === "function") {
-    return handler;
+    return handler as EventHandler;
   }
   if (typeof (handler as H3Core)?.handler === "function" && (handler as any).constructor?.["~h3"]) {
     return (handler as H3Core).handler;
