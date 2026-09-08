@@ -45,6 +45,7 @@ export type {
   HTTPHandler,
   TypedServerRequest,
 } from "./types/handler.ts";
+export type { TypedHeaders } from "fetchdts";
 
 export {
   defineHandler,

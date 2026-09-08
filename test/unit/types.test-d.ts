@@ -4,6 +4,7 @@ import type {
   HTTPHandler,
   H3Event,
   RouteRules,
+  TypedHeaders,
   WebSocketResponse,
 } from "../../src/index.ts";
 import { H3 } from "../../src/index.ts";
@@ -29,6 +30,12 @@ import {
 import { z } from "zod";
 
 describe("types", () => {
+  it("exports TypedHeaders", () => {
+    type RequestHeaders = TypedHeaders<{ authorization: string }>;
+    const getAuthorization = (headers: RequestHeaders) => headers.get("authorization");
+    expectTypeOf(getAuthorization).returns.toEqualTypeOf<string | null>();
+  });
+
   type ReqOf<H> = H extends (event: H3Event<infer R>) => any ? R : never;
 
   describe("eventHandler", () => {
