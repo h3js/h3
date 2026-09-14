@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { addRoute, createRouter, findRoute } from "rou3";
 import { H3 } from "../../src/h3.ts";
+import { mockEvent } from "../../src/utils/event.ts";
 import { removeRoute } from "../../src/utils/route.ts";
-import { normalizeRoute } from "../../src/utils/internal/path.ts";
+import { normalizeRoute } from "../../src/utils/path.ts";
 
 // `on()` used to normalize a route pattern with `new URL(route, "http://_")`
 // while `use(route, mw)` normalized it with `canonicalPathname` alone. The two
@@ -89,6 +91,24 @@ describe("route registration", () => {
     expect(() => app.use("http://evil.com/admin", () => "ok")).toThrow(
       /Route patterns are pathnames/,
     );
+  });
+
+  // A framework that registers into its own rou3 router (e.g. a build-time
+  // compiled one) and matches it against `event.url.pathname` must normalize
+  // patterns the way `on()` does, or literal routes like `/café` never match.
+  it("an external rou3 router matches what h3 matches once patterns are normalized", async () => {
+    const literals = ["/について", "/café/x", "/hello world", '/a"b', "/tag/<x>", "/%40handle"];
+    const app = new H3();
+    const router = createRouter<string>();
+    for (const route of literals) {
+      app.get(route, () => "ok");
+      addRoute(router, "GET", normalizeRoute(route), route);
+    }
+    for (const route of literals) {
+      expect((await app.request(route)).status, `h3: ${route}`).toBe(200);
+      const { pathname } = mockEvent(`http://localhost${route}`).url;
+      expect(findRoute(router, "GET", pathname)?.data, `rou3: ${route}`).toBe(route);
+    }
   });
 
   it.each(CASES)("removeRoute(%j) removes the route registered as %j", (source, registered) => {

@@ -1,3 +1,5 @@
+import { normalizeRoute as _normalizeRoute } from "./internal/path.ts";
+
 export interface ResolveDotSegmentsOptions {
   /**
    * Also decode percent-encoded path separators (`%2f`, `%5c`) into real `/`
@@ -211,4 +213,33 @@ export function isCanonicalPath(path: string, opts?: ResolveDotSegmentsOptions):
     path[1] !== "\\" &&
     !TRIGGER_RES[(opts?.decodeSlashes ? 1 : 0) | (opts?.mergeSlashes ? 2 : 0)]!.test(path)
   );
+}
+
+/**
+ * Normalize a route pattern into the canonical form h3 registers it under — the
+ * same shape as the `event.url.pathname` it will be matched against.
+ *
+ * `app.on()`, `app.use(route, …)`, `app.mount()` and `removeRoute()` all apply
+ * this to the pattern they receive. Use it when registering patterns into a
+ * router of your own (e.g. a build-time compiled rou3 router) that is then
+ * matched against h3's `event.url.pathname`, so both sides agree on the string —
+ * a pattern that normalized differently could leave a route reachable while a
+ * guard registered with the same source string matches nothing.
+ *
+ * A leading `/` is added if missing (`about` → `/about`), characters a request
+ * pathname always carries percent-encoded are encoded (`/café/**` →
+ * `/caf%C3%A9/**`), needless escapes are decoded the way h3 decodes them in the
+ * request pathname (`/%40handle` → `/@handle`; `%2F` and `%25` stay encoded), and
+ * `.`/`..` segments are resolved (`/a/b/../c` → `/a/c`). rou3 pattern syntax
+ * (`?`, `{`, `}`, `^`, `\`) is left verbatim — spell one percent-encoded to match
+ * it literally.
+ *
+ * Idempotent. Throws on an absolute URL (`http://…`): a route pattern is a
+ * pathname, never a URL.
+ *
+ * @example
+ * normalizeRoute("/について/**"); // "/%E3%81%AB%E3%81%A4%E3%81%84%E3%81%A6/**"
+ */
+export function normalizeRoute(route: string): string {
+  return _normalizeRoute(route);
 }
