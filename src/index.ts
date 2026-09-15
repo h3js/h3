@@ -101,7 +101,6 @@ export {
   getRequestProtocol,
   getRequestURL,
   isMethod,
-  getRawQuery,
   getQuery,
   getValidatedQuery,
   assertMethod,
