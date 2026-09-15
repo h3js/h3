@@ -26,11 +26,11 @@ export interface H3EventContext extends ServerRequestContext {
   /* Trusted IP Address of client */
   clientAddress?: string;
 
-  /* Basic authentication data */
+  /* Basic authentication data, set by `requireBasicAuth` once credentials are accepted */
   basicAuth?: {
-    username?: string;
-    password?: string;
-    realm?: string;
+    username: string;
+    password: string;
+    realm: string;
   };
 
   /* Server-Timing entries collected via setServerTiming / withServerTiming */
