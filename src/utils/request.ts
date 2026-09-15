@@ -124,8 +124,7 @@ export function getQuery<
   Event extends H3Event | HTTPEvent = HTTPEvent,
   _T = Exclude<InferEventInput<"query", Event, T>, undefined>,
 >(event: Event): _T {
-  const url = (event as H3Event).url || new URL(event.req.url);
-  return parseQuery(url.search.slice(1)) as _T;
+  return parseQuery(getRawQuery(event)) as _T;
 }
 
 export function getValidatedQuery<Event extends HTTPEvent, S extends StandardSchemaV1<any, any>>(
