@@ -58,6 +58,14 @@ export interface ErrorBody<DataT = unknown> {
   unhandled?: boolean;
 
   /**
+   * When `true`, the error is serialized to the client using RFC 9457
+   * (`application/problem+json`) format instead of the default JSON shape.
+   *
+   * This can also be enabled globally via `H3Config.problemDetails`.
+   */
+  problemDetails?: boolean;
+
+  /**
    * Additional data to attach in the error JSON body under `data` key.
    */
   data?: DataT;
@@ -117,6 +125,12 @@ export class HTTPError<DataT = unknown> extends Error implements ErrorBody<DataT
    * Unhandled error stack trace, data and message are hidden in non debug mode for security reasons.
    */
   readonly unhandled: boolean | undefined;
+
+  /**
+   * When `true`, the error is serialized to the client using RFC 9457
+   * (`application/problem+json`) format instead of the default JSON shape.
+   */
+  readonly problemDetails: boolean | undefined;
 
   /**
    * Check if the input is an instance of HTTPError using its constructor name and status.
@@ -204,6 +218,11 @@ export class HTTPError<DataT = unknown> extends Error implements ErrorBody<DataT
 
     this.unhandled =
       (details as ErrorBody)?.unhandled ?? (details?.cause as ErrorBody)?.unhandled ?? undefined;
+
+    this.problemDetails =
+      (details as ErrorBody)?.problemDetails ??
+      (details?.cause as ErrorBody)?.problemDetails ??
+      undefined;
 
     this.data = (details as ErrorBody)?.data as DataT | undefined;
     this.body = (details as ErrorBody)?.body;

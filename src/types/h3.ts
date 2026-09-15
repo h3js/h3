@@ -50,6 +50,15 @@ export interface H3Config {
   onRequest?: (event: H3Event) => MaybePromise<void>;
   onResponse?: (response: Response, event: H3Event) => MaybePromise<void>;
   onError?: (error: HTTPError, event: H3Event) => MaybePromise<void | unknown>;
+
+  /**
+   * When enabled, error responses are serialized using RFC 9457
+   * (`application/problem+json`) format.
+   *
+   * The per-error `HTTPError`'s `problemDetails` option always takes
+   * precedence over this global setting.
+   */
+  problemDetails?: boolean;
 }
 
 export type H3CoreConfig = Omit<H3Config, "plugins">;

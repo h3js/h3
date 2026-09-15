@@ -170,7 +170,7 @@ function prepareResponse(
     // `errHeaders` a second time — harmless for single-valued headers (`set`), but
     // `set-cookie` is appended and would be duplicated.
     (event as any)[kEventRes] = undefined;
-    return errorResponse(error, config.debug, errHeaders);
+    return errorResponse(error, config.debug, errHeaders, config.problemDetails);
   }
 
   // Only set if event.res.headers is accessed
@@ -267,6 +267,26 @@ const emptyHeaders = /* @__PURE__ */ new FrozenHeaders({
   "content-length": "0",
 });
 
+// Subset of HTTP reason phrases for RFC 9457 `title` fallback.
+const STATUS_TEXT: Record<number, string> = {
+  400: "Bad Request",
+  401: "Unauthorized",
+  403: "Forbidden",
+  404: "Not Found",
+  405: "Method Not Allowed",
+  406: "Not Acceptable",
+  409: "Conflict",
+  410: "Gone",
+  415: "Unsupported Media Type",
+  422: "Unprocessable Entity",
+  429: "Too Many Requests",
+  500: "Internal Server Error",
+  501: "Not Implemented",
+  502: "Bad Gateway",
+  503: "Service Unavailable",
+  504: "Gateway Timeout",
+};
+
 const jsonHeaders = /* @__PURE__ */ new FrozenHeaders({
   "content-type": "application/json;charset=UTF-8",
 });
@@ -355,26 +375,62 @@ function nullBody(method: string, status: number | undefined): boolean | 0 | und
   )
 }
 
-function errorResponse(error: HTTPError, debug?: boolean, errHeaders?: Headers): Response {
-  let headers: Headers = error.headers
-    ? mergeHeaders(jsonHeaders, error.headers)
-    : new Headers(jsonHeaders);
-  if (errHeaders) {
-    headers = mergeHeaders(headers, errHeaders);
+function errorResponse(
+  error: HTTPError,
+  debug?: boolean,
+  errHeaders?: Headers,
+  useProblemDetails?: boolean,
+): Response {
+  const problem = useProblemDetails ?? error.problemDetails;
+
+  const headers: Headers = problem
+    ? new Headers(error.headers)
+    : error.headers
+      ? mergeHeaders(jsonHeaders, error.headers)
+      : new Headers(jsonHeaders);
+
+  // Override content-type to RFC 9457 media type when problem details are active
+  if (problem) {
+    headers.set("content-type", "application/problem+json");
   }
-  return new FastResponse(
-    JSON.stringify(
-      {
-        ...error.toJSON(),
-        stack: debug && error.stack ? error.stack.split("\n").map((l) => l.trim()) : undefined,
-      },
-      undefined,
-      debug ? 2 : undefined,
-    ),
-    {
-      status: error.status,
-      statusText: error.statusText,
-      headers,
-    },
-  );
+  if (errHeaders) {
+    errHeaders.forEach((value, key) => headers.append(key, value));
+  }
+
+  const body = problem
+    ? JSON.stringify(
+        (() => {
+          const toJSON = error.toJSON() as Record<string, unknown>;
+          const { statusText, unhandled, problemDetails, ...extensions } = toJSON;
+          return {
+            type: "about:blank",
+            title: error.statusText || getReasonPhrase(error.status),
+            status: error.status,
+            detail: error.message,
+            instance: undefined,
+            ...extensions,
+            stack: debug && error.stack ? error.stack.split("\n").map((l) => l.trim()) : undefined,
+          };
+        })(),
+        undefined,
+        debug ? 2 : undefined,
+      )
+    : JSON.stringify(
+        {
+          ...error.toJSON(),
+          stack: debug && error.stack ? error.stack.split("\n").map((l) => l.trim()) : undefined,
+        },
+        undefined,
+        debug ? 2 : undefined,
+      );
+
+  return new FastResponse(body, {
+    status: error.status,
+    statusText: error.statusText,
+    headers,
+  });
+}
+
+function getReasonPhrase(status: number): string {
+  return STATUS_TEXT[status] ?? "Unknown";
 }

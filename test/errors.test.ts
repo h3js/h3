@@ -398,4 +398,49 @@ describeMatrix("errors", (t, { it, expect, describe }) => {
     const res = await t.fetch("/");
     expect(res.status).toBe(418);
   });
+
+  describe("problem details (RFC 9457)", () => {
+    it("emits application/problem+json when HTTPError has problemDetails: true", async () => {
+      t.app.use(() => {
+        throw new HTTPError({
+          status: 404,
+          statusText: "Not Found",
+          message: "Resource not found",
+          problemDetails: true,
+        });
+      });
+
+      const result = await t.fetch("/");
+
+      expect(result.status).toBe(404);
+      expect(result.headers.get("content-type")).toBe("application/problem+json");
+
+      expect(JSON.parse(await result.text())).toMatchObject({
+        type: "about:blank",
+        title: "Not Found",
+        status: 404,
+        detail: "Resource not found",
+      });
+    });
+
+    it("emits application/problem+json when config.problemDetails: true", async () => {
+      const app = new H3({ problemDetails: true });
+      app.use(() => {
+        throw new HTTPError({
+          status: 422,
+          statusText: "Unprocessable Entity",
+          message: "Validation failed",
+        });
+      });
+
+      const result = await app.request("/");
+      expect(result.headers.get("content-type")).toBe("application/problem+json");
+      expect(JSON.parse(await result.text())).toMatchObject({
+        type: "about:blank",
+        title: "Unprocessable Entity",
+        status: 422,
+        detail: "Validation failed",
+      });
+    });
+  });
 });
