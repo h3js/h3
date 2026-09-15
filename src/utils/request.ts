@@ -99,6 +99,18 @@ export function toRequest(
 }
 
 /**
+ * Get the raw query string from the request URL.
+ *
+ * @example
+ * app.get("/", (event) => {
+ *   const query = getRawQuery(event); // "key=value&key2=value1&key2=value2"
+ * });
+ */
+export function getRawQuery(event: HTTPEvent): string {
+  return (event as H3Event).url?.search.slice(1) || "";
+}
+
+/**
  * Get parsed query string object from the request URL.
  *
  * @example
@@ -111,8 +123,7 @@ export function getQuery<
   Event extends H3Event | HTTPEvent = HTTPEvent,
   _T = Exclude<InferEventInput<"query", Event, T>, undefined>,
 >(event: Event): _T {
-  const url = (event as H3Event).url || new URL(event.req.url);
-  return parseQuery(url.search.slice(1)) as _T;
+  return parseQuery(getRawQuery(event)) as _T;
 }
 
 export function getValidatedQuery<Event extends HTTPEvent, S extends StandardSchemaV1<any, any>>(
