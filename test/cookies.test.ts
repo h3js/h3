@@ -175,6 +175,41 @@ describeMatrix("cookies", (t, { it, expect, describe }) => {
       expect(await result.text()).toBe("200");
     });
 
+    it("does not deduplicate cookies that differ only by `partitioned` (CHIPS keeps them in separate jars)", async () => {
+      t.app.get("/", (event) => {
+        // e.g. clearing a legacy, pre-CHIPS cookie while also (re)writing
+        // today's partitioned one -- these must never collapse into one.
+        setCookie(event, "session", "", { sameSite: "lax", maxAge: 0 });
+        setCookie(event, "session", "new-value", {
+          sameSite: "none",
+          secure: true,
+          partitioned: true,
+        });
+        return "200";
+      });
+      const result = await t.fetch("/");
+      const cookies = result.headers.getSetCookie();
+      expect(cookies).toHaveLength(2);
+      expect(cookies[0]).toContain("Max-Age=0");
+      expect(cookies[0]).not.toContain("Partitioned");
+      expect(cookies[1]).toContain("session=new-value");
+      expect(cookies[1]).toContain("Partitioned");
+      expect(await result.text()).toBe("200");
+    });
+
+    it("still deduplicates cookies with the same `partitioned` value", async () => {
+      t.app.get("/", (event) => {
+        setCookie(event, "session", "old", { partitioned: true, secure: true, sameSite: "none" });
+        setCookie(event, "session", "new", { partitioned: true, secure: true, sameSite: "none" });
+        return "200";
+      });
+      const result = await t.fetch("/");
+      const cookies = result.headers.getSetCookie();
+      expect(cookies).toHaveLength(1);
+      expect(cookies[0]).toContain("session=new");
+      expect(await result.text()).toBe("200");
+    });
+
     it("deduplicates cookies with leading-dot / mixed-case domains", async () => {
       t.app.get("/", (event) => {
         setCookie(event, "foo", "old", { domain: ".Example.com" });
