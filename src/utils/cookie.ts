@@ -262,13 +262,7 @@ export function deleteChunkedCookie(
 
 /**
  * Cookies are unique by "cookie-name, domain-value, and path-value".
- *
- * `partitioned` is also part of the identity: a partitioned cookie
- * (CHIPS) is stored in a separate browser cookie jar from an
- * unpartitioned one with the same name/domain/path, so a `setCookie`/
- * `deleteCookie` call for one must never be treated as replacing the
- * other — doing so drops whichever call happened first from the
- * response, even though the browser would keep both.
+ * Partitioned (CHIPS) cookies live in a separate jar, so `partitioned` is part of the identity too.
  *
  * @see https://httpwg.org/specs/rfc6265.html#rfc.section.4.1.2
  * @see https://developer.mozilla.org/en-US/docs/Web/Privacy/Guides/Privacy_sandbox/Partitioned_cookies
