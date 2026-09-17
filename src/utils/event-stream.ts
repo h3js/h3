@@ -197,10 +197,13 @@ export class EventStream extends HTTPResponse {
       return;
     }
     if (this._unsentData?.length) {
-      await this._writer.write(this._encoder.encode(this._unsentData)).catch(() => {
+      const data = this._unsentData;
+      // Detach this batch before yielding: another flush or paused push may run
+      // while the writer is waiting for the client to read.
+      this._unsentData = undefined;
+      await this._writer.write(this._encoder.encode(data)).catch(() => {
         this._writerIsClosed = true;
       });
-      this._unsentData = undefined;
     }
   }
 
