@@ -93,7 +93,18 @@ export class EventStream extends HTTPResponse {
     // End-of-event covers every runtime: normal end, client disconnect, and
     // a stream that is created but never `send()`-ed (the response completed
     // without it) all converge here.
-    onDispose(this._event, () => this.close());
+    onDispose(this._event, () => {
+      // Nobody ever read the stream (never sent, body dropped for HEAD, ...).
+      // A fresh TransformStream is backpressured, so a pending write would
+      // never resolve and `close()` would wait behind it forever. Cancelling
+      // the unread side rejects pending writes and settles `writer.closed`,
+      // exactly like a client disconnect. (`writer.abort()` would not: it
+      // waits for the in-flight write first.)
+      if (!this._isClosed && !this._transformStream.readable.locked) {
+        return this._transformStream.readable.cancel().catch(_noop);
+      }
+      return this.close();
+    });
   }
 
   /**
@@ -217,8 +228,12 @@ export class EventStream extends HTTPResponse {
     if (!this._isClosed) {
       // Data buffered while paused is still owed to the client. `flush()`
       // short-circuits once closed, so this is the last chance to send it.
-      this._paused = false;
-      await this.flush();
+      // A paused push can land while the flush is waiting on backpressure,
+      // so loop until nothing is buffered before queueing the close.
+      do {
+        this._paused = false;
+        await this.flush();
+      } while (!this._isClosed && this._unsentData?.length);
       try {
         await this._writer.close();
       } catch {

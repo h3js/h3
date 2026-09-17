@@ -199,6 +199,24 @@ describeMatrix("sse", (t, { it, expect }) => {
     await waitFor(() => closed);
   });
 
+  it("closes a stream whose body is dropped for a HEAD request", async () => {
+    let closed = false;
+    t.app.get("/sse-head", (event) => {
+      const eventStream = createEventStream(event);
+      eventStream.onClosed(() => {
+        closed = true;
+      });
+      // The first write on an unconsumed stream never resolves, so `close()`
+      // alone would wait forever behind it.
+      eventStream.push("hello");
+      return eventStream;
+    });
+    const res = await t.fetch("/sse-head", { method: "HEAD" });
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe("");
+    await waitFor(() => closed);
+  });
+
   it("autocloses the stream on client disconnect", async () => {
     let stream: ReturnType<typeof createEventStream>;
     t.app.get("/sse-autoclose-disconnect", (event) => {

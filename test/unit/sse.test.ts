@@ -269,6 +269,23 @@ describe("sse (unit)", () => {
       );
     });
 
+    it("delivers data buffered while close() is flushing", async () => {
+      const stream = new EventStream(mockEvent("/"));
+      const readable = (await stream.send()) as ReadableStream<Uint8Array>;
+
+      stream.pause();
+      await stream.push("first");
+      // close() is now blocked on the first write until a reader attaches.
+      const closing = stream.close();
+      stream.pause();
+      await stream.push("second");
+
+      const read = _readAll(readable);
+      await closing;
+
+      expect(await read).toBe("data: first\n\ndata: second\n\n");
+    });
+
     it("settles overlapping flushes when the reader cancels", async () => {
       const stream = new EventStream(mockEvent("/"));
       const readable = (await stream.send()) as ReadableStream<Uint8Array>;
