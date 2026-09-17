@@ -29,7 +29,7 @@ export interface H3EventContext extends ServerRequestContext {
   /* Basic authentication data, set by `requireBasicAuth` once credentials are accepted */
   basicAuth?: {
     username: string;
-    password: string;
+    password?: string;
     realm: string;
   };
 

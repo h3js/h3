@@ -402,15 +402,17 @@ describe("deprecated v1 signatures", () => {
 });
 
 describe("basicAuth context", () => {
-  // `requireBasicAuth` has a single write site and it always assigns all three
-  // fields as strings (two `slice` results and `opts.realm ?? "auth"`), so
-  // reading one back must not require a redundant `undefined` check.
-  it("exposes the credentials as strings once set", () => {
+  // `requireBasicAuth` has a single write site and it always assigns `username`
+  // (a `slice` result) and `realm` (`opts.realm ?? "auth"`) as strings, so
+  // reading them back must not require a redundant `undefined` check.
+  // `password` stays optional so it can be dropped from the context later
+  // without a breaking type change.
+  it("exposes username and realm as strings once set", () => {
     defineHandler(async (event) => {
       await requireBasicAuth(event, { password: "test" });
       const auth = event.context.basicAuth!;
       expectTypeOf(auth.username).toEqualTypeOf<string>();
-      expectTypeOf(auth.password).toEqualTypeOf<string>();
+      expectTypeOf(auth.password).toEqualTypeOf<string | undefined>();
       expectTypeOf(auth.realm).toEqualTypeOf<string>();
     });
   });
@@ -419,7 +421,7 @@ describe("basicAuth context", () => {
   it("stays optional until a request is authenticated", () => {
     defineHandler((event) => {
       expectTypeOf(event.context.basicAuth).toEqualTypeOf<
-        { username: string; password: string; realm: string } | undefined
+        { username: string; password?: string; realm: string } | undefined
       >();
     });
   });
