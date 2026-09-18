@@ -67,6 +67,7 @@ export class EventStream extends HTTPResponse {
   private _paused = false;
   private _unsentData: undefined | string;
   private _disposed = false;
+  private _closing: Promise<void> | undefined;
 
   private get _isClosed(): boolean {
     return this._writerIsClosed || this._disposed;
@@ -221,7 +222,11 @@ export class EventStream extends HTTPResponse {
   /**
    * Close the stream and the connection if the stream is being sent to the client
    */
-  async close(): Promise<void> {
+  close(): Promise<void> {
+    return (this._closing ??= this._close());
+  }
+
+  private async _close(): Promise<void> {
     if (this._disposed) {
       return;
     }

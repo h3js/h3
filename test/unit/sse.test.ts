@@ -301,6 +301,45 @@ describe("sse (unit)", () => {
       await stream.push("after cancellation");
     });
 
+    it("drains paused data when close calls overlap", async () => {
+      const stream = new EventStream(mockEvent("/"));
+      const readable = (await stream.send()) as ReadableStream<Uint8Array>;
+      const onClosed = vi.fn();
+      stream.onClosed(onClosed);
+
+      stream.pause();
+      await stream.push("first");
+      const firstClose = stream.close();
+      const secondClose = stream.close();
+      // Let the second close finish its empty flush while the first is blocked.
+      await Promise.resolve();
+      stream.pause();
+      await stream.push("second");
+
+      const read = _readAll(readable);
+      await Promise.all([firstClose, secondClose]);
+
+      expect(await read).toBe("data: first\n\ndata: second\n\n");
+      expect(onClosed).toHaveBeenCalledTimes(1);
+    });
+
+    it("settles overlapping close calls when the reader cancels", async () => {
+      const stream = new EventStream(mockEvent("/"));
+      const readable = (await stream.send()) as ReadableStream<Uint8Array>;
+      const onClosed = vi.fn();
+      stream.onClosed(onClosed);
+
+      stream.pause();
+      await stream.push("buffered");
+      const firstClose = stream.close();
+      const secondClose = stream.close();
+      await readable.cancel(new Error("client disconnected"));
+      await Promise.all([firstClose, secondClose]);
+      await stream.close();
+
+      expect(onClosed).toHaveBeenCalledTimes(1);
+    });
+
     it("marks writer as closed on flush write failure", async () => {
       const event = mockEvent("/");
       const stream = new EventStream(event);
