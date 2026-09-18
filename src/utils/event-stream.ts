@@ -67,6 +67,7 @@ export class EventStream extends HTTPResponse {
   private _paused = false;
   private _unsentData: undefined | string;
   private _disposed = false;
+  private _closing: Promise<void> | undefined;
 
   private get _isClosed(): boolean {
     return this._writerIsClosed || this._disposed;
@@ -93,7 +94,18 @@ export class EventStream extends HTTPResponse {
     // End-of-event covers every runtime: normal end, client disconnect, and
     // a stream that is created but never `send()`-ed (the response completed
     // without it) all converge here.
-    onDispose(this._event, () => this.close());
+    onDispose(this._event, () => {
+      // Nobody ever read the stream (never sent, body dropped for HEAD, ...).
+      // A fresh TransformStream is backpressured, so a pending write would
+      // never resolve and `close()` would wait behind it forever. Cancelling
+      // the unread side rejects pending writes and settles `writer.closed`,
+      // exactly like a client disconnect. (`writer.abort()` would not: it
+      // waits for the in-flight write first.)
+      if (!this._isClosed && !this._transformStream.readable.locked) {
+        return this._transformStream.readable.cancel().catch(_noop);
+      }
+      return this.close();
+    });
   }
 
   /**
@@ -197,25 +209,36 @@ export class EventStream extends HTTPResponse {
       return;
     }
     if (this._unsentData?.length) {
-      await this._writer.write(this._encoder.encode(this._unsentData)).catch(() => {
+      const data = this._unsentData;
+      // Detach this batch before yielding: another flush or paused push may run
+      // while the writer is waiting for the client to read.
+      this._unsentData = undefined;
+      await this._writer.write(this._encoder.encode(data)).catch(() => {
         this._writerIsClosed = true;
       });
-      this._unsentData = undefined;
     }
   }
 
   /**
    * Close the stream and the connection if the stream is being sent to the client
    */
-  async close(): Promise<void> {
+  close(): Promise<void> {
+    return (this._closing ??= this._close());
+  }
+
+  private async _close(): Promise<void> {
     if (this._disposed) {
       return;
     }
     if (!this._isClosed) {
       // Data buffered while paused is still owed to the client. `flush()`
       // short-circuits once closed, so this is the last chance to send it.
-      this._paused = false;
-      await this.flush();
+      // A paused push can land while the flush is waiting on backpressure,
+      // so loop until nothing is buffered before queueing the close.
+      do {
+        this._paused = false;
+        await this.flush();
+      } while (!this._isClosed && this._unsentData?.length);
       try {
         await this._writer.close();
       } catch {

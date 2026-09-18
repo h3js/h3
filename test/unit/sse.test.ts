@@ -231,6 +231,115 @@ describe("sse (unit)", () => {
       expect(await read).toBe("data: buffered\n\n");
     });
 
+    it("does not duplicate buffered events when flushes overlap", async () => {
+      const stream = new EventStream(mockEvent("/"));
+      const readable = (await stream.send()) as ReadableStream<Uint8Array>;
+
+      stream.pause();
+      await stream.push("buffered");
+      // Both flushes start before a reader can release backpressure.
+      const first = stream.flush();
+      const second = stream.flush();
+      const read = _readAll(readable);
+
+      await Promise.all([first, second]);
+      await stream.close();
+
+      expect(await read).toBe("data: buffered\n\n");
+    });
+
+    it("preserves data buffered while a paused flush waits for a reader", async () => {
+      const stream = new EventStream(mockEvent("/"));
+      const readable = (await stream.send()) as ReadableStream<Uint8Array>;
+
+      stream.pause();
+      await stream.push("first");
+      const flushing = stream.flush();
+      await stream.push({ id: "2", data: "second" });
+      await stream.push(["third", "fourth"]);
+      await stream.pushComment("keep-alive");
+
+      const read = _readAll(readable);
+      await flushing;
+      expect(stream.isPaused).toBe(true);
+      await stream.close();
+
+      expect(await read).toBe(
+        "data: first\n\nid: 2\ndata: second\n\ndata: third\n\ndata: fourth\n\n: keep-alive\n\n",
+      );
+    });
+
+    it("delivers data buffered while close() is flushing", async () => {
+      const stream = new EventStream(mockEvent("/"));
+      const readable = (await stream.send()) as ReadableStream<Uint8Array>;
+
+      stream.pause();
+      await stream.push("first");
+      // close() is now blocked on the first write until a reader attaches.
+      const closing = stream.close();
+      stream.pause();
+      await stream.push("second");
+
+      const read = _readAll(readable);
+      await closing;
+
+      expect(await read).toBe("data: first\n\ndata: second\n\n");
+    });
+
+    it("settles overlapping flushes when the reader cancels", async () => {
+      const stream = new EventStream(mockEvent("/"));
+      const readable = (await stream.send()) as ReadableStream<Uint8Array>;
+
+      stream.pause();
+      await stream.push("buffered");
+      const first = stream.flush();
+      const second = stream.flush();
+      await readable.cancel(new Error("client disconnected"));
+
+      await Promise.all([first, second]);
+      await stream.close();
+      await stream.push("after cancellation");
+    });
+
+    it("drains paused data when close calls overlap", async () => {
+      const stream = new EventStream(mockEvent("/"));
+      const readable = (await stream.send()) as ReadableStream<Uint8Array>;
+      const onClosed = vi.fn();
+      stream.onClosed(onClosed);
+
+      stream.pause();
+      await stream.push("first");
+      const firstClose = stream.close();
+      const secondClose = stream.close();
+      // Let the second close finish its empty flush while the first is blocked.
+      await Promise.resolve();
+      stream.pause();
+      await stream.push("second");
+
+      const read = _readAll(readable);
+      await Promise.all([firstClose, secondClose]);
+
+      expect(await read).toBe("data: first\n\ndata: second\n\n");
+      expect(onClosed).toHaveBeenCalledTimes(1);
+    });
+
+    it("settles overlapping close calls when the reader cancels", async () => {
+      const stream = new EventStream(mockEvent("/"));
+      const readable = (await stream.send()) as ReadableStream<Uint8Array>;
+      const onClosed = vi.fn();
+      stream.onClosed(onClosed);
+
+      stream.pause();
+      await stream.push("buffered");
+      const firstClose = stream.close();
+      const secondClose = stream.close();
+      await readable.cancel(new Error("client disconnected"));
+      await Promise.all([firstClose, secondClose]);
+      await stream.close();
+
+      expect(onClosed).toHaveBeenCalledTimes(1);
+    });
+
     it("marks writer as closed on flush write failure", async () => {
       const event = mockEvent("/");
       const stream = new EventStream(event);

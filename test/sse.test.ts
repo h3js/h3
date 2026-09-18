@@ -168,6 +168,23 @@ describeMatrix("sse", (t, { it, expect }) => {
     expect(await res.text()).toBe("data: sent\n\ndata: buffered\n\n");
   });
 
+  it("does not duplicate buffered events when resume overlaps close", async () => {
+    let completed: Promise<void[]>;
+    t.app.get("/sse-resume-close", async (event) => {
+      const eventStream = createEventStream(event);
+      eventStream.pause();
+      await eventStream.push("buffered");
+      // Start both before returning the stream so neither write can finish yet.
+      completed = Promise.all([eventStream.resume(), eventStream.close()]);
+      return eventStream;
+    });
+
+    const res = await t.fetch("/sse-resume-close");
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe("data: buffered\n\n");
+    await completed!;
+  });
+
   it("closes a stream that is created but never sent", async () => {
     let closed = false;
     t.app.get("/sse-unsent", (event) => {
@@ -179,6 +196,24 @@ describeMatrix("sse", (t, { it, expect }) => {
     });
     const res = await t.fetch("/sse-unsent");
     expect(await res.text()).toBe("regular response");
+    await waitFor(() => closed);
+  });
+
+  it("closes a stream whose body is dropped for a HEAD request", async () => {
+    let closed = false;
+    t.app.get("/sse-head", (event) => {
+      const eventStream = createEventStream(event);
+      eventStream.onClosed(() => {
+        closed = true;
+      });
+      // The first write on an unconsumed stream never resolves, so `close()`
+      // alone would wait forever behind it.
+      eventStream.push("hello");
+      return eventStream;
+    });
+    const res = await t.fetch("/sse-head", { method: "HEAD" });
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe("");
     await waitFor(() => closed);
   });
 
