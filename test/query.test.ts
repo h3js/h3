@@ -1,5 +1,6 @@
 import {
   appendAcceptQuery,
+  defineQueryHandler,
   handleCacheHeaders,
   handleCors,
   requireContentType,
@@ -155,6 +156,322 @@ describeMatrix("query utils", (t, { it, expect, describe }) => {
         headers: { "content-type": "text/plain" },
       });
       expect(res.status).toBe(200);
+    });
+  });
+
+  describe("defineQueryHandler", () => {
+    const booksHandler = () =>
+      defineQueryHandler({
+        formats: ["application/sql", "application/jsonpath"],
+        handler: (_event, { format, query }) => ({ format, query }),
+      });
+
+    it("passes the matched format and the query body read as text", async () => {
+      t.app.query("/books", booksHandler());
+      const res = await t.fetch("/books", {
+        method: "QUERY",
+        body: "$[?(@.year==2015)]",
+        headers: { "content-type": "application/jsonpath" },
+      });
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({
+        format: "application/jsonpath",
+        query: "$[?(@.year==2015)]",
+      });
+    });
+
+    it("matches a Content-Type that carries parameters", async () => {
+      t.app.query("/books", booksHandler());
+      const res = await t.fetch("/books", {
+        method: "QUERY",
+        body: "SELECT 1",
+        headers: { "content-type": "application/sql; charset=utf-8" },
+      });
+      expect(await res.json()).toEqual({ format: "application/sql", query: "SELECT 1" });
+    });
+
+    it("supports wildcard formats and reports the concrete request format", async () => {
+      t.app.query(
+        "/books",
+        defineQueryHandler({
+          formats: ["application/*"],
+          handler: (_event, { format }) => format,
+        }),
+      );
+      const res = await t.fetch("/books", {
+        method: "QUERY",
+        body: "$",
+        headers: { "content-type": "application/jsonpath" },
+      });
+      expect(await res.text()).toBe("application/jsonpath");
+    });
+
+    it("advertises Accept-Query on success responses", async () => {
+      t.app.query("/books", booksHandler());
+      const res = await t.fetch("/books", {
+        method: "QUERY",
+        body: "SELECT 1",
+        headers: { "content-type": "application/sql" },
+      });
+      expect(res.headers.get("accept-query")).toBe("application/sql, application/jsonpath");
+    });
+
+    it("rejects an unsupported format with 415 and still advertises Accept-Query", async () => {
+      t.app.query("/books", booksHandler());
+      const res = await t.fetch("/books", {
+        method: "QUERY",
+        body: "{}",
+        headers: { "content-type": "application/json" },
+      });
+      expect(res.status).toBe(415);
+      expect(res.headers.get("accept-query")).toBe("application/sql, application/jsonpath");
+    });
+
+    it("rejects a missing Content-Type with 400", async () => {
+      t.app.query("/books", booksHandler());
+      const res = await t.fetch("/books", { method: "QUERY" });
+      expect(res.status).toBe(400);
+    });
+
+    it("rejects a malformed Content-Type with 422", async () => {
+      t.app.query("/books", booksHandler());
+      const res = await t.fetch("/books", {
+        method: "QUERY",
+        body: "x",
+        headers: { "content-type": "nonsense" },
+      });
+      expect(res.status).toBe(422);
+    });
+
+    it("rejects non-QUERY methods with 405, Allow and Accept-Query", async () => {
+      t.app.all("/books", booksHandler());
+      const res = await t.fetch("/books");
+      expect(res.status).toBe(405);
+      expect(res.headers.get("allow")).toBe("QUERY");
+      expect(res.headers.get("accept-query")).toBe("application/sql, application/jsonpath");
+    });
+
+    it("matches a format that carries parameters", async () => {
+      t.app.query(
+        "/books",
+        defineQueryHandler({
+          formats: ["application/SQL; charset=UTF-8"],
+          handler: (_event, { format }) => format,
+        }),
+      );
+      const res = await t.fetch("/books", {
+        method: "QUERY",
+        body: "SELECT 1",
+        headers: { "content-type": "application/sql" },
+      });
+      expect(await res.text()).toBe("application/sql");
+      expect(res.headers.get("accept-query")).toBe('application/SQL;charset="UTF-8"');
+    });
+
+    it("runs the middleware option before the handler", async () => {
+      t.app.query(
+        "/books",
+        defineQueryHandler({
+          middleware: [
+            (event, next) => {
+              event.res.headers.set("x-middleware", "1");
+              return next();
+            },
+          ],
+          formats: ["application/sql"],
+          handler: () => "ok",
+        }),
+      );
+      const res = await t.fetch("/books", {
+        method: "QUERY",
+        body: "SELECT 1",
+        headers: { "content-type": "application/sql" },
+      });
+      expect(res.headers.get("x-middleware")).toBe("1");
+    });
+
+    it("lets the handler read the body itself with `body: false`", async () => {
+      t.app.query(
+        "/books",
+        defineQueryHandler({
+          formats: ["application/sql"],
+          body: false,
+          handler: async (event, { format }) => ({ format, query: await event.req.text() }),
+        }),
+      );
+      const res = await t.fetch("/books", {
+        method: "QUERY",
+        body: "SELECT 1",
+        headers: { "content-type": "application/sql" },
+      });
+      expect(await res.json()).toEqual({ format: "application/sql", query: "SELECT 1" });
+    });
+
+    describe("get equivalence", () => {
+      // `get: true` uses the default `?q=` / `?f=` param names.
+      const searchHandler = () =>
+        defineQueryHandler({
+          formats: ["application/sql", "application/jsonpath"],
+          get: true,
+          handler: (event, { format, query }) => ({ method: event.req.method, format, query }),
+        });
+
+      it("advertises the equivalent GET via Content-Location and serves it identically", async () => {
+        const h = searchHandler();
+        t.app.get("/books", h).query("/books", h);
+        const queryRes = await t.fetch("/books", {
+          method: "QUERY",
+          body: "SELECT * FROM books WHERE author = 'a & b + c'",
+          headers: { "content-type": "application/sql" },
+        });
+        expect(queryRes.status).toBe(200);
+        const location = queryRes.headers.get("content-location")!;
+        expect(location).toBe(
+          "/books?q=SELECT+*+FROM+books+WHERE+author+%3D+%27a+%26+b+%2B+c%27&f=application%2Fsql",
+        );
+        const getRes = await t.fetch(location);
+        expect(getRes.status).toBe(200);
+        const [queryBody, getBody] = [await queryRes.json(), await getRes.json()];
+        expect(getBody).toEqual({ ...queryBody, method: "GET" });
+        expect(queryBody.query).toBe("SELECT * FROM books WHERE author = 'a & b + c'");
+      });
+
+      it("preserves existing search params in Content-Location", async () => {
+        t.app.query("/books", searchHandler());
+        const res = await t.fetch("/books?lang=en&q=stale", {
+          method: "QUERY",
+          body: "SELECT 1",
+          headers: { "content-type": "application/sql" },
+        });
+        const location = new URLSearchParams(res.headers.get("content-location")!.split("?")[1]);
+        expect(location.get("lang")).toBe("en");
+        expect(location.get("q")).toBe("SELECT 1");
+        expect(location.get("f")).toBe("application/sql");
+      });
+
+      it("passes the query read from the body on the QUERY path", async () => {
+        t.app.query("/books", searchHandler());
+        const res = await t.fetch("/books", {
+          method: "QUERY",
+          body: "$[?(@.year==2015)]",
+          headers: { "content-type": "application/jsonpath" },
+        });
+        expect(await res.json()).toEqual({
+          method: "QUERY",
+          format: "application/jsonpath",
+          query: "$[?(@.year==2015)]",
+        });
+      });
+
+      it("rejects a GET without the query param with 400", async () => {
+        t.app.get("/books", searchHandler());
+        const res = await t.fetch("/books");
+        expect(res.status).toBe(400);
+        expect(res.headers.get("accept-query")).toBe("application/sql, application/jsonpath");
+      });
+
+      it("rejects a GET with an unsupported format param with 400", async () => {
+        t.app.get("/books", searchHandler());
+        const res = await t.fetch("/books?q=SELECT+1&f=text/plain");
+        expect(res.status).toBe(400);
+      });
+
+      it("rejects an ambiguous GET (multiple formats, no format param) with 400", async () => {
+        t.app.get("/books", searchHandler());
+        const res = await t.fetch("/books?q=SELECT+1");
+        expect(res.status).toBe(400);
+      });
+
+      it("defaults the format on GET for a single concrete format and omits it from Content-Location", async () => {
+        const h = defineQueryHandler({
+          formats: ["application/sql"],
+          get: "q",
+          handler: (_event, { format, query }) => ({ format, query }),
+        });
+        t.app.get("/books", h).query("/books", h);
+        const getRes = await t.fetch("/books?q=SELECT+1");
+        expect(await getRes.json()).toEqual({ format: "application/sql", query: "SELECT 1" });
+        const queryRes = await t.fetch("/books", {
+          method: "QUERY",
+          body: "SELECT 1",
+          headers: { "content-type": "application/sql" },
+        });
+        expect(queryRes.headers.get("content-location")).toBe("/books?q=SELECT+1");
+      });
+
+      it("requires the format param on GET for a single wildcard format", async () => {
+        t.app.get(
+          "/books",
+          defineQueryHandler({
+            formats: ["application/*"],
+            get: "q",
+            handler: (_event, { format }) => format,
+          }),
+        );
+        const missing = await t.fetch("/books?q=x");
+        expect(missing.status).toBe(400);
+        const res = await t.fetch("/books?q=x&f=application/jsonpath");
+        expect(await res.text()).toBe("application/jsonpath");
+      });
+
+      it("supports custom param names via the object form", async () => {
+        t.app.get(
+          "/books",
+          defineQueryHandler({
+            formats: ["application/sql", "application/jsonpath"],
+            get: { param: "query", formatParam: "as" },
+            handler: (_event, { format, query }) => ({ format, query }),
+          }),
+        );
+        const res = await t.fetch("/books?query=SELECT+1&as=application/sql");
+        expect(await res.json()).toEqual({ format: "application/sql", query: "SELECT 1" });
+      });
+
+      it("skips Content-Location when the equivalent GET URL would be too long", async () => {
+        t.app.query("/books", searchHandler());
+        const res = await t.fetch("/books", {
+          method: "QUERY",
+          body: `SELECT ${"x".repeat(3000)}`,
+          headers: { "content-type": "application/sql" },
+        });
+        expect(res.status).toBe(200);
+        expect(res.headers.has("content-location")).toBe(false);
+      });
+
+      it("does not set Content-Location on the GET path", async () => {
+        t.app.get("/books", searchHandler());
+        const res = await t.fetch("/books?q=SELECT+1&f=application/sql");
+        expect(res.status).toBe(200);
+        expect(res.headers.has("content-location")).toBe(false);
+      });
+
+      it("serves HEAD requests via the GET route with an empty body", async () => {
+        const h = searchHandler();
+        t.app.get("/books", h).query("/books", h);
+        const res = await t.fetch("/books?q=SELECT+1&f=application/sql", {
+          method: "HEAD",
+        });
+        expect(res.status).toBe(200);
+        expect(res.headers.get("content-type")).toMatch(/application\/json/);
+        expect(await res.text()).toBe("");
+      });
+
+      it("rejects other methods with 405 and Allow: GET, HEAD, QUERY", async () => {
+        t.app.all("/books", searchHandler());
+        const res = await t.fetch("/books", { method: "POST", body: "x" });
+        expect(res.status).toBe(405);
+        expect(res.headers.get("allow")).toBe("GET, HEAD, QUERY");
+      });
+    });
+
+    it("throws at definition time for an empty formats list", () => {
+      expect(() => defineQueryHandler({ formats: [], handler: () => "" })).toThrow(TypeError);
+    });
+
+    it("throws at definition time for an invalid media type", () => {
+      expect(() => defineQueryHandler({ formats: ["not a token"], handler: () => "" })).toThrow(
+        TypeError,
+      );
     });
   });
 
