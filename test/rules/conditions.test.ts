@@ -8,7 +8,10 @@ import { createMatcherFromFind, createRouteRulesMatcher } from "../../src/rules/
 import type { FindRouteRules } from "../../src/rules/match.ts";
 import { normalizeRouteRules } from "../../src/rules/normalize.ts";
 import { parseRouteKey } from "../../src/rules/internal/key.ts";
-import { compileFindRouteRules } from "../../src/rules/compiler.ts";
+import { compileFindRouteRules, compileRouteRules } from "../../src/rules/compiler.ts";
+import type { CompiledRouteRules } from "../../src/rules/compiler.ts";
+import type { ConditionResolver } from "../../src/rules/conditions.ts";
+import type { RouteRulesMatcher } from "../../src/rules/match.ts";
 import { createCacheRuleHandler } from "../../src/rules/handlers/cache.ts";
 import { ruleHandlers } from "../../src/rules/handlers/index.ts";
 import type {
@@ -363,6 +366,129 @@ describe("route rule conditions", () => {
           }
         }
       }
+    });
+  });
+
+  describe("compiler", () => {
+    // Evaluate a data-only compiled module, binding its `h3/rules` imports.
+    function evaluate(mod: CompiledRouteRules): {
+      matcher: RouteRulesMatcher;
+      resolve: ConditionResolver | undefined;
+    } {
+      const body = mod.body.replace(/\bexport const /g, "const ");
+      // eslint-disable-next-line no-new-func
+      return new Function(
+        "createMatcherFromFind",
+        "createConditionResolver",
+        `${body}\nreturn { matcher, resolve: resolveRouteRulesMethod };`,
+      )(createMatcherFromFind, createConditionResolver);
+    }
+
+    const config: Config = {
+      "/**": { site: true },
+      "GET /blog/**": { gate: "get" },
+      "GET:MD /blog/**": { md: true },
+      "get:MD /docs/**": { md: "docs" },
+      "GET:ANON /api/**": { loginGate: true },
+      "POST:ANON /api/**": { loginGate: "post" },
+    };
+    const conditions = { MD, ANON: { headers: { authorization: false } } };
+
+    it("exports a resolver that matches the runtime middleware", async () => {
+      const runtime = createApp(config, { conditions });
+      for (const preMerge of [false, true]) {
+        const { matcher, resolve } = evaluate(
+          compileRouteRules(asRules(config), { matcher: true, conditions, preMerge }),
+        );
+        for (const method of ["GET", "HEAD", "POST"]) {
+          for (const headers of [{}, MARKDOWN, { ...MARKDOWN, authorization: "x" }]) {
+            for (const path of ["/blog/x", "/docs/x", "/api/x", "/z"]) {
+              const event = { req: new Request(`http://test${path}`, { method, headers }) };
+              const compiled = matcher(resolve!(event as never, method), path).routeRules;
+              if (method !== "HEAD") {
+                expect(compiled, `${preMerge} ${method} ${path}`).toEqual(
+                  await fetchRules(runtime, path, { method, headers }),
+                );
+              }
+              expect(compiled).toEqual(
+                createRouteRulesMatcher(normalizeRouteRules(asRules(config)))(
+                  createConditionResolver(asRules(config), conditions)!(event as never, method),
+                  path,
+                ).routeRules,
+              );
+            }
+          }
+        }
+      }
+    });
+
+    it("emits one key per method and condition and only the used conditions", () => {
+      const mod = compileRouteRules(asRules(config), {
+        conditions: { ...conditions, UNUSED: { headers: { "x-unused": true } } },
+      });
+      expect(mod.imports).toContain('import { createConditionResolver } from "h3/rules";');
+      expect(mod.body).toContain(
+        'export const resolveRouteRulesMethod = /* @__PURE__ */ createConditionResolver(["GET:MD /blog/**","GET:ANON /api/**","POST:ANON /api/**"], {["ANON"]:{headers:{["authorization"]:false}},["MD"]:{headers:{["accept"]:/\\btext\\/markdown\\b/}}});',
+      );
+      expect(mod.body).not.toContain("UNUSED");
+    });
+
+    it("leaves output unchanged for rule sets without conditions", () => {
+      const plain = { "/a": { headers: { a: "1" } } };
+      expect(compileRouteRules(plain).code).not.toContain("resolveRouteRulesMethod");
+      expect(compileRouteRules(plain, { conditions: { MD } }).body).toContain(
+        "export const resolveRouteRulesMethod = undefined;",
+      );
+      expect(compileRouteRules(plain, { conditions: { MD } }).imports).toBe(
+        compileRouteRules(plain).imports,
+      );
+    });
+
+    it("throws when rules use conditions that are not passed or defined", () => {
+      expect(() => compileRouteRules(asRules(config))).toThrow(/no `conditions` option/);
+      expect(() => compileRouteRules(asRules(config), { conditions: { MD } })).toThrow(
+        /`ANON` condition, which is not defined/,
+      );
+      expect(() =>
+        compileRouteRules(asRules({ "GET:X /x": {} }), {
+          conditions: { X: { headers: { accept: 1 as never } } },
+        }),
+      ).toThrow(/must be a string, RegExp, or boolean/);
+    });
+
+    it("round-trips RegExp flags, slashes, and `__proto__` names", () => {
+      // Computed keys: a literal `__proto__:` would set the prototype instead.
+      const tricky: Record<string, RouteRuleCondition> = {
+        ["__proto__"]: { headers: { ["__proto__"]: "a", "x-path": /^\/a\/b$/giu } },
+      };
+      expect(Object.keys(tricky)).toEqual(["__proto__"]);
+      const { resolve } = evaluate(
+        compileRouteRules(asRules({ "GET:__proto__ /x": {} }), {
+          matcher: true,
+          conditions: tricky,
+        }),
+      );
+      const event = (headers: [string, string][]) =>
+        ({ req: new Request("http://test/x", { headers }) }) as never;
+      expect(
+        resolve!(
+          event([
+            ["__proto__", "a"],
+            ["x-path", "/A/B"],
+          ]),
+          "GET",
+        ),
+      ).toBe("GET:__proto__");
+      expect(resolve!(event([["x-path", "/A/B"]]), "GET")).toBe("GET");
+      expect(
+        resolve!(
+          event([
+            ["__proto__", "a"],
+            ["x-path", "/a/c"],
+          ]),
+          "GET",
+        ),
+      ).toBe("GET");
     });
   });
 

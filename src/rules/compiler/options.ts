@@ -1,4 +1,5 @@
 import type { MatcherMemoizeOptions } from "../match.ts";
+import type { RouteRuleCondition } from "../types.ts";
 import type { RuntimeRuleImport } from "./runtime-rules.ts";
 
 /** Default identifier prefix for imported handlers (`<prefix>$<name>` bindings). */
@@ -45,6 +46,14 @@ export interface CompileModuleOptions extends CompileRouteRulesOptions {
    * @default false
    */
   matcher?: MatcherExport;
+  /**
+   * Request conditions for `METHOD:NAME` rule keys, as passed to
+   * `routeRules()`. Emits a `resolveRouteRulesMethod(event, method)` export
+   * (`undefined` when no rule uses a condition) that returns the method to
+   * pass to the matcher. Required when rules use conditions. Header values
+   * must be strings, booleans, or RegExp literals.
+   */
+  conditions?: Record<string, RouteRuleCondition>;
 }
 
 /** Compiled module source, also split into composable imports and body. */
@@ -57,7 +66,7 @@ export interface CompiledRouteRules {
   imports: string;
   /**
    * `findRouteRules` export declaration (no imports), plus the matcher
-   * declaration when requested. References bindings {@link imports} brings
+   * and condition resolver declarations when requested. References bindings {@link imports} brings
    * into scope.
    */
   body: string;

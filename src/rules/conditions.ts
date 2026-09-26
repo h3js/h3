@@ -11,7 +11,8 @@ export type ConditionResolver = (event: H3Event, method: string) => string;
 /**
  * Create the request → rule-method resolver for the conditions a rule set uses
  * (`"GET:MD /blog/**"`), or `undefined` when no rule key carries a condition —
- * so a rule set without conditions pays nothing per request.
+ * so a rule set without conditions pays nothing per request. Only the rule
+ * keys are read, so a list of keys works as well as the rule set itself.
  *
  * Only conditions some rule scopes to the request's method are evaluated, and
  * every satisfied one applies. The resolved method is what to pass to the
@@ -22,11 +23,11 @@ export type ConditionResolver = (event: H3Event, method: string) => string;
  * condition is malformed.
  */
 export function createConditionResolver(
-  rules: Record<string, unknown>,
+  rules: Record<string, unknown> | readonly string[],
   conditions: Record<string, RouteRuleCondition> | undefined,
 ): ConditionResolver | undefined {
   const used = new Map<string, Set<string>>();
-  for (const key in rules) {
+  for (const key of Array.isArray(rules) ? rules : Object.keys(rules)) {
     const { method, condition } = parseRouteKey(key);
     if (!condition) {
       continue;
