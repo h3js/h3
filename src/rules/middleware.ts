@@ -28,8 +28,10 @@ export interface RouteRulesOptions extends RouteRulesMatcherOptions {
   /**
    * Request predicates for rule-key conditions, by name. A request satisfying
    * `MD` also matches `"GET:MD /blog/**"` rules, which merge over the plain
-   * `GET` ones on the same pattern. When several apply, the first in
-   * declaration order wins. Conditions no rule uses are never evaluated.
+   * `GET` ones on the same pattern. Every satisfied condition applies; when
+   * several set the same rule on the same pattern, they merge in condition
+   * name order, so the name that sorts last wins. Conditions no rule uses are
+   * never evaluated.
    */
   conditions?: Record<string, RouteRuleCondition>;
 }

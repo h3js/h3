@@ -163,10 +163,10 @@ export interface MatchedRouteRule<K extends RouteRuleName = RouteRuleName> {
    */
   handler?: RuleHandler<K>;
   /**
-   * Request-variant condition the rules were matched under (`"MD"` for a
-   * request selected into `GET:MD` rules), whichever layer contributed the
-   * rule. Handlers that key state per request shape (such as `cache`) must
-   * keep variants apart.
+   * Satisfied conditions the rules were matched under, joined with `:` in
+   * name order (`"MD"`, or `"ANON:MD"` when both apply), whichever layer
+   * contributed the rule. Handlers that key state per request shape (such as
+   * `cache`) must keep these apart.
    */
   condition?: string;
 }
