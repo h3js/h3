@@ -22,55 +22,29 @@ export type AtTargetCheck = (event: H3Event) => boolean;
  *
  * - `"/docs/v2/**"`: the path is `/docs/v2` or sits under `/docs/v2/`.
  * - `"/blog/**.md"`: the path starts with `/blog/` and ends in `.md`, at any depth.
- * - `"/new"` (nothing interpolated): the path is exactly `/new`.
+ * - `"/new"`, `"/new?from=/**"` (no `**` in the path): the path is exactly `/new`.
  *
- * Only the target's path is compared, never its query or fragment. A target on
- * another origin (or a relative reference that has no fixed path) is never
- * skipped, and neither is one whose shape covers every path (`"/**"`): skipping
+ * Only the target's path is compared, never its query or fragment. Only a
+ * path-absolute target (`/…`) is ever skipped: an absolute URL's origin could
+ * only be compared with the request's `Host`, which the client controls. A
+ * shape that covers every path (`"/**"`) is never skipped either — skipping
  * would disable the rule outright.
  *
- * Skipping is fail-safe: a wildcard shape is honoured only when every canonical
- * reading of the path stays inside the target's own directory, so an encoded
- * traversal (`/docs/v2/..%2fadmin`) is never let through to the app — it still
- * reaches the rule, whose target scope check answers `400` as before.
+ * Skipping is fail-safe: a wildcard shape is honoured only when its prefix ends
+ * on a segment boundary and every canonical reading of the path stays inside
+ * it, so an encoded traversal (`/docs/v2/..%2fadmin`) is never let through to
+ * the app — it still reaches the rule, whose target scope check answers `400`.
  */
 export function prepareAtTargetCheck(
   options: RedirectRuleOptions | undefined,
 ): AtTargetCheck | undefined {
   const target = options?.to;
-  if (!target) {
+  // A protocol-relative `//host` (or `/\host`) names another origin.
+  if (!target?.startsWith("/") || target[1] === "/" || target[1] === "\\") {
     return;
   }
-  const origin = targetOrigin(target);
-  if (origin === undefined) {
-    return;
-  }
-  const isAtPath = prepareTargetPathCheck(getURLPathname(target) || "/", target, options.base);
-  if (!isAtPath) {
-    return;
-  }
-  return origin
-    ? (event) => event.url.origin === origin && isAtPath(event.url.pathname)
-    : (event) => isAtPath(event.url.pathname);
-}
-
-/**
- * The origin an absolute `target` names, `""` for a path-absolute target
- * (`/new`, always same-origin), or `undefined` when its origin is unknowable
- * ahead of the request (protocol-relative `//host`, relative `new`, a
- * non-special scheme).
- */
-function targetOrigin(target: string): string | undefined {
-  if (target.startsWith("/")) {
-    return target[1] === "/" || target[1] === "\\" ? undefined : "";
-  }
-  let url: URL;
-  try {
-    url = new URL(target);
-  } catch {
-    return;
-  }
-  return url.origin === "null" ? undefined : url.origin;
+  const isAtPath = prepareTargetPathCheck(getURLPathname(target), options!.base);
+  return isAtPath && ((event) => isAtPath(event.url.pathname));
 }
 
 /**
@@ -80,12 +54,11 @@ function targetOrigin(target: string): string | undefined {
  */
 function prepareTargetPathCheck(
   path: string,
-  target: string,
   base: string | undefined,
 ): ((pathname: string) => boolean) | undefined {
-  if (target.endsWith("/**")) {
+  if (path.endsWith("/**")) {
     // `/docs/v2/**` → `/docs/v2`; the empty tail joins to the bare base itself.
-    const prefix = path.slice(0, -3);
+    const prefix = servedPath(path.slice(0, -3));
     if (!prefix) {
       return;
     }
@@ -94,19 +67,35 @@ function prepareTargetPathCheck(
   }
   const first = base === undefined ? -1 : path.indexOf("**");
   if (first === -1) {
-    return (pathname) => pathname === path;
+    const exact = servedPath(path);
+    return (pathname) => pathname === exact;
   }
-  const prefix = path.slice(0, first);
-  const suffix = path.slice(path.lastIndexOf("**") + 2);
-  if (prefix.length <= 1 && !suffix) {
+  const rawPrefix = path.slice(0, first);
+  // A mid-segment placeholder (`/docs/v2-**`) could be skipped by raw bytes a
+  // decoding reading moves out of its segment; never skip one.
+  if (!rawPrefix.endsWith("/")) {
     return;
   }
-  // The directory the prefix fixes (`/blog/` → `/blog`, `/docs/v` → `/docs`).
-  const scope = prefix.slice(0, prefix.lastIndexOf("/"));
+  const prefix = servedPath(rawPrefix);
+  const suffix = servedPath("/" + path.slice(path.lastIndexOf("**") + 2)).slice(1);
+  if (prefix === "/" && !suffix) {
+    return;
+  }
+  const scope = prefix.slice(0, -1);
   const minLength = prefix.length + suffix.length;
   return (pathname) =>
     pathname.length >= minLength &&
     pathname.startsWith(prefix) &&
     pathname.endsWith(suffix) &&
     isPathInScope(pathname, scope);
+}
+
+/**
+ * `path` spelled the way `event.url.pathname` serves it (`/café` →
+ * `/caf%C3%A9`), so a literal target compares equal to a request for it.
+ * Appended to a fixed origin rather than resolved against one, so a leading
+ * `//` stays a path instead of parsing as an authority.
+ */
+function servedPath(path: string): string {
+  return path && new URL("http://h" + path).pathname;
 }

@@ -469,16 +469,39 @@ describe("redirect rule", () => {
     expect(await at.text()).toBe("login");
   });
 
-  it("skips a same-origin absolute target but never another origin", async () => {
+  it("compares only the path when `**` sits in the query or fragment", async () => {
     const app = createApp({
-      "/docs/**": { redirect: "http://test/docs/v2/**" },
-      "/ext/**": { redirect: "https://h3.dev/ext/**" },
+      "/**": { redirect: "/maintenance?from=/**" },
+      "/spa/**": { redirect: "/app/#/**" },
     });
     app.get("/**", () => "ok");
-    expect((await app.fetch(new Request("http://test/docs/v2/a"))).status).toBe(200);
-    expect((await app.fetch(new Request("http://other/docs/v2/a"))).status).toBe(307);
-    const ext = await app.fetch(new Request("http://test/ext/a"));
-    expect(ext.headers.get("location")).toBe("https://h3.dev/ext/a");
+    const res = await app.fetch(new Request("http://test/maintena"));
+    expect(res.headers.get("location")).toBe("/maintenance?from=/maintena");
+    expect((await app.fetch(new Request("http://test/maintenance"))).status).toBe(200);
+    const spa = await app.fetch(new Request("http://test/spa/x"));
+    expect(spa.headers.get("location")).toBe("/app/#/x");
+  });
+
+  it("skips a target spelled with characters the pathname encodes", async () => {
+    const app = createApp({ "/**": { redirect: "/café" } });
+    app.get("/**", () => "ok");
+    expect((await app.fetch(new Request("http://test/cafe"))).status).toBe(307);
+    expect((await app.fetch(new Request("http://test/café"))).status).toBe(200);
+  });
+
+  it("stops a trailing-slash redirect from looping", async () => {
+    const app = createApp({ "/**": { redirect: "/**/" } });
+    app.get("/**", () => "ok");
+    const res = await app.fetch(new Request("http://test/foo"));
+    expect(res.headers.get("location")).toBe("/foo/");
+    expect((await app.fetch(new Request("http://test/foo/"))).status).toBe(200);
+  });
+
+  it("never skips an absolute URL target", async () => {
+    // Its origin could only be compared with the client-controlled `Host`.
+    const app = createApp({ "/docs/**": { redirect: "http://test/docs/v2/**" } });
+    const res = await app.fetch(new Request("http://test/docs/v2/a"));
+    expect(res.headers.get("location")).toBe("http://test/docs/v2/v2/a");
   });
 
   it("never skips a target whose shape covers every path", async () => {
@@ -489,12 +512,20 @@ describe("redirect rule", () => {
   });
 
   it("never skips an encoded traversal out of the target", async () => {
-    // Raw bytes sit under `/docs/v2/`, but a decoding reading escapes it: the
-    // rule still runs and its scope check answers 400, as before.
-    const app = createApp({ "/docs/**": { redirect: "/docs/v2/**" } });
-    app.get("/**", () => "leaked");
-    const res = await app.fetch(new Request("http://test/docs/v2/..%2f..%2fadmin"));
-    expect(res.status).toBe(400);
+    // Raw bytes sit under the target's prefix, but a decoding reading escapes
+    // it: the rule still runs and answers 400, as before.
+    const cases: [string, string, string][] = [
+      ["/docs/**", "/docs/v2/**", "/docs/v2/..%2f..%2fadmin"],
+      ["/blog/**", "/blog/**.md", "/blog/..%2f..%2fadmin.md"],
+      // a mid-segment placeholder is never skipped at all
+      ["/docs/**", "/docs/v2-**", "/docs/v2-..%2fadmin"],
+    ];
+    for (const [key, to, path] of cases) {
+      const app = createApp({ [key]: { redirect: to } });
+      app.get("/**", () => "leaked");
+      const res = await app.fetch(new Request("http://test" + path));
+      expect(`${to} ${path} -> ${res.status}`).toBe(`${to} ${path} -> 400`);
+    }
   });
 
   it("forwards the raw encoded pathname (opaque %2f)", async () => {
