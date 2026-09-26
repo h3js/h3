@@ -110,7 +110,9 @@ export function createCacheRuleHandler(opts: CacheRuleHandlerOptions): RuleHandl
         // `app.all()` route from growing a wrapper per arbitrary method token a
         // client invents.
         const method = event.req.method;
-        const key = `${method === "GET" || method === "HEAD" ? method : "*"}:${m.route}:${matchedRoute.route}`;
+        // A condition variant (`GET:MD`) is a different response for the same
+        // route, so it never shares an entry with the plain request.
+        const key = `${method === "GET" || method === "HEAD" ? method : "*"}${m.condition ? ":" + m.condition : ""}:${m.route}:${matchedRoute.route}`;
         let entry = cachedHandlers.get(handler);
         if (!entry) {
           entry = { scope: id ?? `#${++scopeCounter}`, byRoute: new Map() };

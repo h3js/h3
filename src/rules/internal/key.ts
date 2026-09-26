@@ -17,30 +17,37 @@ export const HTTP_METHODS: ReadonlySet<string> = new Set([
   "QUERY",
 ]);
 
-const METHOD_KEY_RE = /^([A-Za-z]+)\s+(\/.*)$/;
+// `METHOD[:CONDITION] /path` — the condition names a request variant (see
+// `RouteRuleCondition`) and is kept case-sensitive, as authored.
+const METHOD_KEY_RE = /^([A-Za-z]+)(?::([\w-]+))?\s+(\/.*)$/;
 
 export interface ParsedRouteKey {
   /** Uppercased HTTP method, or `""` for a method-agnostic (all-methods) rule. */
   method: string;
   /** Path pattern with a guaranteed leading slash. */
   path: string;
+  /** Request-variant condition (`"MD"` in `"GET:MD /blog/**"`), when present. */
+  condition?: string;
 }
 
 /**
- * Parse a route-rule key into `{ method, path }`.
+ * Parse a route-rule key into `{ method, path, condition? }`.
  *
- * - `"GET /api/**"` → `{ method: "GET", path: "/api/**" }`
- * - `"/api/**"`     → `{ method: "", path: "/api/**" }`
+ * - `"GET /api/**"`     → `{ method: "GET", path: "/api/**" }`
+ * - `"GET:MD /blog/**"` → `{ method: "GET", condition: "MD", path: "/blog/**" }`
+ * - `"/api/**"`         → `{ method: "", path: "/api/**" }`
  *
- * Only a recognized HTTP method (case-insensitive) followed by a space and a
- * slash-prefixed path counts as method-scoped; everything else is a plain path.
+ * Only a recognized HTTP method (case-insensitive), optionally followed by a
+ * `:condition`, then a space and a slash-prefixed path counts as method-scoped;
+ * everything else is a plain path.
  */
 export function parseRouteKey(key: string): ParsedRouteKey {
   const match = METHOD_KEY_RE.exec(key);
   if (match) {
     const method = match[1]!.toUpperCase();
     if (HTTP_METHODS.has(method)) {
-      return { method, path: withLeadingSlash(match[2]!) };
+      const path = withLeadingSlash(match[3]!);
+      return match[2] ? { method, path, condition: match[2] } : { method, path };
     }
   }
   return { method: "", path: withLeadingSlash(key) };
@@ -64,9 +71,38 @@ export function unknownMethodPrefix(key: string): string | undefined {
   return match && !HTTP_METHODS.has(match[1]!.toUpperCase()) ? match[1] : undefined;
 }
 
-/** Re-serialize a parsed key into its canonical `"METHOD /path"` / `"/path"` form. */
-export function formatRouteKey(method: string, path: string): string {
-  return method ? `${method} ${path}` : path;
+// Anything shaped like `WORD:… /path` or `WORD:…/path` — checked only when
+// METHOD_KEY_RE fails.
+const CONDITION_LIKE_KEY_RE = /^([A-Za-z]+):[^\s/]*(\s+)?\//;
+
+/**
+ * Whether a key looks condition-scoped (`GET:… /path`) but is malformed — an
+ * invalid condition name, or no space before the path (`GET:MD/blog/**`).
+ * Like {@link unknownMethodPrefix}, such a key would otherwise degrade into a
+ * literal path that never matches the intended requests. Without a space, only
+ * a recognized HTTP method counts, so a literal `api:v1/x` path stays valid.
+ */
+export function hasInvalidCondition(key: string): boolean {
+  if (METHOD_KEY_RE.test(key)) {
+    return false;
+  }
+  const match = CONDITION_LIKE_KEY_RE.exec(key);
+  return !!match && (match[2] !== undefined || HTTP_METHODS.has(match[1]!.toUpperCase()));
+}
+
+/** Re-serialize a parsed key into its canonical `"METHOD[:MOD] /path"` / `"/path"` form. */
+export function formatRouteKey(method: string, path: string, condition?: string): string {
+  return method ? `${routeKeyMethod(method, condition)} ${path}` : path;
+}
+
+/**
+ * The method a rule is registered (and looked up) under: the HTTP method, or
+ * `METHOD:CONDITION` for a request variant. rou3 treats method keys as opaque
+ * strings, so a variant is just another method as far as the router, the
+ * memo, and compiled codegen are concerned.
+ */
+export function routeKeyMethod(method: string, condition?: string): string {
+  return condition ? `${method}:${condition}` : method;
 }
 
 // A maximal run of percent-escapes, decoded as a unit so a multi-byte sequence

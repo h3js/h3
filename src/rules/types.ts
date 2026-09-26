@@ -162,6 +162,13 @@ export interface MatchedRouteRule<K extends RouteRuleName = RouteRuleName> {
    * Data-only rules have no handler.
    */
   handler?: RuleHandler<K>;
+  /**
+   * Request-variant condition the rules were matched under (`"MD"` for a
+   * request selected into `GET:MD` rules), whichever layer contributed the
+   * rule. Handlers that key state per request shape (such as `cache`) must
+   * keep variants apart.
+   */
+  condition?: string;
 }
 
 /** Matched rules with provenance, keyed by rule name. */
@@ -193,6 +200,20 @@ export interface RuleHandler<K extends RouteRuleName = RouteRuleName> {
 /** Map of rule name → handler constructor. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type RuleHandlers = Record<string, RuleHandler<any> | undefined>;
+
+/**
+ * Request predicate for a route-rule key condition: a request matching it is
+ * resolved against `METHOD:NAME /path` rules (such as `"GET:MD /blog/**"`) on
+ * top of the plain `METHOD /path` ones.
+ */
+export interface RouteRuleCondition {
+  /**
+   * Request headers that must all match (names are case-insensitive): `true`
+   * requires the header, `false` requires its absence, a string must equal the
+   * value exactly, and a `RegExp` is tested against the value.
+   */
+  headers: Record<string, string | RegExp | boolean>;
+}
 
 /** Result of matching a request against the rule set. */
 export interface MatchResult {

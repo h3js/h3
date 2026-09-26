@@ -97,13 +97,14 @@ src/
 │   ├── normalize.ts      # normalizeRouteRules (config → runtime rules)
 │   ├── match.ts          # createRouteRulesMatcher, createMatcherFromFind, memoize
 │   ├── merge.ts          # mergeMatchedRouteRules (layer merge semantics)
+│   ├── conditions.ts     # createConditionResolver (`GET:MD /path` request conditions)
 │   ├── types.ts          # RouteRuleConfig, NormalizedRouteRules, MatchedRouteRule, RuleHandler
 │   ├── cache.ts          # h3/rules/cache — ocache-backed cache handler (optional peer)
 │   ├── proxy.ts          # h3/rules/proxy — proxyRequest-backed proxy handler
 │   ├── compiler.ts       # h3/rules/compiler — build-time codegen
 │   ├── handlers/         # Built-in rule handlers (headers, redirect, cors, cache)
 │   ├── compiler/         # Codegen internals (compile, codegen, runtime-rules, options)
-│   └── internal/         # key parsing, scope checks, node-key bucketing, pre-merge analysis
+│   └── internal/         # key parsing, scope checks, node-key bucketing, derived methods, pre-merge analysis
 ├── _entries/             # Platform-specific entry points
 │   ├── generic.ts        # Web Worker / Browser
 │   ├── node.ts           # Node.js (adds toNodeHandler)

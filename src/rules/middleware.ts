@@ -13,8 +13,9 @@ import type {
   RouteRulesMatcherOptions,
 } from "./match.ts";
 import { HTTP_METHODS } from "./internal/key.ts";
+import { createConditionResolver } from "./conditions.ts";
 import { normalizeRouteRules } from "./normalize.ts";
-import type { MatchResult, RouteRuleConfig } from "./types.ts";
+import type { MatchResult, RouteRuleConfig, RouteRuleCondition } from "./types.ts";
 
 /** Options for the plug-and-play {@link routeRules} middleware. */
 export interface RouteRulesOptions extends RouteRulesMatcherOptions {
@@ -24,6 +25,13 @@ export interface RouteRulesOptions extends RouteRulesMatcherOptions {
    * @default true
    */
   memoize?: boolean | MatcherMemoizeOptions;
+  /**
+   * Request predicates for rule-key conditions, by name. A request satisfying
+   * `MD` also matches `"GET:MD /blog/**"` rules, which merge over the plain
+   * `GET` ones on the same pattern. When several apply, the first in
+   * declaration order wins. Conditions no rule uses are never evaluated.
+   */
+  conditions?: Record<string, RouteRuleCondition>;
 }
 
 /**
@@ -38,7 +46,9 @@ export function routeRules(
   opts?: RouteRulesOptions,
 ): Middleware {
   const memoize = opts?.memoize ?? true;
-  const matcher = createRouteRulesMatcher(normalizeRouteRules(config), opts);
+  const rules = normalizeRouteRules(config);
+  const resolveMethod = createConditionResolver(rules, opts?.conditions);
+  const matcher = createRouteRulesMatcher(rules, opts);
   const match = memoize
     ? memoizeRouteRulesMatcher(matcher, memoize === true ? undefined : memoize)
     : matcher;
@@ -46,7 +56,7 @@ export function routeRules(
     const pathname = event.url.pathname;
     // Method-scoped rule keys are normalized to uppercase.
     const method = event.req.method.toUpperCase();
-    let matched = match(method, pathname);
+    let matched = match(resolveMethod ? resolveMethod(event, method) : method, pathname);
     if (method === "OPTIONS" && isPreflightRequest(event)) {
       matched = liftPreflightCors(matched, match, event, pathname);
     }

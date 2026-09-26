@@ -21,6 +21,9 @@ export type {
 
 export { normalizeRouteRules } from "./normalize.ts";
 
+export { createConditionResolver } from "./conditions.ts";
+export type { ConditionResolver } from "./conditions.ts";
+
 export { mergeMatchedRouteRules } from "./merge.ts";
 export type { RouteRuleEntry, RouteRuleLayer } from "./merge.ts";
 
@@ -51,5 +54,6 @@ export type {
   MatchResult,
   RuleHandler,
   RuleHandlers,
+  RouteRuleCondition,
   HTTPStatus,
 } from "./types.ts";
