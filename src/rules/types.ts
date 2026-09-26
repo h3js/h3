@@ -94,6 +94,8 @@ export interface RouteRuleConfig {
    * key ends in `/**`, a `**` in `to` is replaced with the matched tail — appended
    * for a trailing `to: "/new/**"`, or interpolated in place anywhere else in the
    * target's path, query, or fragment (`/new?from=**`).
+   * A request whose path already has the target's shape (`/docs/v2/…` for
+   * `to: "/docs/v2/**"`) is not redirected again.
    * `false` disables a redirect inherited from a less-specific pattern.
    */
   redirect?: string | { to: string; status?: HTTPStatus } | false;

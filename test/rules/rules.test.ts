@@ -433,6 +433,70 @@ describe("redirect rule", () => {
     expect(kept.headers.get("location")).toBe("/a%2fb");
   });
 
+  it("skips when the request is already at a trailing `/**` target", async () => {
+    const app = createApp({ "/docs/**": { redirect: "/docs/v2/**" } });
+    app.get("/docs/v2/**", (event) => event.url.pathname);
+    const res = await app.fetch(new Request("http://test/docs/intro?x=1"));
+    expect(res.headers.get("location")).toBe("/docs/v2/intro?x=1");
+    for (const path of ["/docs/v2", "/docs/v2/", "/docs/v2/intro", "/docs/v2/a/b"]) {
+      const at = await app.fetch(new Request("http://test" + path));
+      expect(`${path} -> ${at.status}`).toBe(`${path} -> 200`);
+    }
+    // only whole segments: `/docs/v2x` is not under `/docs/v2`
+    const sibling = await app.fetch(new Request("http://test/docs/v2x"));
+    expect(sibling.headers.get("location")).toBe("/docs/v2/v2x");
+  });
+
+  it("skips when the request is already at an interpolated target", async () => {
+    const app = createApp({ "/blog/**": { redirect: "/blog/**.md" } });
+    app.get("/blog/**", (event) => event.url.pathname);
+    const res = await app.fetch(new Request("http://test/blog/a/b"));
+    expect(res.headers.get("location")).toBe("/blog/a/b.md");
+    for (const path of ["/blog/a.md", "/blog/a/b.md"]) {
+      const at = await app.fetch(new Request("http://test" + path));
+      expect(`${path} -> ${at.status}`).toBe(`${path} -> 200`);
+    }
+  });
+
+  it("skips an exact target only on its own path", async () => {
+    const app = createApp({ "/admin/**": { redirect: "/admin/login?next=1" } });
+    app.get("/admin/login", () => "login");
+    const res = await app.fetch(new Request("http://test/admin/users"));
+    expect(res.headers.get("location")).toBe("/admin/login?next=1");
+    // the target's query is not part of the comparison
+    const at = await app.fetch(new Request("http://test/admin/login?x=1"));
+    expect(at.status).toBe(200);
+    expect(await at.text()).toBe("login");
+  });
+
+  it("skips a same-origin absolute target but never another origin", async () => {
+    const app = createApp({
+      "/docs/**": { redirect: "http://test/docs/v2/**" },
+      "/ext/**": { redirect: "https://h3.dev/ext/**" },
+    });
+    app.get("/**", () => "ok");
+    expect((await app.fetch(new Request("http://test/docs/v2/a"))).status).toBe(200);
+    expect((await app.fetch(new Request("http://other/docs/v2/a"))).status).toBe(307);
+    const ext = await app.fetch(new Request("http://test/ext/a"));
+    expect(ext.headers.get("location")).toBe("https://h3.dev/ext/a");
+  });
+
+  it("never skips a target whose shape covers every path", async () => {
+    // Skipping `/**` would disable the rule outright; it keeps redirecting.
+    const app = createApp({ "/old/**": { redirect: "/**" } });
+    const res = await app.fetch(new Request("http://test/old/old/a"));
+    expect(res.headers.get("location")).toBe("/old/a");
+  });
+
+  it("never skips an encoded traversal out of the target", async () => {
+    // Raw bytes sit under `/docs/v2/`, but a decoding reading escapes it: the
+    // rule still runs and its scope check answers 400, as before.
+    const app = createApp({ "/docs/**": { redirect: "/docs/v2/**" } });
+    app.get("/**", () => "leaked");
+    const res = await app.fetch(new Request("http://test/docs/v2/..%2f..%2fadmin"));
+    expect(res.status).toBe(400);
+  });
+
   it("forwards the raw encoded pathname (opaque %2f)", async () => {
     const app = createApp({
       "/rules/redirect/wildcard/**": { redirect: "https://h3.dev/**" },
