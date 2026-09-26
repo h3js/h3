@@ -482,6 +482,15 @@ describe("redirect rule", () => {
     expect(spa.headers.get("location")).toBe("/app/#/x");
   });
 
+  it("keeps a path `/**` literal without a tail when a query follows it", async () => {
+    // `to` doesn't end in `/**` and the key has no tail, so the target is sent
+    // verbatim: only that literal path is the target, not everything under it.
+    const app = createApp({ "/docs/v2/:page": { redirect: "/docs/v2/**?x=1" } });
+    app.get("/**", () => "leaked");
+    const res = await app.fetch(new Request("http://test/docs/v2/foo"));
+    expect(res.headers.get("location")).toBe("/docs/v2/**?x=1");
+  });
+
   it("skips a target spelled with characters the pathname encodes", async () => {
     const app = createApp({ "/**": { redirect: "/café" } });
     app.get("/**", () => "ok");

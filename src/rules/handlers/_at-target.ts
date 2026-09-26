@@ -43,20 +43,26 @@ export function prepareAtTargetCheck(
   if (!target?.startsWith("/") || target[1] === "/" || target[1] === "\\") {
     return;
   }
-  const isAtPath = prepareTargetPathCheck(getURLPathname(target), options!.base);
+  const isAtPath = prepareTargetPathCheck(
+    getURLPathname(target),
+    options!.base,
+    target.endsWith("/**"),
+  );
   return isAtPath && ((event) => isAtPath(event.url.pathname));
 }
 
 /**
  * Matcher for the target's path shape, mirroring which `**` placeholders
- * `prepareRuleTarget` interpolates: a trailing `/**` always, any other `**` only
- * when the rule has a matched tail (`base` is set).
+ * `prepareRuleTarget` interpolates: a `to` ending in `/**` always, any other
+ * `**` only when the rule has a matched tail (`base` is set). Without a tail, a
+ * path `/**` followed by a query or fragment (`/new/**?x=1`) stays literal.
  */
 function prepareTargetPathCheck(
   path: string,
   base: string | undefined,
+  appendsTail: boolean,
 ): ((pathname: string) => boolean) | undefined {
-  if (path.endsWith("/**")) {
+  if (path.endsWith("/**") && (appendsTail || base !== undefined)) {
     // `/docs/v2/**` → `/docs/v2`; the empty tail joins to the bare base itself.
     const prefix = servedPath(path.slice(0, -3));
     if (!prefix) {
