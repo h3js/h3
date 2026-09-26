@@ -1,6 +1,6 @@
 import type { H3Event } from "../../event.ts";
 import { getURLPathname } from "../../utils/internal/path.ts";
-import { isPathInScope } from "../internal/scope.ts";
+import { isPathInServedScope } from "../internal/scope.ts";
 import type { RedirectRuleOptions } from "../types.ts";
 
 /**
@@ -63,7 +63,8 @@ function prepareTargetPathCheck(
       return;
     }
     return (pathname) =>
-      (pathname === prefix || pathname.startsWith(prefix + "/")) && isPathInScope(pathname, prefix);
+      (pathname === prefix || pathname.startsWith(prefix + "/")) &&
+      isPathInServedScope(pathname, prefix);
   }
   const first = base === undefined ? -1 : path.indexOf("**");
   if (first === -1) {
@@ -87,7 +88,7 @@ function prepareTargetPathCheck(
     pathname.length >= minLength &&
     pathname.startsWith(prefix) &&
     pathname.endsWith(suffix) &&
-    isPathInScope(pathname, scope);
+    isPathInServedScope(pathname, scope);
 }
 
 /**

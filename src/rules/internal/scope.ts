@@ -165,6 +165,23 @@ export function isPathInScope(pathname: string, base: string): boolean {
   return decoded === pathname || isEveryCanonicalReadingInScope(decoded, base);
 }
 
+/**
+ * {@link isPathInScope} for a `base` spelled the way `event.url.pathname` serves
+ * it (`/caf%C3%A9`) rather than as pattern text: the {@link decodedPath} reading
+ * of `pathname` is held against the decoded base, since it can never literally
+ * start with the encoded one.
+ */
+export function isPathInServedScope(pathname: string, base: string): boolean {
+  const decodedBase = decodedPath(base);
+  if (decodedBase === base) {
+    return isPathInScope(pathname, base);
+  }
+  return (
+    isEveryCanonicalReadingInScope(pathname, base) &&
+    isEveryCanonicalReadingInScope(decodedPath(pathname), decodedBase)
+  );
+}
+
 function isEveryCanonicalReadingInScope(pathname: string, base: string): boolean {
   if (!needsCanonicalPasses(pathname)) {
     return isCanonicalInScope(pathname, base);

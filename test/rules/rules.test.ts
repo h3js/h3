@@ -487,6 +487,25 @@ describe("redirect rule", () => {
     app.get("/**", () => "ok");
     expect((await app.fetch(new Request("http://test/cafe"))).status).toBe(307);
     expect((await app.fetch(new Request("http://test/café"))).status).toBe(200);
+    // wildcard prefixes too, whose scope check also sees the decoded reading
+    const wild = createApp({
+      "/**": { redirect: "/café/**" },
+      "/blog/**": { redirect: "/blog/café/**.md" },
+    });
+    wild.get("/**", () => "ok");
+    for (const path of ["/café/x", "/blog/café/a.md"]) {
+      const at = await wild.fetch(new Request("http://test" + path));
+      expect(`${path} -> ${at.status}`).toBe(`${path} -> 200`);
+    }
+  });
+
+  it("never skips a request the rule would reject", async () => {
+    // A variable-width key prefix can't strip a reliable tail, so the rule
+    // answers 400 — a target-shaped path must not skip past that to the app.
+    const app = createApp({ "/:lang?/old/**": { redirect: "/old/**" } });
+    app.get("/**", () => "leaked");
+    const res = await app.fetch(new Request("http://test/old/a/b"));
+    expect(res.status).toBe(400);
   });
 
   it("stops a trailing-slash redirect from looping", async () => {

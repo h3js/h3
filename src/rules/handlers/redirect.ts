@@ -21,10 +21,13 @@ export const redirect: RuleHandler<"redirect"> = {
     // A request already at the target's shape stands down instead of looping.
     const isAtTarget = prepareAtTargetCheck(options);
     return function redirectRouteRule(event) {
+      // Resolve first, so a request the rule rejects (400) stays rejected
+      // rather than being skipped through to the app.
+      const location = resolveTarget(event);
       if (isAtTarget?.(event)) {
         return;
       }
-      return sendRedirect(resolveTarget(event), options?.status);
+      return sendRedirect(location, options?.status);
     };
   },
 };
