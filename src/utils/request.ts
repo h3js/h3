@@ -8,7 +8,7 @@ import { getEventContext } from "./event.ts";
 import type { StandardSchemaV1, FailureResult, InferOutput } from "./internal/standard-schema.ts";
 import type { ValidateResult, OnValidateError } from "./internal/validate.ts";
 import type { H3Event, HTTPEvent } from "../event.ts";
-import type { InferEventInput } from "../types/handler.ts";
+import type { EventHandlerRequest, InferEventInput } from "../types/handler.ts";
 import type { HTTPMethod } from "../types/h3.ts";
 import type { H3EventContext } from "../types/context.ts";
 import type { ServerRequest } from "srvx";
@@ -230,8 +230,16 @@ export function getRouterParams<Event extends HTTPEvent>(
  *   getRouterParams(event, { decode: true }); // { rest: "%2e%2e/x" } — still encoded, do not decode again
  * });
  */
-export function getRouterParams<Event extends HTTPEvent>(
-  event: Event,
+export function getRouterParams<Request extends EventHandlerRequest>(
+  event: H3Event<Request>,
+  opts?: { decode?: boolean },
+): Request["routerParams"];
+export function getRouterParams(
+  event: HTTPEvent,
+  opts?: { decode?: boolean },
+): NonNullable<H3Event["context"]["params"]>;
+export function getRouterParams(
+  event: HTTPEvent,
   opts: { decode?: boolean } = {},
 ): NonNullable<H3Event["context"]["params"]> {
   // Fallback object needs to be returned in case router is not used (#149)
@@ -355,32 +363,16 @@ export function getValidatedRouterParams(
  * });
  */
 export function getRouterParam<
-  Event extends H3Event,
-  Key extends Event extends H3Event<infer R>
-    ? keyof R["routerParams"] & string
-    : never,
->(
-  event: Event,
-  name: Key,
-  opts?: { decode?: boolean },
-): Event extends H3Event<infer R> ? R["routerParams"][Key] : never;
-export function getRouterParam<Event extends HTTPEvent>(
-  event: Event,
+  R extends { routerParams: Record<string, string> },
+  Key extends keyof R["routerParams"] & string,
+>(event: H3Event<R>, name: Key, opts?: { decode?: boolean }): R["routerParams"][Key];
+export function getRouterParam(
+  event: HTTPEvent,
   name: string,
   opts?: { decode?: boolean },
 ): string | undefined;
-/**
- * Get a matched route param by name.
- *
- * If `decode` option is `true`, it will decode the matched route param using `decodeURI`.
- *
- * @example
- * app.get("/", (event) => {
- *   const param = getRouterParam(event, "key");
- * });
- */
-export function getRouterParam<Event extends HTTPEvent>(
-  event: Event,
+export function getRouterParam(
+  event: HTTPEvent,
   name: string,
   opts: { decode?: boolean } = {},
 ): string | undefined {

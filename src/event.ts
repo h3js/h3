@@ -79,9 +79,7 @@ export class H3Event<
    * Event context.
    */
   readonly context: H3EventContext<_RequestT["routerParams"]> & {
-    params: _RequestT["routerParams"] extends undefined
-      ? undefined
-      : _RequestT["routerParams"];
+    params: _RequestT["routerParams"] extends undefined ? undefined : _RequestT["routerParams"];
   };
 
   /**
