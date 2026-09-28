@@ -2,6 +2,7 @@ import {
   HTTP_METHODS,
   decodeRoutePattern,
   formatRouteKey,
+  hasInvalidCondition,
   parseRouteKey,
   unknownMethodPrefix,
 } from "./internal/key.ts";
@@ -34,12 +35,17 @@ export function normalizeRouteRules(
         `[h3] rules: \`${key}\` looks method-scoped but \`${unknownMethod}\` is not a recognized HTTP method — as a literal path this rule can never match. Use one of ${[...HTTP_METHODS].join(", ")}, remove the prefix for an all-methods rule, or add a leading \`/\` for a literal path`,
       );
     }
-    const { method, path: rawPath } = parseRouteKey(key);
+    if (hasInvalidCondition(key)) {
+      throw new Error(
+        `[h3] rules: \`${key}\` has an invalid condition — use \`METHOD:NAME /path\` with a single name of letters, digits, \`_\` or \`-\` and a space before the path`,
+      );
+    }
+    const { method, condition, path: rawPath } = parseRouteKey(key);
     // A pattern's literal characters are matched against a decoded reading of
     // the request path, so an escaped one (`/%40admin/**`) has to decode here or
     // it would cover only the encoded spelling (see `decodeRoutePattern`).
     const path = decodeRoutePattern(rawPath);
-    const canonicalKey = formatRouteKey(method, path);
+    const canonicalKey = formatRouteKey(method, path, condition);
 
     validateBuiltinRules(routeConfig, canonicalKey);
 

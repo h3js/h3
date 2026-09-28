@@ -1,6 +1,7 @@
 import { addRoute, compareRoutes, createRouter, findAllRoutes } from "rou3";
 import type { RouterContext } from "rou3";
-import { parseRouteKey } from "./internal/key.ts";
+import { parseRouteKey, routeKeyMethod } from "./internal/key.ts";
+import { materializeDerivedMethods } from "./internal/methods.ts";
 import { mergeMatchedRouteRules } from "./merge.ts";
 import type { RouteOverridePredicate, RouteRuleEntry, RouteRuleLayer } from "./merge.ts";
 import { sharedNodeMethods } from "./internal/nodes.ts";
@@ -73,7 +74,8 @@ export function createRulesRouter(
   }
   const byPath = new Map<string, Map<string, RouteRuleEntry[]>>();
   for (const [key, rule] of Object.entries(rules)) {
-    const { method, path } = parseRouteKey(key);
+    const { method: httpMethod, condition, path } = parseRouteKey(key);
+    const method = routeKeyMethod(httpMethod, condition);
     const entries: RouteRuleEntry[] = [];
     for (const [name, options] of Object.entries(rule)) {
       if (options === undefined) {
@@ -96,26 +98,27 @@ export function createRulesRouter(
     }
     methods.set(method, [...(methods.get(method) || []), ...entries]);
   }
-  // HEAD is served by the GET handler (RFC 9110) — h3 falls back to the GET
-  // route in `~findRoute` and its middleware matcher treats GET-scoped as
-  // HEAD-matching — so GET-scoped rules must also register on HEAD, otherwise a
-  // method-scoped gate (e.g. `GET /admin/**: { auth }`) is bypassable with
-  // a HEAD request that still reaches the handler. Materialized here (rather
-  // than as a lookup-time method rewrite) so the layers stay ordered by
-  // specificity, explicit `HEAD /...` rules keep overriding the GET ones, and
-  // both the runtime matcher and compiled codegen (which shares this router)
-  // inherit it.
-  for (const methods of byPath.values()) {
-    const get = methods.get("GET");
-    if (get) {
-      methods.set("HEAD", [...get, ...(methods.get("HEAD") || [])]);
-    }
-  }
+  // HEAD inherits GET, and each combination of conditions its base method (see
+  // `materializeDerivedMethods`).
+  materializeDerivedMethods(byPath);
   const router = createRouter<RouteRuleEntry[] | PreMergedRouteRules>();
+  // Per pattern, the methods scoped on a node it shares — the only methods for
+  // which a registration could hide its agnostic entries (HEAD and condition
+  // combinations included, having been materialized above).
+  const sharedMethods = sharedNodeMethods(byPath);
   if (preMerge) {
     for (const [path, methods] of preMergeRuleLayers(byPath)) {
       for (const [method, data] of methods) {
         addRoute(router, method, base + path, data);
+      }
+      // A pattern whose chain has no rules for a method scoped on a node it
+      // shares resolves to its agnostic chain for that method — register it
+      // there too, or that scoped registration would hide it (same invariant
+      // as the plain pass 1 below).
+      for (const method of sharedMethods.get(path) || []) {
+        if (!methods.has(method)) {
+          addRoute(router, method, base + path, methods.get("")!);
+        }
       }
     }
     return router;
@@ -141,10 +144,6 @@ export function createRulesRouter(
       }
     }
   }
-  // Per pattern, the methods scoped on a node it shares — the only methods for
-  // which a registration could hide its agnostic entries (HEAD included, having
-  // been materialized above).
-  const sharedMethods = sharedNodeMethods(byPath);
   // Pass 1 — agnostic entries, on `""` (the fallback for every method with no
   // registration on the node) and on each of those methods. Registering them
   // first keeps them ahead of the method-scoped layers of *any* pattern that
@@ -332,6 +331,16 @@ export function createMatcherFromFind(
 
     // Broader alternate readings must not override narrower served-path rules.
     const matchedRules = mergeMatchedRouteRules(rawLayers, altLayers, canOverride);
+
+    // Satisfied conditions are looked up as a composite method (`GET:MD`); tag
+    // every rule with them so per-request state (cache entries) keeps them apart.
+    const sep = method.indexOf(":");
+    if (sep !== -1) {
+      const condition = method.slice(sep + 1);
+      for (const name in matchedRules) {
+        (matchedRules as Record<string, MatchedRouteRule>)[name]!.condition = condition;
+      }
+    }
 
     return {
       routeRules: toRouteRules(matchedRules),

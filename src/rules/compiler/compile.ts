@@ -13,6 +13,7 @@ import {
   serializePreMergedRouteRules,
   serializeRouteRuleEntries,
 } from "./codegen.ts";
+import { compileConditionResolverExport } from "./conditions.ts";
 import {
   DEFAULT_HANDLERS_IMPORT_NAME,
   type CompileModuleOptions,
@@ -28,7 +29,8 @@ import {
 
 /**
  * Compile a rule set into a complete ESM module exporting `findRouteRules`
- * (and, with `matcher`, a ready-to-use matcher). Input is normalized
+ * (and, with `matcher`, a ready-to-use matcher; with `conditions`, the
+ * `resolveRouteRulesMethod` condition resolver). Input is normalized
  * internally — pass authored config or already-normalized rules.
  */
 export function compileRouteRules(
@@ -44,9 +46,12 @@ export function compileRouteRules(
   const matcherExport = opts.matcher
     ? compileMatcherExport(opts.matcher, compileOverridePredicate(collectRoutes(ctx)))
     : null;
-  const imports = [handlerImports, matcherExport?.imports].filter(Boolean).join("\n");
+  const conditionsExport = compileConditionResolverExport(ctx.rules, opts.conditions);
+  const imports = [handlerImports, matcherExport?.imports, conditionsExport?.imports]
+    .filter(Boolean)
+    .join("\n");
   const find = `export const findRouteRules = ${emitFindRouteRules(ctx)};\n`;
-  const body = matcherExport ? find + matcherExport.body : find;
+  const body = find + (matcherExport?.body || "") + (conditionsExport?.body || "");
   const code = `${imports ? imports + "\n" : ""}${body}`;
   return { imports, body, code, toString: () => code };
 }

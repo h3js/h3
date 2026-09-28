@@ -87,6 +87,25 @@ describe("preMerge method matrix", () => {
     expect(post.routeRules.headers).toBeUndefined();
     expect(post.routeRules.cache).toEqual({ swr: true, maxAge: 60 });
   });
+
+  it("a method-scoped rule on a shared node does not hide an agnostic chain", () => {
+    // `/a/*` also matches `/a` and `/a/` through the radix node it shares with
+    // `/a/:id`; the GET registration there must not shadow `/a/*`'s agnostic
+    // chain (the plain registration's `sharedNodeMethods` invariant).
+    const config = normalizeRouteRules({
+      "GET /a/:id": { headers: { "x-get": "1" } },
+      "/a/*": { swr: 60 },
+    });
+    const plain = createRouteRulesMatcher(config, { handlers: FIXTURE_HANDLERS });
+    const preMerged = createRouteRulesMatcher(config, {
+      preMerge: true,
+      handlers: FIXTURE_HANDLERS,
+    });
+    for (const path of ["/a", "/a/", "/a/x"]) {
+      expect(preMerged("GET", path).routeRules, path).toEqual(plain("GET", path).routeRules);
+      expect(preMerged("GET", path).routeRules.cache, path).toEqual({ swr: true, maxAge: 60 });
+    }
+  });
 });
 
 // rou3's `findAllRoutes` returns matched layers broad → narrow for plain
