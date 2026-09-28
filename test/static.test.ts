@@ -144,8 +144,12 @@ describeMatrix("serve static", (t, { it, expect }) => {
       // `q=0` means "not acceptable".
       ["gzip;q=0, br;q=0.000", "asset:/test.png"],
       ["gzip;q=0", "asset:/test.png"],
-      // An unparsable weight counts as `1`, not as a refusal.
-      ["gzip;q=0invalid, br;q=0.5", "asset:/test.png.gz"],
+      // A coding with an unparsable weight is dropped (identity is always safe).
+      ["gzip;q=0invalid, br;q=0.5", "asset:/test.png.br"],
+      ["gzip;q=0.0001", "asset:/test.png"],
+      ["gzip;q=-1", "asset:/test.png"],
+      ['gzip;q="0"', "asset:/test.png"],
+      ["br;q=0.001, gzip;q=0.0010", "asset:/test.png.br"],
       // `x-gzip` is an alias of `gzip`.
       ["X-GZIP", "asset:/test.png.gz"],
       // `*` matches any coding not listed explicitly.
@@ -153,6 +157,8 @@ describeMatrix("serve static", (t, { it, expect }) => {
       ["gzip;q=0, *", "asset:/test.png.br"],
       ["br;q=0.5, *;q=0.8", "asset:/test.png.gz"],
       ["*;q=0", "asset:/test.png"],
+      // Explicitly listed codings win ties with `*` matches.
+      ["*, br", "asset:/test.png.br"],
       // The first occurrence of a coding wins.
       ["gzip;q=0, gzip", "asset:/test.png"],
     ]) {
@@ -170,10 +176,31 @@ describeMatrix("serve static", (t, { it, expect }) => {
     expect(await res.text()).toBe("asset:/test.png");
   });
 
+  it("Normalizes configured encoding names", async () => {
+    t.app.all("/aliases/**", (event) => {
+      return serveStatic(event, {
+        getContents: (id) => `asset:${id}`,
+        getMeta: (id) => ({ type: "text/plain", path: id }),
+        encodings: { GZIP: ".gz", "x-compress": ".Z" },
+      });
+    });
+    for (const [acceptEncoding, expected] of [
+      ["gzip", "asset:/aliases/test.png.gz"],
+      ["compress", "asset:/aliases/test.png.Z"],
+      ["x-compress", "asset:/aliases/test.png.Z"],
+    ]) {
+      const res = await t.fetch("/aliases/test.png", {
+        headers: { "accept-encoding": acceptEncoding! },
+      });
+      expect(await res.text(), acceptEncoding).toBe(expected);
+    }
+  });
+
   it("Handles cache (if-none-match)", async () => {
     const res = await t.fetch("/test.png", {
       headers: { "if-none-match": "w/123" },
     });
+    expect(res.headers.get("vary")).toBe("accept-encoding");
     expect(res.headers.get("etag")).toBe(expectedHeaders.etag);
     expect(res.status).toEqual(304);
     expect(await res.text()).toBe("");

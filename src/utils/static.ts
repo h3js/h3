@@ -302,8 +302,9 @@ function parseAcceptEncoding(header?: string, encodingMap?: Record<string, strin
     }
     const qParam = params.find((p) => /^\s*q\s*=/i.test(p));
     const qValue = qParam?.slice(qParam.indexOf("=") + 1).trim();
-    // An unparsable weight is ignored rather than treated as a refusal.
-    const q = qValue && WEIGHT_RE.test(qValue) ? Number(qValue) : 1;
+    // An unparsable weight drops the coding: identity is always a safe fallback,
+    // while guessing `1` could force a coding the client tried to refuse.
+    const q = qValue === undefined ? 1 : WEIGHT_RE.test(qValue) ? Number(qValue) : 0;
     if (name === "*") {
       wildcard ??= q;
     } else if (!weights.has(name)) {
