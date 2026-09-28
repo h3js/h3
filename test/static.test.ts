@@ -144,6 +144,8 @@ describeMatrix("serve static", (t, { it, expect }) => {
       // `q=0` means "not acceptable".
       ["gzip;q=0, br;q=0.000", "asset:/test.png"],
       ["gzip;q=0", "asset:/test.png"],
+      // An unparsable weight counts as `1`, not as a refusal.
+      ["gzip;q=0invalid, br;q=0.5", "asset:/test.png.gz"],
     ]) {
       const res = await t.fetch("/test.png", {
         headers: { "accept-encoding": acceptEncoding! },

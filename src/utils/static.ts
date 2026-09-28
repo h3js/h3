@@ -273,6 +273,9 @@ export async function serveStatic(
 
 // --- Internal Utils ---
 
+// `qvalue` grammar (RFC 9110 section 12.4.2).
+const WEIGHT_RE = /^(?:0(?:\.\d{0,3})?|1(?:\.0{0,3})?)$/;
+
 /**
  * Resolve the configured encoding extensions a request accepts, most preferred first.
  *
@@ -295,10 +298,11 @@ function parseAcceptEncoding(header?: string, encodingMap?: Record<string, strin
       continue;
     }
     const qParam = params.find((p) => /^\s*q\s*=/i.test(p));
-    const q = qParam ? Number.parseFloat(qParam.split("=")[1]!) : 1;
+    const qValue = qParam?.slice(qParam.indexOf("=") + 1).trim();
     // An unparsable weight is ignored rather than treated as a refusal.
-    if (q > 0 || Number.isNaN(q)) {
-      accepted.push({ ext, q: Number.isNaN(q) ? 1 : q });
+    const q = qValue && WEIGHT_RE.test(qValue) ? Number(qValue) : 1;
+    if (q > 0) {
+      accepted.push({ ext, q });
     }
   }
   return accepted.sort((a, b) => b.q - a.q).map((e) => e.ext);
