@@ -279,8 +279,9 @@ const WEIGHT_RE = /^(?:0(?:\.\d{0,3})?|1(?:\.0{0,3})?)$/;
 /**
  * Resolve the configured encoding extensions a request accepts, most preferred first.
  *
- * Coding names are case-insensitive, `q=0` means "not acceptable" and equal
- * weights keep header order (RFC 9110 section 12.5.3).
+ * Coding names are case-insensitive, `q=0` means "not acceptable", `*` matches
+ * any coding not listed explicitly and equal weights keep header order, with
+ * explicitly listed codings ahead of `*` matches (RFC 9110 section 12.5.3).
  */
 function parseAcceptEncoding(header?: string, encodingMap?: Record<string, string>): string[] {
   if (!encodingMap || !header) {
@@ -288,24 +289,45 @@ function parseAcceptEncoding(header?: string, encodingMap?: Record<string, strin
   }
   const extensions = new Map<string, string>();
   for (const [name, ext] of Object.entries(encodingMap)) {
-    extensions.set(name.toLowerCase(), ext);
+    extensions.set(normalizeCoding(name), ext);
   }
-  const accepted: { ext: string; q: number }[] = [];
+  // Coding -> weight, in header order. The first occurrence of a coding wins.
+  const weights = new Map<string, number>();
+  let wildcard: number | undefined;
   for (const part of header.split(",")) {
-    const [name = "", ...params] = part.split(";");
-    const ext = extensions.get(name.trim().toLowerCase());
-    if (!ext) {
+    const [rawName = "", ...params] = part.split(";");
+    const name = normalizeCoding(rawName);
+    if (name !== "*" && !extensions.has(name)) {
       continue;
     }
     const qParam = params.find((p) => /^\s*q\s*=/i.test(p));
     const qValue = qParam?.slice(qParam.indexOf("=") + 1).trim();
     // An unparsable weight is ignored rather than treated as a refusal.
     const q = qValue && WEIGHT_RE.test(qValue) ? Number(qValue) : 1;
-    if (q > 0) {
-      accepted.push({ ext, q });
+    if (name === "*") {
+      wildcard ??= q;
+    } else if (!weights.has(name)) {
+      weights.set(name, q);
     }
   }
-  return accepted.sort((a, b) => b.q - a.q).map((e) => e.ext);
+  if (wildcard) {
+    for (const name of extensions.keys()) {
+      if (!weights.has(name)) {
+        weights.set(name, wildcard);
+      }
+    }
+  }
+  const accepted = [...weights]
+    .filter(([, q]) => q > 0)
+    .sort((a, b) => b[1] - a[1])
+    .map(([name]) => extensions.get(name)!);
+  return [...new Set(accepted)];
+}
+
+/** Lowercase a coding name and resolve the `x-gzip` / `x-compress` aliases (RFC 9110 section 8.4.1). */
+function normalizeCoding(name: string): string {
+  const coding = name.trim().toLowerCase();
+  return coding === "x-gzip" || coding === "x-compress" ? coding.slice(2) : coding;
 }
 
 function idSearchPaths(id: string, encodings: string[], indexNames: string[]) {

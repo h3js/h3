@@ -146,6 +146,15 @@ describeMatrix("serve static", (t, { it, expect }) => {
       ["gzip;q=0", "asset:/test.png"],
       // An unparsable weight counts as `1`, not as a refusal.
       ["gzip;q=0invalid, br;q=0.5", "asset:/test.png.gz"],
+      // `x-gzip` is an alias of `gzip`.
+      ["X-GZIP", "asset:/test.png.gz"],
+      // `*` matches any coding not listed explicitly.
+      ["*", "asset:/test.png.gz"],
+      ["gzip;q=0, *", "asset:/test.png.br"],
+      ["br;q=0.5, *;q=0.8", "asset:/test.png.gz"],
+      ["*;q=0", "asset:/test.png"],
+      // The first occurrence of a coding wins.
+      ["gzip;q=0, gzip", "asset:/test.png"],
     ]) {
       const res = await t.fetch("/test.png", {
         headers: { "accept-encoding": acceptEncoding! },
