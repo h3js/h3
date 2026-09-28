@@ -110,8 +110,8 @@ importers:
   .:
     dependencies:
       rou3:
-        specifier: ^0.10.1
-        version: 0.10.1
+        specifier: ^0.10.2
+        version: 0.10.2
       srvx:
         specifier: ^1.0.5
         version: 1.0.5
@@ -2183,8 +2183,8 @@ packages:
     engines: {node: ^20.19.0 || >=22.12.0}
     hasBin: true
 
-  rou3@0.10.1:
-    resolution: {integrity: sha512-vh0jwgcbH1SUZ7sXGkPWYVexuhIdr9wJP9lbw0r2mHoRJ5cMv4ojqH6r9XpEqe347AR89X+xnpzc1NzE/JCfsw==}
+  rou3@0.10.2:
+    resolution: {integrity: sha512-Bhpf3+tMjagZmFmNDpZ/idBoywJmuUdOTz/5e4bVJx3WU0LupnPubK6nTTkrlETEoBwkxr1u3RqETTmCBL43TQ==}
 
   rou3@0.9.2:
     resolution: {integrity: sha512-3SOzvaAg8rkHrXtRjpCvCvbyO5to9oOO27Z/XqHEYXfMRVSw/qMIVdmaOk9W2lcRLtR6dlqTjo9hDeJk70QBYQ==}
@@ -3958,7 +3958,7 @@ snapshots:
       '@rolldown/binding-win32-arm64-msvc': 1.2.11
       '@rolldown/binding-win32-x64-msvc': 1.2.11
 
-  rou3@0.10.1: {}
+  rou3@0.10.2: {}
 
   rou3@0.9.2: {}
 
