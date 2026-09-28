@@ -189,15 +189,6 @@ export async function serveStatic(
     options.encodings,
   );
 
-  // The chosen variant depends on `accept-encoding` whenever encodings are
-  // configured, including when the unencoded file is served.
-  if (options.encodings && Object.keys(options.encodings).length > 0) {
-    const vary = event.res.headers.get("vary") || "";
-    if (!/(?:^|,)\s*(?:\*|accept-encoding)\s*(?:,|$)/i.test(vary)) {
-      event.res.headers.append("vary", "accept-encoding");
-    }
-  }
-
   let id = originalId;
   let meta: StaticAssetMeta | undefined;
 
@@ -217,6 +208,16 @@ export async function serveStatic(
       return;
     }
     throw new HTTPError({ statusCode: 404 });
+  }
+
+  // The chosen variant depends on `accept-encoding` whenever encodings are
+  // configured, including when the unencoded file is served. Set only once an
+  // asset is found so a fallthrough does not leak it to the next handler.
+  if (options.encodings && Object.keys(options.encodings).length > 0) {
+    const vary = event.res.headers.get("vary") || "";
+    if (!/(?:^|,)\s*(?:\*|accept-encoding)\s*(?:,|$)/i.test(vary)) {
+      event.res.headers.append("vary", "accept-encoding");
+    }
   }
 
   let mtimeDate: Date | undefined;
@@ -272,14 +273,35 @@ export async function serveStatic(
 
 // --- Internal Utils ---
 
+/**
+ * Resolve the configured encoding extensions a request accepts, most preferred first.
+ *
+ * Coding names are case-insensitive, `q=0` means "not acceptable" and equal
+ * weights keep header order (RFC 9110 section 12.5.3).
+ */
 function parseAcceptEncoding(header?: string, encodingMap?: Record<string, string>): string[] {
   if (!encodingMap || !header) {
     return [];
   }
-  return String(header || "")
-    .split(",")
-    .map((e) => encodingMap[e.trim()])
-    .filter(Boolean);
+  const extensions = new Map<string, string>();
+  for (const [name, ext] of Object.entries(encodingMap)) {
+    extensions.set(name.toLowerCase(), ext);
+  }
+  const accepted: { ext: string; q: number }[] = [];
+  for (const part of header.split(",")) {
+    const [name = "", ...params] = part.split(";");
+    const ext = extensions.get(name.trim().toLowerCase());
+    if (!ext) {
+      continue;
+    }
+    const qParam = params.find((p) => /^\s*q\s*=/i.test(p));
+    const q = qParam ? Number.parseFloat(qParam.split("=")[1]!) : 1;
+    // An unparsable weight is ignored rather than treated as a refusal.
+    if (q > 0 || Number.isNaN(q)) {
+      accepted.push({ ext, q: Number.isNaN(q) ? 1 : q });
+    }
+  }
+  return accepted.sort((a, b) => b.q - a.q).map((e) => e.ext);
 }
 
 function idSearchPaths(id: string, encodings: string[], indexNames: string[]) {

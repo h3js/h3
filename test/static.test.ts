@@ -132,6 +132,33 @@ describeMatrix("serve static", (t, { it, expect }) => {
     }
   });
 
+  it("Matches encodings with q-values and any case", async () => {
+    for (const [acceptEncoding, expected] of [
+      ["gzip;q=1.0", "asset:/test.png.gz"],
+      ["GZIP", "asset:/test.png.gz"],
+      ["br ; q=1", "asset:/test.png.br"],
+      // Preferred by weight, not by header order.
+      ["gzip;q=0.5, br;q=0.8", "asset:/test.png.br"],
+      // Equal weights keep header order.
+      ["br, gzip", "asset:/test.png.br"],
+      // `q=0` means "not acceptable".
+      ["gzip;q=0, br;q=0.000", "asset:/test.png"],
+      ["gzip;q=0", "asset:/test.png"],
+    ]) {
+      const res = await t.fetch("/test.png", {
+        headers: { "accept-encoding": acceptEncoding! },
+      });
+      expect(await res.text(), acceptEncoding).toBe(expected);
+    }
+  });
+
+  it("Ignores inherited object keys in accept-encoding", async () => {
+    const res = await t.fetch("/test.png", {
+      headers: { "accept-encoding": "constructor, __proto__, toString" },
+    });
+    expect(await res.text()).toBe("asset:/test.png");
+  });
+
   it("Handles cache (if-none-match)", async () => {
     const res = await t.fetch("/test.png", {
       headers: { "if-none-match": "w/123" },
@@ -446,6 +473,14 @@ describeMatrix("serve static with fallthrough", (t, { it, expect }) => {
     const res = await t.fetch("/fallthrough/test.png");
     expect(res.status).toEqual(200);
     expect(await res.json()).toEqual({ fallthroughTest: "passing" });
+  });
+
+  it("Does not leak vary to the next handler", async () => {
+    const res = await t.fetch("/fallthrough/test.png", {
+      headers: { "accept-encoding": "gzip" },
+    });
+    expect(await res.json()).toEqual({ fallthroughTest: "passing" });
+    expect(res.headers.get("vary")).toBeNull();
   });
 });
 
