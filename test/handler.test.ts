@@ -125,6 +125,27 @@ describe("handler.ts", () => {
   });
 
   describe("defineValidatedHandler", () => {
+    it("preserves repeated query values for validation", async () => {
+      let validatorInput: unknown;
+      const handler = defineValidatedHandler({
+        validate: {
+          query: z.preprocess(
+            (input) => {
+              validatorInput = input;
+              return input;
+            },
+            z.object({ tag: z.array(z.string()) }),
+          ),
+        },
+        handler: (event) => event.url.searchParams.getAll("tag"),
+      });
+
+      const response = await handler.fetch(toRequest("/?tag=a&tag=b"));
+
+      expect(validatorInput).toEqual({ tag: ["a", "b"] });
+      expect(await response.json()).toEqual(["a", "b"]);
+    });
+
     const handler = defineValidatedHandler({
       validate: {
         body: z.object({
