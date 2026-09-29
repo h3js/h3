@@ -1,0 +1,50 @@
+{
+  "name": "h3-v2",
+  "version": "2.0.1-rc.32",
+  "description": "Alias of h3 v2 (re-exports h3).",
+  "homepage": "https://h3.dev",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/h3js/h3.git"
+  },
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    "./package.json": "./package.json",
+    ".": "./lib/index.mjs",
+    "./deno": "./lib/deno.mjs",
+    "./bun": "./lib/bun.mjs",
+    "./cloudflare": "./lib/cloudflare.mjs",
+    "./service-worker": "./lib/service-worker.mjs",
+    "./node": "./lib/node.mjs",
+    "./generic": "./lib/generic.mjs",
+    "./tracing": "./lib/tracing.mjs",
+    "./rules": "./lib/rules/index.mjs",
+    "./rules/cache": "./lib/rules/cache.mjs",
+    "./rules/proxy": "./lib/rules/proxy.mjs",
+    "./rules/compiler": "./lib/rules/compiler.mjs"
+  },
+  "types": "./lib/index.d.mts",
+  "files": [
+    "lib"
+  ],
+  "dependencies": {
+    "h3": "^2.0.1-rc.32"
+  },
+  "peerDependencies": {
+    "crossws": "^0.4.12",
+    "ocache": ">=0.3.0"
+  },
+  "peerDependenciesMeta": {
+    "crossws": {
+      "optional": true
+    },
+    "ocache": {
+      "optional": true
+    }
+  },
+  "engines": {
+    "node": ">=20.11.1"
+  }
+}
