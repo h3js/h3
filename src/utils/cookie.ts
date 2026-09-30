@@ -192,7 +192,8 @@ export function setChunkedCookie(
   options?: CookieSerializeOptions & { chunkMaxLength?: number },
 ): void {
   const chunkMaxLength = options?.chunkMaxLength || CHUNKS_MAX_LENGTH;
-  const chunkCount = Math.ceil(value.length / chunkMaxLength);
+  const chunks = splitCookieValue(value, chunkMaxLength, options?.encode || encodeURIComponent);
+  const chunkCount = chunks.length;
 
   // Reject values that would need more chunks than the reader (`getChunkedCookie`)
   // supports. Beyond this the reader returns `undefined`, so the write would be
@@ -201,7 +202,7 @@ export function setChunkedCookie(
   if (chunkCount > MAX_CHUNKED_COOKIE_COUNT) {
     throw new HTTPError({
       status: 500,
-      message: `Cannot set chunked cookie "${name}": value needs ${chunkCount} chunks, exceeding the maximum of ${MAX_CHUNKED_COOKIE_COUNT}.`,
+      message: `Cannot set chunked cookie "${name}": value needs more than ${MAX_CHUNKED_COOKIE_COUNT} chunks.`,
     });
   }
 
@@ -228,10 +229,7 @@ export function setChunkedCookie(
   setCookie(event, name, mainCookieValue, options);
 
   for (let i = 1; i <= chunkCount; i++) {
-    const start = (i - 1) * chunkMaxLength;
-    const end = start + chunkMaxLength;
-    const chunkValue = value.slice(start, end);
-    setCookie(event, chunkCookieName(name, i), chunkValue, options);
+    setCookie(event, chunkCookieName(name, i), chunks[i - 1]!, options);
   }
 }
 
@@ -289,6 +287,39 @@ function getChunkedCookieCount(cookie: string | undefined): number {
     return Number.NaN;
   }
   return count;
+}
+
+/**
+ * Split `value` so that each chunk *as serialized* (after `encode`) fits in
+ * `maxLength`: percent-encoding can triple (or, for non-ASCII, multiply by
+ * up to nine) the stored size. Splits on code point boundaries, since a lone
+ * surrogate cannot be encoded. Stops once the chunk cap is exceeded.
+ */
+function splitCookieValue(
+  value: string,
+  maxLength: number,
+  encode: (value: string) => string,
+): string[] {
+  const chunks: string[] = [];
+  let chunk = "";
+  let chunkLength = 0;
+  for (const char of value) {
+    const charLength = encode(char).length;
+    if (chunk && chunkLength + charLength > maxLength) {
+      chunks.push(chunk);
+      if (chunks.length > MAX_CHUNKED_COOKIE_COUNT) {
+        return chunks;
+      }
+      chunk = "";
+      chunkLength = 0;
+    }
+    chunk += char;
+    chunkLength += charLength;
+  }
+  if (chunk) {
+    chunks.push(chunk);
+  }
+  return chunks;
 }
 
 function chunkCookieName(name: string, chunkNumber: number): string {

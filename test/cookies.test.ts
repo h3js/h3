@@ -605,6 +605,48 @@ describeMatrix("cookies", (t, { it, expect, describe }) => {
         expect(await readResult.text()).toBe("x".repeat(100));
       });
 
+      it("keeps every encoded chunk within chunkMaxLength and readable", async () => {
+        // `"`, `{`, `:` and `,` are percent-encoded to three bytes each, so the
+        // raw value length understates what the browser has to store.
+        // 2771 characters, but 7453 once serialized.
+        const value = JSON.stringify(
+          Array.from({ length: 120 }, (_, i) => ({ id: i, name: "é😀" })),
+        );
+        t.app.get("/", (event) => {
+          setChunkedCookie(event, "cart", value);
+          return "200";
+        });
+        const result = await t.fetch("/");
+        expect(await result.text()).toBe("200");
+        const pairs = result.headers.getSetCookie().map((c) => c.split(";")[0]);
+        for (const pair of pairs) {
+          expect(pair.slice(pair.indexOf("=") + 1).length).toBeLessThanOrEqual(4000);
+        }
+
+        t.app.get("/read", (event) => getChunkedCookie(event, "cart") ?? "MISSING");
+        const readResult = await t.fetch("/read", {
+          headers: { Cookie: pairs.join("; ") },
+        });
+        expect(await readResult.text()).toBe(value);
+      });
+
+      it("does not split a surrogate pair across chunks", async () => {
+        const value = "123456789😀abc";
+        t.app.get("/", (event) => {
+          setChunkedCookie(event, "emoji", value, { chunkMaxLength: 10 });
+          return "200";
+        });
+        const result = await t.fetch("/");
+        expect(await result.text()).toBe("200");
+        const pairs = result.headers.getSetCookie().map((c) => c.split(";")[0]);
+
+        t.app.get("/read", (event) => getChunkedCookie(event, "emoji") ?? "MISSING");
+        const readResult = await t.fetch("/read", {
+          headers: { Cookie: pairs.join("; ") },
+        });
+        expect(await readResult.text()).toBe(value);
+      });
+
       it("removes all previous chunks when reducing to a single non-chunked value", async () => {
         t.app.get("/", (event) => {
           // New value fits in one cookie, so it is stored unchunked with no `session.N`.
