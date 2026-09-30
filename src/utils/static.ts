@@ -190,15 +190,19 @@ export async function serveStatic(
   );
 
   let id = originalId;
+  // The asset `id` stands for: the same path without a precompressed
+  // variant's encoding extension.
+  let assetId = originalId;
   let meta: StaticAssetMeta | undefined;
 
   const _ids = idSearchPaths(originalId, acceptEncodings, options.indexNames || ["/index.html"]);
 
   for (const _id of _ids) {
-    const _meta = await options.getMeta(_id);
+    const _meta = await options.getMeta(_id.id);
     if (_meta) {
       meta = _meta;
-      id = _id;
+      id = _id.id;
+      assetId = _id.assetId;
       break;
     }
   }
@@ -247,7 +251,9 @@ export async function serveStatic(
     if (meta.type) {
       event.res.headers.set("content-type", meta.type);
     } else {
-      const ext = getExtension(id);
+      // `/app.js.gz` is still `text/javascript`: resolve the requested asset's
+      // type, not the extension of its precompressed variant.
+      const ext = getExtension(assetId);
       const type = ext ? (options.getType?.(ext) ?? getType(ext)) : undefined;
       if (type) {
         event.res.headers.set("content-type", type);
@@ -332,11 +338,12 @@ function normalizeCoding(name: string): string {
 }
 
 function idSearchPaths(id: string, encodings: string[], indexNames: string[]) {
-  const ids = [];
+  const ids: { id: string; assetId: string }[] = [];
 
   for (const suffix of ["", ...indexNames]) {
+    const assetId = `${id}${suffix}`;
     for (const encoding of [...encodings, ""]) {
-      ids.push(`${id}${suffix}${encoding}`);
+      ids.push({ id: `${assetId}${encoding}`, assetId });
     }
   }
 

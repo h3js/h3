@@ -561,6 +561,37 @@ describeMatrix("serve static MIME types", (t, { it, expect }) => {
     );
   });
 
+  it("uses the requested asset's MIME type for a precompressed variant", async () => {
+    const files: Record<string, string> = {
+      "/pre/app.js": "js",
+      "/pre/app.js.gz": "js.gz",
+      "/pre/app.js.br": "js.br",
+      "/pre/style.css.gz": "css.gz",
+      "/pre/docs/index.html.br": "html.br",
+    };
+    const options: ServeStaticOptions = {
+      getContents: vi.fn((id) => files[id]),
+      getMeta: vi.fn((id) => (files[id] ? { size: files[id].length } : undefined)),
+      encodings: { gzip: ".gz", br: ".br" },
+    };
+
+    t.app.all("/pre/**", (event) => {
+      return serveStatic(event, options);
+    });
+
+    for (const [path, acceptEncoding, body, type] of [
+      ["/pre/app.js", "gzip", "js.gz", "text/javascript"],
+      ["/pre/app.js", "br, gzip;q=0.5", "js.br", "text/javascript"],
+      ["/pre/app.js", "identity", "js", "text/javascript"],
+      ["/pre/style.css", "gzip", "css.gz", "text/css"],
+      ["/pre/docs", "br", "html.br", "text/html"],
+    ] as const) {
+      const res = await t.fetch(path, { headers: { "accept-encoding": acceptEncoding } });
+      expect(await res.text(), `${path} (${acceptEncoding})`).toBe(body);
+      expect(res.headers.get("content-type"), `${path} (${acceptEncoding})`).toBe(type);
+    }
+  });
+
   it("does not overwrite a content-length already set on the response", async () => {
     // An explicit response content-length must win over the size derived from
     // meta — consistent with content-type / content-encoding / last-modified,
