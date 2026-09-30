@@ -631,9 +631,10 @@ describeMatrix("cookies", (t, { it, expect, describe }) => {
       });
 
       it("does not split a surrogate pair across chunks", async () => {
-        const value = "123456789😀abc";
+        // UTF-16 slicing at 12 would cut the emoji's surrogate pair in half.
+        const value = "12345678901😀abc";
         t.app.get("/", (event) => {
-          setChunkedCookie(event, "emoji", value, { chunkMaxLength: 10 });
+          setChunkedCookie(event, "emoji", value, { chunkMaxLength: 12 });
           return "200";
         });
         const result = await t.fetch("/");
@@ -645,6 +646,38 @@ describeMatrix("cookies", (t, { it, expect, describe }) => {
           headers: { Cookie: pairs.join("; ") },
         });
         expect(await readResult.text()).toBe(value);
+      });
+
+      it("sizes chunks for a custom encoder by the whole encoded chunk", async () => {
+        const encode = (v: string) => btoa(v);
+        const decode = (v: string) => atob(v);
+        const value = "a".repeat(100);
+        t.app.get("/", (event) => {
+          setChunkedCookie(event, "b64", value, { chunkMaxLength: 40, encode });
+          return "200";
+        });
+        const result = await t.fetch("/");
+        expect(await result.text()).toBe("200");
+        const pairs = result.headers.getSetCookie().map((c) => c.split(";")[0]);
+        // 30 characters encode to exactly 40, so 100 characters need 4 chunks.
+        expect(pairs[0]).toBe(`b64=${btoa("__chunked__4")}`);
+        for (const pair of pairs) {
+          expect(pair.slice(pair.indexOf("=") + 1).length).toBeLessThanOrEqual(40);
+        }
+        const chunks = pairs.slice(1).map((p) => decode(p.slice(p.indexOf("=") + 1)));
+        expect(chunks.join("")).toBe(value);
+      });
+
+      it("throws when a single character cannot fit in chunkMaxLength", async () => {
+        t.app.get("/", (event) => {
+          expect(() => setChunkedCookie(event, "emoji", "abcdef😀", { chunkMaxLength: 5 })).toThrow(
+            /does not fit/,
+          );
+          expect(event.res.headers.getSetCookie()).toEqual([]);
+          return "200";
+        });
+        const result = await t.fetch("/");
+        expect(await result.text()).toBe("200");
       });
 
       it("removes all previous chunks when reducing to a single non-chunked value", async () => {
