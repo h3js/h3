@@ -4,6 +4,8 @@ const COMMON_MIME_TYPES: Record<string, string> = {
   ".htm": "text/html",
   ".css": "text/css",
   ".js": "text/javascript",
+  ".mjs": "text/javascript",
+  ".cjs": "text/javascript",
   ".json": "application/json",
   ".txt": "text/plain",
   ".xml": "application/xml",
