@@ -2,7 +2,7 @@ import { type ErrorDetails, HTTPError } from "../../error.ts";
 
 import type { ServerRequest } from "srvx";
 import type { StandardSchemaV1, FailureResult, InferOutput, Issue } from "./standard-schema.ts";
-import { parseQuery } from "./query.ts";
+import { EmptyObject } from "./obj.ts";
 
 export type ValidateResult<T> = T | true | false | void;
 
@@ -161,11 +161,23 @@ export async function validatedURL(
     return url;
   }
 
+  // `Object.fromEntries(url.searchParams)` keeps only the last value for repeated keys.
+  // Collect them as arrays (same shape as `getQuery`) to feed validators the full query.
+  const query: Record<string, string | string[]> = new EmptyObject();
+  for (const [key, value] of url.searchParams) {
+    const prev = query[key];
+    if (prev === undefined) {
+      query[key] = value;
+    } else if (Array.isArray(prev)) {
+      prev.push(value);
+    } else {
+      query[key] = [prev, value];
+    }
+  }
+
   const validatedQuery = await validateSource(
     "query",
-    // `URLSearchParams.entries()` keeps only the last value for repeated keys.
-    // Match `getQuery` and feed validators the full multi-value shape.
-    parseQuery(url.search.slice(1)),
+    query,
     validate.query as StandardSchemaV1<Record<string, string | string[]>>,
     validate.onError,
   );
