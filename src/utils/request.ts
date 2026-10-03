@@ -192,14 +192,6 @@ export function getValidatedQuery(
   return validateData(query, validate, options);
 }
 
-export function getRouterParams<Event extends H3Event>(
-  event: Event,
-  opts?: { decode?: boolean },
-): Event extends H3Event<infer R> ? R["routerParams"] : never;
-export function getRouterParams<Event extends HTTPEvent>(
-  event: Event,
-  opts?: { decode?: boolean },
-): NonNullable<H3Event["context"]["params"]>;
 /**
  * Get matched route params.
  *
@@ -244,9 +236,7 @@ export function getRouterParams(
 ): NonNullable<H3Event["context"]["params"]> {
   // Fallback object needs to be returned in case router is not used (#149)
   const context = getEventContext<H3EventContext>(event);
-  let params = (context.params || {}) as NonNullable<
-    H3Event["context"]["params"]
-  >;
+  let params = (context.params || {}) as NonNullable<H3Event["context"]["params"]>;
 
   if (opts.decode) {
     params = { ...params };

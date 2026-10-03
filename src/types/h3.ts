@@ -24,30 +24,6 @@ export type MatchedRoute<T = any> = {
 // prettier-ignore
 export type HTTPMethod =  "GET" | "HEAD" | "PATCH" | "POST" | "PUT" | "DELETE" | "CONNECT" | "OPTIONS" | "TRACE" | "QUERY";
 
-/**
- * Interface for HTTP method handlers (GET, POST, PUT, DELETE, etc.).
- *
- * Automatically infers route parameters from the route pattern and makes them
- * available in the event handler context.
- *
- * @template {H3} This - Passed as `this` to resolve to the declared H3 class type
- * rather than the runtime H3 class implementation. This ensures TypeScript uses
- * the correct type signature from this declaration file.
- *
- * NOTE:
- * If we used H3 directly in the return type, the bench implementation would
- * fail, due to `app._rou3` not being defined on H3.
- */
-interface H3HandlerInterface<This extends H3> {
-  <Route extends string>(
-    route: Route,
-    handler: EventHandler<{
-      routerParams: RouteParams<Route>;
-    }>,
-    opts?: RouteOptions,
-  ): This;
-  (route: string, handler: HTTPHandler, opts?: RouteOptions): This;
-}
 export interface H3Config {
   /**
    * When enabled, H3 displays debugging stack traces in HTTP responses (potentially dangerous for production!).
@@ -251,23 +227,15 @@ export declare class H3 extends H3Core {
   /**
    * Register a route handler for all HTTP methods.
    */
-  all<Route extends string>(
-    route: Route,
-    handler: EventHandler<{
-      routerParams: RouteParams<Route>;
-    }>,
-    opts?: RouteOptions,
-  ): this;
-  all(route: string, handler: HTTPHandler, opts?: RouteOptions): this;
-
-  get: H3HandlerInterface<this>;
-  post: H3HandlerInterface<this>;
-  put: H3HandlerInterface<this>;
-  delete: H3HandlerInterface<this>;
-  patch: H3HandlerInterface<this>;
-  head: H3HandlerInterface<this>;
-  options: H3HandlerInterface<this>;
-  connect: H3HandlerInterface<this>;
-  trace: H3HandlerInterface<this>;
-  query: H3HandlerInterface<this>;
+  all: RouteRegistrar<this>;
+  get: RouteRegistrar<this>;
+  post: RouteRegistrar<this>;
+  put: RouteRegistrar<this>;
+  delete: RouteRegistrar<this>;
+  patch: RouteRegistrar<this>;
+  head: RouteRegistrar<this>;
+  options: RouteRegistrar<this>;
+  connect: RouteRegistrar<this>;
+  trace: RouteRegistrar<this>;
+  query: RouteRegistrar<this>;
 }
