@@ -19,7 +19,7 @@ H3 version 2 includes some behavior and API changes that you need to consider ap
 ## Latest Node.js and ESM-only
 
 > [!TIP]
-> H3 v2 requires Node.js >= 20.11 (latest LTS recommended) .
+> H3 v2 requires Node.js >= 20.19 (latest LTS recommended) .
 
 If your application is currently using CommonJS modules (`require` and `module.exports`), You can still use `require("h3")` thanks to `require(esm)` supported in latest Node.js versions.
 
