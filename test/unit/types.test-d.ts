@@ -141,6 +141,22 @@ describe("types", () => {
       expectTypeOf<Req["headers"]>().toEqualTypeOf<{ "x-thing": string }>();
     });
 
+    it("keeps array query values", () => {
+      const handler = defineValidatedHandler({
+        validate: {
+          query: z.object({ tag: z.array(z.string()), page: z.string().optional() }),
+        },
+        handler: (event) => {
+          const query = getQuery(event);
+          expectTypeOf(query.tag).toEqualTypeOf<string[]>();
+          return "ok";
+        },
+      });
+
+      type Req = ReqOf<typeof handler>;
+      expectTypeOf<Req["query"]>().toEqualTypeOf<{ tag: string[]; page?: string | undefined }>();
+    });
+
     it("leaves unvalidated parts of the request empty", () => {
       const bodyOnly = defineValidatedHandler({
         validate: { body: z.object({ title: z.string() }) },
@@ -245,7 +261,7 @@ describe("types", () => {
       defineHandler((event) => {
         const query = getQuery(event);
         expectTypeOf(query).not.toBeAny();
-        expectTypeOf(query).toEqualTypeOf<Partial<Record<string, string>>>();
+        expectTypeOf(query).toEqualTypeOf<Partial<Record<string, string | string[]>>>();
       });
     });
 
