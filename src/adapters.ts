@@ -3,6 +3,7 @@ import { kHandled } from "./response.ts";
 
 import type { NodeServerRequest, NodeServerResponse, ServerRequest } from "srvx";
 import type { H3 } from "./h3.ts";
+import type { H3Event } from "./event.ts";
 import type { H3EventContext } from "./types/context.ts";
 import type { EventHandler, EventHandlerResponse } from "./types/handler.ts";
 
@@ -56,11 +57,11 @@ export function fromNodeHandler(handler: NodeHandler | NodeMiddleware): EventHan
     // rewrites (withBase/mount) and pathname normalization propagate (#1432)
     const url = event.url.pathname + event.url.search;
     if (node.req.url === url) {
-      return callNodeHandler(handler, node.req, node.res) as EventHandlerResponse;
+      return callNodeHandler(handler, node.req, node.res, event) as EventHandlerResponse;
     }
     const originalUrl = node.req.url;
     node.req.url = url;
-    return (callNodeHandler(handler, node.req, node.res) as Promise<unknown>).finally(() => {
+    return (callNodeHandler(handler, node.req, node.res, event) as Promise<unknown>).finally(() => {
       node.req.url = originalUrl;
     }) as EventHandlerResponse;
   };
@@ -78,6 +79,7 @@ function callNodeHandler(
   handler: NodeHandler | NodeMiddleware,
   req: NodeServerRequest,
   res: NodeServerResponse,
+  event: H3Event,
 ) {
   const isMiddleware = handler.length > 2;
   return new Promise((resolve, reject) => {
@@ -106,9 +108,16 @@ function callNodeHandler(
               console.error("[h3] Stream error in Node.js handler", {
                 cause: error,
               });
-              // We cannot alter the outgoing response at this point
-              // TODO: We might at least call h3 error hook here by exposing app to node request
-              reject(kHandled);
+              // We cannot alter the outgoing response at this point, so the error hook
+              // is only called to report the error (its return value is ignored)
+              const onError = event.app?.config.onError;
+              if (!onError) {
+                return reject(kHandled);
+              }
+              Promise.resolve()
+                .then(() => onError(new HTTPError({ cause: error, unhandled: true }), event))
+                .catch((hookError) => console.error(hookError))
+                .finally(() => reject(kHandled));
             }),
           );
           // The client may have disconnected already — "close" was emitted before this

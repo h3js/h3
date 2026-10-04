@@ -365,6 +365,11 @@ describeMatrix("app", (t, { it, expect }) => {
       const res = await t.fetch("/");
       expect(res.status).toBe(201);
       expect(await res.text()).toBe("item1,item2");
+      // The response is already committed, but the error hook still reports the error
+      expect(t.hooks.onError).toHaveBeenCalledTimes(1);
+      expect(t.errors[0].unhandled).toBe(true);
+      expect(t.errors[0].message).toBe("Test Error");
+      t.errors = [];
       spy.mockRestore();
     },
   );
