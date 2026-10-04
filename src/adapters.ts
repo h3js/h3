@@ -102,9 +102,12 @@ function callNodeHandler(
             res.removeListener("close", onResClose);
             cb();
           };
-          stream.once("close", () => settle(() => resolve(kHandled)));
+          const onStreamClose = () => settle(() => resolve(kHandled));
+          stream.once("close", onStreamClose);
           stream.once("error", (error: any) =>
             settle(() => {
+              // The source emits "close" right after "error": settle once the error hook is done
+              stream.removeListener("close", onStreamClose);
               console.error("[h3] Stream error in Node.js handler", {
                 cause: error,
               });

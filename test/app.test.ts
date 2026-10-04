@@ -375,6 +375,35 @@ describeMatrix("app", (t, { it, expect }) => {
   );
 
   it.skipIf(t.target !== "node")(
+    "fromNodeHandler + piping (with Error) waits for an async error hook",
+    async () => {
+      const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+      const calls: string[] = [];
+      t.hooks.onError.mockImplementationOnce(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        calls.push("onError");
+      });
+      t.hooks.onResponse.mockImplementation(() => {
+        calls.push("onResponse");
+      });
+      t.app.all(
+        "/*",
+        fromNodeHandler((req, res) => {
+          const iterator = (async function* () {
+            yield "item1";
+            throw new Error("Test Error");
+          })();
+          NodeStreamReadable.from(iterator).pipe(res);
+        }),
+      );
+      const res = await t.fetch("/");
+      expect(await res.text()).toBe("item1");
+      expect(calls).toEqual(["onError", "onResponse"]);
+      spy.mockRestore();
+    },
+  );
+
+  it.skipIf(t.target !== "node")(
     "fromNodeHandler + piping (client disconnect settles the event)",
     async () => {
       // `pipe` only unpipes the source when the response closes, so an aborted
