@@ -105,6 +105,28 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
       expect(result.headers.get("content-type")).toBe("text/html; charset=utf-8");
     });
 
+    for (const [status, statusText] of [
+      [301, "Moved Permanently"],
+      [302, "Found"],
+      [303, "See Other"],
+      [307, "Temporary Redirect"],
+      [308, "Permanent Redirect"],
+      [300, ""],
+    ] as const) {
+      it(`uses the reason phrase of status ${status}`, async () => {
+        t.app.use(() => redirect("/target", status));
+        const result = await t.fetch("/");
+        expect(result.status).toBe(status);
+        expect(result.statusText).toBe(statusText);
+      });
+    }
+
+    it("keeps an explicit statusText", async () => {
+      t.app.use(() => redirect("/target", 307, "Moved Temporarily"));
+      const result = await t.fetch("/");
+      expect(result.statusText).toBe("Moved Temporarily");
+    });
+
     it("escapes special characters in HTML body", async () => {
       const malicious = 'https://example.com/"><script>alert(1)</script>&foo=bar';
       t.app.use(() => redirect(malicious));

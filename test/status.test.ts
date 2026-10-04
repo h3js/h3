@@ -114,6 +114,17 @@ describeMatrix("event response", (t, { it, describe, expect }) => {
         headers: {},
       });
     });
+
+    it("does not label a non-204 status as No Content", async () => {
+      // e.g. `handleCors` with `preflight: { statusCode: 200 }`
+      t.app.all("/test", () => noContent(200));
+
+      const res = await t.fetch("/test", { method: "POST" });
+
+      expect(res.status).toBe(200);
+      expect(res.statusText).toBe("");
+    });
+
     it("override status and statusText with setResponseStatus method", async () => {
       t.app.all("/test", (event) => {
         event.res.status = 418;

@@ -41,7 +41,7 @@ export function onDispose(event: H3Event, cb: DisposeCallback): void {
 export function noContent(status: number = 204): HTTPResponse {
   return new HTTPResponse(null, {
     status,
-    statusText: "No Content",
+    statusText: STATUS_TEXT[status],
   });
 }
 
@@ -76,7 +76,7 @@ export function redirect(
   const body = /* html */ `<html><head><meta http-equiv="refresh" content="0; url=${escapeHtml(location)}" /></head></html>`;
   return new HTTPResponse(body, {
     status,
-    statusText: statusText || (status === 301 ? "Moved Permanently" : "Found"),
+    statusText: statusText || STATUS_TEXT[status],
     headers: {
       "content-type": "text/html; charset=utf-8",
       location,
@@ -341,6 +341,17 @@ function isRawHTML(value: unknown): value is RawHTML {
     (value as { [kRawHTML]?: unknown })[kRawHTML] === true
   );
 }
+
+// RFC 9110 reason phrases for the statuses `noContent` and `redirect` are meant for.
+// Any other status gets no phrase rather than one that belongs to a different code.
+const STATUS_TEXT: Record<number, string> = {
+  204: "No Content",
+  301: "Moved Permanently",
+  302: "Found",
+  303: "See Other",
+  307: "Temporary Redirect",
+  308: "Permanent Redirect",
+};
 
 const HTML_ESCAPES: Record<string, string> = {
   "&": "&amp;",
