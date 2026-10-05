@@ -41,7 +41,7 @@ export function base64Encode(data: ArrayBuffer | Uint8Array | string): string {
   }
   return result;
 }
-export function base64Decode(b64Url: string): Uint8Array {
+export function base64Decode(b64Url: string): Uint8Array<ArrayBuffer> {
   if (globalThis.Buffer) {
     return new Uint8Array(globalThis.Buffer.from(b64Url, "base64url"));
   }

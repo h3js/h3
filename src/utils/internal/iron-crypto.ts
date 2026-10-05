@@ -1,5 +1,3 @@
-// @ts-nocheck TODO: Validate BufferSource assignments
-
 /**
 Based on https://github.com/brc-dd/iron-webcrypto/tree/v1.2.1
 Copyright (c) 2021 Divyansh Singh.
@@ -267,7 +265,7 @@ export async function encrypt(
 export async function decrypt(
   password: Password,
   options: GenerateKeyOptions<EncryptionAlgorithm>,
-  data: Uint8Array | string,
+  data: Uint8Array<ArrayBuffer> | string,
 ): Promise<string> {
   const key = await generateKey(password, options);
   const decrypted = await crypto.subtle.decrypt(...getEncryptParams(options.algorithm, key, data));
@@ -277,8 +275,8 @@ export async function decrypt(
 function getEncryptParams(
   algorithm: EncryptionAlgorithm,
   key: Key,
-  data: Uint8Array | string,
-): [AesCbcParams | AesCtrParams, CryptoKey, Uint8Array] {
+  data: Uint8Array<ArrayBuffer> | string,
+): [AesCbcParams | AesCtrParams, CryptoKey, Uint8Array<ArrayBuffer>] {
   return [
     algorithm === "aes-128-ctr"
       ? ({
@@ -322,14 +320,14 @@ function normalizePassword(password: RawPassword) {
 }
 
 /** Generate cryptographically strong pseudorandom bits. */
-export function randomBits(bits: number): Uint8Array {
+export function randomBits(bits: number): Uint8Array<ArrayBuffer> {
   if (bits < 1) throw new Error("Invalid random bits count");
   const bytes = Math.ceil(bits / 8);
   return randomBytes(bytes);
 }
 
 /** Generates cryptographically strong pseudorandom bytes. */
-function randomBytes(size: number): Uint8Array {
+function randomBytes(size: number): Uint8Array<ArrayBuffer> {
   const bytes = new Uint8Array(size);
   crypto.getRandomValues(bytes);
   return bytes;
@@ -384,7 +382,7 @@ type SealOptionsSub<Algorithm extends _Algorithm = _Algorithm> = Readonly<{
 }>;
 
 /** Password secret string or buffer.*/
-type Password = Uint8Array | string;
+type Password = Uint8Array<ArrayBuffer> | string;
 
 /** `generateKey()` method options. */
 export type GenerateKeyOptions<Algorithm extends _Algorithm = _Algorithm> = Pick<
@@ -394,7 +392,7 @@ export type GenerateKeyOptions<Algorithm extends _Algorithm = _Algorithm> = Pick
   Readonly<{
     saltBits?: number | undefined;
     salt?: string | undefined;
-    iv?: Uint8Array | undefined;
+    iv?: Uint8Array<ArrayBuffer> | undefined;
     ivBits?: number | undefined;
     hmac?: boolean | undefined;
   }>;
@@ -403,7 +401,7 @@ export type GenerateKeyOptions<Algorithm extends _Algorithm = _Algorithm> = Pick
 type Key = Readonly<{
   key: CryptoKey;
   salt: string;
-  iv: Uint8Array;
+  iv: Uint8Array<ArrayBuffer>;
 }>;
 
 /** Generated HMAC internal results. */
