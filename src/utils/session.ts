@@ -322,7 +322,8 @@ export async function unsealSession(
   try {
     unsealed = (await unseal(sealed, config.password, sealOptions)) as Partial<Session>;
   } catch (error) {
-    // TODO: Remove this fallback before the v2 stable release
+    // TODO: Remove this fallback (and `legacySealFallback`) in v3. Removing it
+    // in a v2 release would invalidate existing sessions sealed with 1 iteration.
     // Sessions sealed before the default PBKDF2 iterations were raised from 1
     // to 8192 fail HMAC verification; retry with the legacy count so existing
     // sessions survive the upgrade (getSession reseals them with the current
