@@ -76,7 +76,7 @@ export function redirect(
   const body = /* html */ `<html><head><meta http-equiv="refresh" content="0; url=${escapeHtml(location)}" /></head></html>`;
   return new HTTPResponse(body, {
     status,
-    statusText: statusText || STATUS_TEXT[status],
+    statusText: statusText ?? STATUS_TEXT[status],
     headers: {
       "content-type": "text/html; charset=utf-8",
       location,

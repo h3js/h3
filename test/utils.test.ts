@@ -127,6 +127,13 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
       expect(result.statusText).toBe("Moved Temporarily");
     });
 
+    it("keeps an explicit empty statusText", async () => {
+      t.app.use(() => redirect("/target", 307, ""));
+      const result = await t.fetch("/");
+      expect(result.status).toBe(307);
+      expect(result.statusText).toBe("");
+    });
+
     it("escapes special characters in HTML body", async () => {
       const malicious = 'https://example.com/"><script>alert(1)</script>&foo=bar';
       t.app.use(() => redirect(malicious));
