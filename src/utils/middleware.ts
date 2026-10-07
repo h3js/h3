@@ -1,5 +1,5 @@
 import { HTTPError } from "../error.ts";
-import { toResponse } from "../response.ts";
+import { kHandled, toResponse } from "../response.ts";
 import type { MaybePromise } from "../types/_utils.ts";
 
 import type { H3Event } from "../event.ts";
@@ -39,6 +39,11 @@ export function onError(hook: (error: HTTPError, event: H3Event) => unknown): Mi
     try {
       return await next();
     } catch (rawError: any) {
+      // The response is already handled (e.g. a failed Node.js stream, reported to the
+      // app error hook): it is not an error to render
+      if (rawError === kHandled) {
+        throw rawError;
+      }
       const isHTTPError = HTTPError.isError(rawError);
       const error = isHTTPError ? (rawError as HTTPError) : new HTTPError(rawError);
       if (!isHTTPError) {

@@ -3,7 +3,7 @@ import { Readable as NodeStreamReadable, Transform as NodeStreamTransoform } fro
 import { fromNodeHandler } from "../src/adapters.ts";
 import { withBase } from "../src/utils/base.ts";
 import { HTTPError } from "../src/error.ts";
-import { onResponse } from "../src/utils/middleware.ts";
+import { onError, onResponse } from "../src/utils/middleware.ts";
 import { onDispose } from "../src/index.ts";
 import { setCookie } from "../src/utils/cookie.ts";
 import { handleCors } from "../src/utils/cors.ts";
@@ -426,6 +426,33 @@ describeMatrix("app", (t, { it, expect }) => {
       expect(await res.text()).toBe("item1");
       expect(t.hooks.onError).toHaveBeenCalledTimes(1);
       expect(spy).not.toHaveBeenCalledWith(hookError);
+      spy.mockRestore();
+    },
+  );
+
+  it.skipIf(t.target !== "node")(
+    "fromNodeHandler + piping (with Error) with onError middleware",
+    async () => {
+      const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+      const middlewareHook = vi.fn();
+      t.app.use(onError(middlewareHook));
+      t.app.all(
+        "/*",
+        fromNodeHandler((req, res) => {
+          const iterator = (async function* () {
+            yield "item1";
+            throw new Error("Test Error");
+          })();
+          NodeStreamReadable.from(iterator).pipe(res);
+        }),
+      );
+      const res = await t.fetch("/");
+      // The committed response is not followed by a rendered error
+      expect(await res.text()).toBe("item1");
+      expect(middlewareHook).not.toHaveBeenCalled();
+      expect(t.hooks.onError).toHaveBeenCalledTimes(1);
+      expect(t.errors[0].message).toBe("Test Error");
+      t.errors = [];
       spy.mockRestore();
     },
   );
