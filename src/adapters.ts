@@ -113,13 +113,16 @@ function callNodeHandler(
               });
               // We cannot alter the outgoing response at this point, so the error hook
               // is only called to report the error (its return value is ignored)
-              const onError = event.app?.config.onError;
+              const config = event.app?.config;
+              const onError = config?.onError;
               if (!onError) {
                 return reject(kHandled);
               }
               Promise.resolve()
                 .then(() => onError(new HTTPError({ cause: error, unhandled: true }), event))
-                .catch((hookError) => console.error(hookError))
+                .catch((hookError) => {
+                  if (!config.silent) console.error(hookError);
+                })
                 .finally(() => reject(kHandled));
             }),
           );
