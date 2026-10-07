@@ -256,7 +256,7 @@ export async function encrypt(
   password: Password,
   options: GenerateKeyOptions<EncryptionAlgorithm>,
   data: string,
-): Promise<{ encrypted: Uint8Array; key: Key }> {
+): Promise<{ encrypted: Uint8Array<ArrayBuffer>; key: Key }> {
   const key = await generateKey(password, options);
   const encrypted = await crypto.subtle.encrypt(...getEncryptParams(options.algorithm, key, data));
   return { encrypted: new Uint8Array(encrypted), key };
