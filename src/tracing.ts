@@ -116,12 +116,27 @@ export function tracingPlugin(traceOpts?: TracingPluginOptions): H3Plugin {
           fn = arg2 as Middleware;
           opts = arg3 as MiddlewareOptions;
 
+          // A non-function input (an H3 app or any other mountable object) is
+          // dispatched to `mount()` by `use()`. Wrapping it would hide the
+          // mountable shape behind a middleware function: the app would never be
+          // mounted, and the wrapper would throw calling the object as a
+          // function. Pass it through untouched — the `mount()` override above
+          // propagates tracing to the nested app.
+          if (typeof fn !== "function") {
+            // @ts-expect-error - call not accepting the route signature
+            return originalUse.call(h3, route, fn, opts);
+          }
+
           // @ts-expect-error - call not accepting the route signature
           return originalUse.call(h3, route, wrapMiddleware(fn), opts);
         }
 
         fn = arg1 as Middleware;
         opts = arg2 as MiddlewareOptions;
+
+        if (typeof fn !== "function") {
+          return originalUse.call(h3, fn, opts);
+        }
 
         return originalUse.call(h3, wrapMiddleware(fn), opts);
       };
