@@ -187,6 +187,12 @@ test("should decode key", () => {
   assert.deepEqual(parseQuery("full%20name=Yagiz"), { "full name": "Yagiz" });
 });
 
+test("decodes valid escapes next to a malformed one", () => {
+  for (const input of ["q=caf%C3%A9+50%", "name=J%C3%BCrgen%2", "a%20b%=1", "q=%E0%A4%A"]) {
+    assert.deepEqual(parseQuery(input), Object.fromEntries(new URLSearchParams(input)), input);
+  }
+});
+
 test("should handle really large object", () => {
   const q = new URLSearchParams();
   for (let i = 0; i < 2000; i++) {
