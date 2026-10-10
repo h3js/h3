@@ -27,6 +27,8 @@ const COMMON_MIME_TYPES: Record<string, string> = {
   ".zip": "application/zip",
 
   ".pdf": "application/pdf",
+
+  ".wasm": "application/wasm",
 };
 
 export function getExtension(path: string): string | undefined {

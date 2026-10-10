@@ -610,6 +610,12 @@ describeMatrix("serve static MIME types", (t, { it, expect }) => {
     expect(res.status).toBe(200);
     expect(res.headers.get("content-length")).toBe("999");
   });
+
+  it("serves .wasm as application/wasm", async () => {
+    // `WebAssembly.instantiateStreaming()` rejects any other type
+    const res = await t.fetch("/module.wasm");
+    expect(res.headers.get("content-type")).toBe("application/wasm");
+  });
 });
 
 describe("serve static (malformed url)", () => {
