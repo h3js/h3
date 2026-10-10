@@ -41,5 +41,5 @@ export function getExtension(path: string): string | undefined {
 }
 
 export function getType(ext: string | undefined): string | undefined {
-  return ext ? COMMON_MIME_TYPES[ext] : undefined;
+  return ext ? COMMON_MIME_TYPES[ext.toLowerCase()] : undefined;
 }

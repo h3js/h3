@@ -561,6 +561,11 @@ describeMatrix("serve static MIME types", (t, { it, expect }) => {
     );
   });
 
+  it("resolves the MIME type of an uppercase extension", async () => {
+    const res = await t.fetch("/photos/IMG_0001.JPG");
+    expect(res.headers.get("content-type")).toBe("image/jpeg");
+  });
+
   it("uses the requested asset's MIME type for a precompressed variant", async () => {
     const files: Record<string, string> = {
       "/pre/app.js": "js",
