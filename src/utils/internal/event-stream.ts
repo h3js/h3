@@ -10,6 +10,10 @@ export function formatEventStreamComment(comment: string): string {
   );
 }
 
+/**
+ * Serialize an SSE message, including empty IDs that reset the client's last event ID.
+ * Omitted IDs leave the previous client event ID unchanged.
+ */
 export function formatEventStreamMessage(message: EventStreamMessage): string {
   let result = "";
   if (typeof message.id === "string") {
