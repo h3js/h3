@@ -1,6 +1,9 @@
 import type { H3Event } from "../../event.ts";
 import type { EventStreamMessage } from "../event-stream.ts";
 
+/**
+ * Format each input line as an SSE comment and end the block with a blank line.
+ */
 export function formatEventStreamComment(comment: string): string {
   return (
     comment
