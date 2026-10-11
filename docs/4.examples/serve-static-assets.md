@@ -36,7 +36,7 @@ They are separated to allow H3 to respond to `HEAD` requests without reading the
 
 ## Read files
 
-Now, create a `index.html` file in the `public` directory with a simple message.
+Now, create an `index.html` file in the `public` directory with a simple message.
 
 Then, we can create the `getContents` and `getMeta` methods:
 
