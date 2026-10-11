@@ -12,7 +12,7 @@ export function formatEventStreamComment(comment: string): string {
 
 export function formatEventStreamMessage(message: EventStreamMessage): string {
   let result = "";
-  if (message.id) {
+  if (typeof message.id === "string") {
     result += `id: ${_sanitizeSingleLine(message.id)}\n`;
   }
   if (message.event) {
