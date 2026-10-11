@@ -665,3 +665,45 @@ describe("serve static (malformed url)", () => {
     expect(servedId).not.toMatch(/(^|[\\/])\.\.([\\/]|$)/); // no bare `..` segment
   });
 });
+
+describeMatrix("serve static index resolution", (t, { it, expect }) => {
+  const assets: Record<string, string> = {
+    "/index.html": "root-index",
+    "/docs/index.html": "docs-index",
+  };
+
+  const createOptions = (indexNames?: string[]): ServeStaticOptions => ({
+    getContents: (id) => assets[id] ?? null,
+    getMeta: (id) => (assets[id] ? { size: assets[id].length } : undefined),
+    indexNames,
+  });
+
+  it("serves root index.html without double slashes", async () => {
+    t.app.all("/**", (event) => serveStatic(event, createOptions(["/index.html"])));
+    const res = await t.fetch("/");
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe("root-index");
+  });
+
+  it("serves subdirectory index.html with leading slash indexName", async () => {
+    t.app.all("/**", (event) => serveStatic(event, createOptions(["/index.html"])));
+    const res = await t.fetch("/docs");
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe("docs-index");
+
+    const resSlash = await t.fetch("/docs/");
+    expect(resSlash.status).toBe(200);
+    expect(await resSlash.text()).toBe("docs-index");
+  });
+
+  it("serves index.html when indexNames entries lack leading slashes", async () => {
+    t.app.all("/**", (event) => serveStatic(event, createOptions(["index.html"])));
+    const rootRes = await t.fetch("/");
+    expect(rootRes.status).toBe(200);
+    expect(await rootRes.text()).toBe("root-index");
+
+    const docsRes = await t.fetch("/docs");
+    expect(docsRes.status).toBe(200);
+    expect(await docsRes.text()).toBe("docs-index");
+  });
+});
