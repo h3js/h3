@@ -87,7 +87,16 @@ export function isCorsOriginAllowed(
   if (Array.isArray(originOption)) {
     return originOption.some((_origin) => {
       if (_origin instanceof RegExp) {
-        return _origin.test(origin);
+        if (!_origin.global && !_origin.sticky) {
+          return _origin.test(origin);
+        }
+        const lastIndex = _origin.lastIndex;
+        _origin.lastIndex = 0;
+        try {
+          return _origin.test(origin);
+        } finally {
+          _origin.lastIndex = lastIndex;
+        }
       }
 
       return origin === _origin;
