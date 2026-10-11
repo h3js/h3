@@ -632,7 +632,7 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
       const res = await t.fetch("/");
 
       if (t.target !== "web") {
-        expect(await res.text()).toMatch(/^0\.0\.0\.0|::1$/);
+        expect(await res.text()).toMatch(/^(?:0\.0\.0\.0|127\.0\.0\.1|::1|::ffff:127\.0\.0\.1)$/);
       }
     });
   });
