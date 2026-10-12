@@ -14,7 +14,7 @@ import { hasEmptySegmentAfterBase, withoutBase, withoutTrailingSlash } from "./i
  * @example
  * const api = new H3()
  *  .get("/", () => "Hello API!");
- * const app = new H3();
+ * const app = new H3()
  *  .use("/api/**", withBase("/api", api.handler));
  *
  * @param base The base path to prefix.
