@@ -54,6 +54,47 @@ describeMatrix("serve static", (t, { it, expect }) => {
     expect(res.headers.get("content-length")).toBe("18");
   });
 
+  it("Serves index file on root without leading double slash", async () => {
+    const assets: Record<string, { type: string; size: number }> = {
+      "/index.html": { type: "text/html", size: 12 },
+    };
+    const app = new H3();
+    app.all("/**", (event) => {
+      return serveStatic(event, {
+        getContents: (id) => `asset:${id}`,
+        getMeta: (id) => assets[id],
+        indexNames: ["/index.html"],
+      });
+    });
+
+    const res = await app.fetch(new Request("http://localhost/"));
+    expect(res.status).toEqual(200);
+    expect(await res.text()).toBe("asset:/index.html");
+  });
+
+  it("Serves index file on subfolder with relative indexNames", async () => {
+    const assets: Record<string, { type: string; size: number }> = {
+      "/sub-static/index.html": { type: "text/html", size: 12 },
+      "/sub-static/docs/index.html": { type: "text/html", size: 12 },
+    };
+    const app = new H3();
+    app.all("/**", (event) => {
+      return serveStatic(event, {
+        getContents: (id) => `asset:${id}`,
+        getMeta: (id) => assets[id],
+        indexNames: ["index.html"],
+      });
+    });
+
+    const rootRes = await app.request(new Request("http://localhost/sub-static/"));
+    expect(rootRes.status).toEqual(200);
+    expect(await rootRes.text()).toBe("asset:/sub-static/index.html");
+
+    const subRes = await app.request(new Request("http://localhost/sub-static/docs"));
+    expect(subRes.status).toEqual(200);
+    expect(await subRes.text()).toBe("asset:/sub-static/docs/index.html");
+  });
+
   it("Can serve asset (HEAD)", async () => {
     const headRes = await t.fetch("/test.png", {
       method: "HEAD",
