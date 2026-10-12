@@ -15,7 +15,7 @@ import { H3, serveStatic } from "h3";
 
 const app = new H3();
 
-app.use("/public/**", (event) => {
+app.use("/**", (event) => {
   return serveStatic(event, {
     getContents: (id) => {
       // TODO
@@ -47,7 +47,7 @@ import { H3, serve, serveStatic } from "h3";
 
 const app = new H3();
 
-app.use("/public/**", (event) => {
+app.use("/**", (event) => {
   return serveStatic(event, {
     indexNames: ["/index.html"],
     getContents: (id) => readFile(join("public", id)),
