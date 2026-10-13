@@ -170,7 +170,7 @@ function prepareResponse(
     // `errHeaders` a second time — harmless for single-valued headers (`set`), but
     // `set-cookie` is appended and would be duplicated.
     (event as any)[kEventRes] = undefined;
-    return errorResponse(error, config.debug, errHeaders);
+    val = errorResponse(error, config.debug, errHeaders);
   }
 
   // Only set if event.res.headers is accessed
