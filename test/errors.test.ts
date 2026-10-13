@@ -398,4 +398,33 @@ describeMatrix("errors", (t, { it, expect, describe }) => {
     const res = await t.fetch("/");
     expect(res.status).toBe(418);
   });
+
+  describe("HEAD error response", () => {
+    it("strips body for 404 route matching on HEAD request without onError", async () => {
+      t.app.config.onError = undefined;
+      const res = await t.app.request("/missing", { method: "HEAD" });
+      expect(res.status).toBe(404);
+      expect(await res.text()).toBe("");
+    });
+
+    it("strips body for thrown HTTPError on HEAD request without onError", async () => {
+      t.app.config.onError = undefined;
+      t.app.get("/sync-error", () => {
+        throw new HTTPError({ status: 400, message: "bad request" });
+      });
+      const res = await t.app.request("/sync-error", { method: "HEAD" });
+      expect(res.status).toBe(400);
+      expect(await res.text()).toBe("");
+    });
+
+    it("strips body for async thrown HTTPError on HEAD request without onError", async () => {
+      t.app.config.onError = undefined;
+      t.app.get("/async-error", async () => {
+        throw new HTTPError({ status: 500, message: "internal error" });
+      });
+      const res = await t.app.request("/async-error", { method: "HEAD" });
+      expect(res.status).toBe(500);
+      expect(await res.text()).toBe("");
+    });
+  });
 });
