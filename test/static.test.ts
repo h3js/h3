@@ -391,6 +391,52 @@ describeMatrix("serve static", (t, { it, expect }) => {
       expect(text).toContain("asset:");
     }
   });
+
+  it("resolves canonical asset id for root and subdirectory index with absolute or relative indexNames", async () => {
+    const files: Record<string, string> = {
+      "/index.html": "root-index",
+      "/docs/index.html": "docs-index",
+      "/rel/index.html": "rel-root-index",
+      "/rel/docs/index.html": "rel-docs-index",
+    };
+    t.app.all("/rel/**", (event) =>
+      serveStatic(event, {
+        getContents: (id) => files[id],
+        getMeta: (id) => (files[id] ? { size: files[id].length } : undefined),
+        indexNames: ["index.html"],
+      }),
+    );
+    t.app.all("/idx/**", (event) =>
+      serveStatic(event, {
+        getContents: (id) => files[id.replace(/^\/idx/, "")],
+        getMeta: (id) => {
+          const stripped = id.replace(/^\/idx/, "");
+          return files[stripped] ? { size: files[stripped].length } : undefined;
+        },
+        indexNames: ["/index.html"],
+      }),
+    );
+
+    // Root lookup with absolute indexNames: ["/index.html"]
+    const rootRes = await t.fetch("/idx/");
+    expect(rootRes.status).toBe(200);
+    expect(await rootRes.text()).toBe("root-index");
+
+    // Subdirectory lookup with absolute indexNames: ["/index.html"]
+    const docsRes = await t.fetch("/idx/docs");
+    expect(docsRes.status).toBe(200);
+    expect(await docsRes.text()).toBe("docs-index");
+
+    // Root lookup with relative indexNames: ["index.html"]
+    const relRootRes = await t.fetch("/rel/");
+    expect(relRootRes.status).toBe(200);
+    expect(await relRootRes.text()).toBe("rel-root-index");
+
+    // Subdirectory lookup with relative indexNames: ["index.html"]
+    const relDocsRes = await t.fetch("/rel/docs");
+    expect(relDocsRes.status).toBe(200);
+    expect(await relDocsRes.text()).toBe("rel-docs-index");
+  });
 });
 
 describeMatrix("serve static with fallthrough", (t, { it, expect }) => {
