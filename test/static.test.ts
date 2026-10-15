@@ -391,6 +391,82 @@ describeMatrix("serve static", (t, { it, expect }) => {
       expect(text).toContain("asset:");
     }
   });
+
+  it("resolves canonical index asset paths for root and subdirectories with default leading slash indexNames", async () => {
+    const requestedIds: string[] = [];
+    const assets: Record<string, string> = {
+      "/index.html": "root-index",
+      "/docs/index.html": "docs-index",
+    };
+
+    const app = new H3().all("/**", (event) =>
+      serveStatic(event, {
+        getMeta: (id) => {
+          requestedIds.push(id);
+          return assets[id] ? { size: assets[id].length } : undefined;
+        },
+        getContents: (id) => assets[id],
+        indexNames: ["/index.html"],
+      }),
+    );
+
+    const rootRes = await app.request("/");
+    expect(rootRes.status).toBe(200);
+    expect(await rootRes.text()).toBe("root-index");
+    expect(requestedIds).toContain("/index.html");
+    expect(requestedIds).not.toContain("//index.html");
+
+    requestedIds.length = 0;
+    const docsRes = await app.request("/docs");
+    expect(docsRes.status).toBe(200);
+    expect(await docsRes.text()).toBe("docs-index");
+    expect(requestedIds).toContain("/docs/index.html");
+
+    requestedIds.length = 0;
+    const docsSlashRes = await app.request("/docs/");
+    expect(docsSlashRes.status).toBe(200);
+    expect(await docsSlashRes.text()).toBe("docs-index");
+    expect(requestedIds).toContain("/docs/index.html");
+    expect(requestedIds).not.toContain("/docs//index.html");
+  });
+
+  it("handles relative indexNames without leading slash for root and subdirectories", async () => {
+    const requestedIds: string[] = [];
+    const assets: Record<string, string> = {
+      "/index.html": "root-index",
+      "/docs/index.html": "docs-index",
+    };
+
+    const app = new H3().all("/**", (event) =>
+      serveStatic(event, {
+        getMeta: (id) => {
+          requestedIds.push(id);
+          return assets[id] ? { size: assets[id].length } : undefined;
+        },
+        getContents: (id) => assets[id],
+        indexNames: ["index.html"],
+      }),
+    );
+
+    const rootRes = await app.request("/");
+    expect(rootRes.status).toBe(200);
+    expect(await rootRes.text()).toBe("root-index");
+    expect(requestedIds).toContain("/index.html");
+
+    requestedIds.length = 0;
+    const docsRes = await app.request("/docs");
+    expect(docsRes.status).toBe(200);
+    expect(await docsRes.text()).toBe("docs-index");
+    expect(requestedIds).toContain("/docs/index.html");
+    expect(requestedIds).not.toContain("/docsindex.html");
+
+    requestedIds.length = 0;
+    const docsSlashRes = await app.request("/docs/");
+    expect(docsSlashRes.status).toBe(200);
+    expect(await docsSlashRes.text()).toBe("docs-index");
+    expect(requestedIds).toContain("/docs/index.html");
+    expect(requestedIds).not.toContain("/docs//index.html");
+  });
 });
 
 describeMatrix("serve static with fallthrough", (t, { it, expect }) => {

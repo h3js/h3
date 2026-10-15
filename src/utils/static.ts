@@ -341,7 +341,7 @@ function idSearchPaths(id: string, encodings: string[], indexNames: string[]) {
   const ids: { id: string; assetId: string }[] = [];
 
   for (const suffix of ["", ...indexNames]) {
-    const assetId = `${id}${suffix}`;
+    const assetId = suffix ? `${id.replace(/\/+$/, "")}/${suffix.replace(/^\/+/, "")}` : id;
     for (const encoding of [...encodings, ""]) {
       ids.push({ id: `${assetId}${encoding}`, assetId });
     }
