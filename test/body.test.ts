@@ -201,6 +201,21 @@ describeMatrix("body", (t, { it, expect, describe }) => {
     expect(await result.text()).toBe("200");
   });
 
+  it("matches the form encoded content type case-insensitively", async () => {
+    t.app.all("/api/test", (event) => readBody(event));
+    for (const contentType of [
+      "Application/x-www-form-urlencoded",
+      "APPLICATION/X-WWW-FORM-URLENCODED; charset=UTF-8",
+    ]) {
+      const result = await t.fetch("/api/test", {
+        method: "POST",
+        headers: { "Content-Type": contentType },
+        body: "field=value&number=20&number=30",
+      });
+      expect(await result.json()).toEqual({ field: "value", number: ["20", "30"] });
+    }
+  });
+
   it("parses multipart form data", async () => {
     t.app.all("/api/test", async (event) => {
       const formData = await event.req.formData();
