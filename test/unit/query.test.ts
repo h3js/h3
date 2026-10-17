@@ -193,6 +193,21 @@ test("decodes valid escapes next to a malformed one", () => {
   }
 });
 
+test("decodes malformed escapes only once", () => {
+  assert.deepEqual(parseQuery("p=%252e%252e%2f%"), { p: "%2e%2e/%" });
+  assert.deepEqual(parseQuery("a%2B%=1+%2B"), { "a+%": "1 +" });
+  assert.deepEqual(parseQuery("a=%3D%26%"), { a: "=&%" });
+  // Overlong UTF-8 must not decode to "."
+  assert.deepEqual(parseQuery("p=%C0%AE%"), { p: "��%" });
+});
+
+test("keeps malformed `__proto__` keys as own properties", () => {
+  const result = parseQuery("%5F%5Fproto%5F%5F%=1&%5F%5Fproto%5F%5F=%7B%7D%");
+  assert.deepEqual(Object.keys(result), ["__proto__%", "__proto__"]);
+  assert.equal(result["__proto__"], "{}%");
+  assert.equal(Object.getPrototypeOf(Object.getPrototypeOf(result)), null);
+});
+
 test("should handle really large object", () => {
   const q = new URLSearchParams();
   for (let i = 0; i < 2000; i++) {
