@@ -669,6 +669,7 @@ describe("serve static (malformed url)", () => {
 describeMatrix("serve static index resolution", (t, { it, expect }) => {
   const assets: Record<string, string> = {
     "/index.html": "root-index",
+    "/about.html": "about-page",
     "/docs/index.html": "docs-index",
   };
 
@@ -696,14 +697,10 @@ describeMatrix("serve static index resolution", (t, { it, expect }) => {
     expect(await resSlash.text()).toBe("docs-index");
   });
 
-  it("serves index.html when indexNames entries lack leading slashes", async () => {
-    t.app.all("/**", (event) => serveStatic(event, createOptions(["index.html"])));
-    const rootRes = await t.fetch("/");
-    expect(rootRes.status).toBe(200);
-    expect(await rootRes.text()).toBe("root-index");
-
-    const docsRes = await t.fetch("/docs");
-    expect(docsRes.status).toBe(200);
-    expect(await docsRes.text()).toBe("docs-index");
+  it("supports extension fallback with indexNames", async () => {
+    t.app.all("/**", (event) => serveStatic(event, createOptions([".html", "/index.html"])));
+    const res = await t.fetch("/about");
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe("about-page");
   });
 });

@@ -337,11 +337,17 @@ function normalizeCoding(name: string): string {
   return coding === "x-gzip" || coding === "x-compress" ? coding.slice(2) : coding;
 }
 
+/**
+ * Generate candidate asset paths and encodings for static file resolution.
+ *
+ * Special-cases the root path when suffix starts with a slash to avoid double slashes (`//index.html`),
+ * while preserving plain string concatenation for extension fallbacks (e.g. `.html`).
+ */
 function idSearchPaths(id: string, encodings: string[], indexNames: string[]) {
   const ids: { id: string; assetId: string }[] = [];
 
   for (const suffix of ["", ...indexNames]) {
-    const assetId = suffix ? `${id === "/" ? "" : id}/${suffix.replace(/^\/+/, "")}` : id;
+    const assetId = id === "/" && suffix[0] === "/" ? suffix : `${id}${suffix}`;
     for (const encoding of [...encodings, ""]) {
       ids.push({ id: `${assetId}${encoding}`, assetId });
     }
