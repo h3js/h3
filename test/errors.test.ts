@@ -1,10 +1,68 @@
 import { vi } from "vitest";
 import { runInNewContext } from "node:vm";
-import { H3, HTTPError } from "../src/index.ts";
+import { H3, HTTPError, type H3Event } from "../src/index.ts";
 import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("errors", (t, { it, expect, describe }) => {
   const consoleMock = ((globalThis.console.error as any) = vi.fn());
+
+  describe("error response bodies", () => {
+    for (const withOnError of [false, true]) {
+      const hook = withOnError ? "with onError" : "without onError";
+
+      it(`omits the body for a missing HEAD route ${hook}`, async () => {
+        if (!withOnError) t.app.config.onError = undefined;
+        const res = await t.fetch("/missing", { method: "HEAD" });
+        expect(res.status).toBe(404);
+        // A HEAD body is not rendered, so no (mismatching) content-length is advertised
+        expect(res.headers.get("content-length")).toBeNull();
+        expect(await res.text()).toBe("");
+        expect(t.hooks.onError).toHaveBeenCalledTimes(withOnError ? 1 : 0);
+        expect(t.hooks.onResponse).toHaveBeenCalledTimes(1);
+      });
+
+      for (const asyncHandler of [false, true]) {
+        for (const method of ["GET", "HEAD"]) {
+          it(`renders ${method} errors from a ${asyncHandler ? "async" : "sync"} handler ${hook}`, async () => {
+            if (!withOnError) t.app.config.onError = undefined;
+            const handler = (event: H3Event) => {
+              event.res.headers.set("x-success", "success");
+              event.res.errHeaders.set("x-error", "prepared");
+              event.res.errHeaders.append("set-cookie", "prepared=1");
+              throw new HTTPError({
+                status: 422,
+                statusText: "Unprocessable",
+                data: { test: 123 },
+                headers: { "x-error-own": "own", "set-cookie": "error=1" },
+              });
+            };
+            t.app.use(asyncHandler ? async (event) => handler(event) : handler);
+
+            const res = await t.fetch("/", { method });
+            expect(res.status).toBe(422);
+            expect(res.statusText).toBe("Unprocessable");
+            expect(res.headers.get("content-type")).toBe("application/json;charset=UTF-8");
+            expect(res.headers.get("x-error")).toBe("prepared");
+            expect(res.headers.get("x-error-own")).toBe("own");
+            expect(res.headers.get("x-success")).toBeNull();
+            expect(res.headers.getSetCookie()).toEqual(["error=1", "prepared=1"]);
+            if (method === "HEAD") {
+              expect(res.headers.get("content-length")).toBeNull();
+              expect(await res.text()).toBe("");
+            } else {
+              expect(await res.json()).toMatchObject({
+                status: 422,
+                statusText: "Unprocessable",
+                data: { test: 123 },
+              });
+            }
+            expect(t.hooks.onError).toHaveBeenCalledTimes(withOnError ? 1 : 0);
+            expect(t.hooks.onResponse).toHaveBeenCalledTimes(1);
+          });
+        }
+      }
+    }
+  });
 
   it("throw HTTPError", async () => {
     t.app.use(() => {

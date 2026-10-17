@@ -22,6 +22,16 @@ import {
 import type { CorsOptions } from "../../src/index.ts";
 
 describe("cors (unit)", () => {
+  it.each(["g", "y"])("checks stateful origin regexes consistently (%s)", (flags) => {
+    const regex = new RegExp("^https://example\\.com$", flags);
+    const options: CorsOptions = { origin: [regex] };
+    regex.lastIndex = 2;
+    expect(isCorsOriginAllowed("https://example.com", options)).toBe(true);
+    expect(isCorsOriginAllowed("https://example.com", options)).toBe(true);
+    expect(isCorsOriginAllowed("https://other.com", options)).toBe(false);
+    expect(regex.lastIndex).toBe(2);
+  });
+
   describe("resolveCorsOptions", () => {
     it("can merge default options and user options", () => {
       const options1 = resolveCorsOptions();

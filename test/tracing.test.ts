@@ -489,6 +489,34 @@ describeMatrix(
       }
     });
 
+    it("mounts a nested app passed to `use()`", async () => {
+      const listener = createTracingListener();
+
+      try {
+        const nestedApp = new H3();
+        nestedApp.get("/nested", () => "nested response");
+
+        // `use()` with an H3 instance mounts it, exactly like `.mount()` does
+        t.app.use("/api", nestedApp);
+
+        const response = await t.fetch("/api/nested");
+        expect(response.status).toBe(200);
+        expect(await response.text()).toBe("nested response");
+
+        // Wait for tracing events to be processed
+        await new Promise((resolve) => setTimeout(resolve, 10));
+
+        // The nested app's routes are traced like any other mounted app's
+        const routeEvents = listener.events.filter((e) => e.asyncStart?.data.type === "route");
+        const nestedRouteEvent = routeEvents.find(
+          (e) => e.asyncStart?.data.event.url.pathname === "/api/nested",
+        );
+        expect(nestedRouteEvent).toBeDefined();
+      } finally {
+        listener.cleanup();
+      }
+    });
+
     it("traces middleware from mounted nested app", async () => {
       const listener = createTracingListener();
 

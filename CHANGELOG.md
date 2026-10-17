@@ -2,6 +2,46 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## v2.0.3
+
+[compare changes](https://github.com/h3js/h3/compare/v2.0.2...v2.0.3)
+
+### 🩹 Fixes
+
+- **body:** Match form content type case-insensitively in `readBody` ([#1601](https://github.com/h3js/h3/pull/1601))
+- **static:** Serve `.wasm` as `application/wasm` ([#1581](https://github.com/h3js/h3/pull/1581))
+- **static:** Match file extensions case-insensitively ([#1580](https://github.com/h3js/h3/pull/1580))
+- **sse:** Preserve empty event ids ([#1590](https://github.com/h3js/h3/pull/1590))
+- **query:** Decode valid escapes next to a malformed one ([#1582](https://github.com/h3js/h3/pull/1582))
+- **response:** Omit HEAD body for default errors ([#1595](https://github.com/h3js/h3/pull/1595))
+- **tracing:** Mount nested apps passed to `use()` ([#1576](https://github.com/h3js/h3/pull/1576))
+- **cors:** Make stateful origin regex checks repeatable ([#1589](https://github.com/h3js/h3/pull/1589))
+
+### 📖 Documentation
+
+- Fix code example ([#1587](https://github.com/h3js/h3/pull/1587))
+- Fix broken section anchors ([#1577](https://github.com/h3js/h3/pull/1577))
+
+### 🏡 Chore
+
+- Apply automated updates ([7b5090e](https://github.com/h3js/h3/commit/7b5090e))
+- Update deps ([d37911d](https://github.com/h3js/h3/commit/d37911d))
+
+### ✅ Tests
+
+- Accept exact loopback addresses in fingerprint checks ([#1588](https://github.com/h3js/h3/pull/1588))
+
+### ❤️ Contributors
+
+- Huanyi Xie ([@xiehuanyi](https://github.com/xiehuanyi))
+- Pooya Parsa <pooya@pi0.io>
+- Rabari Mihir ([@Mihir-Rabari](https://github.com/Mihir-Rabari))
+- Liu Jie ([@maxazure](https://github.com/maxazure))
+- Harshit Prakash ([@harshit-d3v](https://github.com/harshit-d3v))
+- Satvik Mishra
+- Otowa1
+- Paul Nguyen
+
 ## v2.0.2
 
 [compare changes](https://github.com/h3js/h3/compare/v2.0.1...v2.0.2)
