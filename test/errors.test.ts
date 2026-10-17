@@ -14,6 +14,8 @@ describeMatrix("errors", (t, { it, expect, describe }) => {
         if (!withOnError) t.app.config.onError = undefined;
         const res = await t.fetch("/missing", { method: "HEAD" });
         expect(res.status).toBe(404);
+        // A HEAD body is not rendered, so no (mismatching) content-length is advertised
+        expect(res.headers.get("content-length")).toBeNull();
         expect(await res.text()).toBe("");
         expect(t.hooks.onError).toHaveBeenCalledTimes(withOnError ? 1 : 0);
         expect(t.hooks.onResponse).toHaveBeenCalledTimes(1);
@@ -45,6 +47,7 @@ describeMatrix("errors", (t, { it, expect, describe }) => {
             expect(res.headers.get("x-success")).toBeNull();
             expect(res.headers.getSetCookie()).toEqual(["error=1", "prepared=1"]);
             if (method === "HEAD") {
+              expect(res.headers.get("content-length")).toBeNull();
               expect(await res.text()).toBe("");
             } else {
               expect(await res.json()).toMatchObject({
