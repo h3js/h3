@@ -49,7 +49,8 @@ export async function readBody<
   _Event extends HTTPEvent = HTTPEvent,
   _T = InferEventInput<"body", _Event, T>,
 >(event: _Event, options?: ReadBodyOptions): Promise<undefined | _T> {
-  const contentType = event.req.headers.get("content-type") || "";
+  // Media types are case-insensitive (RFC 9110, section 8.3.1).
+  const contentType = (event.req.headers.get("content-type") || "").toLowerCase();
   const type = options?.type;
 
   // `formData` (multipart or url-encoded) is strictly opt-in: unlike JSON it

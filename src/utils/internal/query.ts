@@ -54,7 +54,7 @@ export function parseQuery(input: string): Record<string, string | string[]> {
             try {
               key = decodeURIComponent(key);
             } catch {
-              // Skip decoding
+              key = decodeLenient(key);
             }
           }
 
@@ -69,7 +69,7 @@ export function parseQuery(input: string): Record<string, string | string[]> {
               try {
                 value = decodeURIComponent(value);
               } catch {
-                // Skip decoding
+                value = decodeLenient(value);
               }
             }
           }
@@ -128,4 +128,11 @@ export function parseQuery(input: string): Record<string, string | string[]> {
   }
 
   return params;
+}
+
+// `decodeURIComponent` throws on a single malformed escape. Decode the valid ones
+// and keep the rest, like `URLSearchParams` and `node:querystring` do.
+// `+` is already replaced and `&` can't occur here, so the value passes through as-is.
+function decodeLenient(str: string): string {
+  return new URLSearchParams("_=" + str).get("_")!;
 }

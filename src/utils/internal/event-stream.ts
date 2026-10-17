@@ -1,6 +1,9 @@
 import type { H3Event } from "../../event.ts";
 import type { EventStreamMessage } from "../event-stream.ts";
 
+/**
+ * Format each input line as an SSE comment and end the block with a blank line.
+ */
 export function formatEventStreamComment(comment: string): string {
   return (
     comment
@@ -10,9 +13,13 @@ export function formatEventStreamComment(comment: string): string {
   );
 }
 
+/**
+ * Serialize an SSE message, including empty IDs that reset the client's last event ID.
+ * Omitted IDs leave the previous client event ID unchanged.
+ */
 export function formatEventStreamMessage(message: EventStreamMessage): string {
   let result = "";
-  if (message.id) {
+  if (typeof message.id === "string") {
     result += `id: ${_sanitizeSingleLine(message.id)}\n`;
   }
   if (message.event) {

@@ -13,6 +13,19 @@ async function _readAll(readable: ReadableStream<Uint8Array>): Promise<string> {
 }
 
 describe("sse (unit)", () => {
+  it("preserves an empty event id so clients can reset their cursor", () => {
+    expect(formatEventStreamMessage({ id: "", data: "reset" })).toBe("id: \ndata: reset\n\n");
+  });
+
+  it("preserves empty ids inside message batches", () => {
+    expect(
+      formatEventStreamMessages([
+        { id: "first", data: "one" },
+        { id: "", data: "two" },
+      ]),
+    ).toBe("id: first\ndata: one\n\nid: \ndata: two\n\n");
+  });
+
   it("properly formats sse comments", () => {
     const result = formatEventStreamComment("hello world");
     expect(result).toEqual(`: hello world\n\n`);

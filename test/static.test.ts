@@ -561,6 +561,11 @@ describeMatrix("serve static MIME types", (t, { it, expect }) => {
     );
   });
 
+  it("resolves the MIME type of an uppercase extension", async () => {
+    const res = await t.fetch("/photos/IMG_0001.JPG");
+    expect(res.headers.get("content-type")).toBe("image/jpeg");
+  });
+
   it("uses the requested asset's MIME type for a precompressed variant", async () => {
     const files: Record<string, string> = {
       "/pre/app.js": "js",
@@ -609,6 +614,12 @@ describeMatrix("serve static MIME types", (t, { it, expect }) => {
     const res = await t.fetch("/clen/file.txt", { method: "HEAD" });
     expect(res.status).toBe(200);
     expect(res.headers.get("content-length")).toBe("999");
+  });
+
+  it("serves .wasm as application/wasm", async () => {
+    // `WebAssembly.instantiateStreaming()` rejects any other type
+    const res = await t.fetch("/module.wasm");
+    expect(res.headers.get("content-type")).toBe("application/wasm");
   });
 });
 
