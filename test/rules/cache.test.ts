@@ -753,6 +753,28 @@ describe("cache rule (ocache-backed, h3/rules/cache)", () => {
     }
   });
 
+  it("never stores a response behind middleware staging a non-`origin` `Vary`", async () => {
+    // Middleware that picks the rendered language from a request header the
+    // rule isn't keyed on must keep the cache from storing one language for all.
+    const app = new H3();
+    app.use((event) => {
+      event.context.lang = event.req.headers.get("accept-language") ?? "en";
+      event.res.headers.set("vary", "accept-language");
+    });
+    app.use(routeRules({ "/cached-lang": { cache: { maxAge: 60 } } }, { handlers: { cache } }));
+    app.get("/cached-lang", (event) => `hello in ${event.context.lang}`);
+
+    const en = await app.fetch(
+      new Request("http://localhost/cached-lang", { headers: { "accept-language": "en" } }),
+    );
+    expect(await en.text()).toBe("hello in en");
+    const fr = await app.fetch(
+      new Request("http://localhost/cached-lang", { headers: { "accept-language": "fr" } }),
+    );
+    expect(await fr.text()).toBe("hello in fr");
+    expect(fr.headers.get("vary")).toMatch(/accept-language/i);
+  });
+
   it("never stores a response middleware staged as `private`", async () => {
     // An auth middleware marks a personalized response private. Detaching that
     // `cache-control` with the other staged headers would store Alice's body

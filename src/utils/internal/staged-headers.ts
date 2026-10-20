@@ -1,19 +1,17 @@
 import { kEventRes, kEventResHeaders } from "../../event.ts";
 import type { H3Event } from "../../event.ts";
 
-// Matches a `*` entry of a comma-separated `Vary` list.
-const RE_VARY_WILDCARD = /(?:^|,)\s*\*\s*(?:,|$)/;
-
 /**
  * Take the headers earlier middleware staged on `event.res` out of the event,
  * so the `toResponse` of a cache miss cannot merge them into the shared entry
  * (h3js/h3#1605). They are per-request and go back onto every response, hit
  * or miss, through {@link withStagedHeaders}.
  *
- * `Cache-Control` and a wildcard `Vary` stay staged: they decide whether the
- * response may be stored at all, and the cache only sees them in the entry. A
- * middleware staging `private` for an authenticated request must keep that
- * response out of the shared cache, not just off the wire.
+ * `Cache-Control` and `Vary` names other than `origin` stay staged: they
+ * decide whether the response may be stored at all, and the cache only sees
+ * them in the entry. A middleware staging `private` for an authenticated
+ * request must keep that response out of the shared cache, not just off the
+ * wire.
  *
  * They stay out of the event rather than being restored onto it: an `swr`
  * revalidation keeps running the handler on this event after the stale
@@ -33,9 +31,24 @@ export function detachStagedHeaders(event: H3Event): Headers | undefined {
     staged.delete("cache-control");
   }
   const vary = staged.get("vary");
-  if (vary !== null && RE_VARY_WILDCARD.test(vary)) {
-    kept.set("vary", vary);
-    staged.delete("vary");
+  if (vary !== null) {
+    // Only `origin` is detached: it declares the per-request CORS headers that
+    // are detached with it. Any other name may select what the handler renders
+    // (e.g. middleware reading `accept-language` into the context), so the
+    // cache must see it and refuse to store an entry it isn't keyed on.
+    const names = vary
+      .split(",")
+      .map((name) => name.trim())
+      .filter(Boolean);
+    const rest = names.filter((name) => name.toLowerCase() !== "origin");
+    if (rest.length > 0) {
+      kept.set("vary", rest.join(", "));
+    }
+    if (rest.length === names.length) {
+      staged.delete("vary");
+    } else {
+      staged.set("vary", "origin");
+    }
   }
   res[kEventResHeaders] = kept.keys().next().done ? undefined : kept;
   return staged.keys().next().done ? undefined : staged;

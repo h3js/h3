@@ -1,16 +1,22 @@
 import { createMemoryStorage, defineCachedHandler } from "ocache";
-import { HTTPError, defineHandler, handleCacheHeaders, toResponse } from "../src/index.ts";
-import { withCacheIsolation } from "../src/index.ts";
-import type { H3Event } from "../src/index.ts";
+import {
+  HTTPError,
+  defineHandler,
+  handleCacheHeaders,
+  toResponse,
+  withCacheIsolation,
+} from "../src/index.ts";
+import { H3Event } from "../src/index.ts";
 import { describeMatrix } from "./_setup.ts";
 
 describeMatrix("withCacheIsolation", (t, { it, expect }) => {
   // A handler-level cache the way frameworks such as Nitro build one (h3js/h3#1607).
-  const createCached = (handler: (event: H3Event) => unknown) =>
+  const createCached = (handler: (event: H3Event) => unknown, opts?: { varies?: string[] }) =>
     withCacheIsolation(
       defineCachedHandler(handler, {
         storage: createMemoryStorage(),
         maxAge: 60,
+        ...opts,
         toResponse: (value, event) => toResponse(value, event as H3Event),
         handleCacheHeaders: (event, conditions) => handleCacheHeaders(event as H3Event, conditions),
       }),
@@ -67,6 +73,56 @@ describeMatrix("withCacheIsolation", (t, { it, expect }) => {
     const second = await t.fetch("/cached");
     expect(await second.text()).toBe("hello 1");
     expect(second.headers.get("vary")).toBe("origin");
+  });
+
+  it("does not store a response that varies on a header the cache isn't keyed on", async () => {
+    const cached = createCached((event) => `hello in ${event.context.lang}`);
+    t.app.use((event) => {
+      event.context.lang = event.req.headers.get("accept-language") ?? "en";
+      event.res.headers.set("vary", "origin, accept-language");
+    });
+    t.app.get("/cached", cached);
+
+    const en = await t.fetch("/cached", { headers: { "accept-language": "en" } });
+    expect(await en.text()).toBe("hello in en");
+    const fr = await t.fetch("/cached", { headers: { "accept-language": "fr" } });
+    expect(await fr.text()).toBe("hello in fr");
+    expect(fr.headers.get("vary")).toBe("accept-language, origin");
+  });
+
+  it("caches per value of a staged `Vary` the cache is keyed on", async () => {
+    let calls = 0;
+    const cached = createCached((event) => `hello in ${event.context.lang} (${++calls})`, {
+      varies: ["accept-language"],
+    });
+    t.app.use((event) => {
+      event.context.lang = event.req.headers.get("accept-language") ?? "en";
+      event.res.headers.set("vary", "accept-language");
+    });
+    t.app.get("/cached", cached);
+
+    const fetchLang = async (lang: string) =>
+      (await t.fetch("/cached", { headers: { "accept-language": lang } })).text();
+    expect(await fetchLang("en")).toBe("hello in en (1)");
+    expect(await fetchLang("fr")).toBe("hello in fr (2)");
+    expect(await fetchLang("en")).toBe("hello in en (1)");
+  });
+
+  it("keeps the cached handler's own methods", async () => {
+    let calls = 0;
+    let url = "";
+    const cached = createCached((event) => {
+      url = event.req.url;
+      return `hello ${++calls}`;
+    });
+    t.app.get("/cached", cached);
+
+    expect(await (await t.fetch("/cached")).text()).toBe("hello 1");
+    expect(await (await t.fetch("/cached")).text()).toBe("hello 1");
+    expect(typeof cached.expire).toBe("function");
+    expect(typeof cached.resolveKeys).toBe("function");
+    await cached.invalidate(new H3Event(new Request(url)));
+    expect(await (await t.fetch("/cached")).text()).toBe("hello 2");
   });
 
   it("does not store a response that middleware staged as `private`", async () => {

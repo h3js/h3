@@ -1,11 +1,4 @@
 import type { H3Event } from "../event.ts";
-import type {
-  EventHandler,
-  EventHandlerRequest,
-  HTTPHandler,
-  ResolvedRequest,
-} from "../types/handler.ts";
-import { toEventHandler } from "../handler.ts";
 import { isCacheMatch } from "./internal/cache.ts";
 import {
   detachStagedHeaders,
@@ -95,9 +88,16 @@ export function handleCacheHeaders(event: H3Event, opts: CacheConditions): boole
 /**
  * Wrap a cached handler so headers staged on `event.res` before it runs (for example by global middleware) never enter its cache entry.
  *
- * A cache miss usually renders the handler result with `toResponse(value, event)`, which merges staged headers into the stored response, so later hits would replay one user's headers to everyone. The wrapper takes them off the event for the cached dispatch and merges them onto every response it returns, hit or miss. Staged `Cache-Control` and a wildcard `Vary` stay visible to the cache, so a response middleware marked `private` or `no-store` is still not stored.
+ * A cache miss usually renders the handler result with `toResponse(value, event)`, which merges staged headers into the stored response, so later hits would replay one user's headers to everyone. The wrapper takes them off the event for the cached dispatch and merges them onto each successful response, hit or miss; error responses (4xx/5xx) don't receive them, as in h3. When the handler returns something other than a `Response`, they are put back on the event instead.
+ *
+ * A staged header wins over the same header set by the handler, so a miss looks the same as a hit.
+ *
+ * Headers that decide whether a response may be stored stay visible to the cache: a staged `Cache-Control` and every staged `Vary` name except `origin`. A response that middleware marked `private`/`no-store`, or that varies on a request header the cache isn't keyed on, is therefore not stored. A `Vary: Origin` is isolated, because the CORS headers it declares are staged per request as well. Note that the `Cache-Control` sent to the client is whatever the cached handler sets last.
+ *
+ * Properties of the wrapped handler (such as ocache's `invalidate`, `expire` and `resolveKeys`) are copied to the returned handler.
  *
  * @example
+ * import { handleCacheHeaders, toResponse, withCacheIsolation } from "h3";
  * import { defineCachedHandler } from "ocache";
  *
  * const cached = withCacheIsolation(
@@ -109,17 +109,10 @@ export function handleCacheHeaders(event: H3Event, opts: CacheConditions): boole
  * );
  * app.get("/cached", cached);
  *
- * @param input The cached event handler to wrap.
+ * @param handler The cached event handler to wrap.
  */
-export function withCacheIsolation<_RequestT extends EventHandlerRequest = EventHandlerRequest>(
-  input: HTTPHandler<_RequestT>,
-): EventHandler<ResolvedRequest<_RequestT>> {
-  const handler = toEventHandler(input);
-  if (!handler) {
-    throw new Error("Invalid handler", { cause: input });
-  }
-
-  return async function _handlerWithCacheIsolation(event) {
+export function withCacheIsolation<T extends (event: H3Event) => unknown>(handler: T): T {
+  async function _handlerWithCacheIsolation(event: H3Event) {
     const staged = detachStagedHeaders(event);
     if (!staged) {
       return handler(event);
@@ -136,5 +129,6 @@ export function withCacheIsolation<_RequestT extends EventHandlerRequest = Event
     }
     reattachStagedHeaders(event, staged);
     return res;
-  };
+  }
+  return Object.assign(_handlerWithCacheIsolation, handler) as unknown as T;
 }
