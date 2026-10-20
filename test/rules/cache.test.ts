@@ -1,4 +1,4 @@
-import { H3, defineHandler, setCookie } from "../../src/index.ts";
+import { H3, HTTPError, defineHandler, setCookie } from "../../src/index.ts";
 import type { EventHandler } from "../../src/index.ts";
 import { describe, expect, it, vi } from "vitest";
 import { routeRules } from "../../src/rules/middleware.ts";
@@ -700,6 +700,119 @@ describe("cache rule (ocache-backed, h3/rules/cache)", () => {
     // ...and on the hit, where the `cors` rule appends it live.
     expect(second.headers.get("vary")).toMatch(/origin/i);
     expect(calls).toBe(1);
+  });
+
+  it("keeps headers staged by earlier middleware out of the entry (#1605)", async () => {
+    let calls = 0;
+    const app = new H3();
+    app.use((event) => {
+      const user = event.url.searchParams.get("user");
+      if (user) event.res.headers.set("x-user", user);
+    });
+    app.use(routeRules({ "/cached": { cache: { maxAge: 60 } } }, { handlers: { cache } }));
+    app.get("/cached", () => ({ calls: ++calls }));
+
+    const miss = await app.fetch(new Request("http://localhost/cached?user=alice"));
+    expect(miss.headers.get("x-cache")).toBe("MISS");
+    expect(miss.headers.get("x-user")).toBe("alice");
+
+    const hit = await app.fetch(new Request("http://localhost/cached"));
+    expect(hit.headers.get("x-cache")).toBe("HIT");
+    expect(await hit.json()).toEqual({ calls: 1 });
+    expect(hit.headers.get("x-user")).toBeNull();
+
+    // Merged back onto hits too.
+    const bob = await app.fetch(new Request("http://localhost/cached?user=bob"));
+    expect(bob.headers.get("x-cache")).toBe("HIT");
+    expect(bob.headers.get("x-user")).toBe("bob");
+  });
+
+  it("caches a route behind middleware that stages `vary: origin` (#1605)", async () => {
+    let calls = 0;
+    const app = new H3();
+    app.use((event) => {
+      event.res.headers.set("vary", "origin");
+    });
+    app.use(
+      routeRules(
+        { "/cached-vary": { cache: { maxAge: 60, varies: ["accept-language"] } } },
+        { handlers: { cache } },
+      ),
+    );
+    app.get("/cached-vary", () => ({ calls: ++calls }));
+
+    const first = await app.fetch(new Request("http://localhost/cached-vary"));
+    expect(first.headers.get("x-cache")).toBe("MISS");
+    const second = await app.fetch(new Request("http://localhost/cached-vary"));
+    expect(second.headers.get("x-cache")).toBe("HIT");
+    expect(await second.json()).toEqual({ calls: 1 });
+    // The staged `Vary` joins the entry's own instead of replacing it.
+    for (const res of [first, second]) {
+      expect(res.headers.get("vary")).toMatch(/origin/i);
+      expect(res.headers.get("vary")).toMatch(/accept-language/i);
+    }
+  });
+
+  it("never stores a response middleware staged as `private`", async () => {
+    // An auth middleware marks a personalized response private. Detaching that
+    // `cache-control` with the other staged headers would store Alice's body
+    // and serve it to the next anonymous request.
+    const app = new H3();
+    app.use((event) => {
+      const user = event.url.searchParams.get("user");
+      if (user) {
+        event.context.user = user;
+        event.res.headers.set("cache-control", "private, no-store");
+      }
+    });
+    app.use(routeRules({ "/cached-private": { cache: { maxAge: 60 } } }, { handlers: { cache } }));
+    app.get("/cached-private", (event) => ({ user: event.context.user ?? null }));
+
+    const alice = await app.fetch(new Request("http://localhost/cached-private?user=alice"));
+    expect(alice.headers.get("cache-control")).toBe("private, no-store");
+    expect(await alice.json()).toEqual({ user: "alice" });
+
+    const anon = await app.fetch(new Request("http://localhost/cached-private"));
+    expect(anon.headers.get("x-cache")).toBe("MISS");
+    expect(await anon.json()).toEqual({ user: null });
+  });
+
+  it("caches a `cors` + `cache` route with `routeRules()` as route middleware", async () => {
+    // The `cors` rule runs again inside the cached dispatch here, staging its
+    // `Vary: Origin` where the miss's `toResponse` merges it into the entry.
+    let calls = 0;
+    const app = new H3();
+    app.get("/cached-route-cors/:id", () => ({ calls: ++calls }), {
+      middleware: [
+        routeRules(
+          { "/cached-route-cors/**": { cors: { origin: "*" }, cache: { maxAge: 60 } } },
+          { handlers: { cache } },
+        ),
+      ],
+    });
+
+    const req = (origin: string) =>
+      app.fetch(new Request("http://localhost/cached-route-cors/a", { headers: { origin } }));
+    const first = await req("https://a.com");
+    expect(first.headers.get("x-cache")).toBe("MISS");
+    const second = await req("https://b.com");
+    expect(second.headers.get("x-cache")).toBe("HIT");
+    expect(await second.json()).toEqual({ calls: 1 });
+  });
+
+  it("keeps middleware-staged error headers when the cached handler throws", async () => {
+    const app = new H3();
+    app.use((event) => {
+      event.res.errHeaders.set("x-request-id", "abc");
+    });
+    app.use(routeRules({ "/cached-throw": { cache: { maxAge: 60 } } }, { handlers: { cache } }));
+    app.get("/cached-throw", () => {
+      throw new HTTPError({ status: 418 });
+    });
+
+    const res = await app.fetch(new Request("http://localhost/cached-throw"));
+    expect(res.status).toBe(418);
+    expect(res.headers.get("x-request-id")).toBe("abc");
   });
 
   it("dispatches the route exactly once for a `headersOnly` cache rule (F12)", async () => {

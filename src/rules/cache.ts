@@ -2,6 +2,7 @@ import { defineHandler } from "../handler.ts";
 import { HTTPError } from "../error.ts";
 import { HTTPResponse, toResponse } from "../response.ts";
 import { handleCacheHeaders } from "../utils/cache.ts";
+import { kEventRes, kEventResHeaders } from "../event.ts";
 import type { H3Event } from "../event.ts";
 import type { EventHandler } from "../types/handler.ts";
 import type { ServerRequest } from "srvx";
@@ -75,6 +76,10 @@ function withoutVaryOrigin(vary: string): string | undefined {
  * Left in place it would only make ocache refuse to store the entry at all —
  * an undeclared `Vary` name is not cacheable, and keying by origin instead
  * would give every origin its own copy of the same body.
+ *
+ * With `routeRules()` as global middleware {@link detachStagedHeaders} already
+ * keeps the rule's headers out; as route middleware the `cors` rule runs again
+ * inside the cached dispatch and stages them where `toResponse` sees them.
  */
 function moveVolatileHeaders(res: Response, event: H3Event): Response {
   if (event.req.method !== "GET" && event.req.method !== "HEAD") {
@@ -130,6 +135,104 @@ function moveVolatileHeaders(res: Response, event: H3Event): Response {
     event.res.headers.set("vary", vary!);
   }
   return res;
+}
+
+// Matches a `*` entry of a comma-separated `Vary` list.
+const RE_VARY_WILDCARD = /(?:^|,)\s*\*\s*(?:,|$)/;
+
+/**
+ * Take the headers earlier middleware staged on `event.res` out of the event,
+ * so the `toResponse` of a cache miss cannot merge them into the shared entry
+ * (h3js/h3#1605). They are per-request and go back onto every response, hit
+ * or miss, through {@link withStagedHeaders}.
+ *
+ * `Cache-Control` and a wildcard `Vary` stay staged: they decide whether the
+ * response may be stored at all, and ocache only sees them in the entry. A
+ * middleware staging `private` for an authenticated request must keep that
+ * response out of the shared cache, not just off the wire.
+ *
+ * They stay out of the event rather than being restored onto it: an `swr`
+ * revalidation keeps running the handler on this event after the stale
+ * response is returned. Error headers are left alone, since an error status
+ * is never stored.
+ */
+function detachStagedHeaders(event: H3Event): Headers | undefined {
+  const res = (event as any)[kEventRes];
+  const staged: Headers | undefined = res?.[kEventResHeaders];
+  if (!staged) {
+    return;
+  }
+  const kept = new Headers();
+  const cacheControl = staged.get("cache-control");
+  if (cacheControl !== null) {
+    kept.set("cache-control", cacheControl);
+    staged.delete("cache-control");
+  }
+  const vary = staged.get("vary");
+  if (vary !== null && RE_VARY_WILDCARD.test(vary)) {
+    kept.set("vary", vary);
+    staged.delete("vary");
+  }
+  res[kEventResHeaders] = kept.keys().next().done ? undefined : kept;
+  return staged.keys().next().done ? undefined : staged;
+}
+
+/**
+ * Merge `source` into `target` the way h3 merges staged headers into a
+ * response, except that `Vary` lists are joined: the entry's own `Vary`
+ * declares its cache key and must not be replaced by a staged one.
+ */
+function mergeStagedHeaders(target: Headers, source: Headers): void {
+  for (const [name, value] of source) {
+    if (name === "set-cookie") {
+      target.append(name, value);
+    } else if (name === "vary" && target.has("vary")) {
+      appendVary(target, value);
+    } else {
+      target.set(name, value);
+    }
+  }
+}
+
+function appendVary(headers: Headers, value: string): void {
+  const names = headers
+    .get("vary")!
+    .split(",")
+    .map((name) => name.trim());
+  const known = new Set(names.map((name) => name.toLowerCase()));
+  for (const name of value.split(",")) {
+    const trimmed = name.trim();
+    if (trimmed && !known.has(trimmed.toLowerCase())) {
+      known.add(trimmed.toLowerCase());
+      names.push(trimmed);
+    }
+  }
+  headers.set("vary", names.filter(Boolean).join(", "));
+}
+
+/**
+ * Apply detached staged headers to the response the cache returned. Headers
+ * staged during the dispatch (`handleCacheHeaders`, moved volatile headers)
+ * are still on `event.res` and are merged over these by h3 as usual. Like h3,
+ * success headers never reach an error response.
+ */
+function withStagedHeaders(res: Response, staged: Headers): Response {
+  if (res.status >= 400) {
+    return res;
+  }
+  const headers = new Headers(res.headers);
+  mergeStagedHeaders(headers, staged);
+  return new Response(res.body, { status: res.status, statusText: res.statusText, headers });
+}
+
+/** Put detached headers back under whatever was staged since, for h3 to render. */
+function reattachStagedHeaders(event: H3Event, staged: Headers): void {
+  const res = event.res as any;
+  const after: Headers | undefined = res[kEventResHeaders];
+  if (after) {
+    mergeStagedHeaders(staged, after);
+  }
+  res[kEventResHeaders] = staged;
 }
 
 /**
@@ -336,7 +439,23 @@ export function createOcacheRuleHandler(opts?: OcacheRuleHandlerOptions): RuleHa
             restore.map((name) => event.req.headers.get(name)),
           );
         }
-        const res = await ocacheHandler(event);
+        const staged = detachStagedHeaders(event);
+        let res: unknown;
+        if (staged) {
+          try {
+            res = await ocacheHandler(event);
+          } catch (error) {
+            reattachStagedHeaders(event, staged);
+            throw error;
+          }
+          if (res instanceof Response) {
+            res = withStagedHeaders(res, staged);
+          } else {
+            reattachStagedHeaders(event, staged);
+          }
+        } else {
+          res = await ocacheHandler(event);
+        }
         // Rebuild through h3 so final response headers reach 304s (RFC 9110 §15.4.5).
         if (res instanceof Response && res.status === 304) {
           return new HTTPResponse(null, { status: 304, headers: res.headers });
