@@ -9,10 +9,13 @@ import type {
   WebSocketResponse,
 } from "../../src/index.ts";
 import { H3 } from "../../src/index.ts";
+import type { InferRouteParams } from "rou3";
 import { describe, it, expectTypeOf } from "vitest";
 import {
   defineHandler,
   getQuery,
+  getRouterParam,
+  getRouterParams,
   readBody,
   readValidatedBody,
   getValidatedQuery,
@@ -294,20 +297,334 @@ describe("types", () => {
   describe("routes", () => {
     it("types the event of an inline method handler", () => {
       new H3().get("/", (event) => {
-        expectTypeOf(event).toEqualTypeOf<H3Event<EventHandlerRequest>>();
+        expectTypeOf(event).toEqualTypeOf<H3Event<{ routerParams: undefined }>>();
         return "ok";
       });
     });
 
     it("types the event of an inline `on` handler", () => {
       new H3().on("GET", "/", (event) => {
-        expectTypeOf(event).toEqualTypeOf<H3Event<EventHandlerRequest>>();
+        expectTypeOf(event).toEqualTypeOf<H3Event<{ routerParams: undefined }>>();
         return "ok";
       });
     });
 
     it("accepts a handler with a concrete request type in an untyped slot", () => {
       expectTypeOf<EventHandler<{ body: { id: string } }>>().toExtend<HTTPHandler>();
+    });
+  });
+
+  describe("routerParams inference", () => {
+    it("should infer router params from EventHandlerRequest (non-optional)", () => {
+      defineHandler<{
+        routerParams: { id: string; name: string };
+      }>((event) => {
+        expectTypeOf(event.context.params).toEqualTypeOf<{
+          id: string;
+          name: string;
+        }>();
+        expectTypeOf(event.context.params.id).toEqualTypeOf<string>();
+        expectTypeOf(event.context.params.name).toEqualTypeOf<string>();
+      });
+    });
+
+    it("should default to optional Record<string, string> when no routerParams specified", () => {
+      defineHandler((event) => {
+        expectTypeOf(event.context.params).toEqualTypeOf<Record<string, string> | undefined>();
+      });
+    });
+
+    it("should work with specific param types (non-optional)", () => {
+      defineHandler<{
+        routerParams: { userId: string; postId: string };
+      }>((event) => {
+        const userId = event.context.params.userId;
+        const postId = event.context.params.postId;
+        expectTypeOf(userId).toEqualTypeOf<string>();
+        expectTypeOf(postId).toEqualTypeOf<string>();
+      });
+    });
+
+    it("should work with getRouterParams helper", () => {
+      defineHandler<{
+        routerParams: { id: string; slug: string };
+      }>((event) => {
+        const params = getRouterParams(event);
+        expectTypeOf(params).toEqualTypeOf<{ id: string; slug: string }>();
+        expectTypeOf(params.id).toEqualTypeOf<string>();
+        expectTypeOf(params.slug).toEqualTypeOf<string>();
+      });
+    });
+
+    it("should work with getRouterParam helper", () => {
+      defineHandler<{
+        routerParams: { id: string; slug: string };
+      }>((event) => {
+        const id = getRouterParam(event, "id");
+        const slug = getRouterParam(event, "slug");
+        expectTypeOf(id).toEqualTypeOf<string>();
+        expectTypeOf(slug).toEqualTypeOf<string>();
+      });
+    });
+
+    it("getRouterParam should provide autocomplete for param keys", () => {
+      defineHandler<{
+        routerParams: { userId: string; postId: string };
+      }>((event) => {
+        // This should only allow "userId" | "postId" as the second parameter
+        const userId = getRouterParam(event, "userId");
+        expectTypeOf(userId).toEqualTypeOf<string>();
+      });
+    });
+  });
+
+  describe("app route inference", () => {
+    describe("simple dynamic routes", () => {
+      it("should infer params from app.get()", () => {
+        const app = new H3();
+
+        app.get("/users/:id", (event) => {
+          expectTypeOf(event.context.params).toEqualTypeOf<{ id: string }>();
+          expectTypeOf(event.context.params.id).toEqualTypeOf<string>();
+        });
+      });
+
+      it("should infer params from app.post()", () => {
+        const app = new H3();
+
+        app.post("/users/:id", (event) => {
+          expectTypeOf(event.context.params).toEqualTypeOf<{ id: string }>();
+          expectTypeOf(event.context.params.id).toEqualTypeOf<string>();
+        });
+      });
+
+      it("should not infer params from static route", () => {
+        const app = new H3();
+
+        app.get("/about", (event) => {
+          expectTypeOf(event.context.params).toEqualTypeOf<undefined>();
+        });
+      });
+    });
+
+    it("infers optional captures without requiring their values", () => {
+      expectTypeOf<InferRouteParams<"/users/:id?">>().toEqualTypeOf<{
+        id: string | undefined;
+      }>();
+      new H3().get("/users/:id?", (event) => {
+        expectTypeOf(event.context.params).toEqualTypeOf<{ id?: string } | undefined>();
+        expectTypeOf(event.context.params?.id).toEqualTypeOf<string | undefined>();
+        expectTypeOf(getRouterParam(event, "id")).toEqualTypeOf<string | undefined>();
+      });
+      new H3().get("/users/:userId/posts/:postId?", (event) => {
+        expectTypeOf(event.context.params).toEqualTypeOf<{
+          userId: string;
+          postId?: string;
+        }>();
+      });
+      new H3().get("/files/:path*", (event) => {
+        expectTypeOf(event.context.params).toEqualTypeOf<{ path?: string } | undefined>();
+      });
+    });
+
+    it("infers the name of a regex-constrained param", () => {
+      new H3().get("/users/:id(\\d+)", (event) => {
+        expectTypeOf(event.context.params).toEqualTypeOf<{ id: string }>();
+      });
+    });
+
+    it("infers one-or-more repeat params as required strings", () => {
+      expectTypeOf<InferRouteParams<"/files/:path+">>().toEqualTypeOf<{ path: string }>();
+      new H3().get("/files/:path+", (event) => {
+        expectTypeOf(event.context.params).toEqualTypeOf<{ path: string }>();
+        expectTypeOf(getRouterParams(event)).toEqualTypeOf<{ path: string }>();
+        expectTypeOf(getRouterParam(event, "path")).toEqualTypeOf<string>();
+      });
+      new H3().get("/files/:path+/edit", (event) => {
+        expectTypeOf(event.context.params).toEqualTypeOf<{ path: string }>();
+      });
+    });
+
+    it("infers a non-trailing wildcard as a required numbered capture", () => {
+      expectTypeOf<InferRouteParams<"/files/*/edit">>().toEqualTypeOf<{ "0": string }>();
+      new H3().get("/files/*/edit", (event) => {
+        expectTypeOf(event.context.params).toEqualTypeOf<{ "0": string }>();
+        expectTypeOf(getRouterParams(event)).toEqualTypeOf<{ "0": string }>();
+        expectTypeOf(getRouterParam(event, "0")).toEqualTypeOf<string>();
+      });
+    });
+
+    it("infers a trailing wildcard as an optional numbered capture", () => {
+      expectTypeOf<InferRouteParams<"/files/*">>().toEqualTypeOf<{
+        "0": string | undefined;
+      }>();
+      new H3().get("/files/*", (event) => {
+        expectTypeOf(event.context.params).toEqualTypeOf<{ "0"?: string } | undefined>();
+        expectTypeOf(getRouterParams(event)).toEqualTypeOf<{ "0"?: string } | undefined>();
+        expectTypeOf(getRouterParam(event, "0")).toEqualTypeOf<string | undefined>();
+      });
+      new H3().get("/users/:id/files/*", (event) => {
+        expectTypeOf(event.context.params).toEqualTypeOf<{ id: string; "0"?: string }>();
+        expectTypeOf(getRouterParam(event, "id")).toEqualTypeOf<string>();
+      });
+      new H3().get("/files/*/", (event) => {
+        expectTypeOf(event.context.params).toEqualTypeOf<{ "0"?: string } | undefined>();
+      });
+    });
+
+    it("infers a bare catch-all's numbered capture and legacy alias as optional", () => {
+      expectTypeOf<InferRouteParams<"/files/**">>().toEqualTypeOf<{
+        "0": string | undefined;
+        _?: string;
+      }>();
+      new H3().get("/files/**", (event) => {
+        expectTypeOf(event.context.params).toEqualTypeOf<
+          { "0"?: string; _?: string } | undefined
+        >();
+        expectTypeOf(getRouterParam(event, "0")).toEqualTypeOf<string | undefined>();
+        expectTypeOf(getRouterParam(event, "_")).toEqualTypeOf<string | undefined>();
+      });
+      new H3().get("/files/**/:name", (event) => {
+        expectTypeOf(event.context.params).toEqualTypeOf<{
+          "0"?: string;
+          _?: string;
+          name: string;
+        }>();
+        expectTypeOf(getRouterParam(event, "name")).toEqualTypeOf<string>();
+      });
+    });
+
+    it("infers a named catch-all as a required capture without numbered keys", () => {
+      expectTypeOf<InferRouteParams<"/files/**:path">>().toEqualTypeOf<{ path: string }>();
+      new H3().get("/files/**:path", (event) => {
+        expectTypeOf(event.context.params).toEqualTypeOf<{ path: string }>();
+        expectTypeOf(getRouterParams(event)).toEqualTypeOf<{ path: string }>();
+        expectTypeOf(getRouterParam(event, "path")).toEqualTypeOf<string>();
+      });
+      new H3().get("/files/**:path/:name", (event) => {
+        expectTypeOf(event.context.params).toEqualTypeOf<{ path: string; name: string }>();
+      });
+    });
+
+    it("infers captures inside required brace groups", () => {
+      expectTypeOf<InferRouteParams<"/users{/:id}">>().toEqualTypeOf<{ id: string }>();
+      new H3().get("/users{/:id}", (event) => {
+        expectTypeOf(event.context.params).toEqualTypeOf<{ id: string }>();
+        expectTypeOf(getRouterParam(event, "id")).toEqualTypeOf<string>();
+      });
+      new H3().get("/users{all}", (event) => {
+        expectTypeOf(event.context.params).toEqualTypeOf<undefined>();
+      });
+    });
+
+    it("infers captures inside optional brace groups", () => {
+      expectTypeOf<InferRouteParams<"/users{/:id}?">>().toEqualTypeOf<{
+        id: string | undefined;
+      }>();
+      new H3().get("/users{/:id}?", (event) => {
+        expectTypeOf(event.context.params).toEqualTypeOf<{ id?: string } | undefined>();
+        expectTypeOf(getRouterParams(event)).toEqualTypeOf<{ id?: string } | undefined>();
+        expectTypeOf(getRouterParam(event, "id")).toEqualTypeOf<string | undefined>();
+      });
+      new H3().get("/files{/*}?", (event) => {
+        expectTypeOf(event.context.params).toEqualTypeOf<{ "0"?: string } | undefined>();
+      });
+      new H3().get("/users{all}?", (event) => {
+        expectTypeOf(event.context.params).toEqualTypeOf<undefined>();
+      });
+    });
+
+    it("infers an optional inline group alongside a required constrained param", () => {
+      expectTypeOf<InferRouteParams<"/blog/:id(\\d+){-:title}?">>().toEqualTypeOf<{
+        id: string;
+        title: string | undefined;
+      }>();
+      new H3().get("/blog/:id(\\d+){-:title}?", (event) => {
+        expectTypeOf(event.context.params).toEqualTypeOf<{ id: string; title?: string }>();
+        expectTypeOf(getRouterParams(event)).toEqualTypeOf<{ id: string; title?: string }>();
+        expectTypeOf(getRouterParam(event, "id")).toEqualTypeOf<string>();
+        expectTypeOf(getRouterParam(event, "title")).toEqualTypeOf<string | undefined>();
+      });
+    });
+
+    describe("multiple dynamic segments", () => {
+      it("should infer params from app.get()", () => {
+        const app = new H3();
+
+        app.get("/users/:userId/posts/:postId", (event) => {
+          expectTypeOf(event.context.params).toEqualTypeOf<{
+            userId: string;
+            postId: string;
+          }>();
+          expectTypeOf(event.context.params.userId).toEqualTypeOf<string>();
+          expectTypeOf(event.context.params.postId).toEqualTypeOf<string>();
+        });
+      });
+
+      it("should infer params from app.post()", () => {
+        const app = new H3();
+
+        app.post("/users/:userId/posts/:postId", (event) => {
+          expectTypeOf(event.context.params).toEqualTypeOf<{
+            userId: string;
+            postId: string;
+          }>();
+          expectTypeOf(event.context.params.userId).toEqualTypeOf<string>();
+          expectTypeOf(event.context.params.postId).toEqualTypeOf<string>();
+        });
+      });
+    });
+
+    it("should infer params from app.on()", () => {
+      const app = new H3();
+
+      app.on("GET", "/products/:productId", (event) => {
+        expectTypeOf(event.context.params).toEqualTypeOf<{
+          productId: string;
+        }>();
+        expectTypeOf(event.context.params.productId).toEqualTypeOf<string>();
+      });
+    });
+
+    it("should infer static routes as undefined params", () => {
+      const app = new H3();
+
+      app.get("/users", (event) => {
+        expectTypeOf(event.context.params).toEqualTypeOf<undefined>();
+      });
+
+      app.post("/users/list", (event) => {
+        const params = getRouterParams(event);
+        expectTypeOf(params).toEqualTypeOf<undefined>();
+      });
+    });
+
+    it("should use generic types for reusable handlers", () => {
+      const app = new H3();
+
+      const handler = defineHandler((event) => {
+        expectTypeOf(event.context.params).toEqualTypeOf<Record<string, string> | undefined>();
+
+        const params = getRouterParams(event);
+        expectTypeOf(params).toEqualTypeOf<Record<string, string> | undefined>();
+
+        const id = getRouterParam(event, "id");
+        expectTypeOf(id).toEqualTypeOf<string | undefined>();
+      });
+
+      app.get("/users/:id", handler);
+      app.get(
+        "/posts/:id",
+        defineHandler((event) => {
+          expectTypeOf(event.context.params).toEqualTypeOf<{ id: string }>();
+
+          const params = getRouterParams(event);
+          expectTypeOf(params).toEqualTypeOf<{ id: string }>();
+
+          const id = getRouterParam(event, "id");
+          expectTypeOf(id).toEqualTypeOf<string>();
+        }),
+      );
     });
   });
 

@@ -126,6 +126,19 @@ describeMatrix("router", (t, { it, expect, describe }) => {
 
   describe("getRouterParams", () => {
     describe("with router", () => {
+      it("handles an optional param with and without a value", async () => {
+        t.app.get("/optional/:id?", (event) => ({
+          params: getRouterParams(event),
+          id: getRouterParam(event, "id") ?? null,
+        }));
+
+        expect(await (await t.fetch("/optional")).json()).toEqual({ params: {}, id: null });
+        expect(await (await t.fetch("/optional/42")).json()).toEqual({
+          params: { id: "42" },
+          id: "42",
+        });
+      });
+
       it("can return router params", async () => {
         const router = new H3().get("/test/params/:name", (event) => {
           expect(getRouterParams(event)).toMatchObject({ name: "string" });
