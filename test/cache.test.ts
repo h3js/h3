@@ -137,6 +137,25 @@ describeMatrix("withCacheIsolation", (t, { it, expect }) => {
     expect(await (await t.fetch("/cached")).text()).toBe("hello 2");
   });
 
+  it("sends a middleware-staged `private` to the client", async () => {
+    // `handleCacheHeaders` would otherwise replace it with `public`, and a CDN
+    // in front of the app could store the page middleware kept private.
+    const cached = createCached(() => "hello");
+    t.app.use((event) => {
+      if (event.req.headers.has("x-user")) {
+        event.res.headers.set("cache-control", "private, no-store");
+      }
+    });
+    t.app.get("/cached", cached);
+
+    const user = await t.fetch("/cached", { headers: { "x-user": "alice" } });
+    expect(user.headers.get("cache-control")).toBe("private, no-store");
+    const anonymous = await t.fetch("/cached");
+    expect(anonymous.headers.get("cache-control")).toMatch(/^public/);
+    const userHit = await t.fetch("/cached", { headers: { "x-user": "alice" } });
+    expect(userHit.headers.get("cache-control")).toBe("private, no-store");
+  });
+
   it("does not store a response that middleware staged with `vary: *`", async () => {
     let calls = 0;
     const cached = createCached(() => `hello ${++calls}`);

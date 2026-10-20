@@ -1,6 +1,11 @@
 import { kEventRes, kEventResHeaders } from "../../event.ts";
 import type { H3Event } from "../../event.ts";
 
+/** Read a header staged on `event.res` without creating the response. */
+export function getStagedHeader(event: H3Event, name: string): string | null {
+  return (event as any)[kEventRes]?.[kEventResHeaders]?.get(name) ?? null;
+}
+
 /**
  * Take the headers earlier middleware staged on `event.res` out of the event,
  * so the `toResponse` of a cache miss cannot merge them into the shared entry

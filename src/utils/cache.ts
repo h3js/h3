@@ -2,6 +2,7 @@ import type { H3Event } from "../event.ts";
 import { isCacheMatch } from "./internal/cache.ts";
 import {
   detachStagedHeaders,
+  getStagedHeader,
   reattachStagedHeaders,
   withStagedHeaders,
 } from "./internal/staged-headers.ts";
@@ -92,7 +93,7 @@ export function handleCacheHeaders(event: H3Event, opts: CacheConditions): boole
  *
  * A staged header wins over the same header set by the handler, so a miss looks the same as a hit.
  *
- * Headers that decide whether a response may be stored stay visible to the cache: a staged `Cache-Control` and every staged `Vary` name except `origin`. A response that middleware marked `private`/`no-store`, or that varies on a request header the cache isn't keyed on, is therefore not stored. A `Vary: Origin` is isolated, because the CORS headers it declares are staged per request as well. Note that the `Cache-Control` sent to the client is whatever the cached handler sets last.
+ * Headers that decide whether a response may be stored stay visible to the cache: a staged `Cache-Control` and every staged `Vary` name except `origin`. A response that middleware marked `private`/`no-store`, or that varies on a request header the cache isn't keyed on, is therefore not stored. A staged `private`/`no-store` `Cache-Control` is also sent to the client in place of the one the cached handler sets, so a CDN in front of the app doesn't store it either. A `Vary: Origin` is isolated, because the CORS headers it declares are staged per request as well.
  *
  * Properties of the wrapped handler (such as ocache's `invalidate`, `expire` and `resolveKeys`) are copied to the returned handler.
  *
@@ -113,16 +114,26 @@ export function handleCacheHeaders(event: H3Event, opts: CacheConditions): boole
  */
 export function withCacheIsolation<T extends (event: H3Event) => unknown>(handler: T): T {
   async function _handlerWithCacheIsolation(event: H3Event) {
+    const cacheControl = getStagedHeader(event, "cache-control");
+    const privateCacheControl =
+      cacheControl !== null && RE_PRIVATE.test(cacheControl) ? cacheControl : undefined;
     const staged = detachStagedHeaders(event);
-    if (!staged) {
-      return handler(event);
-    }
     let res: unknown;
     try {
       res = await handler(event);
     } catch (error) {
-      reattachStagedHeaders(event, staged);
+      if (staged) {
+        reattachStagedHeaders(event, staged);
+      }
       throw error;
+    }
+    if (privateCacheControl) {
+      // The cached dispatch's `handleCacheHeaders` replaces it with `public`;
+      // a shared cache in front of the app must still see it as private.
+      event.res.headers.set("cache-control", privateCacheControl);
+    }
+    if (!staged) {
+      return res;
     }
     if (res instanceof Response) {
       return withStagedHeaders(res, staged);
