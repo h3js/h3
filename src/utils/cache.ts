@@ -1,5 +1,17 @@
 import type { H3Event } from "../event.ts";
+import type {
+  EventHandler,
+  EventHandlerRequest,
+  HTTPHandler,
+  ResolvedRequest,
+} from "../types/handler.ts";
+import { toEventHandler } from "../handler.ts";
 import { isCacheMatch } from "./internal/cache.ts";
+import {
+  detachStagedHeaders,
+  reattachStagedHeaders,
+  withStagedHeaders,
+} from "./internal/staged-headers.ts";
 
 export interface CacheConditions {
   modifiedTime?: string | Date;
@@ -78,4 +90,51 @@ export function handleCacheHeaders(event: H3Event, opts: CacheConditions): boole
   }
 
   return false;
+}
+
+/**
+ * Wrap a cached handler so headers staged on `event.res` before it runs (for example by global middleware) never enter its cache entry.
+ *
+ * A cache miss usually renders the handler result with `toResponse(value, event)`, which merges staged headers into the stored response, so later hits would replay one user's headers to everyone. The wrapper takes them off the event for the cached dispatch and merges them onto every response it returns, hit or miss. Staged `Cache-Control` and a wildcard `Vary` stay visible to the cache, so a response middleware marked `private` or `no-store` is still not stored.
+ *
+ * @example
+ * import { defineCachedHandler } from "ocache";
+ *
+ * const cached = withCacheIsolation(
+ *   defineCachedHandler(() => "hello", {
+ *     maxAge: 60,
+ *     toResponse: (value, event) => toResponse(value, event),
+ *     handleCacheHeaders: (event, conditions) => handleCacheHeaders(event, conditions),
+ *   }),
+ * );
+ * app.get("/cached", cached);
+ *
+ * @param input The cached event handler to wrap.
+ */
+export function withCacheIsolation<_RequestT extends EventHandlerRequest = EventHandlerRequest>(
+  input: HTTPHandler<_RequestT>,
+): EventHandler<ResolvedRequest<_RequestT>> {
+  const handler = toEventHandler(input);
+  if (!handler) {
+    throw new Error("Invalid handler", { cause: input });
+  }
+
+  return async function _handlerWithCacheIsolation(event) {
+    const staged = detachStagedHeaders(event);
+    if (!staged) {
+      return handler(event);
+    }
+    let res: unknown;
+    try {
+      res = await handler(event);
+    } catch (error) {
+      reattachStagedHeaders(event, staged);
+      throw error;
+    }
+    if (res instanceof Response) {
+      return withStagedHeaders(res, staged);
+    }
+    reattachStagedHeaders(event, staged);
+    return res;
+  };
 }
