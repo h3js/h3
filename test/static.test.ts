@@ -676,3 +676,45 @@ describe("serve static (malformed url)", () => {
     expect(servedId).not.toMatch(/(^|[\\/])\.\.([\\/]|$)/); // no bare `..` segment
   });
 });
+
+describe("serve static index files", () => {
+  const assets = new Set(["/index.html", "/docs/index.html"]);
+
+  function createApp(indexNames?: string[]) {
+    const getMeta = vi.fn((id: string) => (assets.has(id) ? { size: id.length } : undefined));
+    const getContents = vi.fn((id: string) => `asset:${id}`);
+    const app = new H3().all("/**", (event) =>
+      serveStatic(event, { getMeta, getContents, indexNames }),
+    );
+    return { app, getMeta };
+  }
+
+  it("serves the root index without a double slash", async () => {
+    const { app, getMeta } = createApp();
+    const res = await app.request("/");
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe("asset:/index.html");
+    expect(getMeta).not.toHaveBeenCalledWith("//index.html");
+  });
+
+  it("serves the root index when the index name has no leading slash", async () => {
+    const { app } = createApp(["index.html"]);
+    const res = await app.request("/");
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe("asset:/index.html");
+  });
+
+  it("serves a directory index when the index name has no leading slash", async () => {
+    const { app } = createApp(["index.html"]);
+    const res = await app.request("/docs");
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe("asset:/docs/index.html");
+  });
+
+  it("serves a directory index with the default index names", async () => {
+    const { app } = createApp();
+    const res = await app.request("/docs");
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe("asset:/docs/index.html");
+  });
+});

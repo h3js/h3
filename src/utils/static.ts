@@ -341,11 +341,19 @@ function idSearchPaths(id: string, encodings: string[], indexNames: string[]) {
   const ids: { id: string; assetId: string }[] = [];
 
   for (const suffix of ["", ...indexNames]) {
-    const assetId = `${id}${suffix}`;
+    const assetId = suffix ? joinIndexName(id, suffix) : id;
     for (const encoding of [...encodings, ""]) {
       ids.push({ id: `${assetId}${encoding}`, assetId });
     }
   }
 
   return ids;
+}
+
+// Appends an index file name to a directory id. The root id is `/` and has to
+// lose its slash first, otherwise `/index.html` becomes `//index.html`, and an
+// index name without a leading slash would be glued onto the last segment.
+function joinIndexName(id: string, indexName: string): string {
+  const dir = id === "/" ? "" : id;
+  return indexName.startsWith("/") ? `${dir}${indexName}` : `${dir}/${indexName}`;
 }
