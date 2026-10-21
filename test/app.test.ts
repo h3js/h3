@@ -389,6 +389,22 @@ describe("app", () => {
     expect(res.body).toEqual({ works: 1 });
   });
 
+  it("does not leave listeners behind for middleware calling next() synchronously", async () => {
+    for (let i = 0; i < 15; i++) {
+      app.use(fromNodeMiddleware((_req, _res, next) => next()));
+    }
+    let listeners: number[] = [];
+    app.use(
+      fromNodeMiddleware((_req, res) => {
+        listeners = [res.listenerCount("close"), res.listenerCount("error")];
+        res.end("ok");
+      }),
+    );
+    const res = await request.post("/");
+    expect(res.text).toBe("ok");
+    expect(listeners).toEqual([0, 0]);
+  });
+
   it("calls onRequest and onResponse", async () => {
     app.use(eventHandler(() => Promise.resolve("Hello World!")));
     await request.get("/foo");

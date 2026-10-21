@@ -103,7 +103,9 @@ export function callNodeListener(
 ) {
   const isMiddleware = handler.length > 2;
   return new Promise((resolve, reject) => {
+    let called = false;
     const next = (err?: Error) => {
+      called = true;
       if (isMiddleware) {
         res.off("close", next);
         res.off("error", next);
@@ -113,8 +115,12 @@ export function callNodeListener(
     try {
       const returned = handler(req, res, next);
       if (isMiddleware && returned === undefined) {
-        res.once("close", next);
-        res.once("error", next);
+        // A middleware that called next() synchronously is done: listening
+        // now would leave listeners nothing removes, one pair per layer.
+        if (!called) {
+          res.once("close", next);
+          res.once("error", next);
+        }
       } else {
         resolve(returned);
       }
