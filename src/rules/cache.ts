@@ -1,7 +1,7 @@
 import { defineHandler } from "../handler.ts";
 import { HTTPError } from "../error.ts";
 import { HTTPResponse, toResponse } from "../response.ts";
-import { handleCacheHeaders } from "../utils/cache.ts";
+import { handleCacheHeaders, withCacheIsolation } from "../utils/cache.ts";
 import type { H3Event } from "../event.ts";
 import type { EventHandler } from "../types/handler.ts";
 import type { ServerRequest } from "srvx";
@@ -75,6 +75,10 @@ function withoutVaryOrigin(vary: string): string | undefined {
  * Left in place it would only make ocache refuse to store the entry at all —
  * an undeclared `Vary` name is not cacheable, and keying by origin instead
  * would give every origin its own copy of the same body.
+ *
+ * With `routeRules()` as global middleware {@link withCacheIsolation} already
+ * keeps the rule's headers out; as route middleware the `cors` rule runs again
+ * inside the cached dispatch and stages them where `toResponse` sees them.
  */
 function moveVolatileHeaders(res: Response, event: H3Event): Response {
   if (event.req.method !== "GET" && event.req.method !== "HEAD") {
@@ -329,6 +333,7 @@ export function createOcacheRuleHandler(opts?: OcacheRuleHandlerOptions): RuleHa
           }),
         },
       );
+      const isolatedHandler = withCacheIsolation(ocacheHandler);
       return defineHandler(async (event) => {
         if (restore.length > 0) {
           savedHeaders.set(
@@ -336,7 +341,7 @@ export function createOcacheRuleHandler(opts?: OcacheRuleHandlerOptions): RuleHa
             restore.map((name) => event.req.headers.get(name)),
           );
         }
-        const res = await ocacheHandler(event);
+        const res = await isolatedHandler(event);
         // Rebuild through h3 so final response headers reach 304s (RFC 9110 §15.4.5).
         if (res instanceof Response && res.status === 304) {
           return new HTTPResponse(null, { status: 304, headers: res.headers });

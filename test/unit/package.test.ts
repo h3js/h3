@@ -151,6 +151,7 @@ describe("h3 package", () => {
         "useBase",
         "useSession",
         "withBase",
+        "withCacheIsolation",
         "withServerTiming",
         "writeEarlyHints",
       ]

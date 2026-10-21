@@ -177,7 +177,7 @@ export { sanitizeStatusCode, sanitizeStatusMessage } from "./utils/sanitize.ts";
 
 // Cache
 
-export { type CacheConditions, handleCacheHeaders } from "./utils/cache.ts";
+export { type CacheConditions, handleCacheHeaders, withCacheIsolation } from "./utils/cache.ts";
 
 // Path
 

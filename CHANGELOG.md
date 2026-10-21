@@ -2,6 +2,61 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## v2.0.7
+
+[compare changes](https://github.com/h3js/h3/compare/v2.0.6...v2.0.7)
+
+### 🩹 Fixes
+
+- Keep middleware-staged headers out of handler-level caches ([#1608](https://github.com/h3js/h3/pull/1608))
+
+### ❤️ Contributors
+
+- Pi0x <x@pi0.io>
+
+## v2.0.6
+
+[compare changes](https://github.com/h3js/h3/compare/v2.0.5...v2.0.6)
+
+### 🩹 Fixes
+
+- **rules:** Fill target `**` for named catch-all keys (`/**:name`) ([48d650b](https://github.com/h3js/h3/commit/48d650b))
+- **rules:** Keep middleware-staged headers out of `cache` entries ([#1606](https://github.com/h3js/h3/pull/1606))
+
+### ❤️ Contributors
+
+- Pi0x <x@pi0.io>
+- Pooya Parsa ([@pi0](https://github.com/pi0))
+
+## v2.0.5
+
+[compare changes](https://github.com/h3js/h3/compare/v2.0.4...v2.0.5)
+
+### 🩹 Fixes
+
+- **cli:** Harden `h3 docs` page handling ([7150b0e](https://github.com/h3js/h3/commit/7150b0e))
+
+### ❤️ Contributors
+
+- Pooya Parsa <pooya@pi0.io>
+
+## v2.0.4
+
+[compare changes](https://github.com/h3js/h3/compare/v2.0.3...v2.0.4)
+
+### 📦 Build
+
+- Remove bundled docs and open h3.dev from `h3 docs` ([#1602](https://github.com/h3js/h3/pull/1602))
+
+### 🏡 Chore
+
+- Update srvx ([1a1f488](https://github.com/h3js/h3/commit/1a1f488))
+
+### ❤️ Contributors
+
+- Pooya Parsa ([@pi0](https://github.com/pi0))
+- Pi0x <x@pi0.io>
+
 ## v2.0.3
 
 [compare changes](https://github.com/h3js/h3/compare/v2.0.2...v2.0.3)

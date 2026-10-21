@@ -50,8 +50,9 @@ export function normalizeRouteRules(
       const authored: { to?: string; status?: number } =
         typeof redirect === "string" ? { to: redirect } : redirect;
       const redirectOptions: RedirectRuleOptions = { to: "/", status: 307, ...authored };
-      if (path.endsWith("/**")) {
-        redirectOptions.base = path.slice(0, -3);
+      const base = catchAllBase(path);
+      if (base !== undefined) {
+        redirectOptions.base = base;
       }
       assertNoHostSplat(redirectOptions.to, "redirect", canonicalKey);
       routeRules.redirect = redirectOptions;
@@ -60,8 +61,9 @@ export function normalizeRouteRules(
     if (proxy) {
       const proxyOptions: ProxyRuleOptions =
         typeof proxy === "string" ? { to: proxy } : { ...proxy };
-      if (path.endsWith("/**")) {
-        proxyOptions.base = path.slice(0, -3);
+      const base = catchAllBase(path);
+      if (base !== undefined) {
+        proxyOptions.base = base;
       }
       assertNoHostSplat(proxyOptions.to, "proxy", canonicalKey);
       routeRules.proxy = proxyOptions;
@@ -135,6 +137,19 @@ export function normalizeRouteRules(
     }
   }
   return normalizedRules;
+}
+
+// A trailing catch-all segment, plain (`/**`) or named (`/**:path`).
+const TRAILING_CATCH_ALL_RE = /\/\*\*(?::[^/]+)?$/;
+
+/**
+ * The scope base of a rule key ending in a catch-all (`/old/**` and
+ * `/old/**:path` → `/old`), or `undefined` when it has no trailing catch-all
+ * and so no tail for a target `**` to take.
+ */
+function catchAllBase(path: string): string | undefined {
+  const match = TRAILING_CATCH_ALL_RE.exec(path);
+  return match ? path.slice(0, match.index) : undefined;
 }
 
 /**

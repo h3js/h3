@@ -113,8 +113,8 @@ importers:
         specifier: ^1.0.0
         version: 1.0.0
       srvx:
-        specifier: ^1.0.5
-        version: 1.0.5
+        specifier: ^1.0.6
+        version: 1.0.6
     devDependencies:
       '@happy-dom/global-registrator':
         specifier: ^21.0.3
@@ -157,7 +157,7 @@ importers:
         version: 3.1.1
       crossws:
         specifier: ^0.4.15
-        version: 0.4.15(srvx@1.0.5)
+        version: 0.4.15(srvx@1.0.6)
       elysia:
         specifier: ^1.4.30
         version: 1.4.30(@sinclair/typebox@0.34.52)(exact-mirror@1.2.6)(file-type@22.2.0)(openapi-types@12.1.3)(typescript@7.0.2)
@@ -178,7 +178,7 @@ importers:
         version: 'link:'
       h3-nightly:
         specifier: latest
-        version: 2.0.0-20260903-101917-849fa36(crossws@0.4.15(srvx@1.0.5))(ocache@0.3.0)
+        version: 2.0.0-20260903-101917-849fa36(crossws@0.4.15(srvx@1.0.6))(ocache@0.3.0)
       happy-dom:
         specifier: ^21.0.3
         version: 21.0.3
@@ -188,9 +188,6 @@ importers:
       magic-string:
         specifier: ^1.4.3
         version: 1.4.3
-      mdzilla:
-        specifier: ^0.2.1
-        version: 0.2.1
       memoirist:
         specifier: ^1.2.3
         version: 1.2.3
@@ -238,13 +235,13 @@ importers:
     dependencies:
       h3:
         specifier: latest
-        version: 2.0.2(crossws@0.4.15(srvx@1.0.5))(ocache@0.3.0)
+        version: 2.0.3(crossws@0.4.15(srvx@1.0.6))(ocache@0.3.0)
 
   playground:
     dependencies:
       h3:
         specifier: ^2.0.2
-        version: 2.0.2(crossws@0.4.15(srvx@1.0.5))(ocache@0.3.0)
+        version: 2.0.2(crossws@0.4.15(srvx@1.0.6))(ocache@0.3.0)
 
 packages:
 
@@ -1002,9 +999,6 @@ packages:
   '@sinclair/typebox@0.34.52':
     resolution: {integrity: sha512-XiMQh7qqVlxZzcVD+kkGMNGMzcTrDMLWI7S4x7z1MkCkbDPrekpZXEUK0eZqZFMuHQg2a2DZOcDIh9o5v3Gonw==}
 
-  '@speed-highlight/core@1.2.24':
-    resolution: {integrity: sha512-qeW2e1l78afw8VhRPfPQ1Gjj+KU5XFQ/OFV5ti6eTa9bruO7mJyZtA4vw0ofqmA3tKCkROE9xLk3VZoeRc98nw==}
-
   '@tokenizer/inflate@0.5.1':
     resolution: {integrity: sha512-56U2O6fDLFtqokwWh597IdeUgtM7j+TT9tb1soybhgA6cy163gAcVmoQr8H4Ud/CkgCkViwcuLyqtn6wYqw59Q==}
     engines: {node: '>=18'}
@@ -1712,6 +1706,19 @@ packages:
       ocache:
         optional: true
 
+  h3@2.0.3:
+    resolution: {integrity: sha512-4vCJUR90OSGLITLit4WWpB4cj0rzd5eM8w3CHmi4ulh3LdaUICYy3FIaGpBibgtt+AB3cDiyql3ApgcLRGrClA==}
+    engines: {node: '>=20.19.0'}
+    hasBin: true
+    peerDependencies:
+      crossws: ^0.4.12
+      ocache: '>=0.3.0'
+    peerDependenciesMeta:
+      crossws:
+        optional: true
+      ocache:
+        optional: true
+
   happy-dom@21.0.3:
     resolution: {integrity: sha512-PesNgu5BnIEmAwzKGewB3K1ORFeznFZJ4JrRz89ea1wkHnxskdpzX9sN/+zb4KO6k8oSMhyJSj/cwXAFrYBBNA==}
     engines: {node: '>=20.0.0'}
@@ -1874,16 +1881,8 @@ packages:
   md4w@0.2.7:
     resolution: {integrity: sha512-lFM7vwk3d4MzkV2mija7aPkK6OjKXZDQsH2beX+e2cvccBoqc6RraheMtAO0Wcr/gjj5L+WS5zhb+06AmuGZrg==}
 
-  md4x@0.0.25:
-    resolution: {integrity: sha512-GrexawUhrKcwl7o2hkgs7Ut0PqI/meOCevmaRB1ueKo2y1Fh2nIl8e6KKawYGm9eXJP3u6BzVs4rzZOc2+w3hA==}
-    hasBin: true
-
   mdbox@0.1.1:
     resolution: {integrity: sha512-jvLISenzbLRPWWamTG3THlhTcMbKWzJQNyTi61AVXhCBOC+gsldNTUfUNH8d3Vay83zGehFw3wZpF3xChzkTIQ==}
-
-  mdzilla@0.2.1:
-    resolution: {integrity: sha512-QqtjJ47HbiaG04Ps48OpomvmY7gIrwwfoHyU63Tcrko3N9ZdbHgQubPnhrDgpbhFRB7mMKNiCfuwKqND0UjHQg==}
-    hasBin: true
 
   media-typer@1.1.1:
     resolution: {integrity: sha512-yz3xRaG20c6/BOzvYoDaGtPmGscs7YivItZEEqe6GbwNfHuxu9YNmvnEkMzKldAGY4/80pRcQRZSEnhquk9XuQ==}
@@ -2169,13 +2168,13 @@ packages:
     resolution: {integrity: sha512-KGj/8Y43x35aZVDtt+J4mK1hoLGHULMYfSkODJNQjNDC3oW1PqPoxMwo0pLUsWM/UEGzON/NxeHywEfNXNP3Vw==}
     engines: {node: '>=0.10.0'}
 
-  srvx@0.11.22:
-    resolution: {integrity: sha512-LqZxxBDMKuMAZzFzJnDCkFOrs9MZQZr0LvHiO/SuSZVdQaXD7xQ5UWTUxheJrQPve1qk9MG2B/yttUvJxw8egQ==}
+  srvx@1.0.5:
+    resolution: {integrity: sha512-KvSKRpgPG/oaq3cyT614OQ2bAa7DynuGamivCZeoZzIUULOdbQz6wUtnnVuC4+DCx2Zglzo8v5gBYmWIWYhDxA==}
     engines: {node: '>=20.16.0'}
     hasBin: true
 
-  srvx@1.0.5:
-    resolution: {integrity: sha512-KvSKRpgPG/oaq3cyT614OQ2bAa7DynuGamivCZeoZzIUULOdbQz6wUtnnVuC4+DCx2Zglzo8v5gBYmWIWYhDxA==}
+  srvx@1.0.6:
+    resolution: {integrity: sha512-QeTKgAhk8OSsfeq60bl3wuVs9PmBftzmk7owBInA/F1YQne+TRw0UcPymNpURldAmx8hfmM2PNNGH/zgo3GpLA==}
     engines: {node: '>=20.16.0'}
     hasBin: true
 
@@ -2787,8 +2786,6 @@ snapshots:
 
   '@sinclair/typebox@0.34.52': {}
 
-  '@speed-highlight/core@1.2.24': {}
-
   '@tokenizer/inflate@0.5.1':
     dependencies:
       debug: 4.4.3
@@ -3183,9 +3180,9 @@ snapshots:
 
   cookie@1.1.1: {}
 
-  crossws@0.4.15(srvx@1.0.5):
+  crossws@0.4.15(srvx@1.0.6):
     optionalDependencies:
-      srvx: 1.0.5
+      srvx: 1.0.6
 
   csstype@3.2.3: {}
 
@@ -3415,20 +3412,28 @@ snapshots:
 
   gopd@1.2.0: {}
 
-  h3-nightly@2.0.0-20260903-101917-849fa36(crossws@0.4.15(srvx@1.0.5))(ocache@0.3.0):
+  h3-nightly@2.0.0-20260903-101917-849fa36(crossws@0.4.15(srvx@1.0.6))(ocache@0.3.0):
     dependencies:
       rou3: 0.9.2
       srvx: 1.0.5
     optionalDependencies:
-      crossws: 0.4.15(srvx@1.0.5)
+      crossws: 0.4.15(srvx@1.0.6)
       ocache: 0.3.0
 
-  h3@2.0.2(crossws@0.4.15(srvx@1.0.5))(ocache@0.3.0):
+  h3@2.0.2(crossws@0.4.15(srvx@1.0.6))(ocache@0.3.0):
     dependencies:
       rou3: 1.0.0
       srvx: 1.0.5
     optionalDependencies:
-      crossws: 0.4.15(srvx@1.0.5)
+      crossws: 0.4.15(srvx@1.0.6)
+      ocache: 0.3.0
+
+  h3@2.0.3(crossws@0.4.15(srvx@1.0.6))(ocache@0.3.0):
+    dependencies:
+      rou3: 1.0.0
+      srvx: 1.0.5
+    optionalDependencies:
+      crossws: 0.4.15(srvx@1.0.6)
       ocache: 0.3.0
 
   happy-dom@21.0.3:
@@ -3563,19 +3568,9 @@ snapshots:
 
   md4w@0.2.7: {}
 
-  md4x@0.0.25: {}
-
   mdbox@0.1.1:
     dependencies:
       md4w: 0.2.7
-
-  mdzilla@0.2.1:
-    dependencies:
-      '@speed-highlight/core': 1.2.24
-      giget: 3.3.1
-      md4x: 0.0.25
-      srvx: 0.11.22
-      std-env: 4.3.0
 
   media-typer@1.1.1: {}
 
@@ -3931,9 +3926,9 @@ snapshots:
 
   source-map-js@1.2.2: {}
 
-  srvx@0.11.22: {}
-
   srvx@1.0.5: {}
+
+  srvx@1.0.6: {}
 
   statuses@1.5.0: {}
 

@@ -1,6 +1,6 @@
 {
   "name": "h3",
-  "version": "2.0.3",
+  "version": "2.0.7",
   "description": "Minimal H(TTP) framework built for high performance and portability.",
   "homepage": "https://h3.dev",
   "license": "MIT",
@@ -55,7 +55,7 @@
   },
   "dependencies": {
     "rou3": "^1.0.0",
-    "srvx": "^1.0.5"
+    "srvx": "^1.0.6"
   },
   "devDependencies": {
     "@happy-dom/global-registrator": "^21.0.3",
@@ -82,7 +82,6 @@
     "happy-dom": "^21.0.3",
     "hono": "^4.13.13",
     "magic-string": "^1.4.3",
-    "mdzilla": "^0.2.1",
     "memoirist": "^1.2.3",
     "mitata": "^1.0.34",
     "obuild": "^0.4.45",

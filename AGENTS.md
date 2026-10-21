@@ -82,7 +82,7 @@ src/
 │   ├── json-rpc.ts       # defineJsonRpcHandler, defineJsonRpcWebSocketHandler
 │   ├── event-stream.ts   # createEventStream (SSE)
 │   ├── static.ts         # serveStatic
-│   ├── cache.ts          # handleCacheHeaders
+│   ├── cache.ts          # handleCacheHeaders, withCacheIsolation
 │   ├── middleware.ts      # onRequest, onResponse, onError, bodyLimit
 │   ├── route.ts          # defineRoute
 │   ├── base.ts           # withBase

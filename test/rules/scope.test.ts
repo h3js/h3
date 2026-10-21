@@ -444,6 +444,11 @@ describe("rule target scope (prepareRuleTarget)", () => {
       expect(resolve("/old/a/b?x=1", options)).toBe("/new/a/b/edit?x=1");
     });
 
+    it("treats a named catch-all key (`/**:name`) like `/**`", () => {
+      expect(resolve("/old/a/b", rule("/old/**:path", "/new/**"))).toBe("/new/a/b");
+      expect(resolve("/old/a/b", rule("/old/**:path", "/new?from=**"))).toBe("/new?from=a/b");
+    });
+
     it("fills every placeholder in the target", () => {
       const options = rule("/old/**", "/new/**?from=**");
       expect(resolve("/old/a%20b", options)).toBe("/new/a%20b?from=a%20b");

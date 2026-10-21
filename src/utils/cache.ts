@@ -1,5 +1,11 @@
 import type { H3Event } from "../event.ts";
 import { isCacheMatch } from "./internal/cache.ts";
+import {
+  detachStagedHeaders,
+  getStagedHeader,
+  reattachStagedHeaders,
+  withStagedHeaders,
+} from "./internal/staged-headers.ts";
 
 export interface CacheConditions {
   modifiedTime?: string | Date;
@@ -78,4 +84,62 @@ export function handleCacheHeaders(event: H3Event, opts: CacheConditions): boole
   }
 
   return false;
+}
+
+/**
+ * Wrap a cached handler so headers staged on `event.res` before it runs (for example by global middleware) never enter its cache entry.
+ *
+ * A cache miss usually renders the handler result with `toResponse(value, event)`, which merges staged headers into the stored response, so later hits would replay one user's headers to everyone. The wrapper takes them off the event for the cached dispatch and merges them onto each successful response, hit or miss; error responses (4xx/5xx) don't receive them, as in h3. When the handler returns something other than a `Response`, they are put back on the event instead.
+ *
+ * A staged header wins over the same header set by the handler, so a miss looks the same as a hit.
+ *
+ * Headers that decide whether a response may be stored stay visible to the cache: a staged `Cache-Control` and every staged `Vary` name except `origin`. A response that middleware marked `private`/`no-store`, or that varies on a request header the cache isn't keyed on, is therefore not stored. A staged `private`/`no-store` `Cache-Control` is also sent to the client in place of the one the cached handler sets, so a CDN in front of the app doesn't store it either. A `Vary: Origin` is isolated, because the CORS headers it declares are staged per request as well.
+ *
+ * Properties of the wrapped handler (such as ocache's `invalidate`, `expire` and `resolveKeys`) are copied to the returned handler.
+ *
+ * @example
+ * import { handleCacheHeaders, toResponse, withCacheIsolation } from "h3";
+ * import { defineCachedHandler } from "ocache";
+ *
+ * const cached = withCacheIsolation(
+ *   defineCachedHandler(() => "hello", {
+ *     maxAge: 60,
+ *     toResponse: (value, event) => toResponse(value, event),
+ *     handleCacheHeaders: (event, conditions) => handleCacheHeaders(event, conditions),
+ *   }),
+ * );
+ * app.get("/cached", cached);
+ *
+ * @param handler The cached event handler to wrap.
+ */
+export function withCacheIsolation<T extends (event: H3Event) => unknown>(handler: T): T {
+  async function _handlerWithCacheIsolation(event: H3Event) {
+    const cacheControl = getStagedHeader(event, "cache-control");
+    const privateCacheControl =
+      cacheControl !== null && RE_PRIVATE.test(cacheControl) ? cacheControl : undefined;
+    const staged = detachStagedHeaders(event);
+    let res: unknown;
+    try {
+      res = await handler(event);
+    } catch (error) {
+      if (staged) {
+        reattachStagedHeaders(event, staged);
+      }
+      throw error;
+    }
+    if (privateCacheControl) {
+      // The cached dispatch's `handleCacheHeaders` replaces it with `public`;
+      // a shared cache in front of the app must still see it as private.
+      event.res.headers.set("cache-control", privateCacheControl);
+    }
+    if (!staged) {
+      return res;
+    }
+    if (res instanceof Response) {
+      return withStagedHeaders(res, staged);
+    }
+    reattachStagedHeaders(event, staged);
+    return res;
+  }
+  return Object.assign(_handlerWithCacheIsolation, handler) as unknown as T;
 }

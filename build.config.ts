@@ -28,13 +28,6 @@ export default defineBuildConfig({
         return "[name].mjs";
       };
     },
-    async end() {
-      const { exportSource } = await import("mdzilla");
-      await exportSource("./docs", "./dist/docs", {
-        title: "H3 Documentation",
-        filter: (e) => !e.entry.path.startsWith("/blog"),
-      });
-    },
     rolldownConfig(config) {
       config.experimental ??= {};
       config.experimental.attachDebugInfo = "none";

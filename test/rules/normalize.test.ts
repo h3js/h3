@@ -88,6 +88,14 @@ describe("normalizeRouteRules - redirect", () => {
     expect(rules["/exact"]!.redirect).toEqual({ to: "/new", status: 307 });
     expect(rules["/exact"]!.redirect).not.toHaveProperty("base");
   });
+
+  it("sets `base` for named catch-all (/**:name) keys", () => {
+    const rules = normalizeRouteRules({
+      "/old/**:path": { redirect: "/new/**", proxy: "https://example.com/**" },
+    });
+    expect(rules["/old/**:path"]!.redirect).toEqual({ to: "/new/**", status: 307, base: "/old" });
+    expect(rules["/old/**:path"]!.proxy).toEqual({ to: "https://example.com/**", base: "/old" });
+  });
 });
 
 describe("normalizeRouteRules - proxy", () => {
