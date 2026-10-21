@@ -340,14 +340,24 @@ function normalizeCoding(name: string): string {
 /**
  * Generate candidate asset paths and encodings for static file resolution.
  *
- * Special-cases the root path when suffix starts with a slash to avoid double slashes (`//index.html`),
+ * Normalizes root path when suffix starts with a slash to prevent double slashes (`//index.html`),
+ * joins relative index names with a separator (`/docs` + `index.html` -> `/docs/index.html`),
  * while preserving plain string concatenation for extension fallbacks (e.g. `.html`).
  */
 function idSearchPaths(id: string, encodings: string[], indexNames: string[]) {
   const ids: { id: string; assetId: string }[] = [];
 
   for (const suffix of ["", ...indexNames]) {
-    const assetId = id === "/" && suffix[0] === "/" ? suffix : `${id}${suffix}`;
+    let assetId: string;
+    if (!suffix) {
+      assetId = id;
+    } else if (suffix[0] === ".") {
+      assetId = `${id}${suffix}`;
+    } else if (suffix[0] === "/") {
+      assetId = id === "/" ? suffix : `${id}${suffix}`;
+    } else {
+      assetId = id === "/" ? `/${suffix}` : `${id}/${suffix}`;
+    }
     for (const encoding of [...encodings, ""]) {
       ids.push({ id: `${assetId}${encoding}`, assetId });
     }
