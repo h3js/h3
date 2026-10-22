@@ -1,4 +1,4 @@
-import { H3, HTTPError } from "../../src/index.ts";
+import { H3, HTTPError, appendCorsHeaders } from "../../src/index.ts";
 import { describe, expect, it } from "vitest";
 import { routeRules } from "../../src/rules/middleware.ts";
 import { canonicalPath, isPathInScope } from "../../src/rules/internal/scope.ts";
@@ -76,24 +76,79 @@ describe("headers rule on error responses", () => {
     expect(res.headers.get("x-rule")).toBe("1");
   });
 
-  // h3js/h3#1612: a handler must be able to opt its own error response out of a
-  // rule header (e.g. keep an immutable `cache-control` off a 404).
+  // h3js/h3#1612: an error carrying the header in its own `headers` opts its
+  // response out of that rule header (e.g. keep an immutable `cache-control` off a 404).
   const CACHE_RULES: Record<string, RouteRuleConfig> = {
     "/build/**": {
       headers: { "cache-control": "public, max-age=31536000, immutable", "x-rule": "1" },
     },
   };
+  const IMMUTABLE = "public, max-age=31536000, immutable";
 
-  it("yields to an errHeaders key staged by the handler", async () => {
+  it("yields to a thrown HTTPError's own header", async () => {
     const app = createApp(CACHE_RULES);
-    app.get("/build/**", (event) => {
-      event.res.errHeaders.set("cache-control", "no-store");
-      throw new HTTPError({ status: 404 });
+    app.get("/build/**", () => {
+      throw new HTTPError({ status: 404, headers: { "Cache-Control": "no-store" } });
     });
     const res = await app.fetch(new Request("http://test/build/missing.js"));
     expect(res.status).toBe(404);
     expect(res.headers.get("cache-control")).toBe("no-store");
     expect(res.headers.get("x-rule")).toBe("1");
+  });
+
+  it("yields to a returned HTTPError's own header", async () => {
+    const app = createApp(CACHE_RULES);
+    app.get(
+      "/build/**",
+      () => new HTTPError({ status: 404, headers: { "cache-control": "no-store" } }),
+    );
+    const res = await app.fetch(new Request("http://test/build/missing.js"));
+    expect(res.status).toBe(404);
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    expect(res.headers.get("x-rule")).toBe("1");
+  });
+
+  it("yields to an HTTPError header from inner middleware, with onError", async () => {
+    const app = new H3({ onError: () => {} });
+    app.use(routeRules(CACHE_RULES));
+    app.use(() => {
+      throw new HTTPError({ status: 404, headers: { "cache-control": "no-store" } });
+    });
+    const res = await app.fetch(new Request("http://test/build/missing.js"));
+    expect(res.status).toBe(404);
+    expect(res.headers.get("cache-control")).toBe("no-store");
+  });
+
+  it("still wins over errHeaders staged inside the rule", async () => {
+    // CORS helpers and appends write errHeaders too, so it is not an opt-out signal.
+    const app = createApp({
+      "/build/**": {
+        headers: { "access-control-allow-origin": "https://rule.com", vary: "x-rule" },
+      },
+    });
+    app.use((event) => {
+      appendCorsHeaders(event, { origin: "*" });
+      event.res.errHeaders.append("vary", "accept-encoding");
+    });
+    app.get("/build/**", () => {
+      throw new HTTPError({ status: 404 });
+    });
+    const res = await app.fetch(new Request("http://test/build/missing.js"));
+    expect(res.status).toBe(404);
+    expect(res.headers.get("access-control-allow-origin")).toBe("https://rule.com");
+    expect(res.headers.get("vary")).toBe("x-rule");
+  });
+
+  it("still wins over a returned error Response's own header", async () => {
+    // e.g. an upstream 404 passed through by `proxy`: not an h3-level opt-out.
+    const app = createApp(CACHE_RULES);
+    app.get(
+      "/build/**",
+      () => new Response("nope", { status: 404, headers: { "cache-control": "max-age=60" } }),
+    );
+    const res = await app.fetch(new Request("http://test/build/missing.js"));
+    expect(res.status).toBe(404);
+    expect(res.headers.get("cache-control")).toBe(IMMUTABLE);
   });
 
   it("still wins over errHeaders staged outside the rule", async () => {
@@ -107,7 +162,7 @@ describe("headers rule on error responses", () => {
     });
     const res = await app.fetch(new Request("http://test/build/missing.js"));
     expect(res.status).toBe(404);
-    expect(res.headers.get("cache-control")).toBe("public, max-age=31536000, immutable");
+    expect(res.headers.get("cache-control")).toBe(IMMUTABLE);
   });
 
   it("still wins over cors-staged errHeaders", async () => {
@@ -126,43 +181,33 @@ describe("headers rule on error responses", () => {
     expect(res.headers.get("vary")).toBe("x-rule");
   });
 
-  it("outer rule still wins over a nested headers rule on errors", async () => {
+  it("stacked rules: outer wins, and both yield to an HTTPError header", async () => {
     const app = new H3();
     app.use(routeRules({ "/build/**": { headers: { "cache-control": "outer" } } }));
     app.use(routeRules({ "/build/**": { headers: { "cache-control": "inner" } } }));
     app.get("/build/ok", () => "ok");
+    app.get("/build/opt-out", () => {
+      throw new HTTPError({ status: 404, headers: { "cache-control": "no-store" } });
+    });
     app.get("/build/**", () => {
       throw new HTTPError({ status: 404 });
     });
-    const ok = await app.fetch(new Request("http://test/build/ok"));
-    expect(ok.headers.get("cache-control")).toBe("outer");
-    const res = await app.fetch(new Request("http://test/build/missing.js"));
-    expect(res.status).toBe(404);
-    expect(res.headers.get("cache-control")).toBe("outer");
+    const fetchCC = async (path: string) =>
+      (await app.fetch(new Request(`http://test${path}`))).headers.get("cache-control");
+    expect(await fetchCC("/build/ok")).toBe("outer");
+    expect(await fetchCC("/build/missing.js")).toBe("outer");
+    expect(await fetchCC("/build/opt-out")).toBe("no-store");
   });
 
-  it("nested headers rules still yield to a handler-staged errHeaders key", async () => {
-    const app = new H3();
-    app.use(routeRules({ "/build/**": { headers: { "cache-control": "outer" } } }));
-    app.use(routeRules({ "/build/**": { headers: { "Cache-Control": "inner" } } }));
-    app.get("/build/**", (event) => {
-      event.res.errHeaders.set("cache-control", "no-store");
-      throw new HTTPError({ status: 404 });
-    });
-    const res = await app.fetch(new Request("http://test/build/missing.js"));
-    expect(res.headers.get("cache-control")).toBe("no-store");
-  });
-
-  it("still wins on a 2xx response when the handler stages the same key", async () => {
+  it("still wins on a 2xx response when the handler sets the same key", async () => {
     const app = createApp(CACHE_RULES);
     app.get("/build/**", (event) => {
       event.res.headers.set("cache-control", "no-store");
-      event.res.errHeaders.set("cache-control", "no-store");
       return "ok";
     });
     const res = await app.fetch(new Request("http://test/build/app.js"));
     expect(res.status).toBe(200);
-    expect(res.headers.get("cache-control")).toBe("public, max-age=31536000, immutable");
+    expect(res.headers.get("cache-control")).toBe(IMMUTABLE);
   });
 });
 
