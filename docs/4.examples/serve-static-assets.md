@@ -36,7 +36,7 @@ They are separated to allow H3 to respond to `HEAD` requests without reading the
 
 ## Read files
 
-Now, create a `index.html` file in the `public` directory with a simple message and open your browser to http://localhost:3000. You should see the message.
+Now, create an `index.html` file in the `public` directory with a simple message.
 
 Then, we can create the `getContents` and `getMeta` methods:
 
@@ -47,12 +47,15 @@ import { H3, serve, serveStatic } from "h3";
 
 const app = new H3();
 
+// `id` is the request path (e.g. `/public/index.html`), so strip the `/public` prefix to get the file path
+const toFilePath = (id: string) => join("public", id.slice("/public".length));
+
 app.use("/public/**", (event) => {
   return serveStatic(event, {
     indexNames: ["/index.html"],
-    getContents: (id) => readFile(join("public", id)),
+    getContents: (id) => readFile(toFilePath(id)),
     getMeta: async (id) => {
-      const stats = await stat(join("public", id)).catch(() => {});
+      const stats = await stat(toFilePath(id)).catch(() => {});
       if (stats?.isFile()) {
         return {
           size: stats.size,
@@ -65,6 +68,8 @@ app.use("/public/**", (event) => {
 
 serve(app);
 ```
+
+Open your browser to http://localhost:3000/public/ and you should see the message.
 
 The `getContents` reads the file and returns its contents, pretty simple. The `getMeta` uses `fs.stat` to get the file metadata. If the file does not exist or is not a file, it returns `undefined`. Otherwise, it returns the file size and the last modification time.
 
