@@ -9,17 +9,32 @@ import type { RuleHandler } from "../types.ts";
 // serves `event.res.errHeaders` (not `event.res.headers`) for status >= 400, so
 // a `headers`-only bag vanishes on every 4xx/5xx (mirrors h3's own
 // `setCorsHeaders`, `src/utils/cors.ts`).
+//
+// An `errHeaders` key staged *inside* `next()` is left alone: it is the handler
+// opting its own error response out (e.g. `cache-control: no-store` on a 404 under
+// an immutable asset rule, h3js/h3#1612). Keys staged before the rule ran (outer
+// `cors` rule, middleware) are still overridden, as on success responses. An inner
+// `toResponse` (the `cache` rule renders the handler itself) resets `event.res`;
+// the fresh bag has nothing to compare against, so every rule key is set then.
 export const headers: RuleHandler<"headers"> = {
   order: -1,
   handler: (m) => {
     const entries = Object.entries(m.options || {});
     return async function headersRouteRule(event, next) {
+      const before = event.res.errHeaders;
+      const staged = entries.map(([key]) => before.get(key));
       try {
         return await next();
       } finally {
-        for (const [key, value] of entries) {
-          event.res.headers.set(key, value);
-          event.res.errHeaders.set(key, value);
+        const res = event.res;
+        const errHeaders = res.errHeaders;
+        const reset = errHeaders !== before;
+        for (let i = 0; i < entries.length; i++) {
+          const [key, value] = entries[i]!;
+          res.headers.set(key, value);
+          if (reset || errHeaders.get(key) === staged[i]) {
+            errHeaders.set(key, value);
+          }
         }
       }
     };

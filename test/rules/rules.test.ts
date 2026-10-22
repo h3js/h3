@@ -1,4 +1,4 @@
-import { H3 } from "../../src/index.ts";
+import { H3, HTTPError } from "../../src/index.ts";
 import { describe, expect, it } from "vitest";
 import { routeRules } from "../../src/rules/middleware.ts";
 import { canonicalPath, isPathInScope } from "../../src/rules/internal/scope.ts";
@@ -74,6 +74,68 @@ describe("headers rule on error responses", () => {
     const res = await app.fetch(new Request("http://test/rules/err/boom"));
     expect(res.status).toBe(500);
     expect(res.headers.get("x-rule")).toBe("1");
+  });
+
+  // h3js/h3#1612: a handler must be able to opt its own error response out of a
+  // rule header (e.g. keep an immutable `cache-control` off a 404).
+  const CACHE_RULES: Record<string, RouteRuleConfig> = {
+    "/build/**": {
+      headers: { "cache-control": "public, max-age=31536000, immutable", "x-rule": "1" },
+    },
+  };
+
+  it("yields to an errHeaders key staged by the handler", async () => {
+    const app = createApp(CACHE_RULES);
+    app.get("/build/**", (event) => {
+      event.res.errHeaders.set("cache-control", "no-store");
+      throw new HTTPError({ status: 404 });
+    });
+    const res = await app.fetch(new Request("http://test/build/missing.js"));
+    expect(res.status).toBe(404);
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    expect(res.headers.get("x-rule")).toBe("1");
+  });
+
+  it("still wins over errHeaders staged outside the rule", async () => {
+    const app = new H3();
+    app.use((event) => {
+      event.res.errHeaders.set("cache-control", "outer");
+    });
+    app.use(routeRules(CACHE_RULES));
+    app.get("/build/**", () => {
+      throw new HTTPError({ status: 404 });
+    });
+    const res = await app.fetch(new Request("http://test/build/missing.js"));
+    expect(res.status).toBe(404);
+    expect(res.headers.get("cache-control")).toBe("public, max-age=31536000, immutable");
+  });
+
+  it("still wins over cors-staged errHeaders", async () => {
+    // `cors` (order -3) stages `vary: origin` into errHeaders before this rule runs.
+    const app = createApp({
+      "/api/**": { cors: { origin: ["https://a.com"] }, headers: { vary: "x-rule" } },
+    });
+    app.get("/api/x", () => {
+      throw new HTTPError({ status: 404 });
+    });
+    const res = await app.fetch(
+      new Request("http://test/api/x", { headers: { origin: "https://a.com" } }),
+    );
+    expect(res.status).toBe(404);
+    expect(res.headers.get("access-control-allow-origin")).toBe("https://a.com");
+    expect(res.headers.get("vary")).toBe("x-rule");
+  });
+
+  it("still wins on a 2xx response when the handler stages the same key", async () => {
+    const app = createApp(CACHE_RULES);
+    app.get("/build/**", (event) => {
+      event.res.headers.set("cache-control", "no-store");
+      event.res.errHeaders.set("cache-control", "no-store");
+      return "ok";
+    });
+    const res = await app.fetch(new Request("http://test/build/app.js"));
+    expect(res.status).toBe(200);
+    expect(res.headers.get("cache-control")).toBe("public, max-age=31536000, immutable");
   });
 });
 
