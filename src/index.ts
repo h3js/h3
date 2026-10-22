@@ -126,7 +126,12 @@ export type { RawHTML } from "./utils/response.ts";
 
 // Query (RFC 10008 HTTP QUERY method)
 
-export { appendAcceptQuery, requireContentType } from "./utils/query.ts";
+export {
+  appendAcceptQuery,
+  requireContentType,
+  defineQueryHandler,
+  type QueryHandlerGetOptions,
+} from "./utils/query.ts";
 
 // Middleware
 
