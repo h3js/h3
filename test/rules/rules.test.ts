@@ -126,6 +126,33 @@ describe("headers rule on error responses", () => {
     expect(res.headers.get("vary")).toBe("x-rule");
   });
 
+  it("outer rule still wins over a nested headers rule on errors", async () => {
+    const app = new H3();
+    app.use(routeRules({ "/build/**": { headers: { "cache-control": "outer" } } }));
+    app.use(routeRules({ "/build/**": { headers: { "cache-control": "inner" } } }));
+    app.get("/build/ok", () => "ok");
+    app.get("/build/**", () => {
+      throw new HTTPError({ status: 404 });
+    });
+    const ok = await app.fetch(new Request("http://test/build/ok"));
+    expect(ok.headers.get("cache-control")).toBe("outer");
+    const res = await app.fetch(new Request("http://test/build/missing.js"));
+    expect(res.status).toBe(404);
+    expect(res.headers.get("cache-control")).toBe("outer");
+  });
+
+  it("nested headers rules still yield to a handler-staged errHeaders key", async () => {
+    const app = new H3();
+    app.use(routeRules({ "/build/**": { headers: { "cache-control": "outer" } } }));
+    app.use(routeRules({ "/build/**": { headers: { "Cache-Control": "inner" } } }));
+    app.get("/build/**", (event) => {
+      event.res.errHeaders.set("cache-control", "no-store");
+      throw new HTTPError({ status: 404 });
+    });
+    const res = await app.fetch(new Request("http://test/build/missing.js"));
+    expect(res.headers.get("cache-control")).toBe("no-store");
+  });
+
   it("still wins on a 2xx response when the handler stages the same key", async () => {
     const app = createApp(CACHE_RULES);
     app.get("/build/**", (event) => {
