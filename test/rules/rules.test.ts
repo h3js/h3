@@ -1,4 +1,4 @@
-import { H3 } from "../../src/index.ts";
+import { H3, HTTPError } from "../../src/index.ts";
 import { describe, expect, it } from "vitest";
 import { routeRules } from "../../src/rules/middleware.ts";
 import { canonicalPath, isPathInScope } from "../../src/rules/internal/scope.ts";
@@ -74,6 +74,63 @@ describe("headers rule on error responses", () => {
     const res = await app.fetch(new Request("http://test/rules/err/boom"));
     expect(res.status).toBe(500);
     expect(res.headers.get("x-rule")).toBe("1");
+  });
+
+  // h3js/h3#1612: a handler that stages its own `errHeaders` value for a rule
+  // header (e.g. `cache-control: no-store` on a 404 under an immutable-asset
+  // rule) must not have it overwritten by the rule's `finally` block.
+  const CACHE_RULES: Record<string, RouteRuleConfig> = {
+    "/build/**": { headers: { "cache-control": "public, max-age=31536000, immutable" } },
+  };
+
+  it("keeps an `errHeaders` value the handler staged before throwing", async () => {
+    const app = createApp(CACHE_RULES);
+    app.get("/build/**", (event) => {
+      event.res.errHeaders.set("cache-control", "no-store");
+      throw new HTTPError({ status: 404 });
+    });
+    const res = await app.fetch(new Request("http://test/build/missing.js"));
+    expect(res.status).toBe(404);
+    expect(res.headers.get("cache-control")).toBe("no-store");
+  });
+
+  it("still applies to a success response when the handler staged an `errHeaders` value", async () => {
+    const app = createApp(CACHE_RULES);
+    app.get("/build/**", (event) => {
+      event.res.errHeaders.set("cache-control", "no-store");
+      event.res.headers.set("cache-control", "no-cache");
+      return "ok";
+    });
+    const res = await app.fetch(new Request("http://test/build/app.js"));
+    expect(res.status).toBe(200);
+    expect(res.headers.get("cache-control")).toBe("public, max-age=31536000, immutable");
+  });
+
+  it("still overrides an `errHeaders` value staged before the rule ran", async () => {
+    const app = new H3();
+    app.use((event) => {
+      event.res.errHeaders.set("cache-control", "max-age=60");
+    });
+    app.use(routeRules(CACHE_RULES));
+    app.get("/build/**", () => {
+      throw new HTTPError({ status: 404 });
+    });
+    const res = await app.fetch(new Request("http://test/build/missing.js"));
+    expect(res.status).toBe(404);
+    expect(res.headers.get("cache-control")).toBe("public, max-age=31536000, immutable");
+  });
+
+  it("still overrides `cors` rule defaults on error responses", async () => {
+    const app = createApp({
+      "/rules/cors-err": { cors: true, headers: { "access-control-allow-methods": "GET" } },
+    });
+    app.get("/rules/cors-err", () => {
+      throw new HTTPError({ status: 403 });
+    });
+    const res = await app.fetch(new Request("http://test/rules/cors-err"));
+    expect(res.status).toBe(403);
+    expect(res.headers.get("access-control-allow-origin")).toBe("*");
+    expect(res.headers.get("access-control-allow-methods")).toBe("GET");
   });
 });
 

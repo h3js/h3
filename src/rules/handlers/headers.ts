@@ -14,12 +14,22 @@ export const headers: RuleHandler<"headers"> = {
   handler: (m) => {
     const entries = Object.entries(m.options || {});
     return async function headersRouteRule(event, next) {
+      // `errHeaders` values present before `next()` (e.g. staged by the outer
+      // `cors` rule) are still overridden. A key whose `errHeaders` value changed
+      // during `next()` was staged by the handler for its own error response
+      // (e.g. `cache-control: no-store` on a 404 under an immutable-asset rule),
+      // so the rule leaves it alone (h3js/h3#1612).
+      const before = entries.map(([key]) => event.res.errHeaders.get(key));
       try {
         return await next();
       } finally {
-        for (const [key, value] of entries) {
+        const errHeaders = event.res.errHeaders;
+        for (let i = 0; i < entries.length; i++) {
+          const [key, value] = entries[i]!;
           event.res.headers.set(key, value);
-          event.res.errHeaders.set(key, value);
+          if (errHeaders.get(key) === before[i]) {
+            errHeaders.set(key, value);
+          }
         }
       }
     };
