@@ -228,16 +228,22 @@ export async function iterable<Value = unknown, Return = unknown>(
   return new HTTPResponse(
     new ReadableStream({
       async pull(controller) {
-        const { value, done } = first ?? (await iterator.next());
-        first = undefined;
-        if (value !== undefined) {
-          const chunk = serializer(value);
+        // A pull that enqueues nothing can leave a pending read unanswered,
+        // so keep reading past skipped values.
+        for (;;) {
+          const { value, done } = first ?? (await iterator.next());
+          first = undefined;
+          const chunk = value === undefined ? undefined : serializer(value);
           if (chunk !== undefined) {
             controller.enqueue(chunk);
           }
-        }
-        if (done) {
-          controller.close();
+          if (done) {
+            controller.close();
+            return;
+          }
+          if (chunk !== undefined) {
+            return;
+          }
         }
       },
       cancel() {

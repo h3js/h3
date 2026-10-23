@@ -18,6 +18,12 @@ describeMatrix("iterable", (t, { it, expect, describe }) => {
       expect(await result.text()).toBe("abc");
     });
 
+    it("skips undefined values", async () => {
+      t.app.use(() => iterable(["a", undefined, "b", undefined]));
+      const result = await t.fetch("/");
+      expect(await result.text()).toBe("ab");
+    });
+
     describe("iterable support", () => {
       const cases: [string, () => unknown][] = [
         ["Array", () => ["the-value"]],
@@ -158,6 +164,15 @@ describeMatrix("iterable", (t, { it, expect, describe }) => {
         for (const [i, obj] of testIterable.entries()) {
           expect.soft(serializer).toHaveBeenNthCalledWith(i + 1, obj);
         }
+      });
+
+      it("skips values the serializer returns undefined for", async () => {
+        const textEncoder = new TextEncoder();
+        const serializer = (value: string) =>
+          value === "skip" ? undefined : textEncoder.encode(value);
+        t.app.use(() => iterable(["a", "skip", "skip", "b"], { serializer }));
+        const response = await t.fetch("/");
+        expect(await response.text()).toBe("ab");
       });
     });
   });
