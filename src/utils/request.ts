@@ -8,7 +8,7 @@ import { getEventContext } from "./event.ts";
 import type { StandardSchemaV1, FailureResult, InferOutput } from "./internal/standard-schema.ts";
 import type { ValidateResult, OnValidateError } from "./internal/validate.ts";
 import type { H3Event, HTTPEvent } from "../event.ts";
-import type { InferEventInput } from "../types/handler.ts";
+import type { EventHandlerRequest, InferEventInput } from "../types/handler.ts";
 import type { HTTPMethod } from "../types/h3.ts";
 import type { H3EventContext } from "../types/context.ts";
 import type { ServerRequest } from "srvx";
@@ -222,6 +222,14 @@ export function getValidatedQuery(
  *   getRouterParams(event, { decode: true }); // { rest: "%2e%2e/x" } — still encoded, do not decode again
  * });
  */
+export function getRouterParams<Request extends EventHandlerRequest>(
+  event: H3Event<Request>,
+  opts?: { decode?: boolean },
+): Request["routerParams"];
+export function getRouterParams(
+  event: HTTPEvent,
+  opts?: { decode?: boolean },
+): NonNullable<H3Event["context"]["params"]>;
 export function getRouterParams(
   event: HTTPEvent,
   opts: { decode?: boolean } = {},
@@ -229,6 +237,7 @@ export function getRouterParams(
   // Fallback object needs to be returned in case router is not used (#149)
   const context = getEventContext<H3EventContext>(event);
   let params = (context.params || {}) as NonNullable<H3Event["context"]["params"]>;
+
   if (opts.decode) {
     params = { ...params };
     for (const key in params) {
@@ -241,6 +250,7 @@ export function getRouterParams(
       params[key] = decodePreservingSeparators(params[key]);
     }
   }
+
   return params;
 }
 
@@ -342,12 +352,22 @@ export function getValidatedRouterParams(
  *   const param = getRouterParam(event, "key");
  * });
  */
+export function getRouterParam<
+  R extends { routerParams: Record<string, string> },
+  Key extends keyof R["routerParams"] & string,
+>(event: H3Event<R>, name: Key, opts?: { decode?: boolean }): R["routerParams"][Key];
+export function getRouterParam(
+  event: HTTPEvent,
+  name: string,
+  opts?: { decode?: boolean },
+): string | undefined;
 export function getRouterParam(
   event: HTTPEvent,
   name: string,
   opts: { decode?: boolean } = {},
 ): string | undefined {
   const params = getRouterParams(event, opts);
+
   return params[name];
 }
 
