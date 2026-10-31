@@ -32,7 +32,7 @@ const RE_PUBLIC = /(?:^|,)\s*public(?:\s*=|\s*,|\s*$)/i;
 /**
  * Check request caching headers (`If-None-Match`, `If-Modified-Since`) and add caching headers (Last-Modified, ETag, Cache-Control).
  *
- * Matching validators set status `304` for `GET`, `HEAD`, and `QUERY`. Other methods ignore `If-Modified-Since` and set status `412` for a matching `If-None-Match`.
+ * Matching validators set status `304` for `GET`, `HEAD`, and `QUERY`. `CONNECT`, `OPTIONS`, and `TRACE` ignore both conditional headers. Other methods ignore `If-Modified-Since` and set status `412` for a matching `If-None-Match`.
  *
  * Note: `public` is added by default, but never alongside a caller-supplied `private`/`no-store` directive, so passing `cacheControls: ["private"]` no longer produces a contradictory `public, private`.
  * @returns `true` when the request should stop with the status set above. When `true` is returned, no response should be sent anymore
@@ -74,6 +74,9 @@ export function handleCacheHeaders(event: H3Event, opts: CacheConditions): boole
   event.res.headers.set("cache-control", cacheControls.join(", "));
 
   const method = event.req.method;
+  if (method === "CONNECT" || method === "OPTIONS" || method === "TRACE") {
+    return false;
+  }
   const cacheable = method === "GET" || method === "HEAD" || method === "QUERY";
   if (
     isCacheMatch(event.req.headers, {

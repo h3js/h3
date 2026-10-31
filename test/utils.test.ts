@@ -895,7 +895,7 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
       const cacheable = method === "GET" || method === "HEAD" || method === "QUERY";
 
       for (const etag of ['"v1"', 'W/"v1"', "*"]) {
-        it(`stops ${method} with the correct status for If-None-Match: ${etag}`, async () => {
+        it(`handles ${method} with the correct status for If-None-Match: ${etag}`, async () => {
           const handler = vi.fn(() => "ok");
           t.app.use((event) => {
             if (handleCacheHeaders(event, { etag: '"v1"' })) return null;
@@ -905,9 +905,10 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
             method,
             headers: { "if-none-match": etag },
           });
-          expect(res.status).toBe(cacheable ? 304 : 412);
-          expect(await res.text()).toBe("");
-          expect(handler).not.toHaveBeenCalled();
+          const matchedStatus = cacheable ? 304 : 412;
+          expect(res.status).toBe(method === "OPTIONS" ? 200 : matchedStatus);
+          expect(await res.text()).toBe(method === "OPTIONS" ? "ok" : "");
+          expect(handler).toHaveBeenCalledTimes(method === "OPTIONS" ? 1 : 0);
         });
       }
 
