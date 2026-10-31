@@ -891,6 +891,104 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
       expect(res.status).toBe(304);
     });
 
+    for (const method of ["GET", "HEAD", "QUERY", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]) {
+      const cacheable = method === "GET" || method === "HEAD" || method === "QUERY";
+
+      for (const etag of ['"v1"', 'W/"v1"', "*"]) {
+        it(`stops ${method} with the correct status for If-None-Match: ${etag}`, async () => {
+          const handler = vi.fn(() => "ok");
+          t.app.use((event) => {
+            if (handleCacheHeaders(event, { etag: '"v1"' })) return null;
+            return handler();
+          });
+          const res = await t.fetch("/", {
+            method,
+            headers: { "if-none-match": etag },
+          });
+          expect(res.status).toBe(cacheable ? 304 : 412);
+          expect(await res.text()).toBe("");
+          expect(handler).not.toHaveBeenCalled();
+        });
+      }
+
+      it(`continues ${method} when If-None-Match does not match`, async () => {
+        const handler = vi.fn(() => "ok");
+        t.app.use((event) => {
+          if (
+            handleCacheHeaders(event, {
+              etag: '"v2"',
+              modifiedTime: new Date("2021-01-01"),
+            })
+          ) {
+            return null;
+          }
+          return handler();
+        });
+        const res = await t.fetch("/", {
+          method,
+          headers: {
+            "if-none-match": '"v1"',
+            "if-modified-since": "Fri, 01 Jan 2021 00:00:00 GMT",
+          },
+        });
+        expect(res.status).toBe(200);
+        expect(await res.text()).toBe(method === "HEAD" ? "" : "ok");
+        expect(handler).toHaveBeenCalledOnce();
+      });
+
+      it(`only evaluates If-Modified-Since for retrieval methods: ${method}`, async () => {
+        const handler = vi.fn(() => "ok");
+        t.app.use((event) => {
+          if (handleCacheHeaders(event, { modifiedTime: new Date("2021-01-01") })) return null;
+          return handler();
+        });
+        const res = await t.fetch("/", {
+          method,
+          headers: { "if-modified-since": "Fri, 01 Jan 2021 00:00:00 GMT" },
+        });
+        expect(res.status).toBe(cacheable ? 304 : 200);
+        expect(await res.text()).toBe(cacheable ? "" : "ok");
+        expect(handler).toHaveBeenCalledTimes(cacheable ? 0 : 1);
+      });
+    }
+
+    it("uses the If-None-Match override for POST preconditions", async () => {
+      t.app.use((event) => {
+        if (
+          handleCacheHeaders(event, {
+            etag: '"v1"',
+            ifNoneMatch: '"v1"',
+          })
+        ) {
+          return null;
+        }
+        return "ok";
+      });
+      const res = await t.fetch("/", {
+        method: "POST",
+        headers: { "if-none-match": '"v2"' },
+      });
+      expect(res.status).toBe(412);
+      expect(await res.text()).toBe("");
+    });
+
+    it("ignores the If-Modified-Since override for POST", async () => {
+      t.app.use((event) => {
+        if (
+          handleCacheHeaders(event, {
+            modifiedTime: new Date("2021-01-01"),
+            ifModifiedSince: "Fri, 01 Jan 2021 00:00:00 GMT",
+          })
+        ) {
+          return null;
+        }
+        return "ok";
+      });
+      const res = await t.fetch("/", { method: "POST" });
+      expect(res.status).toBe(200);
+      expect(await res.text()).toBe("ok");
+    });
+
     it("can handle cache headers with if-modified-since", async () => {
       t.app.use((event) => {
         handleCacheHeaders(event, {

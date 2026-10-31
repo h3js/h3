@@ -201,8 +201,8 @@ describeMatrix("query utils", (t, { it, expect, describe }) => {
   });
 
   // QUERY is safe, idempotent, and cacheable like GET (RFC 10008 §2), so
-  // conditional-request handling must apply to it. handleCacheHeaders is not
-  // method-gated — these tests guard that it stays that way for QUERY.
+  // conditional-request handling must apply to it. These tests guard that
+  // handleCacheHeaders preserves retrieval semantics for QUERY.
   describe("conditional caching", () => {
     it("returns 304 for a QUERY request matching If-None-Match", async () => {
       t.app.query("/search", (event) => {
