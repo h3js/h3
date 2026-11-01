@@ -1061,5 +1061,71 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
       });
       expect(res.status).toBe(304);
     });
+
+    it("returns 412 for a matching if-none-match on POST/PUT (RFC 9110 §13.1.2, #1623)", async () => {
+      t.app.use((event) => {
+        if (handleCacheHeaders(event, { etag: '"v1"' })) {
+          return null;
+        }
+        return "ok";
+      });
+      for (const method of ["POST", "PUT"]) {
+        const res = await t.fetch("/", {
+          method,
+          headers: { "if-none-match": '"v1"' },
+        });
+        expect(res.status).toBe(412);
+      }
+    });
+
+    it("returns 304 for a matching if-none-match on HEAD (#1623)", async () => {
+      t.app.use((event) => {
+        if (handleCacheHeaders(event, { etag: '"v1"' })) {
+          return null;
+        }
+        return "ok";
+      });
+      const res = await t.fetch("/", {
+        method: "HEAD",
+        headers: { "if-none-match": '"v1"' },
+      });
+      expect(res.status).toBe(304);
+    });
+
+    it("ignores if-modified-since on POST (RFC 9110 §13.1.3, #1623)", async () => {
+      t.app.use((event) => {
+        if (
+          handleCacheHeaders(event, {
+            modifiedTime: new Date("2021-01-01"),
+          })
+        ) {
+          return null;
+        }
+        return "ok";
+      });
+      const res = await t.fetch("/", {
+        method: "POST",
+        headers: {
+          "if-modified-since": "Fri, 01 Jan 2021 00:00:00 GMT",
+        },
+      });
+      expect(res.status).toBe(200);
+      expect(await res.text()).toBe("ok");
+    });
+
+    it("ignores conditional headers on OPTIONS (RFC 9110 §13.2.1, #1623)", async () => {
+      t.app.use((event) => {
+        if (handleCacheHeaders(event, { etag: '"v1"' })) {
+          return null;
+        }
+        return "ok";
+      });
+      const res = await t.fetch("/", {
+        method: "OPTIONS",
+        headers: { "if-none-match": '"v1"' },
+      });
+      expect(res.status).toBe(200);
+      expect(await res.text()).toBe("ok");
+    });
   });
 });

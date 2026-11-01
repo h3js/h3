@@ -1,5 +1,5 @@
 import type { H3Event } from "../event.ts";
-import { isCacheMatch } from "./internal/cache.ts";
+import { isCacheMatch, matchETag } from "./internal/cache.ts";
 import {
   detachStagedHeaders,
   getStagedHeader,
@@ -33,7 +33,11 @@ const RE_PUBLIC = /(?:^|,)\s*public(?:\s*=|\s*,|\s*$)/i;
  * Check request caching headers (`If-None-Match`, `If-Modified-Since`) and add caching headers (Last-Modified, ETag, Cache-Control).
  *
  * Note: `public` is added by default, but never alongside a caller-supplied `private`/`no-store` directive, so passing `cacheControls: ["private"]` no longer produces a contradictory `public, private`.
- * @returns `true` when cache headers are matching. When `true` is returned, no response should be sent anymore
+ * @returns `true` when cache headers are matching. When `true` is returned, no response should be sent anymore.
+ * A `304 Not Modified` is set for `GET`/`HEAD` requests; a matching `If-None-Match` on any other
+ * method sets `412 Precondition Failed` instead (RFC 9110 §13.1.2). Conditional headers are ignored
+ * for `OPTIONS`, `TRACE` and `CONNECT` (RFC 9110 §13.2.1), as is `If-Modified-Since` on methods other
+ * than `GET`/`HEAD` (RFC 9110 §13.1.3) — both cases return `false` so the handler runs normally.
  */
 export function handleCacheHeaders(event: H3Event, opts: CacheConditions): boolean {
   const cacheControls = [...(opts.cacheControls || [])];
@@ -71,18 +75,35 @@ export function handleCacheHeaders(event: H3Event, opts: CacheConditions): boole
 
   event.res.headers.set("cache-control", cacheControls.join(", "));
 
-  if (
-    isCacheMatch(event.req.headers, {
-      etag: opts.etag,
-      lastModified,
-      ifNoneMatch: opts.ifNoneMatch,
-      ifModifiedSince: opts.ifModifiedSince,
-    })
-  ) {
+  const cacheMatch = isCacheMatch(event.req.headers, {
+    etag: opts.etag,
+    lastModified,
+    ifNoneMatch: opts.ifNoneMatch,
+    ifModifiedSince: opts.ifModifiedSince,
+  });
+  if (!cacheMatch) {
+    return false;
+  }
+
+  const method = event.req.method;
+  // RFC 9110 §13.2.1: conditional headers are ignored for these methods.
+  if (method === "OPTIONS" || method === "TRACE" || method === "CONNECT") {
+    return false;
+  }
+  if (method === "GET" || method === "HEAD") {
     event.res.status = 304;
     return true;
   }
-
+  // RFC 9110 §13.1.3: `If-Modified-Since` is only meaningful for GET/HEAD, so a
+  // match on any other method can only come from `If-None-Match` — mirror
+  // `isCacheMatch`'s precedence (If-None-Match wins over If-Modified-Since).
+  // A matching `If-None-Match` on a non-GET/HEAD method must fail the request
+  // with `412 Precondition Failed` instead of performing it (RFC 9110 §13.1.2).
+  const ifNoneMatch = opts.ifNoneMatch ?? event.req.headers.get("if-none-match");
+  if (ifNoneMatch && opts.etag && matchETag(ifNoneMatch, opts.etag)) {
+    event.res.status = 412;
+    return true;
+  }
   return false;
 }
 
