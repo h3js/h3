@@ -313,19 +313,95 @@ export function getRequestWebStream(
     });
   }
 
-  return new ReadableStream({
-    start: (controller) => {
-      event.node.req.on("data", (chunk) => {
-        controller.enqueue(chunk);
-      });
-      event.node.req.on("end", () => {
-        controller.close();
-      });
-      event.node.req.on("error", (err) => {
-        controller.error(err);
-      });
+  const req = event.node.req;
+  let closed = false;
+  let wantsData = false;
+  let cleanup: (() => void) | undefined;
+  let responseFinishedEarly = event.node.res?.writableFinished && !req.complete;
+  // Node may drain an incomplete request after the response finishes.
+  const onFinishBeforePull = () => {
+    responseFinishedEarly = !req.complete;
+  };
+  event.node.res?.once("finish", onFinishBeforePull);
+
+  return new ReadableStream(
+    {
+      pull(controller) {
+        wantsData = true;
+        if (!cleanup) {
+          event.node.res?.off("finish", onFinishBeforePull);
+          if (req.errored) {
+            return controller.error(req.errored);
+          }
+          if (responseFinishedEarly) {
+            return controller.error(new Error("Response already finished"));
+          }
+          if (req.readableEnded) {
+            return controller.close();
+          }
+          if (req.destroyed) {
+            return controller.error(
+              Object.assign(new Error("aborted"), { code: "ECONNRESET" }),
+            );
+          }
+          const onData = (chunk: Buffer) => {
+            if (!closed) {
+              wantsData = false;
+              controller.enqueue(chunk);
+              // Enqueue can synchronously pull again for another pending read.
+              if (!wantsData) {
+                req.pause();
+              }
+            }
+          };
+          const onEnd = () => {
+            if (!closed) {
+              cleanup!();
+              controller.close();
+            }
+          };
+          const onError = (err: Error) => {
+            if (!closed) {
+              cleanup!();
+              controller.error(err);
+            }
+          };
+          const onClose = () =>
+            onError(
+              Object.assign(new Error("aborted"), { code: "ECONNRESET" }),
+            );
+          const onFinish = () => {
+            if (!closed) {
+              cleanup!();
+              controller.error(new Error("Response already finished"));
+            }
+            req.resume();
+          };
+          cleanup = () => {
+            closed = true;
+            req.off("data", onData);
+            req.off("end", onEnd);
+            req.off("error", onError);
+            req.off("close", onClose);
+            event.node.res?.off("finish", onFinish);
+          };
+          req.on("data", onData);
+          req.on("end", onEnd);
+          req.on("error", onError);
+          req.on("close", onClose);
+          event.node.res?.once("finish", onFinish);
+        }
+        req.resume();
+      },
+      cancel() {
+        event.node.res?.off("finish", onFinishBeforePull);
+        cleanup?.();
+        req.resume();
+      },
     },
-  });
+    // Do not consume the Node request until the Web body is read.
+    { highWaterMark: 0 },
+  );
 }
 
 // --- Internal ---
