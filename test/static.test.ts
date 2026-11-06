@@ -675,4 +675,57 @@ describe("serve static (malformed url)", () => {
     expect(servedId).not.toContain("\\"); // no raw backslash separator
     expect(servedId).not.toMatch(/(^|[\\/])\.\.([\\/]|$)/); // no bare `..` segment
   });
+
+  it("normalizes root and subdirectory index paths on single slash boundary (#1584)", async () => {
+    const assets: Record<string, string> = {
+      "/index.html": "root-index",
+      "/docs/index.html": "docs-index",
+    };
+    const requestedIds: string[] = [];
+    const app = new H3().all("/**", (event) =>
+      serveStatic(event, {
+        getContents: (id) => assets[id],
+        getMeta: (id) => {
+          requestedIds.push(id);
+          return assets[id] ? { size: assets[id].length } : undefined;
+        },
+        indexNames: ["/index.html"],
+      }),
+    );
+
+    const rootRes = await app.request("/");
+    expect(rootRes.status).toBe(200);
+    expect(await rootRes.text()).toBe("root-index");
+    expect(requestedIds).toContain("/index.html");
+    expect(requestedIds).not.toContain("//index.html");
+
+    const docsRes = await app.request("/docs");
+    expect(docsRes.status).toBe(200);
+    expect(await docsRes.text()).toBe("docs-index");
+    expect(requestedIds).toContain("/docs/index.html");
+
+    // Test with relative indexNames lacking leading slash
+    const relRequestedIds: string[] = [];
+    const relApp = new H3().all("/**", (event) =>
+      serveStatic(event, {
+        getContents: (id) => assets[id],
+        getMeta: (id) => {
+          relRequestedIds.push(id);
+          return assets[id] ? { size: assets[id].length } : undefined;
+        },
+        indexNames: ["index.html"],
+      }),
+    );
+
+    const relRootRes = await relApp.request("/");
+    expect(relRootRes.status).toBe(200);
+    expect(await relRootRes.text()).toBe("root-index");
+    expect(relRequestedIds).toContain("/index.html");
+
+    const relDocsRes = await relApp.request("/docs");
+    expect(relDocsRes.status).toBe(200);
+    expect(await relDocsRes.text()).toBe("docs-index");
+    expect(relRequestedIds).toContain("/docs/index.html");
+    expect(relRequestedIds).not.toContain("/docsindex.html");
+  });
 });
