@@ -212,6 +212,13 @@ function prepareResponse(
     preparedHeaders = preparedRes?.[kEventResErrHeaders];
   }
 
+  // 101 Switching Protocols and WebSocket responses must not be rebuilt,
+  // as rebuilding drops the platform-specific `webSocket` property (and
+  // workerd forbids constructing a 101 response without a webSocket).
+  if (val.status === 101 || (val as { webSocket?: unknown }).webSocket) {
+    return val;
+  }
+
   // Merge prepared headers unless there is nothing to merge or a custom error
   // render is returned from `onError`. `event.res.headers` is created lazily on first
   // access, so it can be present but empty -- nothing to merge then either.
