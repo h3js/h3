@@ -1,5 +1,5 @@
 import type { H3Event } from "../event.ts";
-import { isCacheMatch } from "./internal/cache.ts";
+import { matchETag } from "./internal/cache.ts";
 import {
   detachStagedHeaders,
   getStagedHeader,
@@ -71,16 +71,26 @@ export function handleCacheHeaders(event: H3Event, opts: CacheConditions): boole
 
   event.res.headers.set("cache-control", cacheControls.join(", "));
 
-  if (
-    isCacheMatch(event.req.headers, {
-      etag: opts.etag,
-      lastModified,
-      ifNoneMatch: opts.ifNoneMatch,
-      ifModifiedSince: opts.ifModifiedSince,
-    })
-  ) {
-    event.res.status = 304;
-    return true;
+  const method = (event.req.method || "GET").toUpperCase();
+  if (method === "OPTIONS" || method === "TRACE" || method === "CONNECT") {
+    return false;
+  }
+
+  const ifNoneMatch = opts.ifNoneMatch ?? event.req.headers.get("if-none-match");
+  if (ifNoneMatch) {
+    if (opts.etag && matchETag(ifNoneMatch, opts.etag)) {
+      event.res.status = method === "GET" || method === "HEAD" || method === "QUERY" ? 304 : 412;
+      return true;
+    }
+    return false;
+  }
+
+  if ((method === "GET" || method === "HEAD" || method === "QUERY") && lastModified) {
+    const ifModifiedSince = opts.ifModifiedSince ?? event.req.headers.get("if-modified-since");
+    if (ifModifiedSince && new Date(ifModifiedSince) >= lastModified) {
+      event.res.status = 304;
+      return true;
+    }
   }
 
   return false;
