@@ -91,19 +91,20 @@ export function defineValidatedHandler<
   },
 ): EventHandlerWithFetch<
   ValidatedRequest<TRequestBody, TRequestHeaders, TRequestQuery>,
-  TResponse
+  EventHandlerResponse<TResponse>
 > {
   if (!def.validate) {
-    return defineHandler(def) as any;
+    return defineHandler(def);
   }
   return defineHandler({
     ...def,
     handler: async function _validatedHandler(event) {
       (event as any) /* readonly */.req = await validatedRequest(event.req, def.validate!);
       (event as any) /* readonly */.url = await validatedURL(event.url, def.validate!);
-      return def.handler(event as any);
+
+      return def.handler(event);
     },
-  }) as any;
+  });
 }
 
 // --- handler .fetch ---
