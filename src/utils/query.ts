@@ -70,8 +70,7 @@ export function requireContentType(event: HTTPEvent, acceptedTypes: string | str
   }
 
   const mediaType = header.split(";")[0].trim().toLowerCase();
-  const slash = mediaType.indexOf("/");
-  if (slash <= 0 || slash === mediaType.length - 1) {
+  if (!MEDIA_TYPE_RE.test(mediaType)) {
     throw new HTTPError({
       status: 422,
       statusText: "Unprocessable Content",
@@ -97,6 +96,9 @@ export function requireContentType(event: HTTPEvent, acceptedTypes: string | str
 }
 
 // --- internal helpers ---
+
+// RFC 9110 media-type: a nonempty HTTP token on each side of a single slash.
+const MEDIA_TYPE_RE = /^[\w!#$%&'*+.^`|~-]+\/[\w!#$%&'*+.^`|~-]+$/;
 
 // sf-token: ( ALPHA / "*" ) *( tchar / ":" / "/" ) — https://www.rfc-editor.org/rfc/rfc8941#section-3.3.4
 const SF_TOKEN_RE = /^[A-Za-z*][\w!#$%&'*+.^`|~:/-]*$/;
