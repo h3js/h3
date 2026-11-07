@@ -367,12 +367,12 @@ export type SealOptions = Readonly<{
 }>;
 
 /** `seal()` method options. */
-type SealOptionsSub<Algorithm extends _Algorithm = _Algorithm> = Readonly<{
+type SealOptionsSub<TAlgorithm extends _Algorithm = _Algorithm> = Readonly<{
   /** The length of the salt (random buffer used to ensure that two identical objects will generate a different encrypted result). Defaults to 256. */
   saltBits: number;
 
   /** The algorithm used. Defaults to 'aes-256-cbc' for encryption and 'sha256' for integrity. */
-  algorithm: Algorithm;
+  algorithm: TAlgorithm;
 
   /** The number of iterations used to derive a key from the password. Defaults to 1. */
   iterations: number;
@@ -385,8 +385,8 @@ type SealOptionsSub<Algorithm extends _Algorithm = _Algorithm> = Readonly<{
 type Password = Uint8Array<ArrayBuffer> | string;
 
 /** `generateKey()` method options. */
-export type GenerateKeyOptions<Algorithm extends _Algorithm = _Algorithm> = Pick<
-  SealOptionsSub<Algorithm>,
+export type GenerateKeyOptions<TAlgorithm extends _Algorithm = _Algorithm> = Pick<
+  SealOptionsSub<TAlgorithm>,
   "algorithm" | "iterations" | "minPasswordlength"
 > &
   Readonly<{

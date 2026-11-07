@@ -22,18 +22,18 @@ export const kEventResErrHeaders: unique symbol = /* @__PURE__ */ Symbol.for(
 
 export const kMalformedURL: unique symbol = /* @__PURE__ */ Symbol.for(`${kEventNS}malformed`);
 
-export interface HTTPEvent<_RequestT extends EventHandlerRequest = EventHandlerRequest> {
+export interface HTTPEvent<TRequest extends EventHandlerRequest = EventHandlerRequest> {
   /**
    * Incoming HTTP request info.
    *
    * [MDN Reference](https://developer.mozilla.org/en-US/docs/Web/API/Request)
    */
-  req: TypedServerRequest<_RequestT>;
+  req: TypedServerRequest<TRequest>;
 }
 
 export class H3Event<
-  _RequestT extends EventHandlerRequest = EventHandlerRequest,
-> implements HTTPEvent<_RequestT> {
+  TRequest extends EventHandlerRequest = EventHandlerRequest,
+> implements HTTPEvent<TRequest> {
   /**
    * Access to the H3 application instance.
    */
@@ -44,7 +44,7 @@ export class H3Event<
    *
    * [MDN Reference](https://developer.mozilla.org/en-US/docs/Web/API/Request)
    */
-  readonly req: TypedServerRequest<_RequestT>;
+  readonly req: TypedServerRequest<TRequest>;
 
   /**
    * Access to the parsed request URL.

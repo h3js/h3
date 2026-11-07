@@ -20,10 +20,10 @@ import { hasEmptySegmentAfterBase, withoutBase, withoutTrailingSlash } from "./i
  * @param base The base path to prefix.
  * @param handler The event handler to use with the adapted path.
  */
-export function withBase<_RequestT extends EventHandlerRequest = EventHandlerRequest>(
+export function withBase<TRequest extends EventHandlerRequest = EventHandlerRequest>(
   base: string,
-  input: HTTPHandler<_RequestT>,
-): EventHandler<ResolvedRequest<_RequestT>> {
+  input: HTTPHandler<TRequest>,
+): EventHandler<ResolvedRequest<TRequest>> {
   base = withoutTrailingSlash(base);
 
   const handler = toEventHandler(input);

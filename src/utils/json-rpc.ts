@@ -96,8 +96,8 @@ const DEFAULT_MAX_BATCH_SIZE = 50;
  *   }),
  * );
  */
-export function defineJsonRpcHandler<RequestT extends EventHandlerRequest = EventHandlerRequest>(
-  opts: Omit<EventHandlerObject<RequestT>, "handler" | "fetch"> & {
+export function defineJsonRpcHandler<TRequest extends EventHandlerRequest = EventHandlerRequest>(
+  opts: Omit<EventHandlerObject<TRequest>, "handler" | "fetch"> & {
     methods: Record<string, JsonRpcMethod>;
 
     /**
@@ -159,7 +159,7 @@ export function defineJsonRpcHandler<RequestT extends EventHandlerRequest = Even
      */
     allowedOrigins?: "*" | string | (string | RegExp)[] | ((origin: string) => boolean);
   } = {} as any,
-): EventHandler<RequestT> {
+): EventHandler<TRequest> {
   const methodMap = createMethodMap(opts.methods);
   const maxBatchSize = opts.maxBatchSize ?? DEFAULT_MAX_BATCH_SIZE;
   const handler = async (event: H3Event) => {
@@ -193,7 +193,7 @@ export function defineJsonRpcHandler<RequestT extends EventHandlerRequest = Even
     const result = await processJsonRpcBody(body, methodMap, event, maxBatchSize);
     return result === undefined ? new HTTPResponse("", { status: 202 }) : result;
   };
-  return defineHandler<RequestT>({ ...opts, handler });
+  return defineHandler<TRequest>({ ...opts, handler });
 }
 
 /**

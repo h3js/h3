@@ -35,18 +35,18 @@ export function parseCookies(event: HTTPEvent): Record<string, string | undefine
  *   }));
  * });
  */
-export function getValidatedCookies<Event extends HTTPEvent, S extends StandardSchemaV1<any, any>>(
-  event: Event,
+export function getValidatedCookies<TEvent extends HTTPEvent, S extends StandardSchemaV1<any, any>>(
+  event: TEvent,
   validate: S,
   options?: { onError?: (result: FailureResult) => ErrorDetails },
 ): Promise<InferOutput<S>>;
-export function getValidatedCookies<Event extends HTTPEvent, OutputT>(
-  event: Event,
+export function getValidatedCookies<TEvent extends HTTPEvent, TOutput>(
+  event: TEvent,
   validate: (
     data: Record<string, string | undefined>,
-  ) => ValidateResult<OutputT> | Promise<ValidateResult<OutputT>>,
+  ) => ValidateResult<TOutput> | Promise<ValidateResult<TOutput>>,
   options?: { onError?: () => ErrorDetails },
-): Promise<OutputT>;
+): Promise<TOutput>;
 export function getValidatedCookies(
   event: HTTPEvent,
   validate: any,
