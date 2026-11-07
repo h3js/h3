@@ -1061,5 +1061,74 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
       });
       expect(res.status).toBe(304);
     });
+
+    it("returns 412 for POST and PUT when if-none-match matches (RFC 9110 §13.1.2, #1623)", async () => {
+      t.app.use((event) => {
+        if (handleCacheHeaders(event, { etag: '"v1"' })) {
+          return null;
+        }
+        return "ok";
+      });
+
+      const postRes = await t.fetch("/", {
+        method: "POST",
+        headers: { "if-none-match": '"v1"' },
+      });
+      expect(postRes.status).toBe(412);
+
+      const putRes = await t.fetch("/", {
+        method: "PUT",
+        headers: { "if-none-match": '"v1"' },
+      });
+      expect(putRes.status).toBe(412);
+
+      const getRes = await t.fetch("/", {
+        method: "GET",
+        headers: { "if-none-match": '"v1"' },
+      });
+      expect(getRes.status).toBe(304);
+    });
+
+    it("ignores if-modified-since for non-safe methods (RFC 9110 §13.1.3, #1623)", async () => {
+      t.app.use((event) => {
+        if (
+          handleCacheHeaders(event, {
+            modifiedTime: new Date("2021-01-01"),
+          })
+        ) {
+          return null;
+        }
+        return "ok";
+      });
+
+      const postRes = await t.fetch("/", {
+        method: "POST",
+        headers: { "if-modified-since": "Fri, 01 Jan 2021 00:00:00 GMT" },
+      });
+      expect(postRes.status).toBe(200);
+      expect(await postRes.text()).toBe("ok");
+
+      const getRes = await t.fetch("/", {
+        method: "GET",
+        headers: { "if-modified-since": "Fri, 01 Jan 2021 00:00:00 GMT" },
+      });
+      expect(getRes.status).toBe(304);
+    });
+
+    it("ignores conditional headers for OPTIONS (RFC 9110 §13.2.1, #1623)", async () => {
+      t.app.use((event) => {
+        if (handleCacheHeaders(event, { etag: '"v1"' })) {
+          return null;
+        }
+        return "ok";
+      });
+
+      const res = await t.fetch("/", {
+        method: "OPTIONS",
+        headers: { "if-none-match": '"v1"' },
+      });
+      expect(res.status).toBe(200);
+      expect(await res.text()).toBe("ok");
+    });
   });
 });

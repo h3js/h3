@@ -71,15 +71,25 @@ export function handleCacheHeaders(event: H3Event, opts: CacheConditions): boole
 
   event.res.headers.set("cache-control", cacheControls.join(", "));
 
+  const method = event.req.method.toUpperCase();
+  if (method === "OPTIONS" || method === "TRACE" || method === "CONNECT") {
+    return false;
+  }
+
   if (
-    isCacheMatch(event.req.headers, {
-      etag: opts.etag,
-      lastModified,
-      ifNoneMatch: opts.ifNoneMatch,
-      ifModifiedSince: opts.ifModifiedSince,
-    })
+    isCacheMatch(
+      event.req.headers,
+      {
+        etag: opts.etag,
+        lastModified,
+        ifNoneMatch: opts.ifNoneMatch,
+        ifModifiedSince: opts.ifModifiedSince,
+      },
+      method,
+    )
   ) {
-    event.res.status = 304;
+    const isSafeMethod = method === "GET" || method === "HEAD" || method === "QUERY";
+    event.res.status = isSafeMethod ? 304 : 412;
     return true;
   }
 

@@ -18,13 +18,16 @@ export function matchETag(ifNoneMatch: string, etag: string): boolean {
 
 /**
  * Evaluate an incoming conditional request against the current representation's
- * validators, returning `true` when it matches and a `304 Not Modified` should
+ * validators, returning `true` when it matches and a `304 Not Modified` (or
+ * `412 Precondition Failed` for non-safe methods with `If-None-Match`) should
  * be sent.
  *
  * RFC 9110 §13.1.3: a recipient MUST ignore `If-Modified-Since` when the request
  * contains an `If-None-Match` header field. `If-None-Match` takes precedence;
  * `If-Modified-Since` is only evaluated when it is absent. A present-but-empty
  * `If-None-Match` is malformed and treated as absent.
+ * Furthermore, RFC 9110 §13.1.3 specifies that a recipient MUST ignore
+ * `If-Modified-Since` if the request method is neither GET nor HEAD (and QUERY per RFC 10008).
  */
 export function isCacheMatch(
   headers: Headers,
@@ -36,12 +39,14 @@ export function isCacheMatch(
     /** Overrides the request header, for a caller holding the original value. */
     ifModifiedSince?: string;
   },
+  method: string = "GET",
 ): boolean {
   const ifNoneMatch = validators.ifNoneMatch ?? headers.get("if-none-match");
   if (ifNoneMatch) {
     return !!validators.etag && matchETag(ifNoneMatch, validators.etag);
   }
-  if (validators.lastModified) {
+  const isSafeMethod = method === "GET" || method === "HEAD" || method === "QUERY";
+  if (validators.lastModified && isSafeMethod) {
     const ifModifiedSince = validators.ifModifiedSince ?? headers.get("if-modified-since");
     return !!ifModifiedSince && new Date(ifModifiedSince) >= validators.lastModified;
   }
