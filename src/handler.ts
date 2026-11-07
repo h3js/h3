@@ -100,7 +100,7 @@ export function defineValidatedHandler<
     ...def,
     handler: async function _validatedHandler(event) {
       (event as any) /* readonly */.req = await validatedRequest(event.req, def.validate!);
-      (event as any) /* readonly */.url = await validatedURL(event.url, def.validate!);
+      event.url = await validatedURL(event.url, def.validate!);
 
       return def.handler(event);
     },
