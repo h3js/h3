@@ -1,30 +1,30 @@
 // https://github.com/standard-schema/standard-schema
 
 /** The Standard Schema interface. */
-export interface StandardSchemaV1<Input = unknown, Output = Input> {
+export interface StandardSchemaV1<TInput = unknown, TOutput = TInput> {
   /** The Standard Schema properties. */
-  readonly "~standard": Props<Input, Output>;
+  readonly "~standard": Props<TInput, TOutput>;
 }
 
 /** The Standard Schema properties interface. */
-export interface Props<Input = unknown, Output = Input> {
+export interface Props<TInput = unknown, TOutput = TInput> {
   /** The version number of the standard. */
   readonly version: 1;
   /** The vendor name of the schema library. */
   readonly vendor: string;
   /** Validates unknown input values. */
-  readonly validate: (value: unknown) => Result<Output> | Promise<Result<Output>>;
+  readonly validate: (value: unknown) => Result<TOutput> | Promise<Result<TOutput>>;
   /** Inferred types associated with the schema. */
-  readonly types?: Types<Input, Output> | undefined;
+  readonly types?: Types<TInput, TOutput> | undefined;
 }
 
 /** The result interface of the validate function. */
-export type Result<Output> = SuccessResult<Output> | FailureResult;
+export type Result<TOutput> = SuccessResult<TOutput> | FailureResult;
 
 /** The result interface if validation succeeds. */
-export interface SuccessResult<Output> {
+export interface SuccessResult<TOutput> {
   /** The typed output value. */
-  readonly value: Output;
+  readonly value: TOutput;
   /** The non-existent issues. */
   readonly issues?: undefined;
 }
@@ -50,19 +50,19 @@ export interface PathSegment {
 }
 
 /** The Standard Schema types interface. */
-export interface Types<Input = unknown, Output = Input> {
+export interface Types<TInput = unknown, TOutput = TInput> {
   /** The input type of the schema. */
-  readonly input: Input;
+  readonly input: TInput;
   /** The output type of the schema. */
-  readonly output: Output;
+  readonly output: TOutput;
 }
 
 /** Infers the input type of a Standard Schema. */
-export type InferInput<Schema extends StandardSchemaV1> = NonNullable<
-  Schema["~standard"]["types"]
+export type InferInput<TSchema extends StandardSchemaV1> = NonNullable<
+  TSchema["~standard"]["types"]
 >["input"];
 
 /** Infers the output type of a Standard Schema. */
-export type InferOutput<Schema extends StandardSchemaV1> = NonNullable<
-  Schema["~standard"]["types"]
+export type InferOutput<TSchema extends StandardSchemaV1> = NonNullable<
+  TSchema["~standard"]["types"]
 >["output"];

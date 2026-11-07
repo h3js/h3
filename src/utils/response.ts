@@ -193,7 +193,7 @@ export function writeEarlyHints(
  *
  * @param iterable - Iterator that produces chunks of the response.
  * @param serializer - Function that converts values from the iterable into stream-compatible values.
- * @template Value - Test
+ * @template TValue - Test
  *
  * @example
  * return iterable(async function* work() {
@@ -214,17 +214,17 @@ export function writeEarlyHints(
  *   return new Promise((resolve) => setTimeout(resolve, ms));
  * }
  */
-export async function iterable<Value = unknown, Return = unknown>(
-  iterable: IterationSource<Value, Return>,
+export async function iterable<TValue = unknown, TReturn = unknown>(
+  iterable: IterationSource<TValue, TReturn>,
   options?: {
-    serializer: IteratorSerializer<Value | Return>;
+    serializer: IteratorSerializer<TValue | TReturn>;
   },
 ): Promise<HTTPResponse> {
   const serializer = options?.serializer ?? serializeIterableValue;
   const iterator = coerceIterable(iterable);
   // Pull the first chunk up-front: the response is built as soon as the handler returns, so this
   // is the only point where the producer can still influence status and headers.
-  let first: IteratorResult<Value | Return> | undefined = await iterator.next();
+  let first: IteratorResult<TValue | TReturn> | undefined = await iterator.next();
   return new HTTPResponse(
     new ReadableStream({
       async pull(controller) {

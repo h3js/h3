@@ -46,9 +46,9 @@ export interface ReadBodyOptions {
  */
 export async function readBody<
   T,
-  _Event extends HTTPEvent = HTTPEvent,
-  _T = InferEventInput<"body", _Event, T>,
->(event: _Event, options?: ReadBodyOptions): Promise<undefined | _T> {
+  TEvent extends HTTPEvent = HTTPEvent,
+  TBody = InferEventInput<"body", TEvent, T>,
+>(event: TEvent, options?: ReadBodyOptions): Promise<undefined | TBody> {
   // Media types are case-insensitive (RFC 9110, section 8.3.1).
   const contentType = (event.req.headers.get("content-type") || "").toLowerCase();
   const type = options?.type;
@@ -73,14 +73,14 @@ export async function readBody<
         message: "Invalid form data body",
       });
     }
-    return parseFormData(form) as _T;
+    return parseFormData(form) as TBody;
   }
 
   const text = await event.req.text();
 
   // Text is returned verbatim, including an empty body as `""`.
   if (type === "text") {
-    return text as _T;
+    return text as TBody;
   }
 
   if (!text) {
@@ -91,12 +91,12 @@ export async function readBody<
     type === "urlencoded" ||
     (!type && contentType.startsWith("application/x-www-form-urlencoded"))
   ) {
-    return parseURLEncodedBody(text) as _T;
+    return parseURLEncodedBody(text) as TBody;
   }
 
   // Default, and explicit `type: "json"`.
   try {
-    return JSON.parse(text) as _T;
+    return JSON.parse(text) as TBody;
   } catch {
     throw new HTTPError({
       status: 400,
@@ -106,22 +106,22 @@ export async function readBody<
   }
 }
 
-export async function readValidatedBody<Event extends HTTPEvent, S extends StandardSchemaV1>(
-  event: Event,
+export async function readValidatedBody<TEvent extends HTTPEvent, S extends StandardSchemaV1>(
+  event: TEvent,
   validate: S,
   options?: ReadBodyOptions & { onError?: (result: FailureResult) => ErrorDetails },
 ): Promise<InferOutput<S>>;
 export async function readValidatedBody<
-  Event extends HTTPEvent,
-  OutputT,
-  InputT = InferEventInput<"body", Event, OutputT>,
+  TEvent extends HTTPEvent,
+  TOutput,
+  TInput = InferEventInput<"body", TEvent, TOutput>,
 >(
-  event: Event,
-  validate: (data: InputT) => ValidateResult<OutputT> | Promise<ValidateResult<OutputT>>,
+  event: TEvent,
+  validate: (data: TInput) => ValidateResult<TOutput> | Promise<ValidateResult<TOutput>>,
   options?: ReadBodyOptions & {
     onError?: () => ErrorDetails;
   },
-): Promise<OutputT>;
+): Promise<TOutput>;
 /**
  * Tries to read the request body via `readBody`, then uses the provided validation schema or function and either throws a validation error or returns the result.
  *

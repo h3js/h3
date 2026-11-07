@@ -21,14 +21,14 @@ import { validatedRequest, validatedURL, type OnValidateError } from "./utils/in
 // --- event handler ---
 
 export function defineHandler<
-  Req extends EventHandlerRequest = EventHandlerRequest,
-  Res = EventHandlerResponse,
->(handler: EventHandler<Req, Res>): EventHandlerWithFetch<Req, Res>;
+  TRequest extends EventHandlerRequest = EventHandlerRequest,
+  TResponse = EventHandlerResponse,
+>(handler: EventHandler<TRequest, TResponse>): EventHandlerWithFetch<TRequest, TResponse>;
 
 export function defineHandler<
-  Req extends EventHandlerRequest = EventHandlerRequest,
-  Res = EventHandlerResponse,
->(def: EventHandlerObject<Req, Res>): EventHandlerWithFetch<Req, Res>;
+  TRequest extends EventHandlerRequest = EventHandlerRequest,
+  TResponse = EventHandlerResponse,
+>(def: EventHandlerObject<TRequest, TResponse>): EventHandlerWithFetch<TRequest, TResponse>;
 
 export function defineHandler(input: EventHandler | EventHandlerObject): EventHandlerWithFetch {
   if (typeof input === "function") {
@@ -59,55 +59,62 @@ type QueryValues<T> = {
 };
 
 export type ValidatedRequest<
-  RequestBody extends StandardSchemaV1,
-  RequestHeaders extends StandardSchemaV1,
-  RequestQuery extends StandardSchemaV1,
+  TRequestBody extends StandardSchemaV1,
+  TRequestHeaders extends StandardSchemaV1,
+  TRequestQuery extends StandardSchemaV1,
 > = {
-  body: InferOutput<RequestBody>;
-  headers: StringHeaders<InferOutput<RequestHeaders>>;
-  query: QueryValues<InferOutput<RequestQuery>>;
+  body: InferOutput<TRequestBody>;
+  headers: StringHeaders<InferOutput<TRequestHeaders>>;
+  query: QueryValues<InferOutput<TRequestQuery>>;
 };
 
 /**
  * @experimental defineValidatedHandler is an experimental feature and API may change.
  */
 export function defineValidatedHandler<
-  RequestBody extends StandardSchemaV1,
-  RequestHeaders extends StandardSchemaV1,
-  RequestQuery extends StandardSchemaV1,
-  Res extends EventHandlerResponse = EventHandlerResponse,
+  TRequestBody extends StandardSchemaV1,
+  TRequestHeaders extends StandardSchemaV1,
+  TRequestQuery extends StandardSchemaV1,
+  TResponse extends EventHandlerResponse = EventHandlerResponse,
 >(
   def: Omit<EventHandlerObject, "handler"> & {
     validate?: {
-      body?: RequestBody;
-      headers?: RequestHeaders;
-      query?: RequestQuery;
+      body?: TRequestBody;
+      headers?: TRequestHeaders;
+      query?: TRequestQuery;
       onError?: OnValidateError;
     };
-    handler: EventHandler<ValidatedRequest<RequestBody, RequestHeaders, RequestQuery>, Res>;
+    handler: EventHandler<
+      ValidatedRequest<TRequestBody, TRequestHeaders, TRequestQuery>,
+      TResponse
+    >;
   },
-): EventHandlerWithFetch<ValidatedRequest<RequestBody, RequestHeaders, RequestQuery>, Res> {
+): EventHandlerWithFetch<
+  ValidatedRequest<TRequestBody, TRequestHeaders, TRequestQuery>,
+  EventHandlerResponse<TResponse>
+> {
   if (!def.validate) {
-    return defineHandler(def) as any;
+    return defineHandler(def);
   }
   return defineHandler({
     ...def,
     handler: async function _validatedHandler(event) {
       (event as any) /* readonly */.req = await validatedRequest(event.req, def.validate!);
-      (event as any) /* readonly */.url = await validatedURL(event.url, def.validate!);
-      return def.handler(event as any);
+      event.url = await validatedURL(event.url, def.validate!);
+
+      return def.handler(event);
     },
-  }) as any;
+  });
 }
 
 // --- handler .fetch ---
 
 function handlerWithFetch<
-  Req extends EventHandlerRequest = EventHandlerRequest,
-  Res = EventHandlerResponse,
->(handler: EventHandler<Req, Res>): EventHandlerWithFetch<Req, Res> {
+  TRequest extends EventHandlerRequest = EventHandlerRequest,
+  TResponse = EventHandlerResponse,
+>(handler: EventHandler<TRequest, TResponse>): EventHandlerWithFetch<TRequest, TResponse> {
   if ("fetch" in handler) {
-    return handler as EventHandlerWithFetch<Req, Res>;
+    return handler as EventHandlerWithFetch<TRequest, TResponse>;
   }
   return Object.assign(handler, {
     fetch: (req: ServerRequest | URL | string): Promise<Response> => {
@@ -117,7 +124,7 @@ function handlerWithFetch<
       if (req instanceof URL) {
         req = new Request(req);
       }
-      const event = new H3Event(req) as H3Event<Req>;
+      const event = new H3Event(req) as H3Event<TRequest>;
       try {
         return Promise.resolve(toResponse(handler(event), event));
       } catch (error: any) {
@@ -147,9 +154,9 @@ export function dynamicEventHandler(initial?: EventHandler | FetchableObject): D
 
 type MaybePromise<T> = T | Promise<T>;
 
-export function defineLazyEventHandler<_RequestT extends EventHandlerRequest = EventHandlerRequest>(
-  loader: () => MaybePromise<HTTPHandler<_RequestT>>,
-): EventHandlerWithFetch<ResolvedRequest<_RequestT>> {
+export function defineLazyEventHandler<TRequest extends EventHandlerRequest = EventHandlerRequest>(
+  loader: () => MaybePromise<HTTPHandler<TRequest>>,
+): EventHandlerWithFetch<ResolvedRequest<TRequest>> {
   let handler: EventHandler | undefined;
   let promise: Promise<EventHandler> | undefined;
   return defineHandler(function lazyHandler(event) {
@@ -167,14 +174,14 @@ export function defineLazyEventHandler<_RequestT extends EventHandlerRequest = E
 
 // --- normalization utils ---
 
-export function toEventHandler<_RequestT extends EventHandlerRequest = EventHandlerRequest>(
-  handler: HTTPHandler<_RequestT> | undefined,
-): EventHandler<ResolvedRequest<_RequestT>> | undefined {
+export function toEventHandler<TRequest extends EventHandlerRequest = EventHandlerRequest>(
+  handler: HTTPHandler<TRequest> | undefined,
+): EventHandler<ResolvedRequest<TRequest>> | undefined {
   if (typeof handler === "function") {
-    return handler as EventHandler<ResolvedRequest<_RequestT>>;
+    return handler as EventHandler<ResolvedRequest<TRequest>>;
   }
   if (typeof (handler as H3Core)?.handler === "function" && (handler as any).constructor?.["~h3"]) {
-    return (handler as H3Core).handler as EventHandler<ResolvedRequest<_RequestT>>;
+    return (handler as H3Core).handler as EventHandler<ResolvedRequest<TRequest>>;
   }
   if (typeof (handler as FetchableObject)?.fetch === "function") {
     return function _fetchHandler(event: H3Event) {

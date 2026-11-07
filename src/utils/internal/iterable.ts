@@ -1,13 +1,13 @@
 import { textEncoder } from "./encoding.ts";
 
-export type IterationSource<Val, Ret = Val> =
-  | Iterable<Val>
-  | AsyncIterable<Val>
-  | Iterator<Val, Ret | undefined>
-  | AsyncIterator<Val, Ret | undefined>
-  | (() => Iterator<Val, Ret | undefined> | AsyncIterator<Val, Ret | undefined>);
+export type IterationSource<TVal, TRet = TVal> =
+  | Iterable<TVal>
+  | AsyncIterable<TVal>
+  | Iterator<TVal, TRet | undefined>
+  | AsyncIterator<TVal, TRet | undefined>
+  | (() => Iterator<TVal, TRet | undefined> | AsyncIterator<TVal, TRet | undefined>);
 
-export type IteratorSerializer<Value> = (value: Value) => Uint8Array | undefined;
+export type IteratorSerializer<TValue> = (value: TValue) => Uint8Array | undefined;
 
 /**
  * The default implementation for {@link iterable}'s `serializer` argument.
