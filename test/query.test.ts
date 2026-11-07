@@ -137,6 +137,31 @@ describeMatrix("query utils", (t, { it, expect, describe }) => {
       expect(res.status).toBe(422);
     });
 
+    it("throws 422 for malformed Content-Type under wildcard acceptance (RFC 9110 §8.3.1, #1633)", async () => {
+      t.app.query("/malformed-wildcard", (event) => requireContentType(event, ["application/*"]));
+
+      const extraSlash = await t.fetch("/malformed-wildcard", {
+        method: "QUERY",
+        body: "x",
+        headers: { "content-type": "application/json/extra" },
+      });
+      expect(extraSlash.status).toBe(422);
+
+      const junk = await t.fetch("/malformed-wildcard", {
+        method: "QUERY",
+        body: "x",
+        headers: { "content-type": "application/json junk" },
+      });
+      expect(junk.status).toBe(422);
+
+      const parens = await t.fetch("/malformed-wildcard", {
+        method: "QUERY",
+        body: "x",
+        headers: { "content-type": "application/(json)" },
+      });
+      expect(parens.status).toBe(422);
+    });
+
     it("supports wildcard subtypes", async () => {
       t.app.query("/wildcard", (event) => requireContentType(event, "application/*"));
       const res = await t.fetch("/wildcard", {

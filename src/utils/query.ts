@@ -59,6 +59,10 @@ export function appendAcceptQuery(event: H3Event, mediaTypes: string | string[])
  * @param acceptedTypes An accepted media type or an array of them.
  * @returns The matched request media type (lower-cased, without parameters).
  */
+// HTTP token: 1*tchar (RFC 9110 §5.6.2 and §8.3.1)
+// media-type = type "/" subtype *( OWS ";" OWS parameter )
+const MEDIA_TYPE_RE = /^[!#$%&'*+\-.^_`|~0-9a-zA-Z]+\/[!#$%&'*+\-.^_`|~0-9a-zA-Z]+$/;
+
 export function requireContentType(event: HTTPEvent, acceptedTypes: string | string[]): string {
   const header = event.req.headers.get("content-type");
   if (!header) {
@@ -70,8 +74,7 @@ export function requireContentType(event: HTTPEvent, acceptedTypes: string | str
   }
 
   const mediaType = header.split(";")[0].trim().toLowerCase();
-  const slash = mediaType.indexOf("/");
-  if (slash <= 0 || slash === mediaType.length - 1) {
+  if (!MEDIA_TYPE_RE.test(mediaType)) {
     throw new HTTPError({
       status: 422,
       statusText: "Unprocessable Content",
