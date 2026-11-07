@@ -111,29 +111,29 @@ export function toRequest(
  */
 export function getQuery<
   T,
-  Event extends H3Event | HTTPEvent = HTTPEvent,
-  _T = Exclude<InferEventInput<"query", Event, T>, undefined>,
->(event: Event): _T {
+  TEvent extends H3Event | HTTPEvent = HTTPEvent,
+  TQuery = Exclude<InferEventInput<"query", TEvent, T>, undefined>,
+>(event: TEvent): TQuery {
   const url = (event as H3Event).url || new URL(event.req.url);
-  return parseQuery(url.search.slice(1)) as _T;
+  return parseQuery(url.search.slice(1)) as TQuery;
 }
 
-export function getValidatedQuery<Event extends HTTPEvent, S extends StandardSchemaV1<any, any>>(
-  event: Event,
+export function getValidatedQuery<TEvent extends HTTPEvent, S extends StandardSchemaV1<any, any>>(
+  event: TEvent,
   validate: S,
   options?: { onError?: (result: FailureResult) => ErrorDetails },
 ): Promise<InferOutput<S>>;
 export function getValidatedQuery<
-  Event extends HTTPEvent,
-  OutputT,
-  InputT = InferEventInput<"query", Event, OutputT>,
+  TEvent extends HTTPEvent,
+  TOutput,
+  TInput = InferEventInput<"query", TEvent, TOutput>,
 >(
-  event: Event,
-  validate: (data: InputT) => ValidateResult<OutputT> | Promise<ValidateResult<OutputT>>,
+  event: TEvent,
+  validate: (data: TInput) => ValidateResult<TOutput> | Promise<ValidateResult<TOutput>>,
   options?: {
     onError?: () => ErrorDetails;
   },
-): Promise<OutputT>;
+): Promise<TOutput>;
 /**
  * Get the query param from the request URL validated with validate function.
  *
@@ -244,8 +244,8 @@ export function getRouterParams(
   return params;
 }
 
-export function getValidatedRouterParams<Event extends HTTPEvent, S extends StandardSchemaV1>(
-  event: Event,
+export function getValidatedRouterParams<TEvent extends HTTPEvent, S extends StandardSchemaV1>(
+  event: TEvent,
   validate: S,
   options?: {
     decode?: boolean;
@@ -253,17 +253,17 @@ export function getValidatedRouterParams<Event extends HTTPEvent, S extends Stan
   },
 ): Promise<InferOutput<S>>;
 export function getValidatedRouterParams<
-  Event extends HTTPEvent,
-  OutputT,
-  InputT = InferEventInput<"routerParams", Event, OutputT>,
+  TEvent extends HTTPEvent,
+  TOutput,
+  TInput = InferEventInput<"routerParams", TEvent, TOutput>,
 >(
-  event: Event,
-  validate: (data: InputT) => ValidateResult<OutputT> | Promise<ValidateResult<OutputT>>,
+  event: TEvent,
+  validate: (data: TInput) => ValidateResult<TOutput> | Promise<ValidateResult<TOutput>>,
   options?: {
     decode?: boolean;
     onError?: () => ErrorDetails;
   },
-): Promise<OutputT>;
+): Promise<TOutput>;
 /**
  * Get matched route params and validate with validate function.
  *

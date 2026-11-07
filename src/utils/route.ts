@@ -13,24 +13,24 @@ import { normalizeRoute } from "./internal/path.ts";
  * default request type otherwise (so a bare `RouteDefinition` stays untyped).
  */
 type RouteRequest<
-  RequestBody extends StandardSchemaV1,
-  RequestHeaders extends StandardSchemaV1,
-  RequestQuery extends StandardSchemaV1,
+  TRequestBody extends StandardSchemaV1,
+  TRequestHeaders extends StandardSchemaV1,
+  TRequestQuery extends StandardSchemaV1,
 > = [StandardSchemaV1, StandardSchemaV1, StandardSchemaV1] extends [
-  RequestBody,
-  RequestHeaders,
-  RequestQuery,
+  TRequestBody,
+  TRequestHeaders,
+  TRequestQuery,
 ]
   ? EventHandlerRequest
-  : ValidatedRequest<RequestBody, RequestHeaders, RequestQuery>;
+  : ValidatedRequest<TRequestBody, TRequestHeaders, TRequestQuery>;
 
 /**
  * Route definition options
  */
 export interface RouteDefinition<
-  RequestBody extends StandardSchemaV1 = StandardSchemaV1,
-  RequestHeaders extends StandardSchemaV1 = StandardSchemaV1,
-  RequestQuery extends StandardSchemaV1 = StandardSchemaV1,
+  TRequestBody extends StandardSchemaV1 = StandardSchemaV1,
+  TRequestHeaders extends StandardSchemaV1 = StandardSchemaV1,
+  TRequestQuery extends StandardSchemaV1 = StandardSchemaV1,
 > {
   /**
    * HTTP method for the route, e.g. 'GET', 'POST', etc.
@@ -45,7 +45,7 @@ export interface RouteDefinition<
   /**
    * Handler function for the route.
    */
-  handler: EventHandler<RouteRequest<RequestBody, RequestHeaders, RequestQuery>>;
+  handler: EventHandler<RouteRequest<TRequestBody, TRequestHeaders, TRequestQuery>>;
 
   /**
    * Optional middleware to run before the handler.
@@ -61,9 +61,9 @@ export interface RouteDefinition<
    * Validation schemas for the request body, headers and query.
    */
   validate?: {
-    body?: RequestBody;
-    headers?: RequestHeaders;
-    query?: RequestQuery;
+    body?: TRequestBody;
+    headers?: TRequestHeaders;
+    query?: TRequestQuery;
     onError?: OnValidateError;
   };
 }
@@ -90,10 +90,10 @@ export interface RouteDefinition<
  * ```
  */
 export function defineRoute<
-  RequestBody extends StandardSchemaV1 = StandardSchemaV1,
-  RequestHeaders extends StandardSchemaV1 = StandardSchemaV1,
-  RequestQuery extends StandardSchemaV1 = StandardSchemaV1,
->(def: RouteDefinition<RequestBody, RequestHeaders, RequestQuery>): H3Plugin {
+  TRequestBody extends StandardSchemaV1 = StandardSchemaV1,
+  TRequestHeaders extends StandardSchemaV1 = StandardSchemaV1,
+  TRequestQuery extends StandardSchemaV1 = StandardSchemaV1,
+>(def: RouteDefinition<TRequestBody, TRequestHeaders, TRequestQuery>): H3Plugin {
   const handler = defineValidatedHandler(def) as any;
   return (h3: H3) => {
     h3.on(def.method, def.route, handler);

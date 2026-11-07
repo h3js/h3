@@ -158,9 +158,9 @@ export declare class H3Core {
  * Registers a route handler, inferring the handler request type when it has one.
  */
 export interface RouteRegistrar<T> {
-  <_RequestT extends EventHandlerRequest = EventHandlerRequest>(
+  <TRequest extends EventHandlerRequest = EventHandlerRequest>(
     route: string,
-    handler: HTTPHandler<_RequestT>,
+    handler: HTTPHandler<TRequest>,
     opts?: RouteOptions,
   ): T;
 }
@@ -191,10 +191,10 @@ export declare class H3 extends H3Core {
   /**
    * Register a route handler for the specified HTTP method and route.
    */
-  on<_RequestT extends EventHandlerRequest = EventHandlerRequest>(
+  on<TRequest extends EventHandlerRequest = EventHandlerRequest>(
     method: HTTPMethod | Lowercase<HTTPMethod> | "",
     route: string,
-    handler: HTTPHandler<_RequestT>,
+    handler: HTTPHandler<TRequest>,
     opts?: RouteOptions,
   ): this;
 

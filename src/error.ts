@@ -3,7 +3,7 @@ import { sanitizeStatusMessage, sanitizeStatusCode } from "./utils/sanitize.ts";
 /**
  * Raw object describing HTTP error (passed to `HTTPError` constructor).
  */
-export interface ErrorInput<DataT = unknown> extends Partial<ErrorBody<DataT>> {
+export interface ErrorInput<TData = unknown> extends Partial<ErrorBody<TData>> {
   /**
    * Original error object that caused this error.
    */
@@ -27,7 +27,7 @@ export interface ErrorInput<DataT = unknown> extends Partial<ErrorBody<DataT>> {
 
 export type ErrorDetails = (Error & { cause?: unknown }) | HTTPError | ErrorInput;
 
-export interface ErrorBody<DataT = unknown> {
+export interface ErrorBody<TData = unknown> {
   /**
    * HTTP status code in range [200...599]
    */
@@ -60,7 +60,7 @@ export interface ErrorBody<DataT = unknown> {
   /**
    * Additional data to attach in the error JSON body under `data` key.
    */
-  data?: DataT;
+  data?: TData;
 
   /**
    * Additional top level JSON body properties to attach in the error JSON body.
@@ -71,7 +71,7 @@ export interface ErrorBody<DataT = unknown> {
 /**
  * HTTPError
  */
-export class HTTPError<DataT = unknown> extends Error implements ErrorBody<DataT> {
+export class HTTPError<TData = unknown> extends Error implements ErrorBody<TData> {
   override get name(): string {
     return "HTTPError";
   }
@@ -104,7 +104,7 @@ export class HTTPError<DataT = unknown> extends Error implements ErrorBody<DataT
   /**
    * Additional data attached in the error JSON body under `data` key.
    */
-  readonly data: DataT | undefined;
+  readonly data: TData | undefined;
 
   /**
    * Additional top level JSON body properties to attach in the error JSON body.
@@ -205,7 +205,7 @@ export class HTTPError<DataT = unknown> extends Error implements ErrorBody<DataT
     this.unhandled =
       (details as ErrorBody)?.unhandled ?? (details?.cause as ErrorBody)?.unhandled ?? undefined;
 
-    this.data = (details as ErrorBody)?.data as DataT | undefined;
+    this.data = (details as ErrorBody)?.data as TData | undefined;
     this.body = (details as ErrorBody)?.body;
   }
 

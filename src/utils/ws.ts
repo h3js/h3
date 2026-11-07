@@ -49,14 +49,14 @@ export function defineWebSocketHandler(
 export function defineWebSocketHandler(
   hooks: (event: H3Event) => Partial<WebSocketHooks> | Promise<Partial<WebSocketHooks>>,
 ): EventHandler<EventHandlerRequest, EventHandlerResponse<WebSocketResponse>>;
-export function defineWebSocketHandler<Http extends EventHandler>(
+export function defineWebSocketHandler<THttp extends EventHandler>(
   hooks: Partial<WebSocketHooks>,
-  http: Http,
-): EventHandler<EventHandlerRequest, WebSocketResponse | ReturnType<Http>>;
-export function defineWebSocketHandler<Http extends EventHandler>(
+  http: THttp,
+): EventHandler<EventHandlerRequest, WebSocketResponse | ReturnType<THttp>>;
+export function defineWebSocketHandler<THttp extends EventHandler>(
   hooks: (event: H3Event) => Partial<WebSocketHooks> | Promise<Partial<WebSocketHooks>>,
-  http: Http,
-): EventHandler<EventHandlerRequest, EventHandlerResponse<WebSocketResponse> | ReturnType<Http>>;
+  http: THttp,
+): EventHandler<EventHandlerRequest, EventHandlerResponse<WebSocketResponse> | ReturnType<THttp>>;
 /**
  * Define WebSocket event handler.
  *

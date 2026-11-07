@@ -153,11 +153,11 @@ export function createEventStream(event: H3Event, opts?: EventStreamOptions): Ev
 }
 
 /** @deprecated Please use `return iterable(event, value)` */
-export const sendIterable: <Value = unknown, Return = unknown>(
+export const sendIterable: <TValue = unknown, TReturn = unknown>(
   _event: H3Event,
-  val: IterationSource<Value, Return>,
+  val: IterationSource<TValue, TReturn>,
   options?: {
-    serializer: IteratorSerializer<Value | Return>;
+    serializer: IteratorSerializer<TValue | TReturn>;
   },
 ) => Promise<HTTPResponse> = (_event, val, options) => {
   return iterable(val, options);

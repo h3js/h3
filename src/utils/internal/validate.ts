@@ -6,14 +6,14 @@ import { EmptyObject } from "./obj.ts";
 
 export type ValidateResult<T> = T | true | false | void;
 
-export type ValidateFunction<T, Schema extends StandardSchemaV1 = StandardSchemaV1<any, T>> =
-  | Schema
+export type ValidateFunction<T, TSchema extends StandardSchemaV1 = StandardSchemaV1<any, T>> =
+  | TSchema
   | ((data: unknown) => ValidateResult<T> | Promise<ValidateResult<T>>);
 
 export type ValidateIssues = ReadonlyArray<Issue>;
 
-export type OnValidateError<Source extends string = string> = (
-  result: FailureResult & { _source?: Source },
+export type OnValidateError<TSource extends string = string> = (
+  result: FailureResult & { _source?: TSource },
 ) => ErrorDetails;
 
 const VALIDATION_FAILED = "Validation failed";
@@ -27,11 +27,11 @@ const VALIDATION_FAILED = "Validation failed";
  * @returns A Promise that resolves with the validated data if it passes validation, meaning the validation function does not throw and returns a value other than false.
  * @throws {ValidationError} If the validation function returns false or throws an error.
  */
-export async function validateData<Schema extends StandardSchemaV1>(
+export async function validateData<TSchema extends StandardSchemaV1>(
   data: unknown,
-  fn: Schema,
+  fn: TSchema,
   options?: { onError?: OnValidateError },
-): Promise<InferOutput<Schema>>;
+): Promise<InferOutput<TSchema>>;
 export async function validateData<T>(
   data: unknown,
   fn: (data: unknown) => ValidateResult<T> | Promise<ValidateResult<T>>,
@@ -77,13 +77,13 @@ export async function validateData<T>(
 const reqBodyKeys = /* @__PURE__ */ new Set(["body", "text", "formData", "arrayBuffer"]);
 
 export async function validatedRequest<
-  RequestBody extends StandardSchemaV1,
-  RequestHeaders extends StandardSchemaV1,
+  TRequestBody extends StandardSchemaV1,
+  TRequestHeaders extends StandardSchemaV1,
 >(
   req: ServerRequest,
   validate: {
-    body?: RequestBody;
-    headers?: RequestHeaders;
+    body?: TRequestBody;
+    headers?: TRequestHeaders;
     onError?: OnValidateError;
   },
 ): Promise<ServerRequest> {
@@ -196,8 +196,8 @@ export async function validatedURL(
   return url;
 }
 
-async function validateSource<Source extends "headers" | "query", T = unknown>(
-  source: Source,
+async function validateSource<TSource extends "headers" | "query", T = unknown>(
+  source: TSource,
   data: unknown,
   fn: StandardSchemaV1<T>,
   onError?: OnValidateError,
