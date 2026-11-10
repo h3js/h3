@@ -413,12 +413,16 @@ export async function proxy(
   // `Connection` header (RFC 9110 §7.6.1), on top of the static denylist.
   const connectionNominated = connectionTokens(response.headers.get("connection"));
 
-  // Fetch decodes encoded bodies without updating their headers. Preserve the
-  // upstream length only when it still describes the streamed body. CORS can
-  // hide Content-Encoding, so keep stripping lengths for filtered responses.
+  // Fetch can decode bodies without updating headers; CORS can hide the encoding.
+  // Without a body, a nonzero length is only meaningful for downstream HEAD or 304.
   const contentEncoding = response.headers.get("content-encoding")?.toLowerCase();
   const preserveContentLength =
-    response.type !== "cors" && (!contentEncoding || contentEncoding === "identity");
+    response.type !== "cors" &&
+    (!contentEncoding || contentEncoding === "identity") &&
+    (response.body !== null ||
+      response.headers.get("content-length") === "0" ||
+      event.req.method === "HEAD" ||
+      response.status === 304);
 
   for (const [key, value] of response.headers.entries()) {
     if (

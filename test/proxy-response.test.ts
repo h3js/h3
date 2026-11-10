@@ -70,6 +70,34 @@ describeMatrix("proxy response content-length", (t, { it, expect }) => {
     expect(await res.text()).toBe("");
   });
 
+  it("does not send a HEAD representation length for a downstream GET", async () => {
+    t.app.all("/upstream", (event) => {
+      expect(event.req.method).toBe("HEAD");
+      return new Response(null, { headers: { "content-length": "5" } });
+    });
+    t.app.all("/", (event) =>
+      proxyRequest(event, upstream(), { fetchOptions: { method: "HEAD" } }),
+    );
+
+    const res = await t.fetch("/");
+    expect(res.status).toBe(200);
+    expect(res.headers.has("content-length")).toBe(false);
+    expect(await res.text()).toBe("");
+  });
+
+  it("preserves the representation length for 304", async () => {
+    t.app.all(
+      "/upstream",
+      () => new Response(null, { status: 304, headers: { "content-length": "100" } }),
+    );
+    t.app.all("/", (event) => proxyRequest(event, upstream()));
+
+    const res = await t.fetch("/");
+    expect(res.status).toBe(304);
+    expect(res.headers.get("content-length")).toBe("100");
+    expect(await res.text()).toBe("");
+  });
+
   for (const [encoding, compress] of [
     ["gzip", gzipSync],
     ["deflate", deflateSync],
