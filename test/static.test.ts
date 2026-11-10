@@ -730,7 +730,7 @@ describeMatrix("serve static index resolution", (t, { it, expect }) => {
     expect(await docsSlashRes.text()).toBe("docs-index");
   });
 
-  it("never looks up double-slash index candidates", async () => {
+  it("does not add a double slash when joining indexNames", async () => {
     const options = createOptions(["/index.html", "index.html", "//index.html"]);
     const getMeta = vi.fn(options.getMeta);
     t.app.all("/**", (event) => serveStatic(event, { ...options, getMeta }));
