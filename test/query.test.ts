@@ -75,6 +75,63 @@ describeMatrix("query utils", (t, { it, expect, describe }) => {
   });
 
   describe("requireContentType", () => {
+    for (const accepted of ["application/*", "*/*", "application/json"]) {
+      for (const contentType of [
+        "application/json/extra",
+        "application/json junk",
+        "application/(json)",
+        "app(lication/json",
+        "application/josón",
+        "application/json, text/plain",
+        "application / json",
+      ]) {
+        it(`rejects malformed type/subtype ${contentType} when accepting ${accepted}`, async () => {
+          t.app.post("/tokens", (event) => requireContentType(event, accepted));
+
+          const res = await t.fetch("/tokens", {
+            method: "POST",
+            headers: { "content-type": contentType },
+          });
+
+          expect(res.status).toBe(422);
+        });
+      }
+    }
+
+    for (const accepted of ["application/*", "*/*", "*"]) {
+      for (const contentType of ["*/*", "application/*", "*/json"]) {
+        it(`rejects wildcard request type ${contentType} when accepting ${accepted}`, async () => {
+          t.app.post("/wildcard", (event) => requireContentType(event, accepted));
+
+          const res = await t.fetch("/wildcard", {
+            method: "POST",
+            headers: { "content-type": contentType },
+          });
+
+          expect(res.status).toBe(415);
+        });
+      }
+    }
+
+    for (const [contentType, expected] of [
+      ["application/vnd.example+json", "application/vnd.example+json"],
+      ["1application/x-example", "1application/x-example"],
+      ["application/x!#$%&'*+-.^_`|~", "application/x!#$%&'*+-.^_`|~"],
+      ['APPLICATION/JSON; charset="utf-8"', "application/json"],
+    ] as const) {
+      it(`preserves valid HTTP media type tokens in ${contentType}`, async () => {
+        t.app.post("/valid-tokens", (event) => requireContentType(event, "*/*"));
+
+        const res = await t.fetch("/valid-tokens", {
+          method: "POST",
+          headers: { "content-type": contentType },
+        });
+
+        expect(res.status).toBe(200);
+        expect(await res.text()).toBe(expected);
+      });
+    }
+
     it("passes and returns the matched media type", async () => {
       t.app.query("/typed", (event) => {
         return requireContentType(event, ["application/sql", "application/jsonpath"]);

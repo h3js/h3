@@ -46,7 +46,8 @@ export function appendAcceptQuery(event: H3Event, mediaTypes: string | string[])
  * - `415 Unsupported Media Type` if the media type is not accepted.
  *
  * Accepted types may use wildcards: `*` / `*&#47;*` match anything and
- * `type/*` matches any subtype of `type`.
+ * `type/*` matches any subtype of `type`. A wildcard request media type
+ * (e.g. `*&#47;*` or `type/*`) is not a concrete type and is never accepted.
  *
  * @example
  * app.query("/search", async (event) => {
@@ -70,8 +71,7 @@ export function requireContentType(event: HTTPEvent, acceptedTypes: string | str
   }
 
   const mediaType = header.split(";")[0].trim().toLowerCase();
-  const slash = mediaType.indexOf("/");
-  if (slash <= 0 || slash === mediaType.length - 1) {
+  if (!MEDIA_TYPE_RE.test(mediaType)) {
     throw new HTTPError({
       status: 422,
       statusText: "Unprocessable Content",
@@ -83,7 +83,11 @@ export function requireContentType(event: HTTPEvent, acceptedTypes: string | str
   // Strip parameters from accepted entries too so a parameterized accepted type
   // (e.g. "application/json; charset=utf-8") still matches the parameter-less
   // request media type computed above.
+  // A wildcard is a valid token but not a concrete media type, so a request
+  // `*/*` or `type/*` must not satisfy a wildcard accepted type.
+  const isWildcard = mediaType.startsWith("*/") || mediaType.endsWith("/*");
   if (
+    !isWildcard &&
     accepted.some((type) => mediaTypeMatches(mediaType, type.split(";")[0].trim().toLowerCase()))
   ) {
     return mediaType;
@@ -97,6 +101,9 @@ export function requireContentType(event: HTTPEvent, acceptedTypes: string | str
 }
 
 // --- internal helpers ---
+
+// RFC 9110 media-type: a nonempty HTTP token on each side of a single slash.
+const MEDIA_TYPE_RE = /^[\w!#$%&'*+.^`|~-]+\/[\w!#$%&'*+.^`|~-]+$/;
 
 // sf-token: ( ALPHA / "*" ) *( tchar / ":" / "/" ) — https://www.rfc-editor.org/rfc/rfc8941#section-3.3.4
 const SF_TOKEN_RE = /^[A-Za-z*][\w!#$%&'*+.^`|~:/-]*$/;
