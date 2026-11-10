@@ -419,12 +419,8 @@ export async function proxy(
   const preserveContentLength =
     response.status !== 204 &&
     response.type !== "cors" &&
-    !response.headers.has("transfer-encoding") &&
     (!contentEncoding || contentEncoding === "identity") &&
-    (response.body !== null ||
-      response.headers.get("content-length") === "0" ||
-      event.req.method === "HEAD" ||
-      response.status === 304);
+    (response.body !== null || event.req.method === "HEAD" || response.status === 304);
 
   for (const [key, value] of response.headers.entries()) {
     if (

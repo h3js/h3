@@ -52,15 +52,6 @@ describeMatrix("proxy response content-length", (t, { it, expect }) => {
     expect(await res.text()).toBe("hello");
   });
 
-  it("preserves a zero content-length", async () => {
-    t.app.all("/upstream", () => new Response(null, { headers: { "content-length": "0" } }));
-    t.app.all("/", (event) => proxyRequest(event, upstream()));
-
-    const res = await t.fetch("/");
-    expect(res.headers.get("content-length")).toBe("0");
-    expect(await res.text()).toBe("");
-  });
-
   it("preserves the representation length for HEAD", async () => {
     t.app.all("/upstream", () => new Response(null, { headers: { "content-length": "100" } }));
     t.app.all("/", (event) => proxyRequest(event, upstream()));
@@ -119,25 +110,6 @@ describeMatrix("proxy response content-length", (t, { it, expect }) => {
       expect(await res.text()).toBe("");
     });
   }
-
-  it("drops content-length when transfer-encoding is present", async () => {
-    t.app.all(
-      "/upstream",
-      () =>
-        new Response("hello", {
-          headers: { "transfer-encoding": "chunked", "content-length": "100" },
-        }),
-    );
-    // Internal responses bypass the HTTP parser that rejects conflicting headers.
-    t.app.all("/", (event) => proxyRequest(event, "/upstream"));
-
-    const res = await t.fetch("/");
-    expect(res.headers.has("content-length")).toBe(false);
-    if (t.target === "web") {
-      expect(res.headers.has("transfer-encoding")).toBe(false);
-    }
-    expect(await res.text()).toBe("hello");
-  });
 
   for (const [encoding, compress] of [
     ["gzip", gzipSync],
