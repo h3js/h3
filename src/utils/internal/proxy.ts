@@ -55,13 +55,11 @@ export function connectionTokens(connection: string | null): Set<string> {
 }
 
 /**
- * Hop-by-hop response headers (plus length/encoding headers that fetch has
- * already normalized) that must be stripped from the upstream response instead
- * of being relayed to the client.
+ * Hop-by-hop response headers and the encoding header normalized by fetch.
+ * Content-Length is handled separately because decoded bodies need a new length.
  */
 export const ignoredResponseHeaders: Set<string> = /* @__PURE__ */ new Set([
   "content-encoding",
-  "content-length",
   "transfer-encoding",
   "connection",
   "keep-alive",
