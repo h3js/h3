@@ -96,6 +96,40 @@ describeMatrix("iterable", (t, { it, expect, describe }) => {
       expect(serialized).toEqual(["a"]);
     });
 
+    it("absorbs a rejected iterator cleanup when the response is cancelled", async () => {
+      const unhandled: unknown[] = [];
+      const onUnhandled = (reason: unknown) => unhandled.push(reason);
+      process.on("unhandledRejection", onUnhandled);
+      try {
+        let cleanedUp = false;
+        t.app.use(() =>
+          iterable(async function* () {
+            try {
+              for (;;) {
+                yield "a";
+                await new Promise((resolve) => setTimeout(resolve, 5));
+              }
+            } finally {
+              cleanedUp = true;
+              // oxlint-disable-next-line no-unsafe-finally
+              throw new Error("cleanup failed");
+            }
+          }),
+        );
+        const controller = new AbortController();
+        const result = await t.fetch("/", { signal: controller.signal });
+        const reader = result.body!.getReader();
+        await reader.read();
+        controller.abort();
+        reader.cancel().catch(() => {});
+        await vi.waitFor(() => expect(cleanedUp).toBe(true));
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        expect(unhandled).toEqual([]);
+      } finally {
+        process.off("unhandledRejection", onUnhandled);
+      }
+    });
+
     describe("iterable support", () => {
       const cases: [string, () => unknown][] = [
         ["Array", () => ["the-value"]],

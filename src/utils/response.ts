@@ -253,7 +253,11 @@ export async function iterable<Value = unknown, Return = unknown>(
       },
       cancel() {
         cancelled = true;
-        iterator.return?.();
+        // Nobody awaits a cancelled body (e.g. client disconnect), so a failing cleanup
+        // (sync throw or rejected `return()`) must not surface as an unhandled rejection.
+        try {
+          Promise.resolve(iterator.return?.()).catch(() => {});
+        } catch {}
       },
     }),
   );
