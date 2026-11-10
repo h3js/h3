@@ -3,6 +3,7 @@ import {
   HTTPError,
   defineHandler,
   handleCacheHeaders,
+  setServerTiming,
   toResponse,
   withCacheIsolation,
 } from "../src/index.ts";
@@ -199,6 +200,42 @@ describeMatrix("withCacheIsolation", (t, { it, expect }) => {
     expect(await res.text()).toBe("plain");
     expect(res.headers.get("x-echo")).toBe("a");
     expect(res.headers.get("x-handler")).toBe("1");
+  });
+
+  it("keeps middleware and handler `Server-Timing` entries, middleware first", async () => {
+    const cached = createCached((event) => {
+      setServerTiming(event, "handler", { dur: 2 });
+      return "hello";
+    });
+    t.app.use((event) => {
+      setServerTiming(event, "mw", { dur: 1 });
+    });
+    t.app.get(
+      "/cached",
+      defineHandler((event) => cached(event)),
+    );
+
+    const miss = await t.fetch("/cached");
+    expect(miss.headers.get("server-timing")).toBe("mw;dur=1, handler;dur=2");
+    // The handler's metrics describe the request that filled the entry.
+    const hit = await t.fetch("/cached");
+    expect(hit.headers.get("server-timing")).toBe("mw;dur=1");
+  });
+
+  it("keeps both `Server-Timing` sides for a handler that does not return a `Response`", async () => {
+    t.app.use((event) => {
+      setServerTiming(event, "mw", { dur: 1 });
+    });
+    t.app.get(
+      "/plain",
+      withCacheIsolation((event) => {
+        setServerTiming(event, "handler", { dur: 2 });
+        return "plain";
+      }),
+    );
+
+    const res = await t.fetch("/plain");
+    expect(res.headers.get("server-timing")).toBe("mw;dur=1, handler;dur=2");
   });
 
   it("restores staged headers when the handler throws", async () => {

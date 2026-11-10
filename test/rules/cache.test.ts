@@ -1,4 +1,4 @@
-import { H3, HTTPError, defineHandler, setCookie } from "../../src/index.ts";
+import { H3, HTTPError, defineHandler, setCookie, setServerTiming } from "../../src/index.ts";
 import type { EventHandler } from "../../src/index.ts";
 import { describe, expect, it, vi } from "vitest";
 import { routeRules } from "../../src/rules/middleware.ts";
@@ -348,6 +348,45 @@ describe("cache rule (isolation & credential safety)", () => {
     expect(hit.headers.get("x-cache")).toBe("HIT");
     expect(await hit.json()).toEqual({ calls: 1 });
     expect(hit.headers.get("set-cookie")).toBeNull();
+  });
+
+  it("does not replay a handler's `Server-Timing` from the cache", async () => {
+    // Metrics describe the request that filled the entry. They stay on that
+    // response, after the entries staged by earlier middleware.
+    const app = new H3();
+    app.use((event) => {
+      setServerTiming(event, "mw", { dur: 1 });
+    });
+    app.use(
+      routeRules({ "/st/**": { swr: 60 } }, { handlers: { cache: createOcacheRuleHandler() } }),
+    );
+    app.get("/st/page", (event) => {
+      setServerTiming(event, "handler", { dur: 2 });
+      return "ok";
+    });
+
+    const miss = await app.fetch(new Request("http://test/st/page"));
+    expect(miss.headers.get("x-cache")).toBe("MISS");
+    expect(miss.headers.get("server-timing")).toBe("mw;dur=1, handler;dur=2");
+
+    const hit = await app.fetch(new Request("http://test/st/page"));
+    expect(hit.headers.get("x-cache")).toBe("HIT");
+    expect(hit.headers.get("server-timing")).toBe("mw;dur=1");
+  });
+
+  it("does not replay a handler's `Server-Timing` without middleware entries", async () => {
+    const app = createApp({ "/st/**": { swr: 60 } }, createOcacheRuleHandler());
+    app.get("/st/page", (event) => {
+      setServerTiming(event, "handler", { dur: 2 });
+      return "ok";
+    });
+
+    const miss = await app.fetch(new Request("http://test/st/page"));
+    expect(miss.headers.get("server-timing")).toBe("handler;dur=2");
+
+    const hit = await app.fetch(new Request("http://test/st/page"));
+    expect(hit.headers.get("x-cache")).toBe("HIT");
+    expect(hit.headers.get("server-timing")).toBeNull();
   });
 
   it("does not replay an allowlisted cookie from the cache either (F15)", async () => {

@@ -71,6 +71,12 @@ export function withStagedHeaders(res: Response, staged: Headers): Response {
   }
   const headers = new Headers(res.headers);
   mergeStagedHeaders(headers, staged);
+  // Middleware ran first, so its `Server-Timing` entries go before the handler's.
+  const timing = res.headers.get("server-timing");
+  const stagedTiming = staged.get("server-timing");
+  if (timing !== null && stagedTiming !== null) {
+    headers.set("server-timing", `${stagedTiming}, ${timing}`);
+  }
   return new Response(res.body, { status: res.status, statusText: res.statusText, headers });
 }
 
@@ -87,11 +93,12 @@ export function reattachStagedHeaders(event: H3Event, staged: Headers): void {
 /**
  * Merge `source` into `target` the way h3 merges staged headers into a
  * response, except that `Vary` lists are joined: the entry's own `Vary`
- * declares its cache key and must not be replaced by a staged one.
+ * declares its cache key and must not be replaced by a staged one. Each side's
+ * `Server-Timing` entries measure different work, so both are kept.
  */
 function mergeStagedHeaders(target: Headers, source: Headers): void {
   for (const [name, value] of source) {
-    if (name === "set-cookie") {
+    if (name === "set-cookie" || name === "server-timing") {
       target.append(name, value);
     } else if (name === "vary" && target.has("vary")) {
       appendVary(target, value);
