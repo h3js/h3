@@ -26,12 +26,18 @@ describeMatrix("iterable", (t, { it, expect, describe }) => {
 
     it("stops reading skipped values once the response is cancelled", async () => {
       let reads = 0;
-      // No `return()`, so cancelling can only stop the reads, not end the iterator.
+      let returned = false;
+      // `return()` only records the cancel; `next()` keeps producing skipped values,
+      // so only the stream itself can stop the reads.
       const iterator = {
         async next() {
           reads++;
           await new Promise((resolve) => setTimeout(resolve, 5));
           return { value: reads === 1 ? "a" : undefined, done: reads > 200 };
+        },
+        async return() {
+          returned = true;
+          return { value: undefined, done: true as const };
         },
       };
       t.app.use(() => iterable(iterator));
@@ -41,15 +47,17 @@ describeMatrix("iterable", (t, { it, expect, describe }) => {
       await reader.read();
       controller.abort();
       reader.cancel().catch(() => {});
-      await new Promise((resolve) => setTimeout(resolve, 100));
-      const readsAfterCancel = reads;
+      await vi.waitFor(() => expect(returned).toBe(true));
+      const readsAtCancel = reads;
       await new Promise((resolve) => setTimeout(resolve, 50));
-      expect(reads).toBe(readsAfterCancel);
+      // At most the read already in flight when cancel landed.
+      expect(reads).toBeLessThanOrEqual(readsAtCancel + 1);
     });
 
     it("drops a value that arrives after the response is cancelled", async () => {
       let release: ((result: IteratorResult<string>) => void) | undefined;
       let reads = 0;
+      let returned = false;
       const iterator = {
         next() {
           reads++;
@@ -59,6 +67,11 @@ describeMatrix("iterable", (t, { it, expect, describe }) => {
           return new Promise<IteratorResult<string>>((resolve) => {
             release = resolve;
           });
+        },
+        // Only records the cancel; the pending `next()` still resolves below.
+        return() {
+          returned = true;
+          return Promise.resolve({ value: undefined, done: true as const });
         },
       };
       const serialized: unknown[] = [];
@@ -77,9 +90,9 @@ describeMatrix("iterable", (t, { it, expect, describe }) => {
       await vi.waitFor(() => expect(release).toBeDefined());
       controller.abort();
       reader.cancel().catch(() => {});
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await vi.waitFor(() => expect(returned).toBe(true));
       release!({ value: "b", done: false });
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 0));
       expect(serialized).toEqual(["a"]);
     });
 

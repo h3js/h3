@@ -230,11 +230,11 @@ export async function iterable<Value = unknown, Return = unknown>(
     new ReadableStream({
       async pull(controller) {
         // A pull that enqueues nothing can leave a pending read unanswered,
-        // so keep reading past skipped values until the stream is cancelled.
-        while (!cancelled) {
+        // so keep reading past skipped values.
+        for (;;) {
           const { value, done } = first ?? (await iterator.next());
           first = undefined;
-          // The stream may have been cancelled while waiting for the value.
+          // Cancelled while awaiting: stop reading and drop the value.
           if (cancelled) {
             return;
           }
