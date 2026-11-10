@@ -224,6 +224,80 @@ describeMatrix("serve static", (t, { it, expect }) => {
     expect(headRes.status).toEqual(404);
   });
 
+  it("Handles conditional requests (If-Match and If-Unmodified-Since)", async () => {
+    const strongOptions: ServeStaticOptions = {
+      getContents: vi.fn((id) => `asset:${id}`),
+      getMeta: vi.fn((id) => ({
+        type: "text/plain",
+        etag: '"strong-123"',
+        mtime: 1_700_000_000_000,
+        path: id,
+        size: `asset:${id}`.length,
+      })),
+    };
+    t.app.all("/conditional/**", (event) => serveStatic(event, strongOptions));
+
+    const lastModified = new Date(1_700_000_000_000).toUTCString();
+    const before = new Date(1_700_000_000_000 - 1000).toUTCString();
+    const after = new Date(1_700_000_000_000 + 1000).toUTCString();
+
+    // If-Match: matching strong etag -> 200
+    const matchRes = await t.fetch("/conditional/file.txt", {
+      headers: { "if-match": '"strong-123"' },
+    });
+    expect(matchRes.status).toBe(200);
+
+    // If-Match: * -> 200
+    const starRes = await t.fetch("/conditional/file.txt", {
+      headers: { "if-match": "*" },
+    });
+    expect(starRes.status).toBe(200);
+
+    // If-Match: stale etag -> 412 Precondition Failed
+    const staleRes = await t.fetch("/conditional/file.txt", {
+      headers: { "if-match": '"stale"' },
+    });
+    expect(staleRes.status).toBe(412);
+    expect(staleRes.headers.get("cache-control")).toBe("no-store");
+
+    // If-Match: weak etag candidate fails strong comparison -> 412
+    const weakIfMatchRes = await t.fetch("/conditional/file.txt", {
+      headers: { "if-match": 'W/"strong-123"' },
+    });
+    expect(weakIfMatchRes.status).toBe(412);
+
+    // If-Unmodified-Since: equal to last-modified -> 200
+    const unmodRes = await t.fetch("/conditional/file.txt", {
+      headers: { "if-unmodified-since": lastModified },
+    });
+    expect(unmodRes.status).toBe(200);
+
+    // If-Unmodified-Since: before last-modified -> 412
+    const staleUnmodRes = await t.fetch("/conditional/file.txt", {
+      headers: { "if-unmodified-since": before },
+    });
+    expect(staleUnmodRes.status).toBe(412);
+    expect(staleUnmodRes.headers.get("cache-control")).toBe("no-store");
+
+    // If-Match takes precedence over If-Unmodified-Since (RFC 9110 13.1.4)
+    const precedenceRes = await t.fetch("/conditional/file.txt", {
+      headers: {
+        "if-match": '"strong-123"',
+        "if-unmodified-since": before,
+      },
+    });
+    expect(precedenceRes.status).toBe(200);
+
+    // If-None-Match takes precedence over If-Modified-Since (RFC 9110 13.1.3)
+    const ifNoneMatchPrecedence = await t.fetch("/conditional/file.txt", {
+      headers: {
+        "if-none-match": '"stale"',
+        "if-modified-since": after,
+      },
+    });
+    expect(ifNoneMatchPrecedence.status).toBe(200);
+  });
+
   it("Handles cache (if-modified-since) for sub-second mtime", async () => {
     // mtime with millisecond precision. The `last-modified` header the server
     // emits is truncated to whole seconds (HTTP-date granularity), so a client

@@ -3,7 +3,7 @@ import { HTTPError } from "../error.ts";
 import { decodePreservingSeparators, withoutTrailingSlash } from "./internal/path.ts";
 import { isCanonicalPath } from "./path.ts";
 import { getType, getExtension } from "./internal/mime.ts";
-import { isCacheMatch } from "./internal/cache.ts";
+import { evaluatePreconditions } from "./internal/cache.ts";
 import { HTTPResponse } from "../response.ts";
 
 export interface StaticAssetMeta {
@@ -240,7 +240,19 @@ export async function serveStatic(
     event.res.headers.set("etag", meta.etag);
   }
 
-  if (isCacheMatch(event.req.headers, { etag: meta.etag, lastModified: mtimeDate })) {
+  const precondition = evaluatePreconditions(event.req.headers, {
+    etag: meta.etag,
+    lastModified: mtimeDate,
+  });
+
+  if (precondition === 412) {
+    throw new HTTPError({
+      status: 412,
+      headers: { "cache-control": "no-store" },
+    });
+  }
+
+  if (precondition === 304) {
     return new HTTPResponse(null, {
       status: 304,
       statusText: "Not Modified",
