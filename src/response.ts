@@ -244,6 +244,27 @@ function mergeHeaders(base: HeadersInit, overrides: Headers, target = new Header
   for (const [name, value] of overrides) {
     if (name === "set-cookie") {
       target.append(name, value);
+    } else if (name === "vary") {
+      // List header: join+dedupe so staged names cannot replace the response's
+      // (e.g. dropping Cookie when middleware adds Accept-Encoding; #1642).
+      const cur = target.get("vary");
+      if (!cur) {
+        target.set(name, value);
+        continue;
+      }
+      const names = cur
+        .split(",")
+        .map((n) => n.trim())
+        .filter(Boolean);
+      const known = new Set(names.map((n) => n.toLowerCase()));
+      for (const part of value.split(",")) {
+        const n = part.trim();
+        if (n && !known.has(n.toLowerCase())) {
+          known.add(n.toLowerCase());
+          names.push(n);
+        }
+      }
+      target.set("vary", names.join(", "));
     } else {
       target.set(name, value);
     }
