@@ -111,6 +111,22 @@ describeMatrix("proxy response content-length", (t, { it, expect }) => {
     });
   }
 
+  it("drops content-length when transfer-encoding is present", async () => {
+    t.app.all(
+      "/upstream",
+      () =>
+        new Response("hello", {
+          headers: { "transfer-encoding": "chunked", "content-length": "100" },
+        }),
+    );
+    // Internal targets bypass the HTTP parser that rejects conflicting headers.
+    t.app.all("/", (event) => proxyRequest(event, "/upstream"));
+
+    const res = await t.fetch("/");
+    expect(res.headers.has("content-length")).toBe(false);
+    expect(await res.text()).toBe("hello");
+  });
+
   for (const [encoding, compress] of [
     ["gzip", gzipSync],
     ["deflate", deflateSync],
