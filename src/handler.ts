@@ -147,6 +147,7 @@ export function dynamicEventHandler(initial?: EventHandler | FetchableObject): D
 
 type MaybePromise<T> = T | Promise<T>;
 
+/* @__NO_SIDE_EFFECTS__ */
 export function defineLazyEventHandler<_RequestT extends EventHandlerRequest = EventHandlerRequest>(
   loader: () => MaybePromise<HTTPHandler<_RequestT>>,
 ): EventHandlerWithFetch<ResolvedRequest<_RequestT>> {
