@@ -18,6 +18,84 @@ describeMatrix("iterable", (t, { it, expect, describe }) => {
       expect(await result.text()).toBe("abc");
     });
 
+    it("skips undefined values", async () => {
+      t.app.use(() => iterable(["a", undefined, "b", undefined]));
+      const result = await t.fetch("/");
+      expect(await result.text()).toBe("ab");
+    });
+
+    it("stops reading skipped values once the response is cancelled", async () => {
+      let reads = 0;
+      let returned = false;
+      // `return()` only records the cancel; `next()` keeps producing skipped values,
+      // so only the stream itself can stop the reads.
+      const iterator = {
+        async next() {
+          reads++;
+          await new Promise((resolve) => setTimeout(resolve, 5));
+          return { value: reads === 1 ? "a" : undefined, done: reads > 200 };
+        },
+        async return() {
+          returned = true;
+          return { value: undefined, done: true as const };
+        },
+      };
+      t.app.use(() => iterable(iterator));
+      const controller = new AbortController();
+      const result = await t.fetch("/", { signal: controller.signal });
+      const reader = result.body!.getReader();
+      await reader.read();
+      controller.abort();
+      reader.cancel().catch(() => {});
+      await vi.waitFor(() => expect(returned).toBe(true));
+      const readsAtCancel = reads;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      // At most the read already in flight when cancel landed.
+      expect(reads).toBeLessThanOrEqual(readsAtCancel + 1);
+    });
+
+    it("drops a value that arrives after the response is cancelled", async () => {
+      let release: ((result: IteratorResult<string>) => void) | undefined;
+      let reads = 0;
+      let returned = false;
+      const iterator = {
+        next() {
+          reads++;
+          if (reads === 1) {
+            return Promise.resolve({ value: "a", done: false });
+          }
+          return new Promise<IteratorResult<string>>((resolve) => {
+            release = resolve;
+          });
+        },
+        // Only records the cancel; the pending `next()` still resolves below.
+        return() {
+          returned = true;
+          return Promise.resolve({ value: undefined, done: true as const });
+        },
+      };
+      const serialized: unknown[] = [];
+      t.app.use(() =>
+        iterable(iterator, {
+          serializer: (value) => {
+            serialized.push(value);
+            return new TextEncoder().encode(String(value));
+          },
+        }),
+      );
+      const controller = new AbortController();
+      const result = await t.fetch("/", { signal: controller.signal });
+      const reader = result.body!.getReader();
+      await reader.read();
+      await vi.waitFor(() => expect(release).toBeDefined());
+      controller.abort();
+      reader.cancel().catch(() => {});
+      await vi.waitFor(() => expect(returned).toBe(true));
+      release!({ value: "b", done: false });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(serialized).toEqual(["a"]);
+    });
+
     describe("iterable support", () => {
       const cases: [string, () => unknown][] = [
         ["Array", () => ["the-value"]],
@@ -158,6 +236,15 @@ describeMatrix("iterable", (t, { it, expect, describe }) => {
         for (const [i, obj] of testIterable.entries()) {
           expect.soft(serializer).toHaveBeenNthCalledWith(i + 1, obj);
         }
+      });
+
+      it("skips values the serializer returns undefined for", async () => {
+        const textEncoder = new TextEncoder();
+        const serializer = (value: string) =>
+          value === "skip" ? undefined : textEncoder.encode(value);
+        t.app.use(() => iterable(["a", "skip", "skip", "b"], { serializer }));
+        const response = await t.fetch("/");
+        expect(await response.text()).toBe("ab");
       });
     });
   });
