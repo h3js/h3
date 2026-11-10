@@ -18,8 +18,8 @@ export function matchETag(ifNoneMatch: string, etag: string): boolean {
 
 /**
  * Evaluate an incoming conditional request against the current representation's
- * validators, returning `true` when it matches and a `304 Not Modified` should
- * be sent.
+ * validators, returning `true` when it matches. The caller determines the
+ * applicable validators and response status for the request method.
  *
  * RFC 9110 §13.1.3: a recipient MUST ignore `If-Modified-Since` when the request
  * contains an `If-None-Match` header field. `If-None-Match` takes precedence;
