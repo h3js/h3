@@ -47,7 +47,13 @@ export interface ServeStaticOptions {
   encodings?: Record<string, string>;
 
   /**
-   * Default index file to serve when the path is a directory
+   * Candidate names tried, in order, when the exact path is not found.
+   *
+   * - Entries starting with `.` are extension fallbacks appended to the path
+   *   (e.g. `".html"` resolves `/about` to `/about.html`).
+   * - Other entries are directory index files joined with `/`; the leading slash
+   *   is optional (`"/index.html"` and `"index.html"` both resolve `/` to
+   *   `/index.html` and `/docs` to `/docs/index.html`).
    *
    * @default ["/index.html"]
    */
@@ -341,11 +347,26 @@ function idSearchPaths(id: string, encodings: string[], indexNames: string[]) {
   const ids: { id: string; assetId: string }[] = [];
 
   for (const suffix of ["", ...indexNames]) {
-    const assetId = `${id}${suffix}`;
+    const assetId = withIndexName(id, suffix);
     for (const encoding of [...encodings, ""]) {
       ids.push({ id: `${assetId}${encoding}`, assetId });
     }
   }
 
   return ids;
+}
+
+/**
+ * Resolve an `indexNames` entry against the request path `id`.
+ *
+ * Entries starting with `.` are extension fallbacks appended as-is (`/about` → `/about.html`).
+ * Other entries are index files joined on a single `/`, with leading slashes optional
+ * (`/` → `/index.html`, `/docs` → `/docs/index.html`).
+ */
+function withIndexName(id: string, name: string): string {
+  if (!name || name[0] === ".") {
+    return id + name;
+  }
+  const file = name.replace(/^\/+/, "");
+  return !file ? id : id === "/" ? `/${file}` : `${id}/${file}`;
 }
