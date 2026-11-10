@@ -202,4 +202,20 @@ describe("defineWebSocketHandler through the app pipeline", () => {
 
     expect(readHooks(req)).toBe(hooks);
   });
+
+  it("preserves 101 and webSocket response without rebuilding when prepared headers exist (#1628)", async () => {
+    const app = new H3();
+    app.use(routeRules({ "**": { headers: { "x-robots-tag": "noindex" } } }));
+    const fakeSocket = { id: "ws-test" };
+    app.get("/proxy-ws", () => {
+      const res = new Response(null, { status: 200 });
+      Object.defineProperty(res, "status", { value: 101 });
+      (res as any).webSocket = fakeSocket;
+      return res;
+    });
+
+    const res = await app.fetch(new Request("http://localhost/proxy-ws"));
+    expect(res.status).toBe(101);
+    expect((res as any).webSocket).toBe(fakeSocket);
+  });
 });
