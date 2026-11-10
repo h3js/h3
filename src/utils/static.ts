@@ -340,9 +340,9 @@ function normalizeCoding(name: string): string {
 /**
  * Generate candidate asset paths and encodings for static file resolution.
  *
- * Normalizes root path when suffix starts with a slash to prevent double slashes (`//index.html`),
- * joins relative index names with a separator (`/docs` + `index.html` -> `/docs/index.html`),
- * while preserving plain string concatenation for extension fallbacks (e.g. `.html`).
+ * Strips leading slashes from non-extension index names and joins on a single `/` boundary
+ * to prevent double slashes (`//index.html`, `/docs//index.html`) and support relative names
+ * (`index.html`), while preserving plain string concatenation for extension fallbacks (e.g. `.html`).
  */
 function idSearchPaths(id: string, encodings: string[], indexNames: string[]) {
   const ids: { id: string; assetId: string }[] = [];
@@ -353,10 +353,9 @@ function idSearchPaths(id: string, encodings: string[], indexNames: string[]) {
       assetId = id;
     } else if (suffix[0] === ".") {
       assetId = `${id}${suffix}`;
-    } else if (suffix[0] === "/") {
-      assetId = id === "/" ? suffix : `${id}${suffix}`;
     } else {
-      assetId = id === "/" ? `/${suffix}` : `${id}/${suffix}`;
+      const normalized = suffix[0] === "/" ? suffix.replace(/^\/+/, "") : suffix;
+      assetId = normalized ? (id === "/" ? `/${normalized}` : `${id}/${normalized}`) : id;
     }
     for (const encoding of [...encodings, ""]) {
       ids.push({ id: `${assetId}${encoding}`, assetId });

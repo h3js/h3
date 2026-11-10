@@ -729,4 +729,19 @@ describeMatrix("serve static index resolution", (t, { it, expect }) => {
     expect(docsSlashRes.status).toBe(200);
     expect(await docsSlashRes.text()).toBe("docs-index");
   });
+
+  it("normalizes multiple leading slashes in indexNames entries", async () => {
+    t.app.all("/**", (event) => serveStatic(event, createOptions(["//index.html"])));
+    const rootRes = await t.fetch("/");
+    expect(rootRes.status).toBe(200);
+    expect(await rootRes.text()).toBe("root-index");
+
+    const docsRes = await t.fetch("/docs");
+    expect(docsRes.status).toBe(200);
+    expect(await docsRes.text()).toBe("docs-index");
+
+    const docsSlashRes = await t.fetch("/docs/");
+    expect(docsSlashRes.status).toBe(200);
+    expect(await docsSlashRes.text()).toBe("docs-index");
+  });
 });
