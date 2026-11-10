@@ -11,10 +11,9 @@ describe("proxy internal header sets", () => {
     expect(ignoredHeaders.has("accept-encoding")).toBe(true);
   });
 
-  it("strips hop-by-hop and length/encoding response headers", () => {
+  it("strips hop-by-hop and encoding response headers", () => {
     for (const key of [
       "content-encoding",
-      "content-length",
       "transfer-encoding",
       "connection",
       "keep-alive",
