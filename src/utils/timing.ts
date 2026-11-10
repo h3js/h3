@@ -6,6 +6,9 @@ import type { H3EventContext } from "../types/context.ts";
  *
  * Multiple calls append to the same header (comma-separated per spec).
  *
+ * Entries are also staged as `event.res.errHeaders`, so they are sent on error
+ * responses too (thrown errors, 404s and returned `Response`s with status >= 400).
+ *
  * @see https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Server-Timing
  *
  * @example
@@ -31,6 +34,7 @@ export function setServerTiming(
     (opts?.desc ? `;desc="${_escapeDesc(opts.desc)}"` : "") +
     (opts?.dur !== undefined ? `;dur=${opts.dur}` : "");
   event.res.headers.append("server-timing", value);
+  event.res.errHeaders.append("server-timing", value);
   const ctx = event.context as H3EventContext;
   if (!Array.isArray(ctx.timing)) {
     ctx.timing = [];
@@ -41,7 +45,8 @@ export function setServerTiming(
 /**
  * Measure an async operation and append the timing to the `Server-Timing` header.
  *
- * Uses `performance.now()` for high-resolution timing.
+ * Uses `performance.now()` for high-resolution timing. The entry is recorded
+ * even when `fn` throws, and is also sent on the resulting error response.
  *
  * @see https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Server-Timing
  *

@@ -240,12 +240,15 @@ function prepareResponse(
     : val;
 }
 
+// `Server-Timing` is a list: the staged entries (set earlier on the event) go before the
+// response's own.
 function mergeHeaders(base: HeadersInit, overrides: Headers, target = new Headers(base)): Headers {
   for (const [name, value] of overrides) {
     if (name === "set-cookie") {
       target.append(name, value);
     } else {
-      target.set(name, value);
+      const own = name === "server-timing" && target.get(name);
+      target.set(name, own ? `${value}, ${own}` : value);
     }
   }
   return target;

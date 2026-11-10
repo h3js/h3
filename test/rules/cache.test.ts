@@ -1,4 +1,4 @@
-import { H3, HTTPError, defineHandler, setCookie } from "../../src/index.ts";
+import { H3, HTTPError, defineHandler, setCookie, setServerTiming } from "../../src/index.ts";
 import type { EventHandler } from "../../src/index.ts";
 import { describe, expect, it, vi } from "vitest";
 import { routeRules } from "../../src/rules/middleware.ts";
@@ -835,6 +835,36 @@ describe("cache rule (ocache-backed, h3/rules/cache)", () => {
     const res = await app.fetch(new Request("http://localhost/cached-throw"));
     expect(res.status).toBe(418);
     expect(res.headers.get("x-request-id")).toBe("abc");
+  });
+
+  it("sends `Server-Timing` entries once around a cached handler", async () => {
+    const app = new H3();
+    app.use((event) => {
+      setServerTiming(event, "mw", { dur: 1 });
+    });
+    app.use(
+      routeRules(
+        {
+          "/cached-timing": { cache: { maxAge: 60 } },
+          "/cached-timing-throw": { cache: { maxAge: 60 } },
+        },
+        { handlers: { cache } },
+      ),
+    );
+    app.get("/cached-timing", () => "ok");
+    app.get("/cached-timing-throw", (event) => {
+      setServerTiming(event, "db", { dur: 2 });
+      throw new HTTPError({ status: 503 });
+    });
+
+    for (const expected of ["MISS", "HIT"]) {
+      const res = await app.fetch(new Request("http://localhost/cached-timing"));
+      expect(res.headers.get("x-cache")).toBe(expected);
+      expect(res.headers.get("server-timing")).toBe("mw;dur=1");
+    }
+    const err = await app.fetch(new Request("http://localhost/cached-timing-throw"));
+    expect(err.status).toBe(503);
+    expect(err.headers.get("server-timing")).toBe("mw;dur=1, db;dur=2");
   });
 
   it("dispatches the route exactly once for a `headersOnly` cache rule (F12)", async () => {
