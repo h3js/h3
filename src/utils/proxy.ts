@@ -417,7 +417,9 @@ export async function proxy(
   // Without a body, a nonzero length is only meaningful for downstream HEAD or 304.
   const contentEncoding = response.headers.get("content-encoding")?.toLowerCase();
   const preserveContentLength =
+    response.status !== 204 &&
     response.type !== "cors" &&
+    !response.headers.has("transfer-encoding") &&
     (!contentEncoding || contentEncoding === "identity") &&
     (response.body !== null ||
       response.headers.get("content-length") === "0" ||
