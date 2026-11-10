@@ -32,7 +32,7 @@ const RE_PUBLIC = /(?:^|,)\s*public(?:\s*=|\s*,|\s*$)/i;
 /**
  * Check request caching headers (`If-None-Match`, `If-Modified-Since`) and add caching headers (Last-Modified, ETag, Cache-Control).
  *
- * Matching validators set status `304` for `GET`, `HEAD`, and `QUERY`. `CONNECT`, `OPTIONS`, and `TRACE` ignore both conditional headers. Other methods ignore `If-Modified-Since` and set status `412` for a matching `If-None-Match`.
+ * Matching validators set status `304` for `GET`, `HEAD`, and `QUERY`. `CONNECT`, `OPTIONS`, and `TRACE` ignore both conditional headers. Other methods ignore `If-Modified-Since` and set status `412` for a matching `If-None-Match` (without a `Cache-Control` header). When building your own response, use `event.res.status` rather than assuming `304`.
  *
  * Note: `public` is added by default, but never alongside a caller-supplied `private`/`no-store` directive, so passing `cacheControls: ["private"]` no longer produces a contradictory `public, private`.
  * @returns `true` when the request should stop with the status set above. When `true` is returned, no response should be sent anymore
@@ -71,26 +71,30 @@ export function handleCacheHeaders(event: H3Event, opts: CacheConditions): boole
     event.res.headers.set("last-modified", lastModified.toUTCString());
   }
 
-  event.res.headers.set("cache-control", cacheControls.join(", "));
-
   const method = event.req.method;
-  if (method === "CONNECT" || method === "OPTIONS" || method === "TRACE") {
-    return false;
-  }
   const cacheable = method === "GET" || method === "HEAD" || method === "QUERY";
-  if (
+  const matched =
+    method !== "CONNECT" &&
+    method !== "OPTIONS" &&
+    method !== "TRACE" &&
     isCacheMatch(event.req.headers, {
       etag: opts.etag,
       lastModified: cacheable ? lastModified : undefined,
       ifNoneMatch: opts.ifNoneMatch,
       ifModifiedSince: opts.ifModifiedSince,
-    })
-  ) {
-    event.res.status = cacheable ? 304 : 412;
-    return true;
+    });
+
+  // A `412` describes a failed precondition, not the representation, so it
+  // must not carry the representation's freshness directives.
+  if (!matched || cacheable) {
+    event.res.headers.set("cache-control", cacheControls.join(", "));
   }
 
-  return false;
+  if (matched) {
+    event.res.status = cacheable ? 304 : 412;
+  }
+
+  return matched;
 }
 
 /**

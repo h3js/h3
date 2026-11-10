@@ -990,6 +990,30 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
       expect(await res.text()).toBe("ok");
     });
 
+    it("omits cache directives from a 412 but keeps validators", async () => {
+      t.app.use((event) => {
+        event.res.headers.set("cache-control", "no-store");
+        if (
+          handleCacheHeaders(event, {
+            etag: '"v1"',
+            maxAge: 3600,
+            modifiedTime: new Date("2021-01-01"),
+          })
+        ) {
+          return null;
+        }
+        return "ok";
+      });
+      const res = await t.fetch("/", {
+        method: "PUT",
+        headers: { "if-none-match": "*" },
+      });
+      expect(res.status).toBe(412);
+      expect(res.headers.get("cache-control")).toBe("no-store");
+      expect(res.headers.get("etag")).toBe('"v1"');
+      expect(res.headers.get("last-modified")).toBe("Fri, 01 Jan 2021 00:00:00 GMT");
+    });
+
     it("can handle cache headers with if-modified-since", async () => {
       t.app.use((event) => {
         handleCacheHeaders(event, {
