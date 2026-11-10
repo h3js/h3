@@ -730,6 +730,18 @@ describeMatrix("serve static index resolution", (t, { it, expect }) => {
     expect(await docsSlashRes.text()).toBe("docs-index");
   });
 
+  it("never looks up double-slash index candidates", async () => {
+    const options = createOptions(["/index.html", "index.html", "//index.html"]);
+    const getMeta = vi.fn(options.getMeta);
+    t.app.all("/**", (event) => serveStatic(event, { ...options, getMeta }));
+    await t.fetch("/");
+    await t.fetch("/missing/");
+    const ids = getMeta.mock.calls.map(([id]) => id);
+    expect(ids).toContain("/index.html");
+    expect(ids).toContain("/missing/index.html");
+    expect(ids.filter((id) => id.includes("//"))).toEqual([]);
+  });
+
   it("normalizes multiple leading slashes in indexNames entries", async () => {
     t.app.all("/**", (event) => serveStatic(event, createOptions(["//index.html"])));
     const rootRes = await t.fetch("/");
