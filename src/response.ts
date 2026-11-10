@@ -212,17 +212,12 @@ function prepareResponse(
     preparedHeaders = preparedRes?.[kEventResErrHeaders];
   }
 
-  // 101 Switching Protocols and WebSocket responses must not be rebuilt,
-  // as rebuilding drops the platform-specific `webSocket` property (and
-  // workerd forbids constructing a 101 response without a webSocket).
-  if (val.status === 101 || (val as { webSocket?: unknown }).webSocket) {
-    return val;
-  }
-
   // Merge prepared headers unless there is nothing to merge or a custom error
   // render is returned from `onError`. `event.res.headers` is created lazily on first
   // access, so it can be present but empty -- nothing to merge then either.
-  if (preparedHeaders && !nested && !preparedHeaders.keys().next().done) {
+  // Never rebuild a 101 upgrade: the copy drops platform-specific state such as
+  // workerd's `Response.webSocket`, and workerd rejects a 101 without one (#1628).
+  if (preparedHeaders && !nested && !preparedHeaders.keys().next().done && val.status !== 101) {
     // Never merge *into* `val.headers`: the handler owns that `Response` and may reuse it
     // (module-level constant, memoized fallback, ...). Merging in place makes
     // request-scoped headers stick to it permanently, and because `set-cookie` is
