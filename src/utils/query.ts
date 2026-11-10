@@ -46,7 +46,8 @@ export function appendAcceptQuery(event: H3Event, mediaTypes: string | string[])
  * - `415 Unsupported Media Type` if the media type is not accepted.
  *
  * Accepted types may use wildcards: `*` / `*&#47;*` match anything and
- * `type/*` matches any subtype of `type`.
+ * `type/*` matches any subtype of `type`. A wildcard request media type
+ * (e.g. `*&#47;*` or `type/*`) is not a concrete type and is never accepted.
  *
  * @example
  * app.query("/search", async (event) => {
@@ -82,7 +83,11 @@ export function requireContentType(event: HTTPEvent, acceptedTypes: string | str
   // Strip parameters from accepted entries too so a parameterized accepted type
   // (e.g. "application/json; charset=utf-8") still matches the parameter-less
   // request media type computed above.
+  // A wildcard is a valid token but not a concrete media type, so a request
+  // `*/*` or `type/*` must not satisfy a wildcard accepted type.
+  const isWildcard = mediaType.startsWith("*/") || mediaType.endsWith("/*");
   if (
+    !isWildcard &&
     accepted.some((type) => mediaTypeMatches(mediaType, type.split(";")[0].trim().toLowerCase()))
   ) {
     return mediaType;

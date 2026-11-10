@@ -83,6 +83,7 @@ describeMatrix("query utils", (t, { it, expect, describe }) => {
         "app(lication/json",
         "application/josón",
         "application/json, text/plain",
+        "application / json",
       ]) {
         it(`rejects malformed type/subtype ${contentType} when accepting ${accepted}`, async () => {
           t.app.post("/tokens", (event) => requireContentType(event, accepted));
@@ -93,6 +94,21 @@ describeMatrix("query utils", (t, { it, expect, describe }) => {
           });
 
           expect(res.status).toBe(422);
+        });
+      }
+    }
+
+    for (const accepted of ["application/*", "*/*", "*"]) {
+      for (const contentType of ["*/*", "application/*", "*/json"]) {
+        it(`rejects wildcard request type ${contentType} when accepting ${accepted}`, async () => {
+          t.app.post("/wildcard", (event) => requireContentType(event, accepted));
+
+          const res = await t.fetch("/wildcard", {
+            method: "POST",
+            headers: { "content-type": contentType },
+          });
+
+          expect(res.status).toBe(415);
         });
       }
     }
