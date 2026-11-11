@@ -224,6 +224,45 @@ describeMatrix("serve static", (t, { it, expect }) => {
     expect(headRes.status).toEqual(404);
   });
 
+  it("Evaluates if-match and if-unmodified-since (RFC 9110 §13.2.2)", async () => {
+    const mtime = 1_700_000_000_000;
+    const preconditionOptions = (etag: string): ServeStaticOptions => ({
+      getContents: (id) => `asset:${id}`,
+      getMeta: () => ({ type: "text/plain", etag, mtime }),
+      fallthrough: true,
+    });
+    t.app.all("/strong/**", (event) => serveStatic(event, preconditionOptions('"abc"')));
+    t.app.all("/weak/**", (event) => serveStatic(event, preconditionOptions('W/"abc"')));
+
+    const lastModified = new Date(mtime).toUTCString();
+    const before = new Date(mtime - 1000).toUTCString();
+    const statusOf = async (headers: Record<string, string>, path = "/strong/test.txt") =>
+      (await t.fetch(path, { headers })).status;
+
+    expect(await statusOf({ "if-match": '"abc"' })).toBe(200);
+    expect(await statusOf({ "if-match": '"stale", "abc"' })).toBe(200);
+    expect(await statusOf({ "if-match": "*" })).toBe(200);
+    expect(await statusOf({ "if-match": '"stale"' })).toBe(412);
+    // Strong comparison: a weak entity-tag never matches, on either side.
+    expect(await statusOf({ "if-match": 'W/"abc"' })).toBe(412);
+    expect(await statusOf({ "if-match": '"abc"' }, "/weak/test.txt")).toBe(412);
+    expect(await statusOf({ "if-match": "*" }, "/weak/test.txt")).toBe(200);
+
+    expect(await statusOf({ "if-unmodified-since": lastModified })).toBe(200);
+    expect(await statusOf({ "if-unmodified-since": before })).toBe(412);
+    expect(await statusOf({ "if-unmodified-since": "not a date" })).toBe(200);
+    // `If-Unmodified-Since` is ignored when `If-Match` is present (RFC 9110 §13.1.4).
+    expect(await statusOf({ "if-match": '"abc"', "if-unmodified-since": before })).toBe(200);
+    // A failed `If-Match` wins over a matching `If-None-Match`.
+    expect(await statusOf({ "if-match": '"stale"', "if-none-match": '"abc"' })).toBe(412);
+    expect(await statusOf({ "if-match": '"abc"', "if-none-match": '"abc"' })).toBe(304);
+
+    const res = await t.fetch("/strong/test.txt", { headers: { "if-match": '"stale"' } });
+    expect(res.status).toBe(412);
+    expect(res.headers.get("etag")).toBeNull();
+    expect(res.headers.get("cache-control")).toBeNull();
+  });
+
   it("Handles cache (if-modified-since) for sub-second mtime", async () => {
     // mtime with millisecond precision. The `last-modified` header the server
     // emits is truncated to whole seconds (HTTP-date granularity), so a client

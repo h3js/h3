@@ -3,7 +3,7 @@ import { HTTPError } from "../error.ts";
 import { decodePreservingSeparators, withoutTrailingSlash } from "./internal/path.ts";
 import { isCanonicalPath } from "./path.ts";
 import { getType, getExtension } from "./internal/mime.ts";
-import { isCacheMatch } from "./internal/cache.ts";
+import { isCacheMatch, isPreconditionFailed } from "./internal/cache.ts";
 import { HTTPResponse } from "../response.ts";
 
 export interface StaticAssetMeta {
@@ -244,6 +244,12 @@ export async function serveStatic(
 
   if (meta.etag && !event.res.headers.has("etag")) {
     event.res.headers.set("etag", meta.etag);
+  }
+
+  // `If-Match` / `If-Unmodified-Since` are evaluated before `If-None-Match` /
+  // `If-Modified-Since` (RFC 9110 §13.2.2).
+  if (isPreconditionFailed(event.req.headers, { etag: meta.etag, lastModified: mtimeDate })) {
+    throw new HTTPError({ status: 412 });
   }
 
   if (isCacheMatch(event.req.headers, { etag: meta.etag, lastModified: mtimeDate })) {
