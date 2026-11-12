@@ -246,6 +246,20 @@ function mergeHeaders(base: HeadersInit, overrides: Headers, target = new Header
   for (const [name, value] of overrides) {
     if (name === "set-cookie") {
       target.append(name, value);
+    } else if (name === "vary" && target.has(name)) {
+      // `Vary` is a list: keep the response's own entries and add the missing ones,
+      // otherwise a shared cache may serve the wrong variant.
+      const own = target
+        .get(name)!
+        .toLowerCase()
+        .split(/\s*,\s*/);
+      for (const entry of value.split(/\s*,\s*/)) {
+        const key = entry.toLowerCase();
+        if (!own.includes(key)) {
+          own.push(key);
+          target.append(name, entry);
+        }
+      }
     } else {
       target.set(name, value);
     }
