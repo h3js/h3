@@ -254,7 +254,11 @@ function mergeHeaders(base: HeadersInit, overrides: Headers, target = new Header
         .toLowerCase()
         .split(/\s*,\s*/);
       for (const entry of value.split(/\s*,\s*/)) {
-        if (!own.includes(entry.toLowerCase())) target.append(name, entry);
+        const key = entry.toLowerCase();
+        if (!own.includes(key)) {
+          own.push(key);
+          target.append(name, entry);
+        }
       }
     } else {
       target.set(name, value);

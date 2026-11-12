@@ -618,6 +618,15 @@ describeMatrix("app", (t, { it, expect }) => {
     expect((await t.fetch("/vary-none")).headers.get("vary")).toBe("Accept-Encoding, cookie");
   });
 
+  it("does not duplicate `Vary` entries repeated in the prepared headers", async () => {
+    t.app.use((event) => {
+      event.res.headers.set("vary", "Origin, origin");
+    });
+    t.app.get("/vary-dupe", () => new Response("hi", { headers: { vary: "Cookie" } }));
+
+    expect((await t.fetch("/vary-dupe")).headers.get("vary")).toBe("Cookie, Origin");
+  });
+
   it("merges staged error `Vary` with a thrown error's own `Vary`", async () => {
     t.app.get("/vary-error", (event) => {
       event.res.errHeaders.set("vary", "Accept-Encoding");
