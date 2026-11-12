@@ -6,6 +6,16 @@ import { describeMatrix } from "./_setup.ts";
 describeMatrix("errors", (t, { it, expect, describe }) => {
   const consoleMock = ((globalThis.console.error as any) = vi.fn());
 
+  it("combines an HTTP error's Vary with prepared error headers", async () => {
+    t.app.get("/", (event) => {
+      event.res.errHeaders.set("vary", "Origin, Accept-Encoding");
+      throw new HTTPError({ status: 400, headers: { vary: "Cookie, origin" } });
+    });
+
+    const res = await t.fetch("/");
+    expect(res.headers.get("vary")).toBe("Cookie, origin, Accept-Encoding");
+  });
+
   describe("error response bodies", () => {
     for (const withOnError of [false, true]) {
       const hook = withOnError ? "with onError" : "without onError";

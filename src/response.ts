@@ -246,6 +246,24 @@ function mergeHeaders(base: HeadersInit, overrides: Headers, target = new Header
   for (const [name, value] of overrides) {
     if (name === "set-cookie") {
       target.append(name, value);
+    } else if (name === "vary" && target.has(name)) {
+      const fields = `${target.get(name)},${value}`.split(",").map((field) => field.trim());
+      if (fields.includes("*")) {
+        target.set(name, "*");
+      } else {
+        const seen = new Set<string>();
+        target.set(
+          name,
+          fields
+            .filter((field) => {
+              const key = field.toLowerCase();
+              if (!field || seen.has(key)) return false;
+              seen.add(key);
+              return true;
+            })
+            .join(", "),
+        );
+      }
     } else {
       target.set(name, value);
     }

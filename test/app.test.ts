@@ -605,4 +605,16 @@ describeMatrix("app", (t, { it, expect }) => {
     const res = await t.fetch("/multi");
     expect(res.headers.getSetCookie()).toEqual(["a=1; Path=/", "b=2; Path=/", "staged=s; Path=/"]);
   });
+
+  it("combines a returned Response's Vary with prepared headers", async () => {
+    const response = new Response("hello", { headers: { vary: "Cookie, Origin" } });
+    t.app.get("/", (event) => {
+      event.res.headers.set("vary", "origin, Accept-Encoding");
+      return response;
+    });
+
+    const res = await t.fetch("/");
+    expect(res.headers.get("vary")).toBe("Cookie, Origin, Accept-Encoding");
+    expect(response.headers.get("vary")).toBe("Cookie, Origin");
+  });
 });
