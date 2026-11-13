@@ -374,7 +374,7 @@ type SealOptionsSub<Algorithm extends _Algorithm = _Algorithm> = Readonly<{
   /** The algorithm used. Defaults to 'aes-256-cbc' for encryption and 'sha256' for integrity. */
   algorithm: Algorithm;
 
-  /** The number of iterations used to derive a key from the password. Defaults to 1. */
+  /** The number of iterations used to derive a key from the password. Defaults to 8192. */
   iterations: number;
 
   /** Minimum password size. Defaults to 32. */
