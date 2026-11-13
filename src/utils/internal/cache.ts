@@ -54,15 +54,15 @@ export function isCacheMatch(
  *
  * RFC 9110 §13.1.1 and §13.2.2: `If-Match` uses the strong comparison function
  * (a weak ETag never matches, `*` matches any existing representation) and
- * `If-Unmodified-Since` is only evaluated when `If-Match` is absent. An invalid
- * date is ignored.
+ * `If-Unmodified-Since` is only evaluated when `If-Match` is absent. A value that
+ * isn't an HTTP-date is ignored. An empty `If-Match` lists no tags, so it fails.
  */
 export function isPreconditionFailed(
   headers: Headers,
   validators: { etag?: string; lastModified?: Date },
 ): boolean {
   const ifMatch = headers.get("if-match");
-  if (ifMatch) {
+  if (ifMatch !== null) {
     if (ifMatch.trim() === "*") {
       return false;
     }
@@ -73,10 +73,24 @@ export function isPreconditionFailed(
   }
   const ifUnmodifiedSince = headers.get("if-unmodified-since");
   if (ifUnmodifiedSince && validators.lastModified) {
-    const date = new Date(ifUnmodifiedSince);
-    return !Number.isNaN(date.getTime()) && validators.lastModified > date;
+    const date = parseHTTPDate(ifUnmodifiedSince);
+    return !!date && validators.lastModified > date;
   }
   return false;
+}
+
+// IMF-fixdate, then the obsolete RFC 850 and asctime forms (RFC 9110 §5.6.7).
+const HTTP_DATE_RE =
+  /^(?:[A-Z][a-z]{2}, \d{2} [A-Z][a-z]{2} \d{4} \d{2}:\d{2}:\d{2} GMT|[A-Z][a-z]{5,8}, \d{2}-[A-Z][a-z]{2}-\d{2} \d{2}:\d{2}:\d{2} GMT|[A-Z][a-z]{2} [A-Z][a-z]{2} [ \d]\d \d{2}:\d{2}:\d{2} \d{4})$/;
+
+/** Parse an HTTP-date, returning `undefined` for anything else (RFC 9110 §13.1.4). */
+function parseHTTPDate(value: string): Date | undefined {
+  if (!HTTP_DATE_RE.test(value)) {
+    return undefined;
+  }
+  // asctime carries no zone but is always UTC.
+  const date = new Date(value.endsWith(" GMT") ? value : `${value} GMT`);
+  return Number.isNaN(date.getTime()) ? undefined : date;
 }
 
 function opaqueTag(tag: string): string {

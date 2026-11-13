@@ -788,6 +788,10 @@ describeMatrix("serve static preconditions", (t, { it, expect }) => {
     expect(await status("/strong/a", { "if-match": '"nope"' })).toBe(412);
   });
 
+  it("if-match: empty list fails with 412", async () => {
+    expect(await status("/strong/a", { "if-match": "" })).toBe(412);
+  });
+
   it("if-match: uses strong comparison", async () => {
     expect(await status("/strong/a", { "if-match": 'W/"abc"' })).toBe(412);
     expect(await status("/weak/a", { "if-match": 'W/"abc"' })).toBe(412);
@@ -819,5 +823,19 @@ describeMatrix("serve static preconditions", (t, { it, expect }) => {
 
   it("if-unmodified-since: invalid date is ignored", async () => {
     expect(await status("/strong/a", { "if-unmodified-since": "not a date" })).toBe(200);
+    const iso = new Date(mtime - 1000).toISOString();
+    expect(await status("/strong/a", { "if-unmodified-since": iso })).toBe(200);
+  });
+
+  it("if-unmodified-since: accepts obsolete RFC 850 and asctime dates", async () => {
+    // mtime is Tue, 14 Nov 2023 22:13:20 GMT; asctime dates are UTC.
+    const rfc850 = "Tuesday, 14-Nov-23 22:13:19 GMT";
+    expect(await status("/strong/a", { "if-unmodified-since": rfc850 })).toBe(412);
+    expect(await status("/strong/a", { "if-unmodified-since": "Tue Nov 14 22:13:19 2023" })).toBe(
+      412,
+    );
+    expect(await status("/strong/a", { "if-unmodified-since": "Tue Nov 14 22:13:21 2023" })).toBe(
+      200,
+    );
   });
 });
