@@ -48,6 +48,37 @@ export function isCacheMatch(
   return false;
 }
 
+/**
+ * Evaluate `If-Match` and `If-Unmodified-Since` against the current
+ * representation, returning `true` when the precondition fails (a `412`).
+ *
+ * RFC 9110 §13.1.1 and §13.2.2: `If-Match` uses the strong comparison function
+ * (a weak ETag never matches, `*` matches any existing representation) and
+ * `If-Unmodified-Since` is only evaluated when `If-Match` is absent. An invalid
+ * date is ignored.
+ */
+export function isPreconditionFailed(
+  headers: Headers,
+  validators: { etag?: string; lastModified?: Date },
+): boolean {
+  const ifMatch = headers.get("if-match");
+  if (ifMatch) {
+    if (ifMatch.trim() === "*") {
+      return false;
+    }
+    const etag = validators.etag;
+    return (
+      !etag || etag.startsWith("W/") || !splitETags(ifMatch).some((tag) => tag.trim() === etag)
+    );
+  }
+  const ifUnmodifiedSince = headers.get("if-unmodified-since");
+  if (ifUnmodifiedSince && validators.lastModified) {
+    const date = new Date(ifUnmodifiedSince);
+    return !Number.isNaN(date.getTime()) && validators.lastModified > date;
+  }
+  return false;
+}
+
 function opaqueTag(tag: string): string {
   return tag.startsWith("W/") ? tag.slice(2) : tag;
 }

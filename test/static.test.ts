@@ -757,3 +757,67 @@ describeMatrix("serve static index resolution", (t, { it, expect }) => {
     expect(await docsSlashRes.text()).toBe("docs-index");
   });
 });
+
+describeMatrix("serve static preconditions", (t, { it, expect }) => {
+  const mtime = 1_700_000_000_000;
+  const lastModified = new Date(mtime).toUTCString();
+  const strongOptions: ServeStaticOptions = {
+    getContents: (id) => `asset:${id}`,
+    getMeta: () => ({ type: "text/plain", etag: '"abc"', mtime }),
+  };
+  const weakOptions: ServeStaticOptions = {
+    getContents: (id) => `asset:${id}`,
+    getMeta: () => ({ type: "text/plain", etag: 'W/"abc"', mtime }),
+  };
+
+  beforeEach(() => {
+    t.app.all("/strong/**", (event) => serveStatic(event, strongOptions));
+    t.app.all("/weak/**", (event) => serveStatic(event, weakOptions));
+  });
+
+  const status = async (path: string, headers: Record<string, string>) =>
+    (await t.fetch(path, { headers })).status;
+
+  it("if-match: matching etag, list and `*` pass", async () => {
+    expect(await status("/strong/a", { "if-match": '"abc"' })).toBe(200);
+    expect(await status("/strong/a", { "if-match": '"x", "abc"' })).toBe(200);
+    expect(await status("/strong/a", { "if-match": "*" })).toBe(200);
+  });
+
+  it("if-match: non-matching etag fails with 412", async () => {
+    expect(await status("/strong/a", { "if-match": '"nope"' })).toBe(412);
+  });
+
+  it("if-match: uses strong comparison", async () => {
+    expect(await status("/strong/a", { "if-match": 'W/"abc"' })).toBe(412);
+    expect(await status("/weak/a", { "if-match": 'W/"abc"' })).toBe(412);
+    expect(await status("/weak/a", { "if-match": '"abc"' })).toBe(412);
+    expect(await status("/weak/a", { "if-match": "*" })).toBe(200);
+  });
+
+  it("if-match: takes precedence over if-none-match", async () => {
+    const headers = { "if-match": '"nope"', "if-none-match": '"abc"' };
+    expect(await status("/strong/a", headers)).toBe(412);
+  });
+
+  it("if-unmodified-since: fails when modified after the date", async () => {
+    const before = new Date(mtime - 1000).toUTCString();
+    expect(await status("/strong/a", { "if-unmodified-since": before })).toBe(412);
+  });
+
+  it("if-unmodified-since: passes at or after the mtime", async () => {
+    const after = new Date(mtime + 1000).toUTCString();
+    expect(await status("/strong/a", { "if-unmodified-since": lastModified })).toBe(200);
+    expect(await status("/strong/a", { "if-unmodified-since": after })).toBe(200);
+  });
+
+  it("if-unmodified-since: ignored when if-match is present", async () => {
+    const before = new Date(mtime - 1000).toUTCString();
+    const headers = { "if-match": '"abc"', "if-unmodified-since": before };
+    expect(await status("/strong/a", headers)).toBe(200);
+  });
+
+  it("if-unmodified-since: invalid date is ignored", async () => {
+    expect(await status("/strong/a", { "if-unmodified-since": "not a date" })).toBe(200);
+  });
+});
