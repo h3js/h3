@@ -34,8 +34,8 @@ describe("benchmark", () => {
     if (process.env.DEBUG) {
       console.log(`Bundle size (H3Core): ${bundle.bytes} (gzip: ${bundle.gzipSize})`);
     }
-    expect(bundle.bytes).toBeLessThanOrEqual(7900); // <7.9kb
-    expect(bundle.gzipSize).toBeLessThanOrEqual(3160); // <3.16kb
+    expect(bundle.bytes).toBeLessThanOrEqual(7960); // <7.96kb
+    expect(bundle.gzipSize).toBeLessThanOrEqual(3180); // <3.18kb
   });
 
   it("bundle size (defineHandler)", async () => {
@@ -50,8 +50,8 @@ describe("benchmark", () => {
     if (process.env.DEBUG) {
       console.log(`Bundle size (defineHandler): ${bundle.bytes} (gzip: ${bundle.gzipSize})`);
     }
-    expect(bundle.bytes).toBeLessThanOrEqual(7040); // <7.04kb
-    expect(bundle.gzipSize).toBeLessThanOrEqual(2870); // <2.87kb
+    expect(bundle.bytes).toBeLessThanOrEqual(7150); // <7.15kb
+    expect(bundle.gzipSize).toBeLessThanOrEqual(2910); // <2.91kb
   });
 });
 

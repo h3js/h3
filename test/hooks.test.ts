@@ -1,6 +1,8 @@
 import { vi } from "vitest";
-import { HTTPError } from "../src/index.ts";
+import { HTTPError, onDispose } from "../src/index.ts";
 import { describeMatrix } from "./_setup.ts";
+
+const request = (path = "/foo") => new Request(`http://localhost${path}`);
 
 describeMatrix("hooks", (t, { it, expect }) => {
   it("calls onRequest and onResponse", async () => {
@@ -124,5 +126,270 @@ describeMatrix("hooks", (t, { it, expect }) => {
     expect(t.hooks.onError).toHaveBeenCalledTimes(1);
     expect(t.hooks.onError.mock.calls[0]![0]!.cause).toBeInstanceOf(TypeError);
     expect(t.hooks.onResponse).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns a Response synchronously when the handler and onResponse are sync", async () => {
+    let ran = false;
+    t.hooks.onResponse.mockImplementation(() => {
+      ran = true;
+    });
+    t.app.use(() => "Hello World!");
+
+    const res = t.app.fetch(request());
+
+    expect(res).toBeInstanceOf(Response);
+    expect(res instanceof Promise).toBe(false);
+    if (res instanceof Promise) throw new TypeError("expected Response");
+    expect(ran).toBe(true);
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe("Hello World!");
+    expect(t.hooks.onError).not.toHaveBeenCalled();
+  });
+
+  it("absorbs a sync onResponse throw and still returns a Response", async () => {
+    const hookError = new Error("onResponse boom");
+    let disposed = false;
+    t.hooks.onResponse.mockImplementationOnce(() => {
+      throw hookError;
+    });
+    t.app.use((event) => {
+      onDispose(event, () => {
+        disposed = true;
+      });
+      return "Hello World!";
+    });
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    try {
+      const res = t.app.fetch(request());
+
+      expect(res).toBeInstanceOf(Response);
+      expect(res instanceof Promise).toBe(false);
+      if (res instanceof Promise) throw new TypeError("expected Response");
+      expect(disposed).toBe(true);
+      expect(res.status).toBe(200);
+      expect(await res.text()).toBe("Hello World!");
+      expect(t.hooks.onError).not.toHaveBeenCalled();
+      expect(consoleError).toHaveBeenCalledWith(hookError);
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+
+  it("does not log a sync onResponse throw when silent", async () => {
+    const hookError = new Error("onResponse boom");
+    t.app.config.silent = true;
+    t.hooks.onResponse.mockImplementationOnce(() => {
+      throw hookError;
+    });
+    t.app.use(() => "Hello World!");
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    try {
+      const res = t.app.fetch(request());
+
+      expect(res instanceof Promise).toBe(false);
+      if (res instanceof Promise) throw new TypeError("expected Response");
+      expect(res.status).toBe(200);
+      expect(t.hooks.onError).not.toHaveBeenCalled();
+      expect(consoleError).not.toHaveBeenCalled();
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+
+  it("resolves only after an async onResponse settles, then observes dispose", async () => {
+    const order: string[] = [];
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    t.hooks.onResponse.mockImplementation(() => {
+      order.push("onResponse:start");
+      return gate.then(() => {
+        order.push("onResponse:end");
+      });
+    });
+    t.app.use((event) => {
+      onDispose(event, () => {
+        order.push("dispose");
+      });
+      return "ok";
+    });
+
+    const pending = t.app.fetch(request());
+    expect(pending).toBeInstanceOf(Promise);
+    if (!(pending instanceof Promise)) throw new TypeError("expected Promise");
+    expect(order).toEqual(["onResponse:start"]);
+
+    let resolved = false;
+    const done = pending.then((res) => {
+      resolved = true;
+      order.push("resolved");
+      return res;
+    });
+    await Promise.resolve();
+    expect(resolved).toBe(false);
+
+    release();
+    const res = await done;
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe("ok");
+    expect(order).toEqual(["onResponse:start", "onResponse:end", "dispose", "resolved"]);
+  });
+
+  it("absorbs a rejected onResponse and still resolves the built response", async () => {
+    const hookError = new Error("onResponse reject");
+    t.hooks.onResponse.mockImplementationOnce(() => Promise.reject(hookError));
+    t.app.use(() => "Hello World!");
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    try {
+      const pending = t.app.fetch(request());
+      expect(pending).toBeInstanceOf(Promise);
+      const res = await pending;
+      expect(res.status).toBe(200);
+      expect(await res.text()).toBe("Hello World!");
+      expect(t.hooks.onError).not.toHaveBeenCalled();
+      expect(consoleError).toHaveBeenCalledWith(hookError);
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+
+  it("absorbs a throwing then getter from onResponse and still returns a Response", async () => {
+    const hookError = new Error("then-getter");
+    let disposed = false;
+    t.hooks.onResponse.mockImplementationOnce(
+      () =>
+        ({
+          // eslint-disable-next-line unicorn/no-thenable
+          get then() {
+            throw hookError;
+          },
+        }) as unknown as Promise<void>,
+    );
+    t.app.use((event) => {
+      onDispose(event, () => {
+        disposed = true;
+      });
+      return "ok";
+    });
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    try {
+      const res = t.app.fetch(request());
+
+      expect(res).toBeInstanceOf(Response);
+      expect(res instanceof Promise).toBe(false);
+      if (res instanceof Promise) throw new TypeError("expected Response");
+      expect(disposed).toBe(true);
+      expect(res.status).toBe(200);
+      expect(await res.text()).toBe("ok");
+      expect(t.hooks.onError).not.toHaveBeenCalled();
+      expect(consoleError).toHaveBeenCalledWith(hookError);
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+
+  it("does not log a throwing then getter from onResponse when silent", async () => {
+    const hookError = new Error("then-getter");
+    let disposed = false;
+    t.app.config.silent = true;
+    t.hooks.onResponse.mockImplementationOnce(
+      () =>
+        ({
+          // eslint-disable-next-line unicorn/no-thenable
+          get then() {
+            throw hookError;
+          },
+        }) as unknown as Promise<void>,
+    );
+    t.app.use((event) => {
+      onDispose(event, () => {
+        disposed = true;
+      });
+      return "ok";
+    });
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    try {
+      const res = t.app.fetch(request());
+
+      expect(res).toBeInstanceOf(Response);
+      expect(res instanceof Promise).toBe(false);
+      if (res instanceof Promise) throw new TypeError("expected Response");
+      expect(disposed).toBe(true);
+      expect(res.status).toBe(200);
+      expect(await res.text()).toBe("ok");
+      expect(t.hooks.onError).not.toHaveBeenCalled();
+      expect(consoleError).not.toHaveBeenCalled();
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+
+  it("absorbs a throwing then method from onResponse and still resolves the built response", async () => {
+    const hookError = new Error("then-method");
+    let disposed = false;
+    const unhandled: unknown[] = [];
+    const onUnhandled = (error: unknown) => {
+      unhandled.push(error);
+    };
+    process.on("unhandledRejection", onUnhandled);
+    t.hooks.onResponse.mockImplementationOnce(
+      () =>
+        ({
+          // eslint-disable-next-line unicorn/no-thenable
+          then() {
+            throw hookError;
+          },
+        }) as unknown as Promise<void>,
+    );
+    t.app.use((event) => {
+      onDispose(event, () => {
+        disposed = true;
+      });
+      return "ok";
+    });
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    try {
+      const pending = t.app.fetch(request());
+      expect(pending).toBeInstanceOf(Promise);
+      if (!(pending instanceof Promise)) throw new TypeError("expected Promise");
+      expect(disposed).toBe(false);
+
+      const res = await pending;
+      expect(disposed).toBe(true);
+      expect(res.status).toBe(200);
+      expect(await res.text()).toBe("ok");
+      expect(t.hooks.onError).not.toHaveBeenCalled();
+      expect(consoleError).toHaveBeenCalledWith(hookError);
+      await Promise.resolve();
+      expect(unhandled).toEqual([]);
+    } finally {
+      process.off("unhandledRejection", onUnhandled);
+      consoleError.mockRestore();
+    }
+  });
+
+  it("does not log a rejected onResponse when silent", async () => {
+    const hookError = new Error("onResponse reject");
+    t.app.config.silent = true;
+    t.hooks.onResponse.mockImplementationOnce(() => Promise.reject(hookError));
+    t.app.use(() => "Hello World!");
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    try {
+      const res = await t.app.fetch(request());
+      expect(res.status).toBe(200);
+      expect(await res.text()).toBe("Hello World!");
+      expect(t.hooks.onError).not.toHaveBeenCalled();
+      expect(consoleError).not.toHaveBeenCalled();
+    } finally {
+      consoleError.mockRestore();
+    }
   });
 });
