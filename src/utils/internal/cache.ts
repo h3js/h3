@@ -103,6 +103,7 @@ const ASCTIME_DATE_RE =
 function parseHTTPDate(value: string): Date | undefined {
   let day: string, dd: string, mon: string, year: number, hh: string, mm: string, ss: string;
   let match: RegExpExecArray | null;
+  let rfc850 = false;
   if ((match = IMF_FIXDATE_RE.exec(value))) {
     [, day, dd, mon, , hh, mm, ss] = match;
     year = Number(match[4]);
@@ -110,11 +111,8 @@ function parseHTTPDate(value: string): Date | undefined {
   } else if ((match = RFC850_DATE_RE.exec(value))) {
     [, day, dd, mon, , hh, mm, ss] = match;
     if (!LONG_DAY_NAMES.includes(day)) return undefined;
-    // A two-digit year more than 50 years in the future is the most recent
-    // past year with the same last two digits (RFC 9110 §5.6.7).
-    const currentYear = new Date().getUTCFullYear();
-    year = Math.floor(currentYear / 100) * 100 + Number(match[4]);
-    if (year > currentYear + 50) year -= 100;
+    year = Math.floor(new Date().getUTCFullYear() / 100) * 100 + Number(match[4]);
+    rfc850 = true;
   } else if ((match = ASCTIME_DATE_RE.exec(value))) {
     // asctime carries no zone but is always UTC.
     [, day, mon, dd, hh, mm, ss] = match;
@@ -136,6 +134,17 @@ function parseHTTPDate(value: string): Date | undefined {
     date.getUTCSeconds() !== Number(ss)
   ) {
     return undefined;
+  }
+  if (rfc850) {
+    // A timestamp more than 50 years in the future is in the most recent past
+    // year with the same last two digits (RFC 9110 §5.6.7). The rule compares
+    // the whole timestamp, not just the year.
+    const limit = new Date();
+    limit.setUTCFullYear(limit.getUTCFullYear() + 50);
+    if (date > limit) {
+      date.setUTCFullYear(year - 100);
+      if (date.getUTCMonth() !== month) return undefined; // 29 Feb in a non-leap year
+    }
   }
   return date;
 }

@@ -864,6 +864,12 @@ describeMatrix("serve static preconditions", (t, { it, expect }) => {
       // 2077 would be more than 50 years ahead, so it is 1977.
       const past = "Saturday, 06-Nov-77 08:49:37 GMT";
       expect(await status("/strong/a", { "if-unmodified-since": past })).toBe(412);
+      // The rule compares the full timestamp: one day past the 50-year mark is
+      // 1976, while exactly 50 years ahead is still 2076.
+      const dayAfter = "Monday, 15-Nov-76 00:00:00 GMT";
+      expect(await status("/strong/a", { "if-unmodified-since": dayAfter })).toBe(412);
+      const boundary = "Saturday, 14-Nov-76 00:00:00 GMT";
+      expect(await status("/strong/a", { "if-unmodified-since": boundary })).toBe(200);
     } finally {
       vi.useRealTimers();
     }
