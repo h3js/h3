@@ -79,18 +79,65 @@ export function isPreconditionFailed(
   return false;
 }
 
+const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const LONG_DAY_NAMES = [
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+];
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
 // IMF-fixdate, then the obsolete RFC 850 and asctime forms (RFC 9110 §5.6.7).
-const HTTP_DATE_RE =
-  /^(?:[A-Z][a-z]{2}, \d{2} [A-Z][a-z]{2} \d{4} \d{2}:\d{2}:\d{2} GMT|[A-Z][a-z]{5,8}, \d{2}-[A-Z][a-z]{2}-\d{2} \d{2}:\d{2}:\d{2} GMT|[A-Z][a-z]{2} [A-Z][a-z]{2} [ \d]\d \d{2}:\d{2}:\d{2} \d{4})$/;
+const IMF_FIXDATE_RE =
+  /^([A-Z][a-z]{2}), (\d{2}) ([A-Z][a-z]{2}) (\d{4}) (\d{2}):(\d{2}):(\d{2}) GMT$/;
+const RFC850_DATE_RE =
+  /^([A-Z][a-z]{5,8}), (\d{2})-([A-Z][a-z]{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2}) GMT$/;
+const ASCTIME_DATE_RE =
+  /^([A-Z][a-z]{2}) ([A-Z][a-z]{2}) ([ \d]\d) (\d{2}):(\d{2}):(\d{2}) (\d{4})$/;
 
 /** Parse an HTTP-date, returning `undefined` for anything else (RFC 9110 §13.1.4). */
 function parseHTTPDate(value: string): Date | undefined {
-  if (!HTTP_DATE_RE.test(value)) {
+  let day: string, dd: string, mon: string, year: number, hh: string, mm: string, ss: string;
+  let match: RegExpExecArray | null;
+  if ((match = IMF_FIXDATE_RE.exec(value))) {
+    [, day, dd, mon, , hh, mm, ss] = match;
+    year = Number(match[4]);
+    if (!DAY_NAMES.includes(day)) return undefined;
+  } else if ((match = RFC850_DATE_RE.exec(value))) {
+    [, day, dd, mon, , hh, mm, ss] = match;
+    if (!LONG_DAY_NAMES.includes(day)) return undefined;
+    // A two-digit year more than 50 years in the future is the most recent
+    // past year with the same last two digits (RFC 9110 §5.6.7).
+    const currentYear = new Date().getUTCFullYear();
+    year = Math.floor(currentYear / 100) * 100 + Number(match[4]);
+    if (year > currentYear + 50) year -= 100;
+  } else if ((match = ASCTIME_DATE_RE.exec(value))) {
+    // asctime carries no zone but is always UTC.
+    [, day, mon, dd, hh, mm, ss] = match;
+    year = Number(match[7]);
+    if (!DAY_NAMES.includes(day)) return undefined;
+  } else {
     return undefined;
   }
-  // asctime carries no zone but is always UTC.
-  const date = new Date(value.endsWith(" GMT") ? value : `${value} GMT`);
-  return Number.isNaN(date.getTime()) ? undefined : date;
+  const month = MONTHS.indexOf(mon);
+  const date = new Date(Date.UTC(year, month, Number(dd), Number(hh), Number(mm), Number(ss)));
+  // Reject out-of-range fields that `Date.UTC` would roll over, like 31 Feb.
+  if (
+    month < 0 ||
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month ||
+    date.getUTCDate() !== Number(dd) ||
+    date.getUTCHours() !== Number(hh) ||
+    date.getUTCMinutes() !== Number(mm) ||
+    date.getUTCSeconds() !== Number(ss)
+  ) {
+    return undefined;
+  }
+  return date;
 }
 
 function opaqueTag(tag: string): string {

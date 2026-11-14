@@ -838,4 +838,34 @@ describeMatrix("serve static preconditions", (t, { it, expect }) => {
       200,
     );
   });
+
+  it("if-unmodified-since: invalid day name or calendar date is ignored", async () => {
+    // Each would parse to a date before mtime (412) if accepted.
+    expect(
+      await status("/strong/a", { "if-unmodified-since": "Foo, 14 Nov 2023 22:13:19 GMT" }),
+    ).toBe(200);
+    expect(
+      await status("/strong/a", { "if-unmodified-since": "Tue, 31 Feb 2023 00:00:00 GMT" }),
+    ).toBe(200);
+    expect(
+      await status("/strong/a", { "if-unmodified-since": "Tue, 14 Nov 2023 24:00:00 GMT" }),
+    ).toBe(200);
+    expect(
+      await status("/strong/a", { "if-unmodified-since": "Tues, 14-Nov-23 22:13:19 GMT" }),
+    ).toBe(200);
+  });
+
+  it("if-unmodified-since: RFC 850 two-digit years use the 50-year rule", async () => {
+    vi.useFakeTimers({ toFake: ["Date"], now: Date.UTC(2026, 10, 14) });
+    try {
+      // 2050, not 1950: no more than 50 years ahead of 2026.
+      const future = "Sunday, 06-Nov-50 08:49:37 GMT";
+      expect(await status("/strong/a", { "if-unmodified-since": future })).toBe(200);
+      // 2077 would be more than 50 years ahead, so it is 1977.
+      const past = "Saturday, 06-Nov-77 08:49:37 GMT";
+      expect(await status("/strong/a", { "if-unmodified-since": past })).toBe(412);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
