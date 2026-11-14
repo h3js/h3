@@ -94,7 +94,7 @@ export function defineRoute<
   TRequestHeaders extends StandardSchemaV1 = StandardSchemaV1,
   TRequestQuery extends StandardSchemaV1 = StandardSchemaV1,
 >(def: RouteDefinition<TRequestBody, TRequestHeaders, TRequestQuery>): H3Plugin {
-  const handler = defineValidatedHandler(def) as any;
+  const handler = defineValidatedHandler(def);
   return (h3: H3) => {
     h3.on(def.method, def.route, handler);
   };

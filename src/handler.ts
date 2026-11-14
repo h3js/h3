@@ -68,6 +68,26 @@ export type ValidatedRequest<
   query: QueryValues<InferOutput<TRequestQuery>>;
 };
 
+type ValidateOptions<
+  TRequestBody extends StandardSchemaV1,
+  TRequestHeaders extends StandardSchemaV1,
+  TRequestQuery extends StandardSchemaV1,
+> = {
+  body?: TRequestBody;
+  headers?: TRequestHeaders;
+  query?: TRequestQuery;
+  onError?: OnValidateError;
+};
+
+type ValidatedHandlerDef<
+  TRequestBody extends StandardSchemaV1,
+  TRequestHeaders extends StandardSchemaV1,
+  TRequestQuery extends StandardSchemaV1,
+  TResponse extends EventHandlerResponse,
+> = Omit<EventHandlerObject, "handler"> & {
+  handler: EventHandler<ValidatedRequest<TRequestBody, TRequestHeaders, TRequestQuery>, TResponse>;
+};
+
 /**
  * @experimental defineValidatedHandler is an experimental feature and API may change.
  */
@@ -77,22 +97,55 @@ export function defineValidatedHandler<
   TRequestQuery extends StandardSchemaV1,
   TResponse extends EventHandlerResponse = EventHandlerResponse,
 >(
-  def: Omit<EventHandlerObject, "handler"> & {
-    validate?: {
-      body?: TRequestBody;
-      headers?: TRequestHeaders;
-      query?: TRequestQuery;
-      onError?: OnValidateError;
-    };
-    handler: EventHandler<
-      ValidatedRequest<TRequestBody, TRequestHeaders, TRequestQuery>,
-      TResponse
-    >;
+  def: ValidatedHandlerDef<TRequestBody, TRequestHeaders, TRequestQuery, TResponse> & {
+    validate: ValidateOptions<TRequestBody, TRequestHeaders, TRequestQuery>;
   },
 ): EventHandlerWithFetch<
   ValidatedRequest<TRequestBody, TRequestHeaders, TRequestQuery>,
-  EventHandlerResponse<TResponse>
-> {
+  Promise<Awaited<TResponse>>
+>;
+
+/**
+ * @experimental defineValidatedHandler is an experimental feature and API may change.
+ */
+export function defineValidatedHandler<
+  TRequestBody extends StandardSchemaV1,
+  TRequestHeaders extends StandardSchemaV1,
+  TRequestQuery extends StandardSchemaV1,
+  TResponse extends EventHandlerResponse = EventHandlerResponse,
+>(
+  def: ValidatedHandlerDef<TRequestBody, TRequestHeaders, TRequestQuery, TResponse> & {
+    validate?: undefined;
+  },
+): EventHandlerWithFetch<ValidatedRequest<TRequestBody, TRequestHeaders, TRequestQuery>, TResponse>;
+
+/**
+ * @experimental defineValidatedHandler is an experimental feature and API may change.
+ */
+export function defineValidatedHandler<
+  TRequestBody extends StandardSchemaV1,
+  TRequestHeaders extends StandardSchemaV1,
+  TRequestQuery extends StandardSchemaV1,
+  TResponse extends EventHandlerResponse = EventHandlerResponse,
+>(
+  def: ValidatedHandlerDef<TRequestBody, TRequestHeaders, TRequestQuery, TResponse> & {
+    validate?: ValidateOptions<TRequestBody, TRequestHeaders, TRequestQuery>;
+  },
+): EventHandlerWithFetch<
+  ValidatedRequest<TRequestBody, TRequestHeaders, TRequestQuery>,
+  TResponse | Promise<Awaited<TResponse>>
+>;
+
+export function defineValidatedHandler(
+  def: ValidatedHandlerDef<
+    StandardSchemaV1,
+    StandardSchemaV1,
+    StandardSchemaV1,
+    EventHandlerResponse
+  > & {
+    validate?: ValidateOptions<StandardSchemaV1, StandardSchemaV1, StandardSchemaV1>;
+  },
+): EventHandlerWithFetch<ValidatedRequest<StandardSchemaV1, StandardSchemaV1, StandardSchemaV1>> {
   if (!def.validate) {
     return defineHandler(def);
   }
