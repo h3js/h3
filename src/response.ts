@@ -32,30 +32,35 @@ export function toResponse(
     return toResponse(response, event, config);
   }
 
-  const { onResponse } = config;
+  // `onResponse` is a terminal side effect. A sync throw, a throwing `.then` read, or a
+  // rejection must not escape (`onError` already ran) or fail the request: absorb and log
+  // it, then still return the built response. Call the hook synchronously so a sync hook
+  // does not force a promise. Read `.then` inside this `try`: a getter that throws is the
+  // same class of failure as a sync throw. Chain only when `then` is callable —
+  // `Promise.resolve` adopts custom thenables whose `then` may throw on a later read or
+  // call — and observe dispose only after that thenable settles. Callbacks stay inside
+  // that branch so a missing or synchronous hook allocates none.
+  const onResponse = config.onResponse;
   if (onResponse) {
-    // onResponse is a terminal side-effect hook (returns void). A throw/rejection here must not
-    // escape the lifecycle (onError already ran); absorb and log it (consistent with dispose
-    // callbacks), then still return the already-built response. The hook is invoked inside `.then`
-    // so a synchronous throw is caught too (not just a rejected promise).
-    return Promise.resolve()
-      .then(() => onResponse(response as Response, event))
-      .catch((error) => {
-        if (!config.silent) console.error(error);
-      })
-      .then(
-        () =>
-          ((event as any)[kEventDispose] as DisposeState | undefined)?.observe(
-            response as Response,
-            val,
-          ) ?? (response as Response),
-      );
+    try {
+      const hookRes = onResponse(response as Response, event);
+      if (typeof (hookRes as PromiseLike<unknown>)?.then === "function") {
+        return Promise.resolve(hookRes)
+          .catch((error) => {
+            if (!config.silent) console.error(error);
+          })
+          .then(() => observeDispose(event, response as Response, val));
+      }
+    } catch (error) {
+      if (!config.silent) console.error(error);
+    }
   }
+  return observeDispose(event, response as Response, val);
+}
+
+function observeDispose(event: H3Event, response: Response, val: unknown): Response {
   return (
-    ((event as any)[kEventDispose] as DisposeState | undefined)?.observe(
-      response as Response,
-      val,
-    ) ?? (response as Response)
+    ((event as any)[kEventDispose] as DisposeState | undefined)?.observe(response, val) ?? response
   );
 }
 
