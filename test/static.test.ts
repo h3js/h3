@@ -757,3 +757,121 @@ describeMatrix("serve static index resolution", (t, { it, expect }) => {
     expect(await docsSlashRes.text()).toBe("docs-index");
   });
 });
+
+describeMatrix("serve static preconditions", (t, { it, expect }) => {
+  const mtime = 1_700_000_000_000;
+  const lastModified = new Date(mtime).toUTCString();
+  const strongOptions: ServeStaticOptions = {
+    getContents: (id) => `asset:${id}`,
+    getMeta: () => ({ type: "text/plain", etag: '"abc"', mtime }),
+  };
+  const weakOptions: ServeStaticOptions = {
+    getContents: (id) => `asset:${id}`,
+    getMeta: () => ({ type: "text/plain", etag: 'W/"abc"', mtime }),
+  };
+
+  beforeEach(() => {
+    t.app.all("/strong/**", (event) => serveStatic(event, strongOptions));
+    t.app.all("/weak/**", (event) => serveStatic(event, weakOptions));
+  });
+
+  const status = async (path: string, headers: Record<string, string>) =>
+    (await t.fetch(path, { headers })).status;
+
+  it("if-match: matching etag, list and `*` pass", async () => {
+    expect(await status("/strong/a", { "if-match": '"abc"' })).toBe(200);
+    expect(await status("/strong/a", { "if-match": '"x", "abc"' })).toBe(200);
+    expect(await status("/strong/a", { "if-match": "*" })).toBe(200);
+  });
+
+  it("if-match: non-matching etag fails with 412", async () => {
+    expect(await status("/strong/a", { "if-match": '"nope"' })).toBe(412);
+  });
+
+  it("if-match: empty list fails with 412", async () => {
+    expect(await status("/strong/a", { "if-match": "" })).toBe(412);
+  });
+
+  it("if-match: uses strong comparison", async () => {
+    expect(await status("/strong/a", { "if-match": 'W/"abc"' })).toBe(412);
+    expect(await status("/weak/a", { "if-match": 'W/"abc"' })).toBe(412);
+    expect(await status("/weak/a", { "if-match": '"abc"' })).toBe(412);
+    expect(await status("/weak/a", { "if-match": "*" })).toBe(200);
+  });
+
+  it("if-match: takes precedence over if-none-match", async () => {
+    const headers = { "if-match": '"nope"', "if-none-match": '"abc"' };
+    expect(await status("/strong/a", headers)).toBe(412);
+  });
+
+  it("if-unmodified-since: fails when modified after the date", async () => {
+    const before = new Date(mtime - 1000).toUTCString();
+    expect(await status("/strong/a", { "if-unmodified-since": before })).toBe(412);
+  });
+
+  it("if-unmodified-since: passes at or after the mtime", async () => {
+    const after = new Date(mtime + 1000).toUTCString();
+    expect(await status("/strong/a", { "if-unmodified-since": lastModified })).toBe(200);
+    expect(await status("/strong/a", { "if-unmodified-since": after })).toBe(200);
+  });
+
+  it("if-unmodified-since: ignored when if-match is present", async () => {
+    const before = new Date(mtime - 1000).toUTCString();
+    const headers = { "if-match": '"abc"', "if-unmodified-since": before };
+    expect(await status("/strong/a", headers)).toBe(200);
+  });
+
+  it("if-unmodified-since: invalid date is ignored", async () => {
+    expect(await status("/strong/a", { "if-unmodified-since": "not a date" })).toBe(200);
+    const iso = new Date(mtime - 1000).toISOString();
+    expect(await status("/strong/a", { "if-unmodified-since": iso })).toBe(200);
+  });
+
+  it("if-unmodified-since: accepts obsolete RFC 850 and asctime dates", async () => {
+    // mtime is Tue, 14 Nov 2023 22:13:20 GMT; asctime dates are UTC.
+    const rfc850 = "Tuesday, 14-Nov-23 22:13:19 GMT";
+    expect(await status("/strong/a", { "if-unmodified-since": rfc850 })).toBe(412);
+    expect(await status("/strong/a", { "if-unmodified-since": "Tue Nov 14 22:13:19 2023" })).toBe(
+      412,
+    );
+    expect(await status("/strong/a", { "if-unmodified-since": "Tue Nov 14 22:13:21 2023" })).toBe(
+      200,
+    );
+  });
+
+  it("if-unmodified-since: invalid day name or calendar date is ignored", async () => {
+    // Each would parse to a date before mtime (412) if accepted.
+    expect(
+      await status("/strong/a", { "if-unmodified-since": "Foo, 14 Nov 2023 22:13:19 GMT" }),
+    ).toBe(200);
+    expect(
+      await status("/strong/a", { "if-unmodified-since": "Tue, 31 Feb 2023 00:00:00 GMT" }),
+    ).toBe(200);
+    expect(
+      await status("/strong/a", { "if-unmodified-since": "Tue, 14 Nov 2023 24:00:00 GMT" }),
+    ).toBe(200);
+    expect(
+      await status("/strong/a", { "if-unmodified-since": "Tues, 14-Nov-23 22:13:19 GMT" }),
+    ).toBe(200);
+  });
+
+  it("if-unmodified-since: RFC 850 two-digit years use the 50-year rule", async () => {
+    vi.useFakeTimers({ toFake: ["Date"], now: Date.UTC(2026, 10, 14) });
+    try {
+      // 2050, not 1950: no more than 50 years ahead of 2026.
+      const future = "Sunday, 06-Nov-50 08:49:37 GMT";
+      expect(await status("/strong/a", { "if-unmodified-since": future })).toBe(200);
+      // 2077 would be more than 50 years ahead, so it is 1977.
+      const past = "Saturday, 06-Nov-77 08:49:37 GMT";
+      expect(await status("/strong/a", { "if-unmodified-since": past })).toBe(412);
+      // The rule compares the full timestamp: one day past the 50-year mark is
+      // 1976, while exactly 50 years ahead is still 2076.
+      const dayAfter = "Monday, 15-Nov-76 00:00:00 GMT";
+      expect(await status("/strong/a", { "if-unmodified-since": dayAfter })).toBe(412);
+      const boundary = "Saturday, 14-Nov-76 00:00:00 GMT";
+      expect(await status("/strong/a", { "if-unmodified-since": boundary })).toBe(200);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
