@@ -256,11 +256,16 @@ function mergeHeaders(base: HeadersInit, overrides: Headers, target = new Header
 }
 
 function mergeVary(base: string, override: string): string {
-  const seen = new Set<string>();
-  return `${base}, ${override}`
+  const tokens = `${base}, ${override}`
     .split(",")
     .map((s) => s.trim())
-    .filter((s) => s && !seen.has(s.toLowerCase()) && seen.add(s.toLowerCase()))
+    .filter(Boolean);
+  if (tokens.includes("*")) {
+    return "*";
+  }
+  const seen = new Set<string>();
+  return tokens
+    .filter((s) => !seen.has(s.toLowerCase()) && seen.add(s.toLowerCase()))
     .join(", ");
 }
 

@@ -630,4 +630,22 @@ describeMatrix("app", (t, { it, expect }) => {
     const res = await t.fetch("/vary-dedup");
     expect(res.headers.get("vary")).toBe("Accept-Encoding, Cookie, Origin");
   });
+
+  it("merges Vary to wildcard if either response or prepared headers specify wildcard", async () => {
+    t.app
+      .get("/vary-wildcard-prepared", (event) => {
+        event.res.headers.set("Vary", "*");
+        return new Response("hi", { headers: { Vary: "Accept-Encoding" } });
+      })
+      .get("/vary-wildcard-response", (event) => {
+        event.res.headers.set("Vary", "Accept-Encoding");
+        return new Response("hi", { headers: { Vary: "*" } });
+      });
+
+    const res1 = await t.fetch("/vary-wildcard-prepared");
+    expect(res1.headers.get("vary")).toBe("*");
+
+    const res2 = await t.fetch("/vary-wildcard-response");
+    expect(res2.headers.get("vary")).toBe("*");
+  });
 });
