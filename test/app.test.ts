@@ -605,4 +605,47 @@ describeMatrix("app", (t, { it, expect }) => {
     const res = await t.fetch("/multi");
     expect(res.headers.getSetCookie()).toEqual(["a=1; Path=/", "b=2; Path=/", "staged=s; Path=/"]);
   });
+
+  it("merges prepared Vary with handler-returned Response Vary header", async () => {
+    t.app
+      .use((event) => {
+        event.res.headers.append("Vary", "Accept-Encoding");
+      })
+      .get("/vary", () => new Response("hi", { headers: { Vary: "Cookie" } }));
+
+    const res = await t.fetch("/vary");
+    expect(res.headers.get("vary")).toBe("Cookie, Accept-Encoding");
+  });
+
+  it("deduplicates Vary headers case-insensitively when merging", async () => {
+    t.app
+      .use((event) => {
+        event.res.headers.append("Vary", "accept-encoding, Origin");
+      })
+      .get(
+        "/vary-dedup",
+        () => new Response("hi", { headers: { Vary: "Accept-Encoding, Cookie" } }),
+      );
+
+    const res = await t.fetch("/vary-dedup");
+    expect(res.headers.get("vary")).toBe("Accept-Encoding, Cookie, Origin");
+  });
+
+  it("merges Vary to wildcard if either response or prepared headers specify wildcard", async () => {
+    t.app
+      .get("/vary-wildcard-prepared", (event) => {
+        event.res.headers.set("Vary", "*");
+        return new Response("hi", { headers: { Vary: "Accept-Encoding" } });
+      })
+      .get("/vary-wildcard-response", (event) => {
+        event.res.headers.set("Vary", "Accept-Encoding");
+        return new Response("hi", { headers: { Vary: "*" } });
+      });
+
+    const res1 = await t.fetch("/vary-wildcard-prepared");
+    expect(res1.headers.get("vary")).toBe("*");
+
+    const res2 = await t.fetch("/vary-wildcard-response");
+    expect(res2.headers.get("vary")).toBe("*");
+  });
 });
