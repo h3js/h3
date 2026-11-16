@@ -246,11 +246,22 @@ function mergeHeaders(base: HeadersInit, overrides: Headers, target = new Header
   for (const [name, value] of overrides) {
     if (name === "set-cookie") {
       target.append(name, value);
+    } else if (name === "vary" && target.has("vary")) {
+      target.set(name, mergeVary(target.get("vary")!, value));
     } else {
       target.set(name, value);
     }
   }
   return target;
+}
+
+function mergeVary(base: string, override: string): string {
+  const seen = new Set<string>();
+  return `${base}, ${override}`
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => s && !seen.has(s.toLowerCase()) && seen.add(s.toLowerCase()))
+    .join(", ");
 }
 
 const frozen =
