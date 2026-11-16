@@ -19,6 +19,8 @@ export type {
   FindRouteRules,
 } from "./match.ts";
 
+export { alternatePathReadings } from "./readings.ts";
+
 export { normalizeRouteRules } from "./normalize.ts";
 
 export { mergeMatchedRouteRules } from "./merge.ts";
