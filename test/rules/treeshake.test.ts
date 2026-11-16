@@ -174,6 +174,25 @@ describe("tree-shaking (esbuild)", () => {
     expect(out.has(H3_PROXY)).toBe(false);
   });
 
+  it("alternatePathReadings pulls in neither the matcher, the handlers nor rou3", async () => {
+    for (const forceSideEffects of [false, true]) {
+      const out = await bundle(
+        `import { alternatePathReadings } from "h3/rules";\nexport const r = alternatePathReadings;`,
+        { forceSideEffects },
+      );
+      expect(out.has("src/rules/readings.ts")).toBe(true);
+      expect(out.has(MATCHER)).toBe(false);
+      expect(out.has("src/rules/handlers/")).toBe(false);
+      expect(out.has("src/rules/normalize.ts")).toBe(false);
+      expect(out.has("rou3")).toBe(false);
+      expect(out.has("srvx")).toBe(false);
+      expect(out.has("ocache")).toBe(false);
+      expect(out.has(H3_PROXY)).toBe(false);
+      expect(out.code).not.toMatch(/node:|process\.|Buffer/);
+      expect(out.bytes).toBeLessThan(4096);
+    }
+  });
+
   it("un-memoized createMatcherFromFind shakes out the memoize wrapper", async () => {
     // Memoization is wired in createRouteRulesMatcher, not createMatcherFromFind,
     // so an un-memoized compiled matcher must not bundle memoizeRouteRulesMatcher

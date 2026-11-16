@@ -84,7 +84,7 @@ export function formatRouteKey(method: string, path: string): string {
  * optional syntax, an escape inside a constraint is literal regex text, and
  * recasing one would make the key miss its own route's spelling. Other spellings
  * of a request (decoded, nested, hex-recased) are the matcher's alternate
- * readings (see `alternateReadings`).
+ * readings (see `alternatePathReadings`).
  *
  * Idempotent, which the compiler's byte-identical codegen depends on: run to a
  * fixpoint because canonicalizing can fabricate a new escape (`%2%31` → `%21`)
