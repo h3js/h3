@@ -15,7 +15,7 @@ import { H3, serveStatic } from "h3";
 
 const app = new H3();
 
-app.use("/public/**", (event) => {
+app.use("/**", (event) => {
   return serveStatic(event, {
     getContents: (id) => {
       // TODO
@@ -47,7 +47,7 @@ import { H3, serve, serveStatic } from "h3";
 
 const app = new H3();
 
-app.use("/public/**", (event) => {
+app.use("/**", (event) => {
   return serveStatic(event, {
     indexNames: ["/index.html"],
     getContents: (id) => readFile(join("public", id)),
@@ -69,3 +69,10 @@ serve(app);
 The `getContents` reads the file and returns its contents, pretty simple. The `getMeta` uses `fs.stat` to get the file metadata. If the file does not exist or is not a file, it returns `undefined`. Otherwise, it returns the file size and the last modification time.
 
 The file size and last modification time are used to create an etag to send a `304 Not Modified` response if the file has not been modified since the last request. This is useful to avoid sending the same file multiple times if it has not changed.
+
+> [!TIP]
+> The `id` is the full request path. To serve the directory under a prefix such as `/public`, wrap the handler with `withBase` so the prefix is removed first:
+>
+> ```ts
+> app.use("/public/**", withBase("/public", (event) => serveStatic(event, { ... })));
+> ```
