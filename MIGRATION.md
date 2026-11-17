@@ -69,7 +69,7 @@ Any handler can return a response. If middleware don't return a response, next h
 
 :read-more{to="/guide/basics/lifecycle" title="Request Lifecycle"}
 
-H3 migrated to a brand new route-matching engine ([🌳 rou3](https://rou3.h3.dev/)). You might experience slight (but more intuitive) behavior changes for matching patterns.
+H3 migrated to a brand new route-matching engine ([🌳 rou3](https://github.com/h3js/rou3)). You might experience slight (but more intuitive) behavior changes for matching patterns.
 
 **Other changes from v1:**
 
