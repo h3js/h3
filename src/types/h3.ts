@@ -1,9 +1,8 @@
 import type { H3EventContext } from "./context.ts";
 import type { HTTPHandler, EventHandler, EventHandlerRequest, Middleware } from "./handler.ts";
 import type { HTTPError } from "../error.ts";
-import type { MaybePromise } from "./_utils.ts";
+import type { MaybePromise, RouteParams } from "./_utils.ts";
 import type { FetchHandler, ServerRequest } from "srvx";
-// import type { MatchedRoute, RouterContext } from "rou3";
 import type { H3Event } from "../event.ts";
 import type { H3Plugin } from "../plugin.ts";
 import type { ComposedMiddleware } from "../middleware.ts";
@@ -154,10 +153,17 @@ export declare class H3Core {
   "~addRoute"(_route: H3Route): void;
 }
 
-/**
- * Registers a route handler, inferring the handler request type when it has one.
- */
+type RouteRequest<Route extends string> = string extends Route
+  ? EventHandlerRequest
+  : { routerParams: RouteParams<Route> };
+
+/** Registers route handlers with inferred params or explicit request types. */
 export interface RouteRegistrar<T> {
+  <Route extends string>(
+    route: Route,
+    handler: HTTPHandler<RouteRequest<Route>>,
+    opts?: RouteOptions,
+  ): T;
   <_RequestT extends EventHandlerRequest = EventHandlerRequest>(
     route: string,
     handler: HTTPHandler<_RequestT>,
@@ -191,6 +197,12 @@ export declare class H3 extends H3Core {
   /**
    * Register a route handler for the specified HTTP method and route.
    */
+  on<Route extends string>(
+    method: HTTPMethod | Lowercase<HTTPMethod> | "",
+    route: Route,
+    handler: HTTPHandler<RouteRequest<Route>>,
+    opts?: RouteOptions,
+  ): this;
   on<_RequestT extends EventHandlerRequest = EventHandlerRequest>(
     method: HTTPMethod | Lowercase<HTTPMethod> | "",
     route: string,
