@@ -242,10 +242,29 @@ function prepareResponse(
     : val;
 }
 
+function mergeVary(existing: string, incoming: string): string {
+  const seen = new Set<string>();
+  const merged: string[] = [];
+  for (const part of `${existing},${incoming}`.split(",")) {
+    const trimmed = part.trim();
+    if (!trimmed) continue;
+    if (trimmed === "*") return "*";
+    const lower = trimmed.toLowerCase();
+    if (!seen.has(lower)) {
+      seen.add(lower);
+      merged.push(trimmed);
+    }
+  }
+  return merged.join(", ");
+}
+
 function mergeHeaders(base: HeadersInit, overrides: Headers, target = new Headers(base)): Headers {
   for (const [name, value] of overrides) {
     if (name === "set-cookie") {
       target.append(name, value);
+    } else if (name === "vary") {
+      const existing = target.get(name);
+      target.set(name, existing ? mergeVary(existing, value) : value);
     } else {
       target.set(name, value);
     }
