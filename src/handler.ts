@@ -152,17 +152,18 @@ export function defineLazyEventHandler<_RequestT extends EventHandlerRequest = E
   loader: () => MaybePromise<HTTPHandler<_RequestT>>,
 ): EventHandlerWithFetch<ResolvedRequest<_RequestT>> {
   let handler: EventHandler | undefined;
-  let promise: Promise<EventHandler> | undefined;
   return defineHandler(function lazyHandler(event) {
+    // Cache the resolved handler, not the pending load: a pending promise may
+    // never settle (e.g. cancelled request on Workers) or may have rejected.
     return handler
       ? handler(event)
-      : (promise ??= Promise.resolve(loader()).then(function resolveLazyHandler(r: any) {
-          handler = toEventHandler(r) || toEventHandler(r.default);
-          if (typeof handler !== "function") {
+      : Promise.resolve(loader()).then(function resolveLazyHandler(r: any) {
+          const resolved = toEventHandler(r) || toEventHandler(r.default);
+          if (typeof resolved !== "function") {
             throw new TypeError("Invalid lazy handler", { cause: { resolved: r } });
           }
-          return handler;
-        })).then((r) => r(event));
+          return (handler = resolved)(event);
+        });
   });
 }
 
