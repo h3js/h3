@@ -33,6 +33,10 @@ export function requestWithURL(req: ServerRequest, url: string): ServerRequest {
       const value = Reflect.get(target, prop);
       // Never memoize `bodyUsed`: it flips when the body is consumed.
       if (prop === "bodyUsed") return value;
+      // The clone has to carry the overridden url, not the original one.
+      if (prop === "clone" && typeof value === "function") {
+        return (cache.clone = () => requestWithURL(value.call(target), url));
+      }
       // Methods are bound so they run against the real request (private field
       // brand checks), but `constructor` has to keep its identity for
       // `req.constructor === Request` style duck-typing.

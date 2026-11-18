@@ -77,8 +77,36 @@ describe("requestWithURL", () => {
   it("clone() works and keeps overridden url", () => {
     const proxied = requestWithURL(original, "http://example.com/path");
     const cloned = proxied.clone();
-    expect(cloned.url).toBe("http://example.com/base/path");
+    expect(cloned.url).toBe("http://example.com/path");
     expect(cloned.method).toBe("POST");
+    expect(cloned.headers.get("x-test")).toBe("value");
+    expect(cloned instanceof Request).toBe(true);
+    expect(cloned.clone().url).toBe("http://example.com/path");
+  });
+
+  it("clone() tees the body of the source request", async () => {
+    const req = new Request("http://example.com/base/path", { method: "POST", body: "hello" });
+    const proxied = requestWithURL(req, "http://example.com/path");
+    const cloned = proxied.clone();
+    expect(await cloned.text()).toBe("hello");
+    expect(cloned.bodyUsed).toBe(true);
+    expect(proxied.bodyUsed).toBe(false);
+    expect(await proxied.text()).toBe("hello");
+  });
+
+  it("does not add clone() to a target without one", () => {
+    const proxied = requestWithURL(
+      { url: "http://example.com/base" } as any,
+      "http://example.com/",
+    );
+    expect(proxied.clone).toBeUndefined();
+  });
+
+  it("clone() throws once the body is used", async () => {
+    const req = new Request("http://example.com/base/path", { method: "POST", body: "hello" });
+    const proxied = requestWithURL(req, "http://example.com/path");
+    await proxied.text();
+    expect(() => proxied.clone()).toThrow(TypeError);
   });
 });
 

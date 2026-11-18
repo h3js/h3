@@ -49,6 +49,16 @@ describeMatrix("mount", (t, { it, expect, describe }) => {
       expect(await res.text()).toBe("sub");
     });
 
+    it("keeps the stripped url on req.clone()", async () => {
+      t.app.mount("/api", async (req) => {
+        const cloned = req.clone();
+        const { pathname, search } = new URL(cloned.url);
+        return Response.json({ url: pathname + search, body: await cloned.text() });
+      });
+      const res = await t.fetch("/api/users?x=1", { method: "POST", body: "hi" });
+      expect(await res.json()).toEqual({ url: "/users?x=1", body: "hi" });
+    });
+
     it("works with compat object", async () => {
       t.app.mount("/test", {
         fetch: (req: Request) => new Response(new URL(req.url).pathname),
