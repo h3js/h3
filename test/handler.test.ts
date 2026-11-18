@@ -122,6 +122,23 @@ describe("handler.ts", () => {
       await expect(promise).rejects.toThrowError("Invalid lazy handler");
       await expect(promise).rejects.toMatchObject({ cause: { resolved: mod } });
     });
+
+    it("should not reuse a pending or failed load across requests", async () => {
+      const lazyHandler = vi.fn(async (_: H3Event) => "lazy");
+      const load = vi
+        .fn<() => Promise<typeof lazyHandler>>()
+        .mockImplementationOnce(() => new Promise(() => {})) // never settles
+        .mockImplementationOnce(() => Promise.reject(new Error("load failed")))
+        .mockImplementation(() => Promise.resolve(lazyHandler));
+      const lazyEventHandler = defineLazyEventHandler(load);
+      const mockEvent = {} as H3Event;
+
+      void lazyEventHandler(mockEvent); // first request, stuck forever
+      await expect(lazyEventHandler(mockEvent)).rejects.toThrowError("load failed");
+      expect(await lazyEventHandler(mockEvent)).toBe("lazy");
+      expect(await lazyEventHandler(mockEvent)).toBe("lazy");
+      expect(load).toHaveBeenCalledTimes(3);
+    });
   });
 
   describe("defineValidatedHandler", () => {
