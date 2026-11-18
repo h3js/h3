@@ -705,9 +705,122 @@ describeMatrix("cookies", (t, { it, expect, describe }) => {
         ]);
         expect(await result.text()).toBe("200");
       });
+
+      it("removes chunks set earlier in the same request", async () => {
+        t.app.get("/", (event) => {
+          setChunkedCookie(event, "session", "AABBCCDDEE", { chunkMaxLength: 4 });
+          setChunkedCookie(event, "session", "FFGGHH", { chunkMaxLength: 4 });
+          return "200";
+        });
+        const result = await t.fetch("/");
+        expect(result.headers.getSetCookie()).toEqual([
+          "session.3=; Max-Age=0; Path=/",
+          "session=__chunked__2; Path=/",
+          "session.1=FFGG; Path=/",
+          "session.2=HH; Path=/",
+        ]);
+      });
+
+      it("removes chunks set earlier in the same request when the new value is unchunked", async () => {
+        t.app.get("/", (event) => {
+          setChunkedCookie(event, "session", "AABBCCDD", { chunkMaxLength: 4 });
+          setChunkedCookie(event, "session", "tiny", { chunkMaxLength: 4 });
+          return "200";
+        });
+        const result = await t.fetch("/");
+        expect(result.headers.getSetCookie()).toEqual([
+          "session.1=; Max-Age=0; Path=/",
+          "session.2=; Max-Age=0; Path=/",
+          "session=tiny; Path=/",
+        ]);
+      });
+
+      it("removes chunks set earlier in the same request with a custom encoder", async () => {
+        t.app.get("/", (event) => {
+          setChunkedCookie(event, "session", "AABBCCDDEEFF", { chunkMaxLength: 8, encode: btoa });
+          setChunkedCookie(event, "session", "ti", { chunkMaxLength: 8, encode: btoa });
+          return "200";
+        });
+        const result = await t.fetch("/");
+        expect(result.headers.getSetCookie().map((c) => c.split(";")[0])).toEqual([
+          "session.1=",
+          "session.2=",
+          `session=${btoa("ti")}`,
+        ]);
+      });
+
+      it("removes chunks from both the request and the same response", async () => {
+        t.app.get("/", (event) => {
+          setChunkedCookie(event, "session", "AABBCCDD", { chunkMaxLength: 4 });
+          setChunkedCookie(event, "session", "tiny", { chunkMaxLength: 4 });
+          return "200";
+        });
+        const result = await t.fetch("/", {
+          headers: {
+            Cookie: [
+              `session=${CHUNKED_COOKIE}3`,
+              "session.1=aaa",
+              "session.2=bbb",
+              "session.3=ccc",
+            ].join("; "),
+          },
+        });
+        expect(result.headers.getSetCookie()).toEqual([
+          "session.1=; Max-Age=0; Path=/",
+          "session.2=; Max-Age=0; Path=/",
+          "session.3=; Max-Age=0; Path=/",
+          "session=tiny; Path=/",
+        ]);
+      });
     });
 
     describe("deleteChunkedCookie", () => {
+      it("deletes chunks set earlier in the same request", async () => {
+        t.app.get("/", (event) => {
+          setChunkedCookie(event, "session", "AABBCCDD", { chunkMaxLength: 4 });
+          deleteChunkedCookie(event, "session");
+          return "200";
+        });
+        const result = await t.fetch("/");
+        expect(result.headers.getSetCookie()).toEqual([
+          "session=; Max-Age=0; Path=/",
+          "session.1=; Max-Age=0; Path=/",
+          "session.2=; Max-Age=0; Path=/",
+        ]);
+      });
+
+      it("deletes staged chunks after the main cookie was overwritten", async () => {
+        t.app.get("/", (event) => {
+          setChunkedCookie(event, "session", "AABBCCDD", { chunkMaxLength: 4 });
+          setCookie(event, "session", "plain");
+          deleteChunkedCookie(event, "session");
+          return "200";
+        });
+        const result = await t.fetch("/");
+        expect(result.headers.getSetCookie()).toEqual([
+          "session=; Max-Age=0; Path=/",
+          "session.1=; Max-Age=0; Path=/",
+          "session.2=; Max-Age=0; Path=/",
+        ]);
+      });
+
+      it("ignores other cookies whose name starts with the same prefix", async () => {
+        t.app.get("/", (event) => {
+          setCookie(event, "session-id", `${CHUNKED_COOKIE}2`);
+          setCookie(event, "session.x", "1");
+          setCookie(event, "session.999", "1");
+          deleteChunkedCookie(event, "session");
+          return "200";
+        });
+        const result = await t.fetch("/");
+        expect(result.headers.getSetCookie()).toEqual([
+          `session-id=${CHUNKED_COOKIE}2; Path=/`,
+          "session.x=1; Path=/",
+          "session.999=1; Path=/",
+          "session=; Max-Age=0; Path=/",
+        ]);
+      });
+
       it("deletes all chunks of a chunked cookie", async () => {
         t.app.get("/", (event) => {
           deleteChunkedCookie(event, "session");

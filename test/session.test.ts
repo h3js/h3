@@ -670,6 +670,23 @@ describeMatrix("session", (t, { it, expect }) => {
     expect(body.session.data.token).toBe(token);
   });
 
+  it("clearSession deletes chunks written earlier in the same request", async () => {
+    const config: SessionConfig = { name: "h3-chunk-clear", password: sessionConfig.password };
+    t.app.get("/chunk-clear", async (event) => {
+      await updateSession(event, config, { big: "x".repeat(5000) });
+      await clearSession(event, config);
+      return "ok";
+    });
+    const res = await t.fetch("/chunk-clear");
+    const cookies = res.headers.getSetCookie();
+    expect(cookies.map((c) => c.split("=")[0])).toEqual([
+      "h3-chunk-clear",
+      "h3-chunk-clear.1",
+      "h3-chunk-clear.2",
+    ]);
+    expect(cookies.every((c) => c.includes("Max-Age=0"))).toBe(true);
+  });
+
   it("keeps loaded session data prototype-free", async () => {
     t.app.post("/proto", async (event) => {
       const session = await getSession(event, sessionConfig);
