@@ -213,15 +213,12 @@ export function setChunkedCookie(
   }
 
   // delete any prior left over chunks if the cookie is updated
-  const previousCookie = getCookie(event, name);
-  if (previousCookie?.startsWith(CHUNKED_COOKIE)) {
-    const previousChunkCount = getChunkedCookieCount(previousCookie);
-    // Number of chunk cookies (`name.N`) written for the new value. Values that
-    // fit in a single cookie are stored unchunked, so no chunks are written.
-    const newChunkCount = chunkCount <= 1 ? 0 : chunkCount;
-    for (let i = newChunkCount + 1; i <= previousChunkCount; i++) {
-      deleteCookie(event, chunkCookieName(name, i), options);
-    }
+  const previousChunkCount = getPreviousChunkCount(event, name);
+  // Number of chunk cookies (`name.N`) written for the new value. Values that
+  // fit in a single cookie are stored unchunked, so no chunks are written.
+  const newChunkCount = chunkCount <= 1 ? 0 : chunkCount;
+  for (let i = newChunkCount + 1; i <= previousChunkCount; i++) {
+    deleteCookie(event, chunkCookieName(name, i), options);
   }
 
   if (chunkCount <= 1) {
@@ -253,14 +250,11 @@ export function deleteChunkedCookie(
   name: string,
   serializeOptions?: CookieSerializeOptions,
 ): void {
-  const mainCookie = getCookie(event, name);
+  const chunksCount = getPreviousChunkCount(event, name);
   deleteCookie(event, name, serializeOptions);
 
-  const chunksCount = getChunkedCookieCount(mainCookie);
-  if (chunksCount >= 0) {
-    for (let i = 0; i < chunksCount; i++) {
-      deleteCookie(event, chunkCookieName(name, i + 1), serializeOptions);
-    }
+  for (let i = 1; i <= chunksCount; i++) {
+    deleteCookie(event, chunkCookieName(name, i), serializeOptions);
   }
 }
 
@@ -291,6 +285,25 @@ function getChunkedCookieCount(cookie: string | undefined): number {
   const count = Number.parseInt(cookie.slice(CHUNKED_COOKIE.length));
   if (Number.isNaN(count) || count < 0 || count > MAX_CHUNKED_COOKIE_COUNT) {
     return Number.NaN;
+  }
+  return count;
+}
+
+/**
+ * Number of `name.N` chunks that may exist for `name`: those the client sent
+ * and those already staged on the response earlier in the same request.
+ */
+function getPreviousChunkCount(event: H3Event, name: string): number {
+  let count = getChunkedCookieCount(getCookie(event, name)) || 0;
+  const prefix = `${name}.`;
+  for (const cookie of event.res.headers.getSetCookie()) {
+    if (cookie.startsWith(prefix)) {
+      const index = cookie.slice(prefix.length, cookie.indexOf("="));
+      const chunk = /^\d+$/.test(index) ? Number(index) : 0;
+      if (chunk > count && chunk <= MAX_CHUNKED_COOKIE_COUNT) {
+        count = chunk;
+      }
+    }
   }
   return count;
 }
