@@ -165,6 +165,7 @@ export {
   type EventStreamMessage,
   type EventStreamOptions,
   EventStream,
+  isEventStream,
 } from "./utils/event-stream.ts";
 
 // Timing
