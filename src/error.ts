@@ -118,6 +118,8 @@ export class HTTPError<DataT = unknown> extends Error implements ErrorBody<DataT
    */
   readonly unhandled: boolean | undefined;
 
+  // `override` satisfies noImplicitOverride under lib ESNext. build.config.ts strips it from .d.mts:
+  // Error.isError is not in the ES2022 lib, and noImplicitOverride does not apply to declaration files.
   /**
    * Check if the input is an instance of HTTPError using its constructor name and status.
    *
