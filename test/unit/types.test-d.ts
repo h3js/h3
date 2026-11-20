@@ -23,6 +23,7 @@ import {
   toEventHandler,
   withBase,
   requireBasicAuth,
+  withCacheIsolation,
 } from "../../src/index.ts";
 import {
   appendHeaders,
@@ -539,5 +540,21 @@ describe("basicAuth context", () => {
         { username: string; password?: string; realm: string } | undefined
       >();
     });
+  });
+});
+
+describe("withCacheIsolation", () => {
+  // The wrapper is async, so a synchronous handler's result comes back as a Promise.
+  it("returns a Promise of the handler result", () => {
+    const isolated = withCacheIsolation(() => new Response("ok"));
+    expectTypeOf(isolated({} as H3Event)).toEqualTypeOf<Promise<Response>>();
+    expectTypeOf(withCacheIsolation(async () => "hello")({} as H3Event)).toEqualTypeOf<
+      Promise<string>
+    >();
+  });
+
+  it("keeps the properties of the wrapped handler", () => {
+    const handler = Object.assign(() => "hello", { invalidate: async () => {} });
+    expectTypeOf(withCacheIsolation(handler).invalidate).toEqualTypeOf<() => Promise<void>>();
   });
 });
