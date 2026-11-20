@@ -123,7 +123,13 @@ void buffered;
     encoding: "utf8",
     cwd: root,
   });
-  return `${result.stdout ?? ""}${result.stderr ?? ""}`.trim();
+  const output = `${result.stdout ?? ""}${result.stderr ?? ""}`.trim();
+  expect(result.error).toBeUndefined();
+  expect(
+    result.status,
+    output || `tsc exited with status ${result.status} (signal ${result.signal})`,
+  ).toBe(0);
+  return output;
 }
 
 describe.skipIf(!existsSync(distDir) || !existsSync(tsc))(
