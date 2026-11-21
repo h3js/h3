@@ -265,7 +265,9 @@ export function clearResponseHeaders(event: H3Event, headerNames?: string[]): vo
       event.res.headers.delete(name);
     }
   } else {
-    for (const name of event.res.headers.keys()) {
+    // Snapshot the names first: deleting while iterating the live `Headers`
+    // iterator skips the entry after each deleted one.
+    for (const name of Array.from(event.res.headers.keys())) {
       event.res.headers.delete(name);
     }
   }

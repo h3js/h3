@@ -14,6 +14,7 @@ import {
   html,
   raw,
   writeEarlyHints,
+  clearResponseHeaders,
 } from "../src/index.ts";
 import { describeMatrix } from "./_setup.ts";
 
@@ -267,6 +268,38 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
       t.app.all("/*", (event) => event.req.method);
       expect(await (await t.fetch("/api")).text()).toBe("GET");
       expect(await (await t.fetch("/api", { method: "POST" })).text()).toBe("POST");
+    });
+  });
+
+  describe("clearResponseHeaders", () => {
+    it("removes every response header when no names are given", async () => {
+      t.app.get("/", (event) => {
+        event.res.headers.set("x-a", "1");
+        event.res.headers.set("x-b", "2");
+        event.res.headers.set("x-c", "3");
+        event.res.headers.set("x-d", "4");
+        event.res.headers.append("set-cookie", "a=1");
+        event.res.headers.append("set-cookie", "b=2");
+        clearResponseHeaders(event);
+        return [...event.res.headers.keys()];
+      });
+      const res = await t.fetch("/");
+      expect(await res.json()).toEqual([]);
+      for (const name of ["x-a", "x-b", "x-c", "x-d", "set-cookie"]) {
+        expect(res.headers.get(name)).toBeNull();
+      }
+    });
+
+    it("removes only the given headers", async () => {
+      t.app.get("/", (event) => {
+        event.res.headers.set("x-a", "1");
+        event.res.headers.set("x-b", "2");
+        clearResponseHeaders(event, ["x-a"]);
+        return "ok";
+      });
+      const res = await t.fetch("/");
+      expect(res.headers.get("x-a")).toBeNull();
+      expect(res.headers.get("x-b")).toBe("2");
     });
   });
 
