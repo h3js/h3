@@ -13,7 +13,7 @@ const handler = defineHandler({
 });
 
 // ✔ compatible with .fetch API
-// Use for teesting or integrate into any compatible framework and runtime!
+// Use for testing or integrate into any compatible framework and runtime!
 // [GET] http://localhost/test
 // { hello: "world" }
 console.log(await handler.fetch("/test").then((res) => res.json()));
