@@ -123,7 +123,13 @@ export function handleCacheHeaders(event: H3Event, opts: CacheConditions): boole
  *
  * @param handler The cached event handler to wrap.
  */
-export function withCacheIsolation<T extends (event: H3Event) => unknown>(handler: T): T {
+export type CacheIsolatedHandler<T extends (event: H3Event) => unknown> = ((
+  event: H3Event,
+) => Promise<Awaited<ReturnType<T>>>) & T;
+
+export function withCacheIsolation<T extends (event: H3Event) => unknown>(
+  handler: T,
+): CacheIsolatedHandler<T> {
   async function _handlerWithCacheIsolation(event: H3Event) {
     const cacheControl = getStagedHeader(event, "cache-control");
     const privateCacheControl =
@@ -152,5 +158,5 @@ export function withCacheIsolation<T extends (event: H3Event) => unknown>(handle
     reattachStagedHeaders(event, staged);
     return res;
   }
-  return Object.assign(_handlerWithCacheIsolation, handler) as unknown as T;
+  return Object.assign(_handlerWithCacheIsolation, handler) as unknown as CacheIsolatedHandler<T>;
 }

@@ -223,4 +223,20 @@ describeMatrix("withCacheIsolation", (t, { it, expect }) => {
     expect(res.headers.get("x-err")).toBe("1");
     expect(res.headers.get("x-echo")).toBeNull();
   });
+
+  it("exposes a Promise return type when wrapping a synchronous handler", async () => {
+    const syncHandler = Object.assign(() => new Response("sync-ok"), {
+      customProp: 42,
+    });
+    const wrapped = withCacheIsolation(syncHandler);
+    expect(wrapped.customProp).toBe(42);
+
+    const event = new H3Event(new Request("https://example.test/"));
+    const result = wrapped(event);
+    expect(result).toBeInstanceOf(Promise);
+
+    const res = await result;
+    expect(res).toBeInstanceOf(Response);
+    expect(await res.text()).toBe("sync-ok");
+  });
 });
