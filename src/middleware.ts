@@ -61,10 +61,10 @@ function createMatcher(opts: MiddlewareOptions & { route?: string }) {
       return false;
     }
     if (params) {
-      event.context.middlewareParams = {
-        ...event.context.middlewareParams,
-        ...params,
-      };
+      // A lone spread takes V8's object clone fast path; spreading `undefined`
+      // first sends every copy through the slow generic path.
+      const prev = event.context.middlewareParams;
+      event.context.middlewareParams = prev ? { ...prev, ...params } : { ...params };
     }
     return true;
   };
