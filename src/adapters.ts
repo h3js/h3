@@ -83,10 +83,9 @@ function callNodeHandler(
 ) {
   const isMiddleware = handler.length > 2;
   return new Promise((resolve, reject) => {
-    res.once("close", () => resolve(kHandled));
-    res.once("finish", () => resolve(kHandled));
-    res.once("error", (error) => reject(error));
-    res.once("pipe", (stream) => {
+    const onResEnd = () => resolve(kHandled);
+    const onResError = (error: Error) => reject(error);
+    const onResPipe = (stream: any) => {
       resolve(
         new Promise((resolve, reject) => {
           // The response can end before the source does (client disconnect). `pipe` only
@@ -135,13 +134,27 @@ function callNodeHandler(
           }
         }),
       );
-    });
+    };
+    res.once("close", onResEnd);
+    res.once("finish", onResEnd);
+    res.once("error", onResError);
+    res.once("pipe", onResPipe);
     try {
       if (isMiddleware) {
         Promise.resolve(
-          handler(req, res, (error) =>
-            error ? reject(new HTTPError({ cause: error, unhandled: true })) : resolve(void 0),
-          ),
+          handler(req, res, (error) => {
+            // The middleware hands `res` over to the next handler: drop its listeners, or
+            // every layer leaves its own on the shared response (MaxListenersExceededWarning)
+            res.removeListener("close", onResEnd);
+            res.removeListener("finish", onResEnd);
+            res.removeListener("error", onResError);
+            res.removeListener("pipe", onResPipe);
+            if (error) {
+              reject(new HTTPError({ cause: error, unhandled: true }));
+            } else {
+              resolve(void 0);
+            }
+          }),
         ).catch((error) => reject(new HTTPError({ cause: error, unhandled: true })));
       } else {
         return Promise.resolve((handler as NodeHandler)(req, res))

@@ -495,6 +495,36 @@ describeMatrix("app", (t, { it, expect }) => {
     },
   );
 
+  it.skipIf(t.target !== "node")(
+    "fromNodeHandler middleware removes its response listeners once it calls next()",
+    async () => {
+      // Every node middleware shares the same `res`: listeners left behind by
+      // layers that already passed control on pile up (MaxListenersExceededWarning)
+      const listenerCounts: Record<string, number>[] = [];
+      t.app.get(
+        "/",
+        fromNodeHandler((_req, res) => {
+          listenerCounts.push(
+            Object.fromEntries(
+              ["close", "finish", "error", "pipe"].map((name) => [name, res.listenerCount(name)]),
+            ),
+          );
+          res.end("ok");
+        }),
+      );
+
+      expect(await t.fetch("/").then((r) => r.text())).toBe("ok");
+
+      for (let i = 0; i < 15; i++) {
+        t.app.use(fromNodeHandler((_req, _res, next) => next()));
+      }
+      expect(await t.fetch("/").then((r) => r.text())).toBe("ok");
+
+      expect(listenerCounts).toHaveLength(2);
+      expect(listenerCounts[1]).toEqual(listenerCounts[0]);
+    },
+  );
+
   it("set headers via event.res + Response (mutable)", async () => {
     t.app.use((event) => {
       event.res.headers.set("x-from-event", "1");
