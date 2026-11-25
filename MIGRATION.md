@@ -75,9 +75,8 @@ H3 migrated to a brand new route-matching engine ([🌳 rou3](https://rou3.h3.de
 
 - Middleware added with `app.use("/path", handler)` only matches `/path` (not `/path/foo/bar`). For matching all subpaths like before, it should be updated to `app.use("/path/**", handler)`.
 - The `event.path` received in each handler will have a full path without omitting the prefixes. use `withBase(base, handler)` utility to make prefixed app. (example: `withBase("/api", app.handler)`).
-- **`router.add(path, method: Method | Method[]` signature is changed to `router.add(method: Method, path)`**
-- `router.use(path, handler)` is deprecated. Use `router.all(path, handler)` instead.
-- `app.use(() => handler, { lazy: true })` is no supported anymore. Instead you can use `app.use(defineLazyEventHandler(() => handler), { lazy: true })`.
+- Replace v1's `router.add(path, handler, method)` or `router.use(path, handler, method)` with `app.on(method, path, handler)`. For an array of methods, call `app.on()` once per method. If you omitted the method, use `app.all(path, handler)`.
+- Replace `app.use(() => handler, { lazy: true })` with `app.use(defineLazyEventHandler(() => handler))`. Import `defineLazyEventHandler` from `h3` and omit the old `lazy` option.
 - `app.use(["/path1", "/path2"], ...)` and `app.use("/path", [handler1, handler2])` are not supported anymore. Instead, use multiple `app.use()` calls.
 - `app.resolve(path)` removed.
 
