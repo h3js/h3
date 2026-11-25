@@ -211,8 +211,11 @@ export async function getSession<T extends SessionData = SessionData>(
         // reseal under idleTimeout to slide the window (see `shouldSlide`). A
         // session that failed to unseal has no id and is replaced below, so
         // resealing it here is wasted work.
-        if (session.id && sessionFromCookie && (legacySeal || shouldSlide(session, config))) {
-          await updateSession(event, config);
+        if (session.id && sessionFromCookie) {
+          appendVaryCookie(event);
+          if (legacySeal || shouldSlide(session, config)) {
+            await updateSession(event, config);
+          }
         }
         return session as Session<T>;
       });
@@ -229,6 +232,17 @@ export async function getSession<T extends SessionData = SessionData>(
   }
 
   return session;
+}
+
+function appendVaryCookie(event: HTTPEvent): void {
+  const headers = (event as H3Event).res?.headers;
+  if (!headers) {
+    return;
+  }
+  const vary = headers.get("vary") || "";
+  if (!/(?:^|,)\s*(?:\*|cookie)\s*(?:,|$)/i.test(vary)) {
+    headers.append("vary", "cookie");
+  }
 }
 
 type SessionUpdate<T extends SessionData = SessionData> =
