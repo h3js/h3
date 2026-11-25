@@ -118,6 +118,18 @@ describeMatrix("session", (t, { it, expect }) => {
     });
   });
 
+  it("varies by cookie when a cookie-backed session is read", async () => {
+    t.app.get("/read-only", async (event) => {
+      event.res.headers.set("vary", "accept-encoding");
+      await getSession(event, sessionConfig);
+      return "ok";
+    });
+
+    const result = await t.fetch("/read-only", { headers: { Cookie: cookie } });
+
+    expect(result.headers.get("vary")).toBe("accept-encoding, cookie");
+  });
+
   it("clearSession sets maxAge=0 to delete cookie", async () => {
     t.app.get("/clear", async (event) => {
       await clearSession(event, sessionConfig);
