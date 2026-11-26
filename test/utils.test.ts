@@ -144,6 +144,17 @@ describeMatrix("utils", (t, { it, describe, expect }) => {
         `<html><head><meta http-equiv="refresh" content="0; url=https://example.com/&quot;&gt;&lt;script&gt;alert(1)&lt;/script&gt;&amp;foo=bar" /></head></html>`,
       );
     });
+
+    it("percent-encodes non-ASCII characters in location", async () => {
+      t.app.use(() => redirect("/日本語?q=café&x=%20"));
+      const result = await t.fetch("/");
+      expect(result.status).toBe(302);
+      const location = "/%E6%97%A5%E6%9C%AC%E8%AA%9E?q=caf%C3%A9&x=%20";
+      expect(result.headers.get("location")).toBe(location);
+      expect(await result.text()).toBe(
+        `<html><head><meta http-equiv="refresh" content="0; url=${location.replaceAll("&", "&amp;")}" /></head></html>`,
+      );
+    });
   });
 
   describe("redirectBack", () => {

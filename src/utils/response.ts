@@ -73,6 +73,8 @@ export function redirect(
   status: number = 302,
   statusText?: string,
 ): HTTPResponse {
+  // Header values are byte strings: percent-encode non-ASCII runs (UTF-8) and keep ASCII as given.
+  location = location.replace(/[\u0080-\uFFFF]+/g, (chars) => encodeURI(chars.toWellFormed()));
   const body = /* html */ `<html><head><meta http-equiv="refresh" content="0; url=${escapeHtml(location)}" /></head></html>`;
   return new HTTPResponse(body, {
     status,
